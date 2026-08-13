@@ -1,80 +1,122 @@
 import Link from "next/link";
 import { Globe2, MessageCircle, Send } from "lucide-react";
-import { BrandGlyph } from "@/components/brand/brand-mark";
 import { Logo } from "@/components/layout/logo";
 
+/** 4 คอลัมน์ตามส่วนที่ 6.13 — บนมือถือเป็น accordion ด้วย <details> (ไม่ต้องใช้ JS) */
 const groups = [
   {
-    title: "สำรวจ",
+    title: "เกี่ยวกับ",
     links: [
-      ["นิยายทั้งหมด", "/novels"],
-      ["อัปเดตล่าสุด", "/updates"],
-      ["อันดับ", "/rankings"],
-      ["หมวดหมู่", "/genres"]
+      ["เกี่ยวกับเรา", "/about"],
+      ["ติดต่อ", "/about"],
+      ["ร่วมงานกับเรา", "/about"],
+      ["บล็อก", "/about"]
     ]
   },
   {
-    title: "ช่วยเหลือ",
+    title: "สำหรับผู้อ่าน",
     links: [
+      ["วิธีใช้งาน", "/about"],
+      ["ระบบเหรียญ", "/wallet"],
       ["คำถามที่พบบ่อย", "/about"],
-      ["ติดต่อเรา", "/about"],
-      ["แจ้งปัญหา", "/notifications"]
+      ["แจ้งปัญหา", "/about"]
     ]
   },
   {
-    title: "เกี่ยวกับเรา",
+    title: "สำหรับผู้แปล",
     links: [
-      ["เกี่ยวกับ NiyaiNow", "/about"],
-      ["ข้อกำหนดการใช้งาน", "/terms"],
-      ["นโยบายความเป็นส่วนตัว", "/privacy"]
+      ["สมัครเป็นผู้แปล", "/about"],
+      ["แนวทางการแปล", "/about"],
+      ["ระบบรายได้", "/about"]
+    ]
+  },
+  {
+    title: "กฎหมาย",
+    links: [
+      ["เงื่อนไขการใช้งาน", "/terms"],
+      ["นโยบายความเป็นส่วนตัว (PDPA)", "/privacy"],
+      ["ลิขสิทธิ์ / DMCA", "/terms"]
     ]
   }
 ];
 
+const socials = [
+  { icon: Globe2, label: "เว็บไซต์" },
+  { icon: MessageCircle, label: "LINE" },
+  { icon: Send, label: "Telegram" }
+];
+
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-background/80 pb-24 pt-10 md:pb-10">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 md:grid-cols-[1.4fr_2fr] lg:px-8">
-        <div className="space-y-4">
-          <Logo />
-          <div className="grid max-w-sm gap-2">
-            {[
-              { icon: "fast" as const, title: "อัปเดตไว", text: "ตอนใหม่มาเร็ว ไม่พลาดทุกการติดตาม" },
-              { icon: "read" as const, title: "อ่านง่าย สบายตา", text: "โหมดสีครอบคลุมทั้งเว็บและหน้าอ่าน" },
-              { icon: "heart" as const, title: "ครบทุกแนวที่ชอบ", text: "เลือกต่อได้ไวจากคลังส่วนตัวของคุณ" }
-            ].map((item) => (
-              <div key={item.title} className="flex items-center gap-3 rounded-lg border border-border bg-card/70 p-2.5">
-                <BrandGlyph type={item.icon} />
-                <div>
-                  <p className="text-sm font-bold">{item.title}</p>
-                  <p className="text-xs text-muted-foreground">{item.text}</p>
-                </div>
-              </div>
-            ))}
+    <footer className="mt-16 bg-[var(--brand-ink)] pb-24 text-[#EDE9F7] lg:pb-0">
+      {/* เส้นบน gradient 2px (ส่วนที่ 6.13) */}
+      <div aria-hidden className="h-0.5 w-full bg-[image:var(--grad-primary)]" />
+
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        {/* desktop: 4 คอลัมน์ */}
+        <div className="hidden gap-8 md:grid md:grid-cols-4">
+          {groups.map((group) => (
+            <div key={group.title}>
+              <h2 className="mb-3 text-sm font-semibold">{group.title}</h2>
+              <ul className="grid gap-2">
+                {group.links.map(([label, href]) => (
+                  <li key={href + label}>
+                    <Link href={href} className="text-sm text-[#A79CC4] transition-colors hover:text-white">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* mobile: accordion */}
+        <div className="md:hidden">
+          {groups.map((group) => (
+            <details key={group.title} className="border-b border-white/10">
+              <summary className="flex cursor-pointer list-none items-center justify-between py-4 text-sm font-semibold">
+                {group.title}
+                <span aria-hidden className="text-[#A79CC4]">
+                  +
+                </span>
+              </summary>
+              <ul className="grid gap-2 pb-4">
+                {group.links.map(([label, href]) => (
+                  <li key={href + label}>
+                    <Link href={href} className="block py-1 text-sm text-[#A79CC4]">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </div>
+
+        {/* แถวล่าง */}
+        <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Logo />
+            <p className="mt-2 text-sm text-[#A79CC4]">Your next chapter, right now.</p>
           </div>
-          <p className="max-w-sm text-sm text-muted-foreground">นิยายใหม่ อัปเดตไว อ่านได้ทันที พร้อมคลังส่วนตัวสำหรับกลับมาอ่านต่อได้ไม่สะดุด</p>
-          <div className="flex gap-2">
-            {[Globe2, MessageCircle, Send].map((Icon, index) => (
-              <Link key={index} href="/about" className="grid h-9 w-9 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground" aria-label="social">
+
+          <div className="flex items-center gap-2">
+            {socials.map(({ icon: Icon, label }) => (
+              <Link
+                key={label}
+                href="/about"
+                aria-label={label}
+                title={label}
+                className="grid h-11 w-11 place-items-center rounded-[12px] border border-white/15 text-[#A79CC4] transition-colors hover:border-white/30 hover:text-white"
+              >
                 <Icon className="h-4 w-4" />
               </Link>
             ))}
           </div>
         </div>
-        <div className="grid gap-6 sm:grid-cols-3">
-          {groups.map((group) => (
-            <div key={group.title}>
-              <h3 className="mb-3 text-sm font-semibold">{group.title}</h3>
-              <div className="grid gap-2">
-                {group.links.map(([label, href]) => (
-                  <Link key={href + label} className="text-sm text-muted-foreground hover:text-foreground" href={href}>
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+
+        <p className="mt-6 text-xs text-[#A79CC4]">© {new Date().getFullYear()} NiyaiNow. สงวนลิขสิทธิ์ทุกประการ</p>
       </div>
     </footer>
   );

@@ -59,7 +59,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         <SectionHeader title="ตอนล่าสุด" href={`/novel/${slug}/chapters`} action="ดูสารบัญ" />
         <div className="grid gap-2">
           {chapters.slice(0, 5).map((chapter) => (
-            <Link key={chapter.number} href={`/novel/${slug}/chapter/${chapter.number}`} className="flex items-center justify-between rounded-lg border border-border bg-card p-4 hover:bg-white/5">
+            <Link key={chapter.number} href={`/novel/${slug}/chapter/${chapter.number}`} className="flex items-center justify-between rounded-lg border border-border bg-card p-4 hover:bg-muted">
               <span>ตอนที่ {chapter.number}: {chapter.title}</span>
               <span className="text-sm text-muted-foreground">{chapter.updatedAt}</span>
             </Link>

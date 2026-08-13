@@ -1,113 +1,192 @@
 @import "tailwindcss";
 
+/* =========================================================================
+   NiyaiNow — Design Tokens (ส่วนที่ 2)
+   ปรับที่นี่ที่เดียว มีผลทั้งระบบ
+   ========================================================================= */
+
 :root {
+  /* ---------- Brand Core ---------- */
+  --brand-ink: #2b1257;
   --brand-primary: #6d28ff;
-  --brand-secondary: #a855f7;
-  --brand-accent: #ff6ec7;
-  --brand-fresh: #46f0c2;
-  --brand-gold: #ffd166;
-  --brand-dark-bg: #070b17;
-  --brand-surface: #0f1528;
-  --brand-surface-2: #151c32;
-  --brand-border: rgba(255, 255, 255, 0.08);
-  --brand-text-primary: #f7f7fb;
-  --brand-text-secondary: #9ca3b8;
-  --background: var(--brand-dark-bg);
-  --foreground: var(--brand-text-primary);
-  --card: var(--brand-surface);
-  --card-foreground: var(--brand-text-primary);
-  --popover: var(--brand-surface);
-  --popover-foreground: var(--brand-text-primary);
+  --brand-light: #a855f7;
+  --brand-pink: #ff6ec7;
+  --brand-blue: #60a5fa;
+  --brand-surface: #f7f7fb;
+
+  /* alias ที่โค้ดเดิมใช้อยู่ — คงไว้เพื่อไม่ให้หน้าอื่นพัง
+     (--brand-fresh/--brand-gold เป็นสีนอกพาเลตต์เดิม map เข้าสีแบรนด์แทน) */
+  --brand-secondary: var(--brand-light);
+  --brand-accent: var(--brand-pink);
+  --brand-fresh: var(--brand-blue);
+  --brand-gold: var(--brand-pink);
+
+  /* --brand-light บนพื้นขาว contrast แค่ ~3.1:1 (ส่วนที่ 8 ต้องการ 4.5:1)
+     จึงมีคู่ "-on-light" ไว้ใช้กับ "ข้อความ" บนพื้นสว่างโดยเฉพาะ */
+  --brand-light-on-light: #7e22ce;
+  --brand-pink-on-light: #c2185b;
+  --brand-blue-on-light: #1d4ed8;
+
+  /* ---------- Gradient (ใช้จำกัด: logo / hero / ปุ่มหลัก เท่านั้น) ---------- */
+  --grad-primary: linear-gradient(135deg, #6d28ff 0%, #a855f7 100%);
+  --grad-hot: linear-gradient(135deg, #a855f7 0%, #ff6ec7 100%);
+  --grad-hero: radial-gradient(120% 80% at 70% 10%, #a855f7 0%, #6d28ff 45%, #2b1257 100%);
+
+  /* ---------- Semantic — Light ---------- */
+  --bg-base: #ffffff;
+  --bg-subtle: #f7f7fb;
+  --bg-elevated: #ffffff;
+  --border-color: #e8e5f0;
+  --text-primary: #1a1030;
+  --text-secondary: #6b6480;
+  --text-tertiary: #9b94ad;
+
+  /* ---------- Spacing scale (4pt) ---------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-20: 80px;
+  --sp-24: 96px;
+
+  /* ---------- Radius ---------- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-full: 999px;
+
+  /* ---------- Elevation (เงาสีม่วง ไม่ใช่ดำ) ---------- */
+  --sh-1: 0 1px 2px rgba(43, 18, 87, 0.06), 0 1px 3px rgba(43, 18, 87, 0.04);
+  --sh-2: 0 4px 12px rgba(43, 18, 87, 0.08);
+  --sh-3: 0 12px 32px rgba(43, 18, 87, 0.12);
+  --sh-brand: 0 8px 24px rgba(109, 40, 255, 0.28);
+
+  /* ---------- Motion ---------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+
+  /* ---------- Mapped to app/shadcn-style names ---------- */
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--text-primary);
   --primary: var(--brand-primary);
   --primary-foreground: #ffffff;
-  --secondary: var(--brand-surface-2);
-  --secondary-foreground: var(--brand-text-primary);
-  --muted: #11192f;
-  --muted-foreground: var(--brand-text-secondary);
-  --accent: var(--brand-accent);
-  --accent-foreground: #120716;
-  --destructive: #ff5570;
-  --border: var(--brand-border);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: var(--brand-secondary);
-  --radius: 0.5rem;
-  --shadow-card: 0 18px 50px rgba(0, 0, 0, 0.32);
-  --shadow-soft: 0 12px 34px rgba(4, 8, 20, 0.28);
-  --reader-bg: #090d18;
-  --reader-text: #e8e4dd;
-  color-scheme: dark;
+  --secondary: var(--bg-subtle);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-subtle);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--brand-pink);
+  --accent-foreground: #ffffff;
+  --destructive: #d92d4e;
+  --border: var(--border-color);
+  --input: var(--border-color);
+  --ring: var(--brand-primary);
+  --radius: var(--r-md);
+  --shadow-card: var(--sh-3);
+  --shadow-soft: var(--sh-2);
+
+  /* ค่าเริ่มต้นของ Reader — ถูก override โดย .reader-theme-* */
+  --reader-bg: #ffffff;
+  --reader-text: #1a1030;
+
+  /* ค่าที่ผู้ใช้ปรับได้ในหน้าอ่าน (ReaderView เขียนทับผ่าน inline style) */
+  --reader-font-size: 18px;
+  --reader-line-height: 1.95;
+  --reader-paragraph-gap: 1em;
+  --reader-measure: 680px;
+  --reader-dim: 0;
+
+  color-scheme: light;
 }
 
+/* ---------- Semantic — Dark ---------- */
 .dark {
-  --background: var(--brand-dark-bg);
-  --foreground: var(--brand-text-primary);
-  --card: var(--brand-surface);
-  --card-foreground: var(--brand-text-primary);
-  --popover: var(--brand-surface);
-  --popover-foreground: var(--brand-text-primary);
-  --secondary: var(--brand-surface-2);
-  --secondary-foreground: var(--brand-text-primary);
-  --muted: #11192f;
-  --muted-foreground: var(--brand-text-secondary);
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.1);
-  --shadow-card: 0 18px 50px rgba(0, 0, 0, 0.32);
-  --shadow-soft: 0 12px 34px rgba(4, 8, 20, 0.28);
-  --reader-bg: #090d18;
-  --reader-text: #e8e4dd;
+  --bg-base: #120a24;
+  --bg-subtle: #1b1036;
+  --bg-elevated: #241547;
+  --border-color: #35245c;
+  --text-primary: #ede9f7;
+  --text-secondary: #a79cc4;
+  --text-tertiary: #8d82a8;
+
+  /* บนพื้นเข้ม สีแบรนด์สดใช้เป็นข้อความได้ตรง ๆ */
+  --brand-light-on-light: var(--brand-light);
+  --brand-pink-on-light: var(--brand-pink);
+  --brand-blue-on-light: var(--brand-blue);
+
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --sh-2: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --sh-3: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--text-primary);
+  --secondary: var(--bg-subtle);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-subtle);
+  --muted-foreground: var(--text-secondary);
+  --destructive: #ff5570;
+  --border: var(--border-color);
+  --input: #3f2c6b;
+  --shadow-card: var(--sh-3);
+  --shadow-soft: var(--sh-2);
+
+  --reader-bg: #1a1030;
+  --reader-text: #ddd6eb;
+
   color-scheme: dark;
 }
 
-.light {
-  --background: #f7f7fb;
-  --foreground: #121321;
-  --card: #ffffff;
-  --card-foreground: #121321;
-  --popover: #ffffff;
-  --popover-foreground: #121321;
-  --secondary: #ececf5;
-  --secondary-foreground: #121321;
-  --muted: #edeef7;
-  --muted-foreground: #586070;
-  --border: rgba(20, 24, 40, 0.12);
-  --input: rgba(20, 24, 40, 0.14);
-  --shadow-card: 0 18px 45px rgba(32, 36, 56, 0.12);
-  --shadow-soft: 0 12px 34px rgba(32, 36, 56, 0.1);
-  --reader-bg: #fbfaf7;
-  --reader-text: #191817;
-  color-scheme: light;
+/* =========================================================================
+   Reader themes (ส่วนที่ 2 — ต้องมีครบ 5)
+   แยกจากธีมของ "เว็บ" โดยตั้งใจ: ผู้ใช้เลือกธีมหน้าอ่านได้อิสระ
+   จากธีม light/dark ของตัวเว็บ (ดูเหตุผลใน RATIONALE)
+   ========================================================================= */
+.reader-theme-light {
+  --reader-bg: #ffffff;
+  --reader-text: #1a1030;
+  --reader-scheme: light;
+}
+.reader-theme-sepia {
+  --reader-bg: #f6eddc;
+  --reader-text: #3a2e1e;
+  --reader-scheme: light;
+}
+.reader-theme-mist {
+  --reader-bg: #edeaf3;
+  --reader-text: #241547;
+  --reader-scheme: light;
+}
+.reader-theme-dark {
+  --reader-bg: #1a1030;
+  --reader-text: #ddd6eb;
+  --reader-scheme: dark;
+}
+.reader-theme-amoled {
+  --reader-bg: #000000;
+  --reader-text: #c9c2d9;
+  --reader-scheme: dark;
 }
 
-.sepia {
-  --brand-primary: #7c4a17;
-  --brand-secondary: #a46a2a;
-  --brand-accent: #9a4635;
-  --brand-fresh: #2f7d6b;
-  --brand-gold: #a36a14;
-  --background: #f3ead8;
-  --foreground: #2b241b;
-  --card: #fff7e8;
-  --card-foreground: #2b241b;
-  --popover: #fff8ec;
-  --popover-foreground: #2b241b;
-  --primary: #7c4a17;
-  --primary-foreground: #fff8ec;
-  --secondary: #eadcc5;
-  --secondary-foreground: #2b241b;
-  --muted: #eadfcf;
-  --muted-foreground: #6b5b48;
-  --accent: #9a4635;
-  --accent-foreground: #fff8ec;
-  --border: rgba(87, 64, 38, 0.16);
-  --input: rgba(87, 64, 38, 0.2);
-  --ring: #a46a2a;
-  --shadow-card: 0 18px 45px rgba(73, 50, 25, 0.14);
-  --shadow-soft: 0 12px 34px rgba(73, 50, 25, 0.1);
-  --reader-bg: #f4ecd8;
-  --reader-text: #2f261d;
-  color-scheme: light;
-}
-
+/* =========================================================================
+   Tailwind theme bridge
+   ========================================================================= */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -127,14 +206,39 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --font-sans: var(--font-noto-sans-thai), ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-light: var(--brand-light);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-blue: var(--brand-blue);
+
+  --color-reader-bg: var(--reader-bg);
+  --color-reader-text: var(--reader-text);
+
+  /* UI / display */
+  --font-sans: var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
+  /* Reader body — สลับได้ผ่าน .reader-font-* */
   --font-serif: var(--font-noto-serif-thai), ui-serif, Georgia, serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --radius-sm: calc(var(--radius) * 0.75);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) * 1.25);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+
+  --shadow-e1: var(--sh-1);
+  --shadow-e2: var(--sh-2);
+  --shadow-e3: var(--sh-3);
+  --shadow-brand: var(--sh-brand);
+
+  --ease-brand-out: var(--ease-out);
+  --ease-brand-in-out: var(--ease-in-out);
 }
 
+/* =========================================================================
+   Base
+   ========================================================================= */
 * {
   box-sizing: border-box;
 }
@@ -142,59 +246,173 @@
 html {
   scroll-behavior: smooth;
   text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-width: 320px;
   overflow-x: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 22rem),
-    radial-gradient(circle at 14% -10%, color-mix(in srgb, var(--brand-primary) 28%, transparent), transparent 30rem),
-    radial-gradient(circle at 86% 4%, color-mix(in srgb, var(--brand-accent) 18%, transparent), transparent 24rem),
-    radial-gradient(circle at 52% 42rem, color-mix(in srgb, var(--brand-fresh) 7%, transparent), transparent 28rem),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-feature-settings: "liga" 1, "kern" 1;
+  /* ส่วนที่ 3 — กันคำไทยยาวล้น container */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-a,
-button,
-input,
-select,
-textarea {
-  outline-color: var(--ring);
+/* ---------- กฎเหล็กภาษาไทย (ส่วนที่ 3) ---------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+
+/* ห้าม letter-spacing ติดลบ และห้าม uppercase กับข้อความไทย */
+:lang(th) {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+p {
+  line-height: 1.7;
+}
+
+/* ตัวเลขในตาราง/สถิติ */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Focus ring (ส่วนที่ 4 ข้อ 9 — ห้ามลบ outline) ---------- */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--brand-secondary) 42%, transparent);
+  background: color-mix(in srgb, var(--brand-light) 42%, transparent);
 }
 
+/* ---------- Skip link (ส่วนที่ 8) ---------- */
+.skip-link {
+  position: fixed;
+  top: var(--sp-2);
+  left: var(--sp-2);
+  z-index: 100;
+  transform: translateY(-200%);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 600;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+/* ---------- Utility ---------- */
 .surface-elevated {
   box-shadow: var(--shadow-card);
 }
 
 .hairline {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  background: linear-gradient(90deg, transparent, var(--border-color), transparent);
 }
 
 .premium-panel {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
-    var(--card);
+  background: var(--card);
+  border: 1px solid var(--border-color);
   box-shadow: var(--shadow-soft);
 }
 
-.reader-sepia {
-  --reader-bg: #f4ecd8;
-  --reader-text: #2f261d;
+.grad-primary {
+  background-image: var(--grad-primary);
+}
+.grad-hot {
+  background-image: var(--grad-hot);
+}
+.grad-hero {
+  background-image: var(--grad-hero);
 }
 
-.reader-dark {
-  --reader-bg: #090d18;
-  --reader-text: #e8e4dd;
+/* ---------- Skeleton (ส่วนที่ 7 — ห้าม spinner กลางจอ) ---------- */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 0%,
+    color-mix(in srgb, var(--brand-light) 12%, var(--bg-subtle)) 50%,
+    var(--bg-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s var(--ease-in-out) infinite;
 }
 
-.reader-light {
-  --reader-bg: #fbfaf7;
-  --reader-text: #191817;
+@keyframes skeleton-sweep {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- Hero cover — ลอยขึ้นลงช้า ๆ (ส่วนที่ 6.3) ----------
+   rotation ส่งมาทาง --rot เพื่อให้ keyframe ไม่ทับ transform ที่ตั้งไว้ inline */
+.hero-cover {
+  transform: rotate(var(--rot, 0deg));
+  animation: hero-float 6s var(--ease-in-out) infinite;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: rotate(var(--rot, 0deg)) translateY(0);
+  }
+  50% {
+    transform: rotate(var(--rot, 0deg)) translateY(-10px);
+  }
+}
+
+/* =========================================================================
+   Reader — body font families (ผู้ใช้เลือกได้ 4 ตัว, ส่วนที่ 3)
+   ========================================================================= */
+.reader-font-looped {
+  --reader-family: var(--font-plex-thai-looped), var(--font-plex-thai), sans-serif;
+}
+.reader-font-sarabun {
+  --reader-family: var(--font-sarabun), var(--font-plex-thai), sans-serif;
+}
+.reader-font-anuphan {
+  --reader-family: var(--font-anuphan), var(--font-plex-thai), sans-serif;
+}
+.reader-font-serif {
+  --reader-family: var(--font-noto-serif-thai), Georgia, serif;
+}
+
+/* =========================================================================
+   prefers-reduced-motion — ตัดเหลือ opacity fade (ส่วนที่ 2 / 8)
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 100ms;
+    --dur-base: 100ms;
+    --dur-slow: 100ms;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 100ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity !important;
+    transition-duration: 100ms !important;
+    scroll-behavior: auto !important;
+  }
 }

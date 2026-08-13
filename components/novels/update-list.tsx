@@ -12,7 +12,7 @@ export function UpdateList({ items, limit }: { items: UpdateItem[]; limit?: numb
         const novel = getNovelBySlug(item.novelSlug);
         if (!novel) return null;
         return (
-          <Link key={`${item.novelSlug}-${item.chapter}`} href={`/novel/${item.novelSlug}/chapter/${item.chapter}`} className="grid grid-cols-[48px_1fr] gap-3 border-b border-border p-2.5 transition last:border-0 hover:bg-white/5 sm:grid-cols-[52px_1fr_auto]">
+          <Link key={`${item.novelSlug}-${item.chapter}`} href={`/novel/${item.novelSlug}/chapter/${item.chapter}`} className="grid grid-cols-[48px_1fr] gap-3 border-b border-border p-2.5 transition last:border-0 hover:bg-muted sm:grid-cols-[52px_1fr_auto]">
             <div className="relative h-14 overflow-hidden rounded-md">
               <Image src={novel.cover} alt={novel.thaiTitle} fill sizes="56px" className="object-cover" />
             </div>

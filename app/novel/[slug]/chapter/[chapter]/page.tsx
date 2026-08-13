@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ReaderView } from "@/components/reader/reader-view";
-import { getAdjacentChapters, getChapter, getNovelBySlug } from "@/services/novel-service";
+import { getAdjacentChapters, getChapter, getNovelBySlug, getSimilarNovels } from "@/services/novel-service";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; chapter: string }> }): Promise<Metadata> {
   const { slug, chapter } = await params;
@@ -16,5 +16,6 @@ export default async function ChapterPage({ params }: { params: Promise<{ slug: 
   const item = getChapter(slug, number);
   if (!novel || !item) notFound();
   const adjacent = getAdjacentChapters(slug, number);
-  return <ReaderView novel={novel} chapter={item} previous={adjacent.previous} next={adjacent.next} />;
+  const similar = getSimilarNovels(slug, 6);
+  return <ReaderView novel={novel} chapter={item} previous={adjacent.previous} next={adjacent.next} similar={similar} />;
 }

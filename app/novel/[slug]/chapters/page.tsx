@@ -20,7 +20,7 @@ export default async function ChaptersPage({ params }: { params: Promise<{ slug:
       <SectionHeader title={`สารบัญ ${novel.thaiTitle}`} />
       <div className="grid gap-2">
         {chapters.map((chapter) => (
-          <Link key={chapter.number} href={`/novel/${slug}/chapter/${chapter.number}`} className="grid gap-1 rounded-lg border border-border bg-card p-4 hover:bg-white/5 sm:grid-cols-[120px_1fr_auto]">
+          <Link key={chapter.number} href={`/novel/${slug}/chapter/${chapter.number}`} className="grid gap-1 rounded-lg border border-border bg-card p-4 hover:bg-muted sm:grid-cols-[120px_1fr_auto]">
             <span className="font-mono text-sm text-[var(--brand-accent)]">ตอนที่ {chapter.number}</span>
             <span>{chapter.title}</span>
             <span className="text-sm text-muted-foreground">{chapter.updatedAt}</span>

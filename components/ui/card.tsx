@@ -1,16 +1,33 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("premium-panel rounded-lg border border-border text-card-foreground", className)} {...props} />;
+export function Card({
+  className,
+  interactive = false,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "rounded-[16px] border border-border bg-card text-card-foreground shadow-[var(--sh-1)]",
+        interactive && "transition-shadow duration-[var(--dur-base)] hover:shadow-[var(--sh-2)]",
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
 export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("space-y-1.5 p-5", className)} {...props} />;
+  return <div className={cn("flex flex-col gap-1.5 p-5", className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return <h3 className={cn("text-lg font-semibold", className)} {...props} />;
+}
+
+export function CardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("text-sm leading-relaxed text-muted-foreground", className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

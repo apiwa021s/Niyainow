@@ -60,7 +60,7 @@ export function GlobalSearch({ mode, onNavigate }: { mode: "inline" | "mobile"; 
         aria-label="ค้นหานิยาย"
       />
       {q ? (
-        <button onClick={() => setQ("")} className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-white/10" aria-label="ล้างคำค้น">
+        <button onClick={() => setQ("")} className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted" aria-label="ล้างคำค้น">
           <X className="h-4 w-4" />
         </button>
       ) : null}
@@ -74,7 +74,7 @@ export function GlobalSearch({ mode, onNavigate }: { mode: "inline" | "mobile"; 
                   key={option.href + option.label}
                   href={option.href}
                   onClick={onNavigate}
-                  className={cn("block rounded-md px-3 py-2 text-sm hover:bg-white/10", active === index && "bg-white/10")}
+                  className={cn("block rounded-md px-3 py-2 text-sm hover:bg-muted", active === index && "bg-muted")}
                 >
                   <span className="font-medium">{option.label}</span>
                   <span className="ml-2 text-xs text-muted-foreground">{option.meta}</span>

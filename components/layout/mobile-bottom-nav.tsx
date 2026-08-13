@@ -1,34 +1,66 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Library, Search, UserRound, WandSparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { Bell, BookMarked, Home, Search, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useReaderStore } from "@/stores/use-reader-store";
 
+/**
+ * Bottom tab bar (ส่วนที่ 6.2)
+ * สูง 56px + safe-area, พื้นหลัง blur, เส้นบน 1px
+ * ไอคอน 24px + label 10px, active = สีแบรนด์ + label หนา 600
+ */
 const nav = [
   { href: "/", label: "หน้าแรก", icon: Home },
   { href: "/search", label: "ค้นหา", icon: Search },
-  { href: "/updates", label: "อัปเดต", icon: WandSparkles },
-  { href: "/library", label: "คลัง", icon: Library },
-  { href: "/profile", label: "โปรไฟล์", icon: UserRound }
+  { href: "/library", label: "ชั้นหนังสือ", icon: BookMarked },
+  { href: "/updates", label: "อัปเดต", icon: Bell, badge: true },
+  { href: "/profile", label: "ฉัน", icon: UserRound }
 ];
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const follows = useReaderStore((state) => state.follows);
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/90 px-2 py-2 backdrop-blur md:hidden" aria-label="เมนูมือถือ">
-      <div className="grid grid-cols-5 gap-1">
+    <nav
+      aria-label="เมนูหลักบนมือถือ"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+    >
+      <ul className="grid h-14 grid-cols-5">
         {nav.map((item) => {
-          const active = pathname === item.href;
+          const active = item.href === "/" ? pathname === "/" : Boolean(pathname?.startsWith(item.href));
           const Icon = item.icon;
+          // จุดชมพูบน "อัปเดต" เมื่อมีเรื่องที่ติดตาม (ส่วนที่ 6.2)
+          const showBadge = item.badge && follows.length > 0;
+
           return (
-            <Link key={item.href} href={item.href} className={cn("flex h-12 flex-col items-center justify-center rounded-md text-[11px] text-muted-foreground", active && "bg-secondary text-foreground")}>
-              <Icon className="mb-0.5 h-4 w-4" />
-              {item.label}
-            </Link>
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                prefetch
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative flex h-full flex-col items-center justify-center gap-0.5 transition-colors",
+                  active ? "text-[var(--brand-primary)]" : "text-muted-foreground"
+                )}
+              >
+                <span className="relative">
+                  <Icon className="h-6 w-6" strokeWidth={active ? 2.4 : 1.8} />
+                  {showBadge ? (
+                    <span
+                      aria-hidden
+                      className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--brand-pink)] ring-2 ring-background"
+                    />
+                  ) : null}
+                </span>
+                <span className={cn("text-[10px] leading-none", active && "font-semibold")}>{item.label}</span>
+              </Link>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </nav>
   );
 }

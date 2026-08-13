@@ -14,7 +14,7 @@ export default function GenresPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {getGenres().map((genre) => (
           <Link key={genre.slug} href={`/genre/${genre.slug}`}>
-            <Card className="h-full p-5 transition hover:-translate-y-0.5 hover:border-white/20">
+            <Card className="h-full p-5 transition hover:-translate-y-0.5 hover:border-[var(--brand-light)]">
               <BookOpen className="mb-4 h-6 w-6 text-[var(--brand-accent)]" />
               <h2 className="font-semibold">{genre.name}</h2>
               <p className="text-sm text-muted-foreground">{genre.count.toLocaleString()} เรื่อง</p>

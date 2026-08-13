@@ -1,64 +1,71 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Loader2 } from "lucide-react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "default" | "secondary" | "ghost" | "outline" | "danger";
-  size?: "sm" | "md" | "lg" | "icon";
+/**
+ * Button (ส่วนที่ 7)
+ * variant: primary(gradient) · secondary(solid ม่วง) · ghost · text · danger
+ * size:    sm 32 / md 40 / lg 48px
+ * ทุก variant ใช้ semantic token — ห้าม hardcode white/ ไม่งั้นธีมสว่างพัง
+ */
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "text" | "danger" | "outline" | "default";
+export type ButtonSize = "sm" | "md" | "lg" | "icon" | "icon-sm";
+
+const variants: Record<ButtonVariant, string> = {
+  primary: "bg-[image:var(--grad-primary)] text-white shadow-[var(--sh-brand)] hover:brightness-[1.06] active:translate-y-px",
+  secondary: "bg-[var(--brand-primary)] text-white hover:bg-[color-mix(in_srgb,var(--brand-primary)_88%,black)] active:translate-y-px",
+  ghost: "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground active:translate-y-px",
+  text: "bg-transparent p-0 text-[var(--brand-light-on-light)] underline-offset-4 hover:underline",
+  danger: "bg-destructive text-white hover:brightness-95 active:translate-y-px",
+  // alias ของเดิม
+  outline: "border border-border bg-card text-foreground hover:bg-muted active:translate-y-px",
+  default: "bg-[image:var(--grad-primary)] text-white shadow-[var(--sh-brand)] hover:brightness-[1.06] active:translate-y-px"
 };
 
-const variants = {
-  default: "bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(109,40,255,0.34)] hover:bg-[#5c20dc] active:translate-y-px",
-  secondary: "border border-white/8 bg-secondary text-secondary-foreground shadow-sm hover:bg-white/10 active:translate-y-px",
-  ghost: "bg-transparent text-muted-foreground hover:bg-white/8 hover:text-foreground active:translate-y-px",
-  outline: "border border-border bg-background/25 text-foreground hover:border-white/18 hover:bg-white/8 active:translate-y-px",
-  danger: "bg-destructive text-white hover:brightness-95 active:translate-y-px"
-};
-
-const sizes = {
-  sm: "h-9 px-3 text-sm",
+const sizes: Record<ButtonSize, string> = {
+  sm: "h-8 px-3 text-xs",
   md: "h-10 px-4 text-sm",
-  lg: "h-12 px-5 text-base",
-  icon: "h-10 w-10 p-0"
+  lg: "h-12 px-6 text-base",
+  icon: "h-11 w-11 p-0",
+  "icon-sm": "h-9 w-9 p-0"
 };
 
-export function Button({ className, variant = "default", size = "md", ...props }: ButtonProps) {
+const base =
+  "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-[12px] font-semibold transition-[background,box-shadow,filter,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] disabled:pointer-events-none disabled:opacity-50";
+
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** สปินเนอร์ในปุ่ม — ปุ่มต้องไม่เปลี่ยนขนาด (ส่วนที่ 7) */
+  loading?: boolean;
+};
+
+export function Button({ className, variant = "primary", size = "md", loading = false, children, disabled, ...props }: ButtonProps) {
   return (
-    <button
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-semibold transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
-        variants[variant],
-        sizes[size],
-        className
-      )}
-      {...props}
-    />
+    <button className={cn(base, variants[variant], sizes[size], className)} disabled={disabled || loading} {...props}>
+      {/* เนื้อหาถูกซ่อนแต่ยังกินที่เท่าเดิม ปุ่มจึงไม่กระตุกตอน loading */}
+      <span className={cn("inline-flex items-center gap-2", loading && "invisible")}>{children}</span>
+      {loading ? (
+        <span className="absolute inset-0 grid place-items-center">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          <span className="sr-only">กำลังทำงาน</span>
+        </span>
+      ) : null}
+    </button>
   );
 }
 
-export function ButtonLink({
-  href,
-  children,
-  className,
-  variant = "default",
-  size = "md"
-}: {
+type ButtonLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
   href: string;
   children: ReactNode;
-  className?: string;
-  variant?: ButtonProps["variant"];
-  size?: ButtonProps["size"];
-}) {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+};
+
+export function ButtonLink({ href, children, className, variant = "primary", size = "md", ...props }: ButtonLinkProps) {
   return (
-    <Link
-      href={href}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-semibold transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2",
-        variants[variant],
-        sizes[size],
-        className
-      )}
-    >
+    <Link href={href} prefetch className={cn(base, variants[variant], sizes[size], className)} {...props}>
       {children}
     </Link>
   );

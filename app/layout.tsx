@@ -1,30 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Noto_Sans_Thai, Noto_Serif_Thai } from "next/font/google";
+import { fontVariables } from "./fonts";
 import { ThemeProvider } from "@/components/interactive/theme-provider";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+import { SiteChrome } from "@/components/layout/site-chrome";
+import { ToastProvider } from "@/components/ui/toast";
+import { getFeaturedNovels, getGenres } from "@/services/novel-service";
 import "./globals.css";
-
-const notoSansThai = Noto_Sans_Thai({
-  variable: "--font-noto-sans-thai",
-  subsets: ["thai", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  display: "swap"
-});
-
-const notoSerifThai = Noto_Serif_Thai({
-  variable: "--font-noto-serif-thai",
-  subsets: ["thai", "latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap"
-});
-
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-  display: "swap"
-});
 
 export const metadata: Metadata = {
   title: {
@@ -43,18 +26,30 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#070B17"
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
+    { media: "(prefers-color-scheme: dark)", color: "#120A24" }
+  ]
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="th" className={`${notoSansThai.variable} ${notoSerifThai.variable} ${jetBrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="th" className={fontVariables} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <ThemeProvider>
-          <Header />
-          {children}
-          <Footer />
-          <MobileBottomNav />
+          <ToastProvider>
+            <a href="#main" className="skip-link">
+              ข้ามไปยังเนื้อหาหลัก
+            </a>
+            <SiteChrome>
+              <Header menuData={{ genres: getGenres(), promo: getFeaturedNovels()[0] }} />
+            </SiteChrome>
+            {children}
+            <SiteChrome>
+              <Footer />
+              <MobileBottomNav />
+            </SiteChrome>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>
