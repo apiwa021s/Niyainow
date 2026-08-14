@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextAuthRequest } from "next-auth";
+import type { NextFetchEvent, NextMiddleware } from "next/server";
 
 import { auth } from "@/auth";
 import { decideProxyAccess } from "@/lib/auth/proxy-policy";
+
+type AuthProxyMiddleware = (request: NextAuthRequest, event: NextFetchEvent) => ReturnType<NextMiddleware>;
 
 function loginRedirect(request: NextAuthRequest, admin = false): NextResponse {
   const url = new URL(admin ? "/admin/login" : "/login", request.url);
@@ -10,7 +13,7 @@ function loginRedirect(request: NextAuthRequest, admin = false): NextResponse {
   return NextResponse.redirect(url);
 }
 
-export const proxy = auth((request) => {
+const authorizeRequest: AuthProxyMiddleware = (request) => {
   const pathname = request.nextUrl.pathname;
   const decision = decideProxyAccess(pathname, request.auth?.user);
 
@@ -20,7 +23,13 @@ export const proxy = auth((request) => {
   const url = new URL(decision.login === "admin" ? "/admin/login" : "/login", request.url);
   url.searchParams.set("error", decision.error);
   return NextResponse.redirect(url);
-});
+};
+
+const proxyHandler = auth(authorizeRequest) as NextMiddleware;
+
+export function proxy(request: NextAuthRequest, event: NextFetchEvent) {
+  return proxyHandler(request, event);
+}
 
 export const config = {
   matcher: [
