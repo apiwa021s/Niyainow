@@ -99,7 +99,7 @@ export function NovelCard({
           </div>
         </div>
 
-        <h3 title={novel.thaiTitle} className="mt-2 truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
+        <h3 title={novel.thaiTitle} className="mt-2 block max-w-full truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
 
         <div className="tabular mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-0.5">
@@ -161,7 +161,7 @@ export function RankingCard({ novel, rank }: { novel: Novel; rank: number }) {
               className="object-cover transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:scale-[1.03]"
             />
           </div>
-          <h3 title={novel.thaiTitle} className="mt-2 truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
+          <h3 title={novel.thaiTitle} className="mt-2 block max-w-full truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
           <p className="tabular mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
             <Star className="h-3 w-3 fill-[var(--brand-pink)] text-[var(--brand-pink)]" />
             {novel.rating}
@@ -203,8 +203,8 @@ export function NovelListItem({
       </Link>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <Link href={href ?? `/novel/${novel.slug}`} prefetch className="min-w-0">
-          <h3 className="line-clamp-1 text-sm font-semibold">{novel.thaiTitle}</h3>
+        <Link href={href ?? `/novel/${novel.slug}`} prefetch className="block min-w-0">
+          <h3 title={novel.thaiTitle} className="truncate text-sm font-semibold">{novel.thaiTitle}</h3>
         </Link>
 
         <p className="tabular line-clamp-1 text-xs text-muted-foreground">
@@ -239,7 +239,7 @@ export function NovelMiniCard({ novel }: { novel: Novel }) {
         <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="40px" className="object-cover" />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
+        <p title={novel.thaiTitle} className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
         <p className="tabular truncate text-xs text-muted-foreground">
           {genreNameOf(novel, novel.genres[0])} · {formatNumber(novel.views)} ครั้ง
         </p>
@@ -273,7 +273,7 @@ export function NovelRankingItem({ novel, rank }: { novel: Novel; rank: number }
         <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="44px" className="object-cover" />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
+        <p title={novel.thaiTitle} className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
         <p className="tabular truncate text-xs text-muted-foreground">
           {genreNameOf(novel, novel.genres[0])} · {novel.chapters} ตอน
         </p>

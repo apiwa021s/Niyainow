@@ -1,0 +1,90 @@
+name: Import translated novels
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: Import into Postgres and upload available covers to R2
+        required: true
+        default: false
+        type: boolean
+      limit:
+        description: Number of Mongo books to process in this run
+        required: true
+        default: "5"
+        type: string
+      mode:
+        description: Import mode
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - backfill
+          - incremental
+      chapter_limit:
+        description: Maximum source chapters to process per book before saving progress
+        required: true
+        default: "100"
+        type: string
+      max_runtime_seconds:
+        description: Stop gracefully before this many seconds elapse
+        required: true
+        default: "1200"
+        type: string
+      skip_images:
+        description: Do not fetch or upload cover images
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-translated-novel-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      MONGODB_URL: ${{ secrets.MONGODB_URL }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Preview import
+        if: github.event_name == 'workflow_dispatch' && !inputs.execute
+        run: >-
+          npm run db:import-translated-novels --
+          --mode=${{ inputs.mode }}
+          --limit=${{ inputs.limit }}
+          --chapter-limit=${{ inputs.chapter_limit }}
+          --max-runtime-seconds=${{ inputs.max_runtime_seconds }}
+          ${{ inputs.skip_images && '--skip-images' || '' }}
+
+      - name: Import translated novels
+        if: github.event_name == 'schedule' || inputs.execute
+        run: >-
+          npm run db:import-translated-novels --
+          --execute
+          --mode=${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'auto' }}
+          --limit=${{ github.event_name == 'workflow_dispatch' && inputs.limit || '5' }}
+          --chapter-limit=${{ github.event_name == 'workflow_dispatch' && inputs.chapter_limit || '100' }}
+          --max-runtime-seconds=${{ github.event_name == 'workflow_dispatch' && inputs.max_runtime_seconds || '1200' }}
+          ${{ inputs.skip_images && '--skip-images' || '' }}

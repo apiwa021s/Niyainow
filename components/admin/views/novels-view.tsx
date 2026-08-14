@@ -79,8 +79,8 @@ export function NovelsView({
               {result.items.map((novel) => (
                 <tr key={novel.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-3">
-                    <Link href={`/admin/novels/${novel.slug}`} className="font-semibold hover:underline">{novel.title}</Link>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{novel.authors.join(", ") || "ไม่ระบุผู้แต่ง"} · {novel.genres.map((genre) => genre.name).join(", ")}</p>
+                    <Link href={`/admin/novels/${novel.slug}`} title={novel.title} className="block max-w-[28rem] truncate font-semibold hover:underline">{novel.title}</Link>
+                    <p className="mt-0.5 max-w-[28rem] truncate text-xs text-muted-foreground">{novel.authors.join(", ") || "ไม่ระบุผู้แต่ง"} · {novel.genres.map((genre) => genre.name).join(", ")}</p>
                   </td>
                   <td className="px-4 py-3"><StatusPill {...statusLabels[novel.publicationStatus]} /></td>
                   <td className="tabular px-4 py-3">{novel.publishedChapters.toLocaleString("th-TH")} / {novel.totalChapters.toLocaleString("th-TH")}</td>

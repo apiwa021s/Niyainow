@@ -30,8 +30,8 @@ export function UpdateList({ items, limit }: { items: NovelUpdate[]; limit?: num
                 ) : null}
                 {genre ? <span className="text-xs text-muted-foreground">{novel.genreNames?.[genre] ?? genre}</span> : null}
               </div>
-              <p className="truncate text-sm font-bold">{novel.thaiTitle}</p>
-              <p className="truncate text-sm text-muted-foreground">ตอนที่ {item.chapter} · {item.chapterTitle}</p>
+              <p title={novel.thaiTitle} className="truncate text-sm font-bold">{novel.thaiTitle}</p>
+              <p title={item.chapterTitle} className="truncate text-sm text-muted-foreground">ตอนที่ {item.chapter} · {item.chapterTitle}</p>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground sm:hidden"><Clock className="h-3 w-3" />{item.time}</p>
             </div>
             <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex">

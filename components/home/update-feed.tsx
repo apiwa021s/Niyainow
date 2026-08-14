@@ -59,8 +59,8 @@ export function UpdateFeed({
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="line-clamp-1 text-sm font-semibold">{novel.thaiTitle}</p>
-                    <p className="tabular line-clamp-1 text-xs text-muted-foreground">
+                    <p title={novel.thaiTitle} className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
+                    <p title={item.chapterTitle} className="tabular truncate text-xs text-muted-foreground">
                       ตอนที่ {item.chapter} · {item.chapterTitle}
                     </p>
                   </div>

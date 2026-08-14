@@ -13,6 +13,16 @@ const runtimeEnvSchema = z.object({
   NEXT_PHASE: optionalString,
   NEXT_PUBLIC_APP_URL: optionalUrl,
   NEXT_PUBLIC_ASSET_URL: optionalUrl,
+  MONGODB_URL: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .url()
+      .refine((value) => value.startsWith("mongodb://") || value.startsWith("mongodb+srv://"), {
+        message: "must use the mongodb:// or mongodb+srv:// protocol",
+      })
+      .optional(),
+  ),
   DATABASE_URL: z.preprocess(
     emptyToUndefined,
     z
@@ -43,6 +53,9 @@ const runtimeEnvSchema = z.object({
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export type RequiredDatabaseEnv = Pick<RuntimeEnv, "DATABASE_URL" | "DATABASE_MAX_CONNECTIONS"> & {
   DATABASE_URL: string;
+};
+export type RequiredMongoEnv = Pick<RuntimeEnv, "MONGODB_URL"> & {
+  MONGODB_URL: string;
 };
 export type RequiredAuthEnv = Required<
   Pick<RuntimeEnv, "AUTH_SECRET" | "AUTH_GOOGLE_ID" | "AUTH_GOOGLE_SECRET">
@@ -102,6 +115,13 @@ function requireKeys<const TKey extends keyof RuntimeEnv>(
 export function requireDatabaseEnv(source: NodeJS.ProcessEnv = process.env): RequiredDatabaseEnv {
   const env = getRuntimeEnv(source);
   requireKeys(env, ["DATABASE_URL"], "Database access");
+  return env;
+}
+
+export function requireMongoEnv(source: NodeJS.ProcessEnv = process.env): RequiredMongoEnv {
+  const legacySource = source as NodeJS.ProcessEnv & { mongourl?: string };
+  const env = getRuntimeEnv({ ...source, MONGODB_URL: source.MONGODB_URL || legacySource.mongourl });
+  requireKeys(env, ["MONGODB_URL"], "MongoDB import source");
   return env;
 }
 

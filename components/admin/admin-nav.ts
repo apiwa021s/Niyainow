@@ -1,4 +1,4 @@
-import { BookOpen, FileStack, GalleryHorizontalEnd, LayoutDashboard, MessageSquare, ScrollText, Tags } from "lucide-react";
+import { BookOpen, FileStack, GalleryHorizontalEnd, LayoutDashboard, MessageSquare, RefreshCw, ScrollText, Tags } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type AdminNavItem = {
@@ -26,6 +26,7 @@ export const adminNavGroups: AdminNavGroup[] = [
       { href: "/admin/genres", label: "แนวนิยาย", icon: Tags },
       { href: "/admin/tags", label: "แท็ก", icon: Tags },
       { href: "/admin/banners", label: "แบนเนอร์", icon: GalleryHorizontalEnd },
+      { href: "/admin/sync", label: "Mongo Sync", icon: RefreshCw },
     ],
   },
   {
@@ -41,3 +42,4 @@ export function isNavItemActive(item: AdminNavItem, pathname: string | null) {
   if (!pathname) return false;
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
+
