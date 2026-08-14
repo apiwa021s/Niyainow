@@ -1,0 +1,21 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://niyainow.vercel.app",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": [
+      "PUT"
+    ],
+    "AllowedHeaders": [
+      "content-type",
+      "x-amz-meta-assettype",
+      "x-amz-checksum-sha256",
+      "content-length"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]

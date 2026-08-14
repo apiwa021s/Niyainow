@@ -50,6 +50,11 @@
 - Upload presign and completion are independently rate-limited by admin ID and
   scope. The current limiter is process-local; use a shared KV/Redis-backed
   implementation before deploying multiple write instances.
+- Configure the bucket CORS policy from `docs/cloudflare-r2-cors.json` in
+  Cloudflare R2 Settings so browser presigned `PUT` uploads from the production
+  app origin can pass preflight. Add each Vercel preview origin explicitly when
+  testing uploads from preview deployments; do not add a trailing slash to any
+  origin.
 
 ### Media lifecycle cleanup
 
