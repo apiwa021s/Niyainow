@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgeCheck, BookOpen, ChevronDown, ListOrdered, Play, Star } from "lucide-react";
 
-import { CompleteButton, FollowButton, LibraryButton, ShareButton } from "@/components/interactive/novel-actions";
+import { CompleteButton, FollowButton, LibraryButton, NovelActionBar, ShareButton } from "@/components/interactive/novel-actions";
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
 import { RatingReviewForm } from "@/components/interactive/rating-review-form";
 import { NovelCardHorizontal } from "@/components/novels/novel-card";
@@ -85,7 +85,8 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
   const status = statusMeta(novel.status);
 
   return (
-    <PageShell className="space-y-6">
+    // pb เผื่อแถบคำสั่งลอย (56px) + bottom nav (56px) + safe-area บนมือถือ
+    <PageShell className="space-y-5 pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:space-y-6 lg:pb-24">
       <PublicViewTracker slug={novel.slug} />
       <JsonLd
         data={[
@@ -122,28 +123,29 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         <Image src={novel.backdrop} alt="" fill sizes="100vw" priority className="scale-110 object-cover blur-xl" />
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,8,18,.72),rgba(10,8,18,.94))]" />
 
-        <div className="relative grid gap-6 p-5 sm:p-8 md:grid-cols-[minmax(0,208px)_1fr] md:gap-8 lg:p-10">
-          <div className="mx-auto w-[148px] sm:w-[180px] md:mx-0 md:w-full">
+        {/* มือถือ: ปกอยู่กลาง ข้อความจัดกึ่งกลาง — จอ md ขึ้นไปค่อยแยกสองคอลัมน์ */}
+        <div className="relative grid gap-5 p-5 sm:p-8 md:grid-cols-[minmax(0,208px)_1fr] md:gap-8 lg:p-10">
+          <div className="mx-auto w-[150px] sm:w-[176px] md:mx-0 md:w-full">
             <div className="relative aspect-[2/3] overflow-hidden rounded-[16px] shadow-[0_18px_48px_rgba(0,0,0,.45)] ring-1 ring-white/15">
-              <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="208px" className="object-cover" priority />
+              <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="(max-width: 768px) 176px, 208px" className="object-cover" priority />
             </div>
           </div>
 
-          <div className="min-w-0 text-white">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/75">
+          <div className="min-w-0 text-center text-white md:text-left">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-white/75 sm:text-sm md:justify-start">
               {novel.genres.map((genre, index) => (
                 <span key={genre} className="flex items-center gap-2">
                   {index > 0 ? <span aria-hidden className="text-white/35">•</span> : null}
-                  <Link href={`/genre/${genre}`} prefetch className="rounded-[6px] hover:text-white hover:underline">
+                  <Link href={`/genre/${genre}`} prefetch className="rounded-[6px] py-1 hover:text-white hover:underline">
                     {novel.genreNames?.[genre] ?? genre}
                   </Link>
                 </span>
               ))}
             </div>
 
-            <h1 className="mt-2 text-[1.75rem] font-bold leading-[1.25] sm:text-[2.75rem]">{novel.thaiTitle}</h1>
+            <h1 className="mt-1.5 text-2xl font-bold leading-[1.3] sm:text-[2rem] lg:text-[2.75rem] lg:leading-[1.2]">{novel.thaiTitle}</h1>
 
-            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/80">
+            <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-white/80 md:justify-start">
               <span className="flex items-center gap-1.5 font-medium">
                 By {novel.author}
                 <BadgeCheck className="h-4 w-4 text-[var(--brand-light)]" aria-hidden />
@@ -151,9 +153,12 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
               {novel.title !== novel.thaiTitle ? <span className="text-white/55">· {novel.title}</span> : null}
             </p>
 
-            <p className="mt-4 line-clamp-4 max-w-2xl text-sm leading-[1.85] text-white/75 sm:text-base">{novel.synopsis}</p>
+            <p className="mt-3 line-clamp-3 text-left text-sm leading-[1.85] text-white/75 sm:line-clamp-4 sm:text-base md:max-w-2xl">
+              {novel.synopsis}
+            </p>
 
-            <div className="mt-6 flex flex-wrap gap-2.5">
+            {/* บนมือถือใช้แถบลอยล่างจอแทน จึงซ่อนแถวปุ่มนี้ไว้ ไม่ให้คำสั่งซ้ำสองที่ */}
+            <div className="mt-5 hidden flex-wrap gap-2.5 lg:flex">
               <ButtonLink href={startHref} size="lg" className="flex-col gap-0 px-7 leading-tight">
                 <span className="flex items-center gap-2">
                   <Play className="h-4 w-4 fill-current" />
@@ -169,9 +174,18 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         </div>
       </section>
 
+      <NovelActionBar
+        slug={novel.slug}
+        startHref={startHref}
+        startLabel={firstChapter ? `อ่านตอนที่ ${firstChapter.number}` : "ดูสารบัญ"}
+        followed={userState?.followed}
+        inLibrary={Boolean(userState?.libraryStatus)}
+      />
+
       {/* ---------- แถบสถิติ ---------- */}
-      <section aria-label="สถิติของเรื่อง" className="overflow-x-auto rounded-[16px] border border-border bg-card">
-        <div className="flex min-w-max divide-x divide-border sm:min-w-0 sm:justify-around">
+      {/* มือถือ 2 คอลัมน์ (ไม่ต้องเลื่อนแนวนอนเพื่ออ่านสถิติ) → 3 → 5 บนจอใหญ่ */}
+      <section aria-label="สถิติของเรื่อง" className="overflow-hidden rounded-[16px] border border-border bg-card">
+        <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3 lg:grid-cols-5 lg:divide-y-0">
           <StatCell
             label="สถานะ"
             value={
@@ -200,7 +214,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
       {/* ---------- เนื้อหา + แถบข้าง ---------- */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-6">
-          <section className="rounded-[16px] border border-border bg-card p-5 sm:p-6">
+          <section className="rounded-[16px] border border-border bg-card p-4 sm:p-6">
             <h2 className="text-lg font-semibold">เรื่องย่อ</h2>
             {/* details/summary ย่อ-ขยายได้โดยไม่ต้องพึ่ง JS ฝั่งไคลเอนต์ */}
             <details className="group mt-3">
@@ -217,7 +231,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             </details>
           </section>
 
-          <section className="rounded-[16px] border border-border bg-card p-5 sm:p-6">
+          <section className="rounded-[16px] border border-border bg-card p-4 sm:p-6">
             <SectionHeader title="ตอนล่าสุด" href={`/novel/${slug}/chapters`} action="ดูสารบัญทั้งหมด" icon={<ListOrdered className="h-5 w-5 text-[var(--brand-light-on-light)]" />} />
             {latestChapters.length > 0 ? (
               <ul className="divide-y divide-border">
@@ -242,7 +256,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             )}
           </section>
 
-          <section className="rounded-[16px] border border-border bg-card p-5 sm:p-6">
+          <section className="rounded-[16px] border border-border bg-card p-4 sm:p-6">
             <SectionHeader title="ให้คะแนนและเขียนรีวิว" />
             <RatingReviewForm
               slug={novel.slug}
@@ -307,7 +321,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
                     prefetch
                     className="rounded-[8px] border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--brand-light)] hover:text-foreground"
                   >
-                    {tag}
+                    #{novel.tagNames?.[tag] ?? tag}
                   </Link>
                 ))}
               </div>

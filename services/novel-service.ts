@@ -407,7 +407,7 @@ async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
       .where(and(inArray(novelGenres.novelId, ids), eq(genres.isActive, true)))
       .orderBy(asc(novelGenres.sortOrder), asc(genres.name)),
     db
-      .select({ novelId: novelTags.novelId, slug: tags.slug })
+      .select({ novelId: novelTags.novelId, slug: tags.slug, name: tags.name })
       .from(novelTags)
       .innerJoin(tags, eq(tags.id, novelTags.tagId))
       .where(and(inArray(novelTags.novelId, ids), eq(tags.isActive, true)))
@@ -436,12 +436,12 @@ async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
   ]);
 
   const genreMap = new Map<string, typeof genreRows>();
-  const tagMap = new Map<string, string[]>();
+  const tagMap = new Map<string, typeof tagRows>();
   const authorMap = new Map<string, typeof authorRows>();
   const paid = new Set(paidRows.map((row) => row.novelId));
 
   for (const row of genreRows) genreMap.set(row.novelId, [...(genreMap.get(row.novelId) ?? []), row]);
-  for (const row of tagRows) tagMap.set(row.novelId, [...(tagMap.get(row.novelId) ?? []), row.slug]);
+  for (const row of tagRows) tagMap.set(row.novelId, [...(tagMap.get(row.novelId) ?? []), row]);
   for (const row of authorRows) authorMap.set(row.novelId, [...(authorMap.get(row.novelId) ?? []), row]);
 
   return rows.map((row) => {
@@ -464,7 +464,9 @@ async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
       genreNames: Object.fromEntries(
         novelGenresForRow.map((genre) => [genre.slug, genre.thaiName || genre.name]),
       ),
-      tags: tagMap.get(row.id) ?? [],
+      tags: (tagMap.get(row.id) ?? []).map((tag) => tag.slug),
+      // ป้ายกำกับที่ผู้อ่านเห็น — slug ถูกสร้างอัตโนมัติจึงอ่านไม่รู้เรื่อง (tag-1t0u0zf)
+      tagNames: Object.fromEntries((tagMap.get(row.id) ?? []).map((tag) => [tag.slug, tag.name])),
       status: toPublicStatus(row.status),
       rating: Number(row.rating.toFixed(2)),
       ratingCount: row.ratingCount,

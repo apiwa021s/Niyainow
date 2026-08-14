@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Bookmark, Check, Heart, LoaderCircle, Share2 } from "lucide-react";
+import { Bell, Bookmark, BookOpen, Check, Heart, LoaderCircle, Share2 } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -173,6 +174,71 @@ export function LibraryButton({
         <span className="tabular text-xs font-medium opacity-70">{formatNumber(displayCount)}</span>
       ) : null}
     </Button>
+  );
+}
+
+/**
+ * แถบคำสั่งลอยล่างจอสำหรับมือถือ (ส่วนที่ 6.2)
+ * ปุ่มหลัก "เริ่มอ่าน" กินพื้นที่ส่วนใหญ่ ที่เหลือเป็นไอคอนขนาดแตะได้ 44px
+ * วางเหนือ bottom nav เดิม 56px + safe-area จึงไม่ทับกัน
+ */
+export function NovelActionBar({
+  slug,
+  startHref,
+  startLabel,
+  followed,
+  inLibrary,
+}: {
+  slug: string;
+  startHref: string;
+  startLabel: string;
+  followed?: boolean;
+  inLibrary?: boolean;
+}) {
+  const follow = useNovelAction({ slug, kind: "follow", initialActive: followed });
+  const library = useNovelAction({ slug, kind: "library", initialActive: inLibrary });
+
+  return (
+    <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-border bg-background/95 px-4 py-2.5 backdrop-blur-xl lg:hidden">
+      <div className="mx-auto flex max-w-md items-center gap-2">
+        <Link
+          href={startHref}
+          prefetch
+          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[image:var(--grad-primary)] text-base font-semibold text-white shadow-[var(--sh-brand)] active:translate-y-px"
+        >
+          <BookOpen className="h-5 w-5" />
+          {startLabel}
+        </Link>
+
+        <button
+          type="button"
+          onClick={follow.toggle}
+          disabled={follow.pending}
+          aria-pressed={follow.active}
+          aria-label={follow.active ? "เลิกติดตามเรื่องนี้" : "ติดตามเรื่องนี้"}
+          className={cn(
+            "grid h-12 w-12 shrink-0 place-items-center rounded-[12px] border border-border transition-colors disabled:opacity-60",
+            follow.active ? "bg-[var(--brand-primary)] text-white" : "bg-card text-muted-foreground",
+          )}
+        >
+          {follow.pending ? <LoaderCircle className="h-5 w-5 animate-spin" /> : follow.active ? <Check className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={library.toggle}
+          disabled={library.pending}
+          aria-pressed={library.active}
+          aria-label={library.active ? "นำออกจากคลัง" : "เพิ่มในคลัง"}
+          className={cn(
+            "grid h-12 w-12 shrink-0 place-items-center rounded-[12px] border border-border transition-colors disabled:opacity-60",
+            library.active ? "bg-[var(--brand-primary)] text-white" : "bg-card text-muted-foreground",
+          )}
+        >
+          {library.pending ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Bookmark className={cn("h-5 w-5", library.active && "fill-current")} />}
+        </button>
+      </div>
+    </div>
   );
 }
 

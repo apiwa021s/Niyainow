@@ -18,6 +18,8 @@ export type Novel = {
   /** Labels keyed by genre slug; keeps presentation independent from seed data. */
   genreNames?: Record<string, string>;
   tags: string[];
+  /** Labels keyed by tag slug; generated slugs are unreadable on their own. */
+  tagNames?: Record<string, string>;
   status: NovelStatus;
   rating: number;
   ratingCount?: number;
