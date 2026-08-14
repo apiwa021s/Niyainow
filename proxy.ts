@@ -25,9 +25,8 @@ const authorizeRequest: AuthProxyMiddleware = (request) => {
   return NextResponse.redirect(url);
 };
 
-const proxyHandler = auth(authorizeRequest) as NextMiddleware;
-
-export function proxy(request: NextAuthRequest, event: NextFetchEvent) {
+export async function proxy(request: NextAuthRequest, event: NextFetchEvent) {
+  const proxyHandler = (await auth(authorizeRequest)) as NextMiddleware;
   return proxyHandler(request, event);
 }
 
