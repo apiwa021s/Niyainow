@@ -92,9 +92,10 @@ export async function createPresignedUpload(input: {
   const uploadUrl = await getSignedUrl(getR2Client(), command, {
     expiresIn: env.R2_UPLOAD_URL_TTL_SECONDS,
   });
+  // The S3 presigner hoists x-amz-meta-* into the query string. Browsers must
+  // not send the same unsigned x-amz-* header again, or R2 rejects the PUT.
   const requiredHeaders: Record<string, string> = {
     "content-type": upload.contentType,
-    "x-amz-meta-assettype": upload.assetType,
   };
   if (upload.checksumSha256) requiredHeaders["x-amz-checksum-sha256"] = upload.checksumSha256;
 

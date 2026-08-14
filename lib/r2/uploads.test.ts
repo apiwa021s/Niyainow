@@ -31,6 +31,8 @@ describe("R2 presign policy", () => {
     expect(signed.objectKey).toMatch(/^covers\//);
     expect(signed.stagingObjectKey).toBe(`staging/${signed.objectKey}`);
     expect(decodeURIComponent(url.pathname)).toContain(`/staging/${signed.objectKey}`);
+    expect(url.searchParams.get("x-amz-meta-assettype")).toBe("cover");
+    expect(signed.requiredHeaders).toEqual({ "content-type": "image/webp" });
     expect(queryKeys).not.toContain("x-amz-checksum-crc32");
     expect(queryKeys).not.toContain("x-amz-sdk-checksum-algorithm");
   });
