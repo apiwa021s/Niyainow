@@ -31,7 +31,7 @@ function getServerSnapshot() {
 export function ThemeSwitcher() {
   const { setTheme, resolvedTheme } = useTheme();
   const mounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
-  // defaultTheme="system" → ต้องอ่าน resolvedTheme ไม่ใช่ theme (ซึ่งจะเป็น "system")
+  // defaultTheme="system"  ต้องอ่าน resolvedTheme ไม่ใช่ theme (ซึ่งจะเป็น "system")
   const activeTheme = mounted ? normalizeTheme(resolvedTheme) : undefined;
 
   return (

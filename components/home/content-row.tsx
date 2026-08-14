@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Content row มาตรฐาน (ส่วนที่ 6.3) — ใช้ซ้ำทุก section
- * • หัวข้อ H2 + คำอธิบาย 1 บรรทัด + "ดูทั้งหมด →" ชิดขวา
+ * • หัวข้อ H2 + คำอธิบาย 1 บรรทัด + "ดูทั้งหมด " ชิดขวา
  * • scroll-snap-type: x mandatory
  * • การ์ดถัดไปโผล่ ~20% เป็นสัญญาณว่าเลื่อนได้ (ได้จาก padding ขวาของ track)
  * • desktop มีลูกศรซ้าย/ขวา ซ่อนเมื่อสุดทาง
@@ -75,7 +75,7 @@ export function ContentRow({
               prefetch
               className="rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
             >
-              {action} →
+              {action} 
             </Link>
           ) : null}
 

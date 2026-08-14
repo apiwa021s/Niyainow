@@ -35,7 +35,7 @@ export type Novel = {
   bookmarkCount?: number;
   /** ชื่อตอนล่าสุด ใช้โชว์ในแถว "อัปเดตล่าสุด" */
   latestChapterTitle?: string;
-  /** มาใหม่สัปดาห์นี้ → badge "ใหม่" */
+  /** มาใหม่สัปดาห์นี้  badge "ใหม่" */
   isNew?: boolean;
   /** มีตอนที่ต้องใช้เหรียญ */
   hasPaidChapters?: boolean;

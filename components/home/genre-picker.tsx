@@ -14,7 +14,7 @@ export function GenrePicker({ items }: { items: { genre: Genre; covers: string[]
           <p className="mt-0.5 text-sm text-muted-foreground">เริ่มจากแนวที่คุณชอบ แล้วค่อยขยับไปแนวใกล้เคียง</p>
         </div>
         <Link href="/genres" prefetch className="shrink-0 rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted">
-          ทั้งหมด →
+          ทั้งหมด 
         </Link>
       </div>
 

@@ -5,7 +5,7 @@ import type { Novel } from "@/types/novel";
 
 /**
  * Hero (ส่วนที่ 6.3)
- * เปลี่ยนจาก carousel เลื่อนอัตโนมัติ → hero นิ่ง เพราะส่วนที่ 11 ห้าม autoplay carousel
+ * เปลี่ยนจาก carousel เลื่อนอัตโนมัติ  hero นิ่ง เพราะส่วนที่ 11 ห้าม autoplay carousel
  * ปกสามใบเอียง -8° / 0° / +8° ลอยขึ้นลงช้า ๆ, ปิด animation เมื่อ prefers-reduced-motion
  * สูง 380px mobile / 480px desktop และห้ามเกิน 60vh
  */

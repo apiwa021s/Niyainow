@@ -45,7 +45,7 @@ export function ChapterEnd({
             prefetch
             className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[16px] bg-[image:var(--grad-primary)] px-5 text-center text-base font-semibold text-white shadow-[var(--sh-brand)]"
           >
-            <span className="line-clamp-2">ตอนถัดไป → ตอนที่ {next.number}: {next.title}</span>
+            <span className="line-clamp-2">ตอนถัดไป  ตอนที่ {next.number}: {next.title}</span>
             <ChevronRight className="h-5 w-5 shrink-0" />
           </Link>
         )

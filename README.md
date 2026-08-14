@@ -41,7 +41,7 @@ npm.cmd run db:seed
 npm.cmd run db:reconcile-engagement -- --limit=200
 ```
 
-`npm run verify` เป็น quality gate เดียวกับ CI: lint → typecheck → tests → migration check → production build
+`npm run verify` เป็น quality gate เดียวกับ CI: lint  typecheck  tests  migration check  production build
 
 `db:seed` ปิดโดยค่าเริ่มต้นและจะทำงานเฉพาะเมื่อกำหนด `ALLOW_DEVELOPMENT_SEED=true`; ห้ามตั้งค่านี้ใน production ส่วน `db:reconcile-engagement` เป็น dry-run โดยค่าเริ่มต้นและต้องเพิ่ม `--execute` เฉพาะใน durable job ที่ได้รับอนุมัติ
 

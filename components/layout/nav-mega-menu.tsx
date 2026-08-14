@@ -100,7 +100,7 @@ export function NavMegaMenu({ label, data }: { label: string; data: MegaMenuData
       className="relative"
       onMouseEnter={scheduleOpen}
       onMouseLeave={scheduleClose}
-      // โฟกัสหลุดออกจากกลุ่มทั้งหมด → ปิด (รองรับการ Tab ออก)
+      // โฟกัสหลุดออกจากกลุ่มทั้งหมด  ปิด (รองรับการ Tab ออก)
       onBlur={(event) => {
         if (!containerRef.current?.contains(event.relatedTarget as Node)) setOpen(false);
       }}

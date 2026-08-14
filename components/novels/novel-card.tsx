@@ -79,7 +79,7 @@ export function NovelCard({
       </div>
 
       <Link href={`/novel/${novel.slug}`} prefetch className="block">
-        {/* aspect 2:3 ตายตัว → CLS 0 (ส่วนที่ 4 ข้อ 7) */}
+        {/* aspect 2:3 ตายตัว  CLS 0 (ส่วนที่ 4 ข้อ 7) */}
         <div className="relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted shadow-[var(--sh-1)] transition-all duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:-translate-y-1 group-hover:shadow-[var(--sh-2)]">
           <Image
             src={novel.cover}

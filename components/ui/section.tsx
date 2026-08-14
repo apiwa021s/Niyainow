@@ -65,7 +65,7 @@ export function SectionHeader({
           prefetch
           className="shrink-0 rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
         >
-          {action} →
+          {action} 
         </Link>
       ) : null}
     </div>

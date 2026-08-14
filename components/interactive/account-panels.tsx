@@ -100,7 +100,7 @@ export function NotificationsPanel({ followingCount }: { followingCount: number 
             ระบบบันทึกนิยายที่คุณติดตามไว้แล้ว {followingCount.toLocaleString("th-TH")} เรื่อง แต่ยังไม่ส่งอีเมลหรือการแจ้งเตือนบนอุปกรณ์ในขณะนี้
           </p>
           <Link href="/" className="mt-3 inline-block text-sm font-semibold text-[var(--brand-light-on-light)]">
-            ไปดูอัปเดตบนหน้าแรก →
+            ไปดูอัปเดตบนหน้าแรก 
           </Link>
         </div>
       </div>

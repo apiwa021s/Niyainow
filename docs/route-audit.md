@@ -20,7 +20,7 @@
 | `/login` | Google OAuth เท่านั้น | `noindex` | Production-backed |
 | `/register`, `/forgot-password` | Redirect ไป `/login`; ไม่มี password database หรือ reset flow | `noindex` ผ่านปลายทาง | Intentionally removed (Google-only) |
 
-Public shell ใช้ optimized `next/image`, production domain จาก `NEXT_PUBLIC_APP_URL`, `robots.txt`, default generated OG image และ sitemap index แบบแบ่ง partition ที่ `/sitemap.xml` → `/sitemaps/[partition].xml`
+Public shell ใช้ optimized `next/image`, production domain จาก `NEXT_PUBLIC_APP_URL`, `robots.txt`, default generated OG image และ sitemap index แบบแบ่ง partition ที่ `/sitemap.xml`  `/sitemaps/[partition].xml`
 
 ## Authenticated reader pages
 
