@@ -1,8 +1,7 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { and, desc, eq, inArray, isNull, max, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { MongoClient, type Collection, type Filter } from "mongodb";
 import { existsSync, readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +11,6 @@ import {
   chapters,
   genres,
   mediaAssets,
-  MAX_MONGO_SOURCE_ID_LENGTH,
   novelAuthors,
   novelGenres,
   novelSearchDocuments,
@@ -24,15 +22,13 @@ import {
 } from "@/db/schema";
 import { countChapterWords } from "@/lib/domain/chapter";
 import { requireMongoEnv, requireR2Env } from "@/lib/env";
-import { ApiError } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
 import { destroyR2Client, getR2Client } from "@/lib/r2/client";
 import { detectImageContentType } from "@/lib/r2/signatures";
-import { createUniqueSlug, slugify } from "@/lib/validation/slug";
+import { slugify } from "@/lib/validation/slug";
 import { generateObjectKey, MAX_UPLOAD_BYTES } from "@/lib/validation/upload";
 
 const IMPORT_CURSOR_KEY = "jobs.mongo_translated_novel_import.cursor";
-const IMPORT_LEASE_KEY = "jobs.mongo_translated_novel_import.lease";
 const DEFAULT_BOOK_LIMIT = 5;
 const MAX_BOOK_LIMIT = 50;
 const DEFAULT_CHAPTER_LIMIT = 100;
@@ -40,10 +36,6 @@ const MAX_CHAPTER_LIMIT = 1_000;
 const DEFAULT_MAX_RUNTIME_SECONDS = 600;
 const MAX_RUNTIME_SECONDS = 1_500;
 const RUNTIME_STOP_BUFFER_MS = 30_000;
-const LEASE_EXPIRY_BUFFER_MS = 60_000;
-const COVER_FETCH_TIMEOUT_MS = 30_000;
-const MONGO_CONNECT_TIMEOUT_MS = 10_000;
-const MONGO_SOCKET_TIMEOUT_MS = 30_000;
 const MAX_CHAPTER_UTF8_BYTES = 4 * 1024 * 1024;
 const MONGO_DATABASE = "my-novel";
 const INCREMENTAL_INTERVAL_MS = 2 * 24 * 60 * 60_000;
@@ -112,14 +104,13 @@ type ImportOptions = {
   now: Date;
 };
 
-export type IncrementalCursorState = {
+type IncrementalCursorState = {
   active: boolean;
   lastSweepCompletedAt?: string;
   sweepUntil?: string;
   afterUpdatedAt?: string;
   afterBookId?: string;
   currentBookId?: string;
-  currentBookUpdatedAt?: string;
   chapterOffset?: number;
 };
 
@@ -130,15 +121,11 @@ type LastRunState = {
   summary: Record<string, unknown>;
 };
 
-export type ImportCursorState = {
+type ImportCursorState = {
   afterBookId?: string;
   currentBookId?: string;
   chapterOffset?: number;
-  backfillHighWaterBookId?: string | null;
-  backfillStartedAt?: string;
   backfillCompletedAt?: string;
-  sourceIdentityVersion?: 0 | 1;
-  legacyIdentityThroughBookId?: string | null;
   incremental?: IncrementalCursorState;
   lastRun?: LastRunState;
 };
@@ -148,67 +135,7 @@ type ImportedChapterAccess = {
   coinPrice: number;
 };
 
-export type ImportedNovelIdentityCandidate = {
-  id: string;
-  mongoBookId: string | null;
-  slug: string;
-  title: string;
-  coverKey: string | null;
-};
-
-export type ImportedChapterIdentityCandidate = {
-  id: string;
-  mongoChapterId: string | null;
-  chapterNumber: number;
-  sortOrder: number;
-  slug: string;
-  title: string;
-  content: string;
-  publishedAt: Date | null;
-};
-
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
-
-type ImportLeaseState = {
-  owner: string;
-  acquiredAt: string;
-  expiresAt: string;
-};
-
-type ImportLeaseHandle = ImportLeaseState & {
-  ttlMs: number;
-};
-
-export type TranslatedNovelImportLeaseStatus = {
-  running: boolean;
-  leaseExpiresAt: string | null;
-  retryAfterSeconds: number | null;
-};
-
-export class TranslatedNovelImportLeaseError extends Error {
-  readonly status = 409;
-
-  constructor(
-    readonly code: "SYNC_ALREADY_RUNNING" | "SYNC_LEASE_LOST",
-    message: string,
-    readonly retryAfterSeconds: number,
-    readonly leaseExpiresAt: string | null,
-  ) {
-    super(message);
-    this.name = "TranslatedNovelImportLeaseError";
-  }
-}
-
-export class TranslatedNovelImportStateError extends ApiError {
-  constructor() {
-    super(
-      409,
-      "SYNC_BACKFILL_REQUIRED",
-      "Complete the initial translated-novel backfill before starting an incremental sync",
-    );
-    this.name = "TranslatedNovelImportStateError";
-  }
-}
 
 type ChapterImportResult = {
   imported: number;
@@ -271,7 +198,7 @@ function parseOptions(): ImportOptions {
   };
 }
 
-export function normalizeTranslatedNovelImportCursor(value: unknown): ImportCursorState {
+function normalizeCursorState(value: unknown): ImportCursorState {
   if (!value || typeof value !== "object") return {};
   const source = value as Record<string, unknown>;
   const state: ImportCursorState = {};
@@ -280,17 +207,7 @@ export function normalizeTranslatedNovelImportCursor(value: unknown): ImportCurs
   if (Number.isSafeInteger(source.chapterOffset) && Number(source.chapterOffset) >= 0) {
     state.chapterOffset = Number(source.chapterOffset);
   }
-  if (typeof source.backfillHighWaterBookId === "string" || source.backfillHighWaterBookId === null) {
-    state.backfillHighWaterBookId = source.backfillHighWaterBookId;
-  }
-  if (typeof source.backfillStartedAt === "string") state.backfillStartedAt = source.backfillStartedAt;
   if (typeof source.backfillCompletedAt === "string") state.backfillCompletedAt = source.backfillCompletedAt;
-  if (source.sourceIdentityVersion === 0 || source.sourceIdentityVersion === 1) {
-    state.sourceIdentityVersion = source.sourceIdentityVersion;
-  }
-  if (typeof source.legacyIdentityThroughBookId === "string" || source.legacyIdentityThroughBookId === null) {
-    state.legacyIdentityThroughBookId = source.legacyIdentityThroughBookId;
-  }
   if (source.incremental && typeof source.incremental === "object") {
     const incremental = source.incremental as Record<string, unknown>;
     state.incremental = {
@@ -302,9 +219,6 @@ export function normalizeTranslatedNovelImportCursor(value: unknown): ImportCurs
       ...(typeof incremental.afterUpdatedAt === "string" ? { afterUpdatedAt: incremental.afterUpdatedAt } : {}),
       ...(typeof incremental.afterBookId === "string" ? { afterBookId: incremental.afterBookId } : {}),
       ...(typeof incremental.currentBookId === "string" ? { currentBookId: incremental.currentBookId } : {}),
-      ...(typeof incremental.currentBookUpdatedAt === "string"
-        ? { currentBookUpdatedAt: incremental.currentBookUpdatedAt }
-        : {}),
       ...(Number.isSafeInteger(incremental.chapterOffset) && Number(incremental.chapterOffset) >= 0
         ? { chapterOffset: Number(incremental.chapterOffset) }
         : {}),
@@ -329,15 +243,7 @@ function normalizedStateValue(state: ImportCursorState) {
     ...(state.afterBookId ? { afterBookId: state.afterBookId } : {}),
     ...(state.currentBookId ? { currentBookId: state.currentBookId } : {}),
     ...(state.chapterOffset ? { chapterOffset: state.chapterOffset } : {}),
-    ...(state.backfillHighWaterBookId !== undefined
-      ? { backfillHighWaterBookId: state.backfillHighWaterBookId }
-      : {}),
-    ...(state.backfillStartedAt ? { backfillStartedAt: state.backfillStartedAt } : {}),
     ...(state.backfillCompletedAt ? { backfillCompletedAt: state.backfillCompletedAt } : {}),
-    ...(state.sourceIdentityVersion !== undefined ? { sourceIdentityVersion: state.sourceIdentityVersion } : {}),
-    ...(state.legacyIdentityThroughBookId !== undefined
-      ? { legacyIdentityThroughBookId: state.legacyIdentityThroughBookId }
-      : {}),
     ...(state.incremental ? { incremental: state.incremental } : {}),
     ...(state.lastRun ? { lastRun: state.lastRun } : {}),
   };
@@ -349,153 +255,23 @@ async function loadCursorState() {
     .from(siteSettings)
     .where(eq(siteSettings.key, IMPORT_CURSOR_KEY))
     .limit(1);
-  return normalizeTranslatedNovelImportCursor(setting?.value);
+  return normalizeCursorState(setting?.value);
 }
 
-function normalizeLeaseState(value: unknown): ImportLeaseState | null {
-  if (!value || typeof value !== "object") return null;
-  const source = value as Record<string, unknown>;
-  if (
-    typeof source.owner !== "string" ||
-    !source.owner ||
-    typeof source.acquiredAt !== "string" ||
-    !Number.isFinite(Date.parse(source.acquiredAt)) ||
-    typeof source.expiresAt !== "string" ||
-    !Number.isFinite(Date.parse(source.expiresAt))
-  ) {
-    return null;
-  }
-  return { owner: source.owner, acquiredAt: source.acquiredAt, expiresAt: source.expiresAt };
-}
-
-export function inspectTranslatedNovelImportLease(
-  value: unknown,
-  now = new Date(),
-): TranslatedNovelImportLeaseStatus {
-  const lease = normalizeLeaseState(value);
-  const expiresAtMs = lease ? Date.parse(lease.expiresAt) : Number.NaN;
-  const running = Boolean(lease && expiresAtMs > now.getTime());
-  return {
-    running,
-    leaseExpiresAt: lease?.expiresAt ?? null,
-    retryAfterSeconds: running ? Math.max(1, Math.ceil((expiresAtMs - now.getTime()) / 1_000)) : null,
-  };
-}
-
-export function assertTranslatedNovelImportLeaseAvailable(value: unknown, now = new Date()) {
-  const status = inspectTranslatedNovelImportLease(value, now);
-  if (!status.running) return;
-  throw new TranslatedNovelImportLeaseError(
-    "SYNC_ALREADY_RUNNING",
-    "Translated novel sync is already running",
-    status.retryAfterSeconds ?? 1,
-    status.leaseExpiresAt,
-  );
-}
-
-export function assertTranslatedNovelImportLeaseOwner(value: unknown, owner: string, now = new Date()) {
-  const lease = normalizeLeaseState(value);
-  if (lease?.owner === owner && Date.parse(lease.expiresAt) > now.getTime()) return lease;
-  const status = inspectTranslatedNovelImportLease(value, now);
-  throw new TranslatedNovelImportLeaseError(
-    "SYNC_LEASE_LOST",
-    "Translated novel sync lease was lost before its checkpoint",
-    status.retryAfterSeconds ?? 1,
-    status.leaseExpiresAt,
-  );
-}
-
-async function acquireImportLease(ttlMs: number): Promise<ImportLeaseHandle> {
-  const owner = randomUUID();
-  const insertedAt = new Date();
-  let acquiredAt = "";
-  let expiresAt = "";
-  await getDb().transaction(async (tx) => {
-    await tx
-      .insert(siteSettings)
-      .values({
-        key: IMPORT_LEASE_KEY,
-        value: {},
-        description: "Exclusive lease for Mongo translated novel import",
-        isPublic: false,
-        updatedAt: insertedAt,
-      })
-      .onConflictDoNothing();
-    const [setting] = await tx
-      .select({ value: siteSettings.value })
-      .from(siteSettings)
-      .where(eq(siteSettings.key, IMPORT_LEASE_KEY))
-      .for("update")
-      .limit(1);
-    const acquiredNow = new Date();
-    assertTranslatedNovelImportLeaseAvailable(setting?.value, acquiredNow);
-    acquiredAt = acquiredNow.toISOString();
-    expiresAt = new Date(acquiredNow.getTime() + ttlMs).toISOString();
-    await tx
-      .update(siteSettings)
-      .set({ value: { owner, acquiredAt, expiresAt }, updatedAt: acquiredNow })
-      .where(eq(siteSettings.key, IMPORT_LEASE_KEY));
-  });
-  return { owner, acquiredAt, expiresAt, ttlMs };
-}
-
-async function saveCursorState(state: ImportCursorState, cursorNow: Date, lease: ImportLeaseHandle) {
-  let renewedExpiresAt = lease.expiresAt;
-  await getDb().transaction(async (tx) => {
-    const [setting] = await tx
-      .select({ value: siteSettings.value })
-      .from(siteSettings)
-      .where(eq(siteSettings.key, IMPORT_LEASE_KEY))
-      .for("update")
-      .limit(1);
-    const checkpointNow = new Date();
-    const current = assertTranslatedNovelImportLeaseOwner(setting?.value, lease.owner, checkpointNow);
-    renewedExpiresAt = new Date(checkpointNow.getTime() + lease.ttlMs).toISOString();
-    await tx
-      .update(siteSettings)
-      .set({ value: { ...current, expiresAt: renewedExpiresAt }, updatedAt: checkpointNow })
-      .where(eq(siteSettings.key, IMPORT_LEASE_KEY));
-    await tx
-      .insert(siteSettings)
-      .values({
-        key: IMPORT_CURSOR_KEY,
-        value: normalizedStateValue(state),
-        description: "Cursor for bounded Mongo translated novel import and incremental sync",
-        isPublic: false,
-        updatedAt: cursorNow,
-      })
-      .onConflictDoUpdate({
-        target: siteSettings.key,
-        set: { value: normalizedStateValue(state), updatedAt: cursorNow },
-      });
-  });
-  lease.expiresAt = renewedExpiresAt;
-}
-
-async function releaseImportLease(lease: ImportLeaseHandle, now = new Date()) {
-  await getDb().transaction(async (tx) => {
-    const [setting] = await tx
-      .select({ value: siteSettings.value })
-      .from(siteSettings)
-      .where(eq(siteSettings.key, IMPORT_LEASE_KEY))
-      .for("update")
-      .limit(1);
-    if (normalizeLeaseState(setting?.value)?.owner !== lease.owner) return;
-    await tx
-      .update(siteSettings)
-      .set({ value: { releasedAt: now.toISOString() }, updatedAt: now })
-      .where(eq(siteSettings.key, IMPORT_LEASE_KEY));
-  });
-}
-
-async function assertImportLeaseForContentMutation(tx: Tx, lease: ImportLeaseHandle) {
-  const [setting] = await tx
-    .select({ value: siteSettings.value })
-    .from(siteSettings)
-    .where(eq(siteSettings.key, IMPORT_LEASE_KEY))
-    .for("update")
-    .limit(1);
-  assertTranslatedNovelImportLeaseOwner(setting?.value, lease.owner, new Date());
+async function saveCursorState(state: ImportCursorState, now: Date) {
+  await getDb()
+    .insert(siteSettings)
+    .values({
+      key: IMPORT_CURSOR_KEY,
+      value: normalizedStateValue(state),
+      description: "Cursor for bounded Mongo translated novel import and incremental sync",
+      isPublic: false,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: siteSettings.key,
+      set: { value: normalizedStateValue(state), updatedAt: now },
+    });
 }
 
 function normalizeWhitespace(value: string) {
@@ -528,91 +304,6 @@ function nonBlank(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-export function validateMongoImportSourceId(value: unknown, field: "bookId" | "chapterId") {
-  if (
-    typeof value !== "string"
-    || value.length === 0
-    || value !== value.trim()
-    || value.length > MAX_MONGO_SOURCE_ID_LENGTH
-    || /[\u0000-\u001f\u007f]/u.test(value)
-  ) {
-    throw new ApiError(
-      409,
-      "SYNC_INVALID_SOURCE_ID",
-      `Mongo ${field} must be nonblank, unpadded, contain no control characters, and be at most ${MAX_MONGO_SOURCE_ID_LENGTH} characters`,
-    );
-  }
-  return value;
-}
-
-export function validateMongoImportSourceIds(values: readonly unknown[], field: "bookId" | "chapterId") {
-  const seen = new Set<string>();
-  return values.map((value) => {
-    const sourceId = validateMongoImportSourceId(value, field);
-    if (seen.has(sourceId)) {
-      throw new ApiError(409, "SYNC_DUPLICATE_SOURCE_ID", `Mongo ${field} ${sourceId} appears more than once`);
-    }
-    seen.add(sourceId);
-    return sourceId;
-  });
-}
-
-export function validateMongoCoverUrl(value: string) {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("Mongo cover URL is invalid");
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("Mongo cover URL must use HTTP or HTTPS");
-  }
-  return url;
-}
-
-export function validateMongoCoverContentLength(value: string | null, maximumBytes: number) {
-  if (value === null) return null;
-  if (!/^\d+$/u.test(value)) throw new Error("Mongo cover Content-Length is invalid");
-  const length = Number(value);
-  if (!Number.isSafeInteger(length) || length > maximumBytes) {
-    throw new Error(`Mongo cover exceeds the ${maximumBytes}-byte limit`);
-  }
-  return length;
-}
-
-export async function readBoundedMongoCoverBody(
-  body: ReadableStream<Uint8Array> | null,
-  maximumBytes: number,
-  abort: () => void = () => undefined,
-) {
-  if (!body) throw new Error("Mongo cover response has no body");
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > maximumBytes) {
-        abort();
-        await reader.cancel("Mongo cover exceeded its byte limit").catch(() => undefined);
-        throw new Error(`Mongo cover exceeds the ${maximumBytes}-byte limit`);
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
-}
-
 function uniqueCleanStrings(values: unknown, maximum = 80) {
   if (!Array.isArray(values)) return [];
   const seen = new Set<string>();
@@ -631,151 +322,6 @@ function uniqueCleanStrings(values: unknown, maximum = 80) {
 
 function sourceBookSlug(book: MongoBook) {
   return slugify(`${book.bookName}-${book.bookId}`, "novel");
-}
-
-export function planMongoImportedNovelIdentity(input: {
-  mongoBookId: string;
-  title: string;
-  legacySlug: string;
-  expectLegacy?: boolean;
-  mapped?: ImportedNovelIdentityCandidate;
-  legacy?: ImportedNovelIdentityCandidate;
-}) {
-  validateMongoImportSourceId(input.mongoBookId, "bookId");
-  if (input.mapped) {
-    if (input.mapped.mongoBookId !== input.mongoBookId) {
-      throw new ApiError(409, "SYNC_IDENTITY_CONFLICT", "Resolved novel has a different Mongo bookId");
-    }
-    return { kind: "existing" as const, row: input.mapped };
-  }
-  if (input.legacy) {
-    if (input.legacy.mongoBookId !== null) {
-      throw new ApiError(
-        409,
-        "SYNC_IDENTITY_CONFLICT",
-        `Novel slug ${input.legacy.slug} is already owned by another Mongo bookId`,
-      );
-    }
-    if (input.legacy.slug === input.legacySlug && input.legacy.title === input.title) {
-      return { kind: "claim" as const, row: input.legacy };
-    }
-    throw new ApiError(
-      409,
-      "SYNC_IDENTITY_CONFLICT",
-      `Legacy novel ${input.legacy.slug} does not exactly match Mongo book ${input.mongoBookId}; reconcile it before retrying sync`,
-    );
-  }
-  if (input.expectLegacy) {
-    throw new ApiError(
-      409,
-      "SYNC_IDENTITY_CONFLICT",
-      `Mongo book ${input.mongoBookId} is inside the previously imported cursor but has no exact legacy identity match; reconcile it before retrying sync`,
-    );
-  }
-  return { kind: "create" as const };
-}
-
-export function planMongoImportedChapterIdentity(input: {
-  mongoChapterId: string;
-  sourceIndex: number;
-  title: string;
-  content: string;
-  mapped?: ImportedChapterIdentityCandidate;
-  legacy?: ImportedChapterIdentityCandidate;
-}) {
-  validateMongoImportSourceId(input.mongoChapterId, "chapterId");
-  if (input.mapped) {
-    if (input.mapped.mongoChapterId !== input.mongoChapterId) {
-      throw new ApiError(409, "SYNC_IDENTITY_CONFLICT", "Resolved chapter has a different Mongo chapterId");
-    }
-    return { kind: "existing" as const, row: input.mapped };
-  }
-  if (input.legacy) {
-    if (input.legacy.mongoChapterId !== null) {
-      throw new ApiError(
-        409,
-        "SYNC_IDENTITY_CONFLICT",
-        `Legacy chapter candidate is already owned by Mongo chapterId ${input.legacy.mongoChapterId}`,
-      );
-    }
-    const position = input.sourceIndex + 1;
-    if (
-      input.legacy.chapterNumber === position
-      && input.legacy.sortOrder === position
-      && input.legacy.slug === `chapter-${position}`
-      && input.legacy.title === input.title
-      && input.legacy.content === input.content
-    ) {
-      return { kind: "claim" as const, row: input.legacy };
-    }
-    throw new ApiError(
-      409,
-      "SYNC_IDENTITY_CONFLICT",
-      `Legacy chapter at position ${position} does not exactly match Mongo chapter ${input.mongoChapterId}; reconcile it before retrying sync`,
-    );
-  }
-  return { kind: "append" as const };
-}
-
-export function assertTranslatedNovelIncrementalReady(
-  mode: ImportMode,
-  backfillCompletedAt: string | undefined,
-) {
-  if (mode === "incremental" && !backfillCompletedAt) throw new TranslatedNovelImportStateError();
-}
-
-export function initializeMongoSourceIdentityCursor(state: ImportCursorState) {
-  if (state.sourceIdentityVersion === 1) return { changed: false, migrationActive: false } as const;
-  if (state.sourceIdentityVersion === 0) {
-    if (state.legacyIdentityThroughBookId === undefined) {
-      throw new ApiError(
-        409,
-        "SYNC_IDENTITY_STATE_INVALID",
-        "The source-identity migration cursor has no legacy boundary; repair the sync cursor before retrying",
-      );
-    }
-    return { changed: false, migrationActive: true } as const;
-  }
-
-  const hasOldProgress = Boolean(
-    state.afterBookId
-    || state.currentBookId
-    || state.backfillHighWaterBookId !== undefined
-    || state.backfillStartedAt
-    || state.backfillCompletedAt
-    || state.incremental
-    || state.lastRun,
-  );
-  if (!hasOldProgress) {
-    state.sourceIdentityVersion = 1;
-    delete state.legacyIdentityThroughBookId;
-    return { changed: true, migrationActive: false } as const;
-  }
-
-  const legacyIds = [
-    state.afterBookId,
-    state.currentBookId,
-    state.incremental?.afterBookId,
-    state.incremental?.currentBookId,
-  ].filter((value): value is string => Boolean(value));
-  state.sourceIdentityVersion = 0;
-  state.legacyIdentityThroughBookId = legacyIds.length > 0
-    ? legacyIds.toSorted().at(-1) ?? null
-    : null;
-  delete state.afterBookId;
-  delete state.currentBookId;
-  delete state.chapterOffset;
-  delete state.backfillHighWaterBookId;
-  delete state.backfillStartedAt;
-  delete state.backfillCompletedAt;
-  delete state.incremental;
-  return { changed: true, migrationActive: true } as const;
-}
-
-export function shouldRequireLegacyMongoNovelIdentity(state: ImportCursorState, mongoBookId: string) {
-  return state.sourceIdentityVersion === 0
-    && typeof state.legacyIdentityThroughBookId === "string"
-    && mongoBookId <= state.legacyIdentityThroughBookId;
 }
 
 function sourceGenreSlug(value: string) {
@@ -808,44 +354,16 @@ async function loadMongoGenreMap(collection: Collection<MongoTag>) {
   return new Map(rows.map((row) => [row.slug, row]));
 }
 
-export function clearMissingTranslatedNovelBackfillCursor(state: ImportCursorState) {
-  delete state.currentBookId;
-  delete state.chapterOffset;
-  return state;
-}
-
-export function getTranslatedNovelBackfillBookIdWindow(state: ImportCursorState) {
-  const highWaterBookId = state.backfillHighWaterBookId;
-  if (highWaterBookId === null) return null;
-  if (highWaterBookId !== undefined && state.afterBookId && state.afterBookId >= highWaterBookId) return null;
-  return {
-    ...(state.afterBookId ? { $gt: state.afterBookId } : {}),
-    ...(highWaterBookId !== undefined ? { $lte: highWaterBookId } : {}),
-  };
-}
-
 async function loadNextBackfillBook(collection: Collection<MongoBook>, state: ImportCursorState) {
-  if (state.currentBookId && state.backfillHighWaterBookId !== null) {
-    const current = await collection.findOne({
-      ...TRANSLATED_NOVEL_QUERY,
-      bookId: state.backfillHighWaterBookId
-        ? { $eq: state.currentBookId, $lte: state.backfillHighWaterBookId }
-        : state.currentBookId,
-    });
-    if (current) return { book: current, missingCurrentBook: false };
+  if (state.currentBookId) {
+    return collection.findOne({ ...TRANSLATED_NOVEL_QUERY, bookId: state.currentBookId });
   }
-  const bookId = getTranslatedNovelBackfillBookIdWindow(state);
-  if (bookId === null) return { book: null, missingCurrentBook: Boolean(state.currentBookId) };
-  const query: Filter<MongoBook> = Object.keys(bookId).length > 0
-    ? { ...TRANSLATED_NOVEL_QUERY, bookId }
+  const query: Filter<MongoBook> = state.afterBookId
+    ? { ...TRANSLATED_NOVEL_QUERY, bookId: { $gt: state.afterBookId } }
     : TRANSLATED_NOVEL_QUERY;
-  const book = await collection.find(query).sort({ bookId: 1 }).limit(1).next();
-  return { book, missingCurrentBook: Boolean(state.currentBookId) };
-}
-
-async function captureBackfillHighWaterBookId(collection: Collection<MongoBook>) {
-  const book = await collection.find(TRANSLATED_NOVEL_QUERY).sort({ bookId: -1 }).limit(1).next();
-  return book?.bookId ?? null;
+  const [book] = await collection.find(query).sort({ bookId: 1 }).limit(1).toArray();
+  if (book || !state.afterBookId) return book ?? null;
+  return collection.find(TRANSLATED_NOVEL_QUERY).sort({ bookId: 1 }).limit(1).next();
 }
 
 async function loadIncrementalBook(
@@ -854,8 +372,7 @@ async function loadIncrementalBook(
   now: Date,
 ) {
   if (incremental.currentBookId) {
-    const book = await collection.findOne({ ...TRANSLATED_NOVEL_QUERY, bookId: incremental.currentBookId });
-    return { book, missingCurrentBook: !book };
+    return collection.findOne({ ...TRANSLATED_NOVEL_QUERY, bookId: incremental.currentBookId });
   }
   const sweepUntil = new Date(incremental.sweepUntil ?? now.toISOString());
   const afterUpdatedAt = new Date(incremental.afterUpdatedAt ?? new Date(0).toISOString());
@@ -867,39 +384,7 @@ async function loadIncrementalBook(
       { lastChapterUpdatedAt: afterUpdatedAt, bookId: { $gt: incremental.afterBookId ?? "" } },
     ],
   };
-  const book = await collection.find(query).sort({ lastChapterUpdatedAt: 1, bookId: 1 }).limit(1).next();
-  return { book, missingCurrentBook: false };
-}
-
-export function clearMissingTranslatedNovelIncrementalCursor(incremental: IncrementalCursorState) {
-  delete incremental.currentBookId;
-  delete incremental.currentBookUpdatedAt;
-  delete incremental.chapterOffset;
-  return incremental;
-}
-
-export function resolveTranslatedNovelIncrementalOrderingTimestamp(input: {
-  incremental: IncrementalCursorState;
-  bookId: string;
-  sourceUpdatedAt: Date | null | undefined;
-  now: Date;
-}) {
-  if (input.incremental.currentBookId === input.bookId && input.incremental.currentBookUpdatedAt) {
-    const frozen = new Date(input.incremental.currentBookUpdatedAt);
-    if (Number.isFinite(frozen.getTime())) return frozen.toISOString();
-  }
-  return dateOrNow(input.sourceUpdatedAt, input.now).toISOString();
-}
-
-export function completeTranslatedNovelIncrementalBook(
-  incremental: IncrementalCursorState,
-  bookId: string,
-  frozenUpdatedAt: string,
-) {
-  incremental.afterUpdatedAt = frozenUpdatedAt;
-  incremental.afterBookId = bookId;
-  clearMissingTranslatedNovelIncrementalCursor(incremental);
-  return incremental;
+  return collection.find(query).sort({ lastChapterUpdatedAt: 1, bookId: 1 }).limit(1).next();
 }
 
 async function putCoverToR2(input: {
@@ -908,29 +393,11 @@ async function putCoverToR2(input: {
   title: string;
   now: Date;
 }) {
-  const sourceUrl = validateMongoCoverUrl(input.sourceUrl);
-  const controller = new AbortController();
-  const response = await fetch(sourceUrl, {
+  const response = await fetch(input.sourceUrl, {
     headers: { Accept: "image/avif,image/webp,image/png,image/jpeg,*/*;q=0.1" },
-    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(COVER_FETCH_TIMEOUT_MS)]),
   });
-  if (!response.ok) {
-    controller.abort(`Cover fetch failed with HTTP ${response.status}`);
-    await response.body?.cancel().catch(() => undefined);
-    throw new Error(`Cover fetch failed with HTTP ${response.status}`);
-  }
-  try {
-    validateMongoCoverContentLength(response.headers.get("Content-Length"), MAX_UPLOAD_BYTES.cover);
-  } catch (error) {
-    controller.abort("Mongo cover Content-Length was rejected");
-    await response.body?.cancel().catch(() => undefined);
-    throw error;
-  }
-  const bytes = await readBoundedMongoCoverBody(
-    response.body,
-    MAX_UPLOAD_BYTES.cover,
-    () => controller.abort("Mongo cover exceeded its byte limit"),
-  );
+  if (!response.ok) throw new Error(`Cover fetch failed with HTTP ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
   const detected = detectImageContentType(bytes);
   if (!detected) throw new Error("Cover bytes are not a supported image");
   if (bytes.byteLength > MAX_UPLOAD_BYTES.cover) throw new Error("Cover is larger than the allowed upload size");
@@ -968,12 +435,7 @@ async function ensureCover(book: MongoBook, existingCoverKey: string | null, opt
   if (existingCoverKey || !options.uploadImages) return existingCoverKey;
   const sourceUrl = nonBlank(book.bookCover);
   if (!sourceUrl || !/^https?:\/\//iu.test(sourceUrl)) return null;
-  return putCoverToR2({
-    sourceUrl,
-    bookId: book.bookId,
-    title: book.bookName,
-    now: options.now,
-  });
+  return putCoverToR2({ sourceUrl, bookId: book.bookId, title: book.bookName, now: options.now });
 }
 
 async function ensureGenres(tx: Tx, bookTypes: readonly string[], mongoGenreMap: Map<string, MongoTag>, now: Date) {
@@ -1079,12 +541,9 @@ async function updateSearchDocument(
 async function upsertNovel(input: {
   book: MongoBook;
   coverKey: string | null;
-  expectLegacyIdentity: boolean;
-  lease: ImportLeaseHandle;
   mongoGenreMap: Map<string, MongoTag>;
   now: Date;
 }) {
-  const mongoBookId = validateMongoImportSourceId(input.book.bookId, "bookId");
   const bookTypes = uniqueCleanStrings(input.book.bookTypes);
   const tagNames = uniqueCleanStrings(input.book.bookTags, 160);
   const originalAuthorName = nonBlank(input.book.authorName);
@@ -1093,105 +552,48 @@ async function upsertNovel(input: {
   const synopsis = cleanText(input.book.bookIntroduction, 50_000)
     ?? cleanText(input.book.bookDetail, 50_000)
     ?? input.book.bookName;
-  const legacySlug = sourceBookSlug(input.book);
+  const slug = sourceBookSlug(input.book);
 
   return getDb().transaction(async (tx) => {
-    await assertImportLeaseForContentMutation(tx, input.lease);
-    const [mapped] = await tx
-      .select({
-        id: novels.id,
-        mongoBookId: novels.mongoBookId,
-        slug: novels.slug,
-        title: novels.title,
-        coverKey: novels.coverKey,
-      })
+    const [existing] = await tx
+      .select({ id: novels.id, coverKey: novels.coverKey })
       .from(novels)
-      .where(eq(novels.mongoBookId, mongoBookId))
-      .for("update")
+      .where(eq(novels.slug, slug))
+      .for("no key update")
       .limit(1);
-    let legacy: ImportedNovelIdentityCandidate | undefined;
-    if (!mapped) {
-      [legacy] = await tx
-        .select({
-          id: novels.id,
-          mongoBookId: novels.mongoBookId,
-          slug: novels.slug,
-          title: novels.title,
-          coverKey: novels.coverKey,
-        })
-        .from(novels)
-        .where(and(eq(novels.slug, legacySlug), isNull(novels.mongoBookId)))
-        .for("update")
-        .limit(1);
-    }
-    const identity = planMongoImportedNovelIdentity({
-      mongoBookId,
-      title: input.book.bookName,
-      legacySlug,
-      expectLegacy: input.expectLegacyIdentity,
-      mapped,
-      legacy,
-    });
-    const mutableValues = {
-      mongoBookId,
-      title: input.book.bookName,
-      synopsis,
-      coverKey: input.coverKey ?? (identity.kind === "create" ? null : identity.row.coverKey),
-      status: input.book.isFinished ? "COMPLETED" as const : "ONGOING" as const,
-      publicationStatus: "PUBLISHED" as const,
-      latestChapterAt: input.book.lastChapterUpdatedAt ?? null,
-      updatedAt: input.now,
-    };
-
-    let novel: { id: string; slug: string; coverKey: string | null } | undefined;
-    if (identity.kind === "create") {
-      const slug = await createUniqueSlug(
-        `${input.book.bookName}-${mongoBookId}`,
-        async (candidate) => {
-          const [row] = await tx
-            .select({ id: novels.id })
-            .from(novels)
-            .where(eq(novels.slug, candidate))
-            .limit(1);
-          return Boolean(row);
+    const [novel] = await tx
+      .insert(novels)
+      .values({
+        slug,
+        title: input.book.bookName,
+        titleOriginal: null,
+        synopsis,
+        coverKey: input.coverKey ?? existing?.coverKey ?? null,
+        bannerKey: null,
+        originalLanguage: null,
+        language: "th",
+        status: input.book.isFinished ? "COMPLETED" : "ONGOING",
+        publicationStatus: "PUBLISHED",
+        contentRating: "TEEN",
+        latestChapterAt: input.book.lastChapterUpdatedAt ?? null,
+        publishedAt,
+        createdAt: publishedAt,
+        updatedAt: input.now,
+      })
+      .onConflictDoUpdate({
+        target: novels.slug,
+        set: {
+          title: sql`excluded.title`,
+          synopsis: sql`excluded.synopsis`,
+          coverKey: sql`coalesce(excluded.cover_key, ${novels.coverKey})`,
+          status: sql`excluded.status`,
+          publicationStatus: "PUBLISHED",
+          latestChapterAt: sql`excluded.latest_chapter_at`,
+          publishedAt: sql`coalesce(${novels.publishedAt}, excluded.published_at)`,
+          updatedAt: input.now,
         },
-        "novel",
-      );
-      [novel] = await tx
-        .insert(novels)
-        .values({
-          ...mutableValues,
-          slug,
-          titleOriginal: null,
-          bannerKey: null,
-          originalLanguage: null,
-          language: "th",
-          contentRating: "TEEN",
-          publishedAt,
-          createdAt: publishedAt,
-        })
-        .returning({ id: novels.id, slug: novels.slug, coverKey: novels.coverKey });
-    } else {
-      [novel] = await tx
-        .update(novels)
-        .set({
-          ...mutableValues,
-          publishedAt: sql`coalesce(${novels.publishedAt}, ${publishedAt})`,
-        })
-        .where(
-          identity.kind === "claim"
-            ? and(eq(novels.id, identity.row.id), isNull(novels.mongoBookId))
-            : and(eq(novels.id, identity.row.id), eq(novels.mongoBookId, mongoBookId)),
-        )
-        .returning({ id: novels.id, slug: novels.slug, coverKey: novels.coverKey });
-    }
-    if (!novel) {
-      throw new ApiError(
-        409,
-        "SYNC_IDENTITY_CONFLICT",
-        `Mongo book ${mongoBookId} changed identity ownership while it was being imported`,
-      );
-    }
+      })
+      .returning({ id: novels.id, slug: novels.slug, coverKey: novels.coverKey });
 
     const previousTagRows = await tx
       .select({ id: tags.id })
@@ -1292,14 +694,15 @@ async function loadSortedChapters(input: {
       isVerified: true,
     })
     .toArray();
-  const sortedChapters = mongoChapters.toSorted((left, right) => {
+  return {
+    ordered,
+    chapters: mongoChapters.toSorted((left, right) => {
       const leftOrder = ordered.get(left.chapterId)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
       const rightOrder = ordered.get(right.chapterId)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
       if (leftOrder !== rightOrder) return leftOrder - rightOrder;
       return (left.publishedAt?.getTime() ?? 0) - (right.publishedAt?.getTime() ?? 0);
-    });
-  validateMongoImportSourceIds(sortedChapters.map((chapter) => chapter.chapterId), "chapterId");
-  return { ordered, chapters: sortedChapters };
+    }),
+  };
 }
 
 async function refreshNovelChapterStatistics(tx: Tx, input: { novelId: string; viewCount: number; now: Date }) {
@@ -1339,7 +742,6 @@ async function refreshNovelChapterStatistics(tx: Tx, input: { novelId: string; v
 async function importChapterChunk(input: {
   novelId: string;
   book: MongoBook;
-  lease: ImportLeaseHandle;
   sortedChapters: readonly MongoChapter[];
   ordered: Map<string, { sortOrder: number; addedAt?: Date }>;
   chapterOffset: number;
@@ -1352,157 +754,51 @@ async function importChapterChunk(input: {
   let skipped = 0;
 
   await getDb().transaction(async (tx) => {
-    await assertImportLeaseForContentMutation(tx, input.lease);
-    const [parentNovel] = await tx
-      .select({ id: novels.id })
-      .from(novels)
-      .where(eq(novels.id, input.novelId))
-      .for("no key update")
-      .limit(1);
-    if (!parentNovel) {
-      throw new ApiError(409, "SYNC_IDENTITY_CONFLICT", "The imported novel no longer exists");
-    }
-    const [maxima] = await tx
-      .select({
-        chapterNumber: max(chapters.chapterNumber),
-        sortOrder: max(chapters.sortOrder),
-      })
-      .from(chapters)
-      .where(eq(chapters.novelId, input.novelId));
-    let nextChapterNumber = Number(maxima?.chapterNumber ?? 0) + 1;
-    let nextSortOrder = Number(maxima?.sortOrder ?? 0) + 1;
-
     for (const [chunkIndex, chapter] of chunk.entries()) {
       const sourceIndex = input.chapterOffset + chunkIndex;
-      const mongoChapterId = validateMongoImportSourceId(chapter.chapterId, "chapterId");
       const content = normalizeChapterContent(chapter.chapterContent);
       if (!content || Buffer.byteLength(content, "utf8") > MAX_CHAPTER_UTF8_BYTES) {
         skipped += 1;
         continue;
       }
-      const title = nonBlank(chapter.chapterTitle) ?? `Chapter ${sourceIndex + 1}`;
+      const chapterNumber = sourceIndex + 1;
       const access = mapImportedChapterAccess(chapter.chapterPrice);
       if (!access.isFree) paid += 1;
       const publishedAt = chapter.publishedAt ?? input.ordered.get(chapter.chapterId)?.addedAt ?? chapter.createdAt ?? input.now;
-      const [mapped] = await tx
-        .select({
-          id: chapters.id,
-          mongoChapterId: chapters.mongoChapterId,
-          chapterNumber: chapters.chapterNumber,
-          sortOrder: chapters.sortOrder,
-          slug: chapters.slug,
-          title: chapters.title,
-          content: chapters.content,
-          publishedAt: chapters.publishedAt,
-        })
-        .from(chapters)
-        .where(and(eq(chapters.novelId, input.novelId), eq(chapters.mongoChapterId, mongoChapterId)))
-        .for("update")
-        .limit(1);
-      let legacy: ImportedChapterIdentityCandidate | undefined;
-      if (!mapped) {
-        const position = sourceIndex + 1;
-        const legacyRows = await tx
-          .select({
-            id: chapters.id,
-            mongoChapterId: chapters.mongoChapterId,
-            chapterNumber: chapters.chapterNumber,
-            sortOrder: chapters.sortOrder,
-            slug: chapters.slug,
-            title: chapters.title,
-            content: chapters.content,
-            publishedAt: chapters.publishedAt,
-          })
-          .from(chapters)
-          .where(
-            and(
-              eq(chapters.novelId, input.novelId),
-              isNull(chapters.mongoChapterId),
-              or(
-                eq(chapters.chapterNumber, position),
-                eq(chapters.sortOrder, position),
-                eq(chapters.slug, `chapter-${position}`),
-              ),
-            ),
-          )
-          .for("update");
-        if (legacyRows.length > 1) {
-          throw new ApiError(
-            409,
-            "SYNC_IDENTITY_CONFLICT",
-            `Multiple legacy chapters could match Mongo chapter ${mongoChapterId}; reconcile them before retrying sync`,
-          );
-        }
-        [legacy] = legacyRows;
-      }
-      const identity = planMongoImportedChapterIdentity({
-        mongoChapterId,
-        sourceIndex,
-        title,
-        content,
-        mapped,
-        legacy,
-      });
-      const mutableValues = {
-        title,
-        content,
-        excerpt: content.slice(0, 1_200),
-        wordCount: countChapterWords(content),
-        status: "PUBLISHED" as const,
-        isFree: access.isFree,
-        coinPrice: access.coinPrice,
-        updatedAt: input.now,
-      };
-
-      if (identity.kind === "append") {
-        const chapterNumber = Number(nextChapterNumber.toFixed(2));
-        const sortOrder = nextSortOrder;
-        const slug = await createUniqueSlug(
-          `chapter-${sortOrder}`,
-          async (candidate) => {
-            const [row] = await tx
-              .select({ id: chapters.id })
-              .from(chapters)
-              .where(and(eq(chapters.novelId, input.novelId), eq(chapters.slug, candidate)))
-              .limit(1);
-            return Boolean(row);
-          },
-          "chapter",
-        );
-        await tx.insert(chapters).values({
-          ...mutableValues,
+      await tx
+        .insert(chapters)
+        .values({
           novelId: input.novelId,
-          mongoChapterId,
           chapterNumber,
-          sortOrder,
-          slug,
+          sortOrder: chapterNumber,
+          slug: `chapter-${chapterNumber}`,
+          title: nonBlank(chapter.chapterTitle) ?? `Chapter ${chapterNumber}`,
+          content,
+          excerpt: content.slice(0, 1_200),
+          wordCount: countChapterWords(content),
+          status: "PUBLISHED",
+          isFree: access.isFree,
+          coinPrice: access.coinPrice,
           publishedAt,
           createdAt: chapter.createdAt ?? publishedAt,
+          updatedAt: input.now,
+        })
+        .onConflictDoUpdate({
+          target: [chapters.novelId, chapters.chapterNumber],
+          set: {
+            sortOrder: sql`excluded.sort_order`,
+            slug: sql`excluded.slug`,
+            title: sql`excluded.title`,
+            content: sql`excluded.content`,
+            excerpt: sql`excluded.excerpt`,
+            wordCount: sql`excluded.word_count`,
+            status: "PUBLISHED",
+            isFree: sql`excluded.is_free`,
+            coinPrice: sql`excluded.coin_price`,
+            publishedAt: sql`coalesce(${chapters.publishedAt}, excluded.published_at)`,
+            updatedAt: input.now,
+          },
         });
-        nextChapterNumber = chapterNumber + 1;
-        nextSortOrder = sortOrder + 1;
-      } else {
-        const [updated] = await tx
-          .update(chapters)
-          .set({
-            ...mutableValues,
-            ...(identity.kind === "claim" ? { mongoChapterId } : {}),
-            publishedAt: sql`coalesce(${chapters.publishedAt}, ${publishedAt})`,
-          })
-          .where(
-            identity.kind === "claim"
-              ? and(eq(chapters.id, identity.row.id), isNull(chapters.mongoChapterId))
-              : and(eq(chapters.id, identity.row.id), eq(chapters.mongoChapterId, mongoChapterId)),
-          )
-          .returning({ id: chapters.id });
-        if (!updated) {
-          throw new ApiError(
-            409,
-            "SYNC_IDENTITY_CONFLICT",
-            `Mongo chapter ${mongoChapterId} changed identity ownership while it was being imported`,
-          );
-        }
-      }
       imported += 1;
     }
     await refreshNovelChapterStatistics(tx, {
@@ -1524,17 +820,25 @@ async function importChapterChunk(input: {
   };
 }
 
+async function existingChapterOffset(book: MongoBook) {
+  const slug = sourceBookSlug(book);
+  const [row] = await getDb()
+    .select({ value: max(chapters.sortOrder) })
+    .from(chapters)
+    .innerJoin(novels, eq(novels.id, chapters.novelId))
+    .where(eq(novels.slug, slug))
+    .limit(1);
+  return Number(row?.value ?? 0);
+}
+
 async function processBookChunk(input: {
   book: MongoBook;
-  expectLegacyNovelIdentity: boolean;
   offset: number;
-  lease: ImportLeaseHandle;
   options: ImportOptions;
   mongoGenreMap: Map<string, MongoTag>;
   chaptersCollection: Collection<MongoChapter>;
   orderCollection: Collection<MongoChapterOrder>;
 }) {
-  const mongoBookId = validateMongoImportSourceId(input.book.bookId, "bookId");
   const sorted = await loadSortedChapters({
     bookId: input.book.bookId,
     chaptersCollection: input.chaptersCollection,
@@ -1562,39 +866,15 @@ async function processBookChunk(input: {
   let coverKey: string | null = null;
   let uploadedCover = false;
   let skippedCover = false;
-  const legacySlug = sourceBookSlug(input.book);
-  const identityCandidates = await getDb()
-    .select({
-      id: novels.id,
-      mongoBookId: novels.mongoBookId,
-      slug: novels.slug,
-      title: novels.title,
-      coverKey: novels.coverKey,
-    })
+  const slug = sourceBookSlug(input.book);
+  const [existing] = await getDb()
+    .select({ coverKey: novels.coverKey })
     .from(novels)
-    .where(
-      or(
-        eq(novels.mongoBookId, mongoBookId),
-        and(eq(novels.slug, legacySlug), isNull(novels.mongoBookId)),
-      ),
-    )
-    .limit(2);
-  const mapped = identityCandidates.find((candidate) => candidate.mongoBookId === mongoBookId);
-  const legacy = mapped
-    ? undefined
-    : identityCandidates.find((candidate) => candidate.slug === legacySlug);
-  const plannedIdentity = planMongoImportedNovelIdentity({
-    mongoBookId,
-    title: input.book.bookName,
-    legacySlug,
-    expectLegacy: input.expectLegacyNovelIdentity,
-    mapped,
-    legacy,
-  });
-  const existingCoverKey = plannedIdentity.kind === "create" ? null : plannedIdentity.row.coverKey;
+    .where(eq(novels.slug, slug))
+    .limit(1);
   try {
-    coverKey = await ensureCover(input.book, existingCoverKey, input.options);
-    uploadedCover = Boolean(coverKey && coverKey !== existingCoverKey);
+    coverKey = await ensureCover(input.book, existing?.coverKey ?? null, input.options);
+    uploadedCover = Boolean(coverKey && coverKey !== existing?.coverKey);
   } catch (error) {
     skippedCover = true;
     logger.warn("Skipping unavailable Mongo cover during translated novel import", {
@@ -1606,15 +886,12 @@ async function processBookChunk(input: {
   const novel = await upsertNovel({
     book: input.book,
     coverKey,
-    expectLegacyIdentity: input.expectLegacyNovelIdentity,
-    lease: input.lease,
     mongoGenreMap: input.mongoGenreMap,
     now: input.options.now,
   });
   const result = await importChapterChunk({
     novelId: novel.id,
     book: input.book,
-    lease: input.lease,
     sortedChapters: sorted.chapters,
     ordered: sorted.ordered,
     chapterOffset: input.offset,
@@ -1655,7 +932,6 @@ function createSummary(options: ImportOptions, mode: "backfill" | "incremental" 
 
 async function runBackfill(input: {
   state: ImportCursorState;
-  lease: ImportLeaseHandle;
   options: ImportOptions;
   startedAt: number;
   booksCollection: Collection<MongoBook>;
@@ -1664,18 +940,6 @@ async function runBackfill(input: {
   mongoGenreMap: Map<string, MongoTag>;
 }) {
   const summary = createSummary(input.options, "backfill");
-  let snapshotChanged = false;
-  if (input.state.backfillHighWaterBookId === undefined) {
-    input.state.backfillHighWaterBookId = await captureBackfillHighWaterBookId(input.booksCollection);
-    input.state.backfillStartedAt ??= input.options.now.toISOString();
-    snapshotChanged = true;
-  } else if (!input.state.backfillStartedAt) {
-    // Cursors created before backfillStartedAt cannot prove when their snapshot
-    // began. Epoch forces a safe full first incremental sweep instead of a gap.
-    input.state.backfillStartedAt = new Date(0).toISOString();
-    snapshotChanged = true;
-  }
-  if (input.options.execute && snapshotChanged) await saveCursorState(input.state, input.options.now, input.lease);
   let processedBooks = 0;
   while (processedBooks < input.options.bookLimit) {
     if (!hasRuntimeBudget(input.startedAt, input.options)) {
@@ -1683,23 +947,14 @@ async function runBackfill(input: {
       break;
     }
 
-    const selection = await loadNextBackfillBook(input.booksCollection, input.state);
-    if (selection.missingCurrentBook) {
-      clearMissingTranslatedNovelBackfillCursor(input.state);
-      if (input.options.execute) await saveCursorState(input.state, input.options.now, input.lease);
-    }
-    const { book } = selection;
+    const book = await loadNextBackfillBook(input.booksCollection, input.state);
     if (!book) {
       summary.backfillComplete = true;
       if (input.options.execute) {
         input.state.backfillCompletedAt = input.options.now.toISOString();
-        if (input.state.sourceIdentityVersion === 0) {
-          input.state.sourceIdentityVersion = 1;
-          delete input.state.legacyIdentityThroughBookId;
-        }
         delete input.state.currentBookId;
         delete input.state.chapterOffset;
-        await saveCursorState(input.state, input.options.now, input.lease);
+        await saveCursorState(input.state, input.options.now);
       }
       break;
     }
@@ -1707,9 +962,7 @@ async function runBackfill(input: {
     const offset = input.state.currentBookId === book.bookId ? input.state.chapterOffset ?? 0 : 0;
     const output = await processBookChunk({
       book,
-      expectLegacyNovelIdentity: shouldRequireLegacyMongoNovelIdentity(input.state, book.bookId),
       offset,
-      lease: input.lease,
       options: input.options,
       mongoGenreMap: input.mongoGenreMap,
       chaptersCollection: input.chaptersCollection,
@@ -1740,7 +993,7 @@ async function runBackfill(input: {
       input.state.chapterOffset = output.result.nextOffset;
     }
 
-    if (input.options.execute) await saveCursorState(input.state, input.options.now, input.lease);
+    if (input.options.execute) await saveCursorState(input.state, input.options.now);
     if (!output.result.complete) break;
   }
   return summary;
@@ -1754,16 +1007,9 @@ function isIncrementalDue(state: ImportCursorState, now: Date) {
   return now.getTime() - new Date(last).getTime() >= INCREMENTAL_INTERVAL_MS;
 }
 
-export function getTranslatedNovelIncrementalLowerBound(state: ImportCursorState, now: Date) {
-  const anchor = state.incremental?.lastSweepCompletedAt
-    ?? state.backfillStartedAt
-    ?? state.backfillCompletedAt
-    ?? now.toISOString();
-  return new Date(new Date(anchor).getTime() - INCREMENTAL_SAFETY_WINDOW_MS).toISOString();
-}
-
 function startIncrementalState(state: ImportCursorState, now: Date) {
-  const lowerBound = getTranslatedNovelIncrementalLowerBound(state, now);
+  const previousCompleted = state.incremental?.lastSweepCompletedAt ?? state.backfillCompletedAt ?? now.toISOString();
+  const lowerBound = new Date(new Date(previousCompleted).getTime() - INCREMENTAL_SAFETY_WINDOW_MS).toISOString();
   state.incremental = {
     active: true,
     lastSweepCompletedAt: state.incremental?.lastSweepCompletedAt,
@@ -1776,7 +1022,6 @@ function startIncrementalState(state: ImportCursorState, now: Date) {
 
 async function runIncremental(input: {
   state: ImportCursorState;
-  lease: ImportLeaseHandle;
   options: ImportOptions;
   startedAt: number;
   booksCollection: Collection<MongoBook>;
@@ -1799,35 +1044,24 @@ async function runIncremental(input: {
       break;
     }
 
-    const selection = await loadIncrementalBook(input.booksCollection, incremental, input.options.now);
-    if (selection.missingCurrentBook) {
-      clearMissingTranslatedNovelIncrementalCursor(incremental);
-      if (input.options.execute) await saveCursorState(input.state, input.options.now, input.lease);
-      continue;
-    }
-    const { book } = selection;
+    const book = await loadIncrementalBook(input.booksCollection, incremental, input.options.now);
     if (!book) {
       incremental.active = false;
       incremental.lastSweepCompletedAt = incremental.sweepUntil ?? input.options.now.toISOString();
-      clearMissingTranslatedNovelIncrementalCursor(incremental);
+      delete incremental.currentBookId;
+      delete incremental.chapterOffset;
       delete incremental.afterBookId;
       delete incremental.afterUpdatedAt;
-      if (input.options.execute) await saveCursorState(input.state, input.options.now, input.lease);
+      if (input.options.execute) await saveCursorState(input.state, input.options.now);
       break;
     }
 
-    const offset = incremental.currentBookId === book.bookId ? incremental.chapterOffset ?? 0 : 0;
-    const frozenUpdatedAt = resolveTranslatedNovelIncrementalOrderingTimestamp({
-      incremental,
-      bookId: book.bookId,
-      sourceUpdatedAt: book.lastChapterUpdatedAt,
-      now: input.options.now,
-    });
+    const offset = incremental.currentBookId === book.bookId
+      ? incremental.chapterOffset ?? 0
+      : await existingChapterOffset(book);
     const output = await processBookChunk({
       book,
-      expectLegacyNovelIdentity: shouldRequireLegacyMongoNovelIdentity(input.state, book.bookId),
       offset,
-      lease: input.lease,
       options: input.options,
       mongoGenreMap: input.mongoGenreMap,
       chaptersCollection: input.chaptersCollection,
@@ -1846,57 +1080,43 @@ async function runIncremental(input: {
     if (output.result.complete) {
       processedBooks += 1;
       summary.completedBooks += 1;
-      completeTranslatedNovelIncrementalBook(incremental, book.bookId, frozenUpdatedAt);
+      incremental.afterUpdatedAt = dateOrNow(book.lastChapterUpdatedAt, input.options.now).toISOString();
+      incremental.afterBookId = book.bookId;
+      delete incremental.currentBookId;
+      delete incremental.chapterOffset;
     } else {
       summary.partialBooks += 1;
       summary.currentBookId = book.bookId;
       summary.currentChapterOffset = output.result.nextOffset;
       incremental.currentBookId = book.bookId;
-      incremental.currentBookUpdatedAt = frozenUpdatedAt;
       incremental.chapterOffset = output.result.nextOffset;
     }
 
-    if (input.options.execute) await saveCursorState(input.state, input.options.now, input.lease);
+    if (input.options.execute) await saveCursorState(input.state, input.options.now);
     if (!output.result.complete) break;
   }
 
   return summary;
 }
 
+function assertImageConfiguration(options: ImportOptions) {
+  if (!options.execute || !options.uploadImages) return;
+  requireR2Env();
+}
+
 export async function getTranslatedNovelImportStatus(now = new Date()) {
   loadLocalDotEnv();
-  const [state, [leaseSetting]] = await Promise.all([
-    loadCursorState(),
-    getDb()
-      .select({ value: siteSettings.value })
-      .from(siteSettings)
-      .where(eq(siteSettings.key, IMPORT_LEASE_KEY))
-      .limit(1),
-  ]);
-  const job = inspectTranslatedNovelImportLease(leaseSetting?.value, now);
-  const [postgresCountRow] = await getDb().execute<{
-    novels: number;
-    publishedNovels: number;
-    chapters: number;
-    paidChapters: number;
-    covers: number;
-  }>(sql`
-    select
-      (select count(*)::int from ${novels}) as "novels",
-      (select count(*)::int from ${novels}
-        where ${novels.publicationStatus} = 'PUBLISHED' and ${novels.deletedAt} is null) as "publishedNovels",
-      (select count(*)::int from ${chapters}) as "chapters",
-      (select count(*)::int from ${chapters} where ${chapters.isFree} = false) as "paidChapters",
-      (select count(*)::int from ${novels}
-        where ${novels.coverKey} is not null and ${novels.deletedAt} is null) as "covers"
-  `);
-  const postgresCounts = {
-    novels: Number(postgresCountRow?.novels ?? 0),
-    publishedNovels: Number(postgresCountRow?.publishedNovels ?? 0),
-    chapters: Number(postgresCountRow?.chapters ?? 0),
-    paidChapters: Number(postgresCountRow?.paidChapters ?? 0),
-    covers: Number(postgresCountRow?.covers ?? 0),
-  };
+  const state = await loadCursorState();
+  const [postgresCounts] = await getDb()
+    .select({
+      novels: sql<number>`(select count(*)::int from ${novels})`.mapWith(Number),
+      publishedNovels: sql<number>`(select count(*)::int from ${novels} where ${novels.publicationStatus} = 'PUBLISHED' and ${novels.deletedAt} is null)`.mapWith(Number),
+      chapters: sql<number>`(select count(*)::int from ${chapters})`.mapWith(Number),
+      paidChapters: sql<number>`(select count(*)::int from ${chapters} where ${chapters.isFree} = false)`.mapWith(Number),
+      covers: sql<number>`(select count(*)::int from ${novels} where ${novels.coverKey} is not null and ${novels.deletedAt} is null)`.mapWith(Number),
+    })
+    .from(siteSettings)
+    .limit(1);
 
   let mongo:
     | {
@@ -1913,37 +1133,17 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
     | { configured: false; error: string };
   try {
     const mongoEnv = requireMongoEnv();
-    const client = new MongoClient(mongoEnv.MONGODB_URL, {
-      connectTimeoutMS: MONGO_CONNECT_TIMEOUT_MS,
-      serverSelectionTimeoutMS: 10_000,
-      socketTimeoutMS: MONGO_SOCKET_TIMEOUT_MS,
-    });
+    const client = new MongoClient(mongoEnv.MONGODB_URL, { serverSelectionTimeoutMS: 10_000 });
     await client.connect();
     try {
       const booksCollection = client.db(MONGO_DATABASE).collection<MongoBook>("books");
-      const highWaterBookId = state.backfillHighWaterBookId;
-      const targetBooks = highWaterBookId === null
-        ? 0
-        : await booksCollection.countDocuments(
-            highWaterBookId === undefined
-              ? TRANSLATED_NOVEL_QUERY
-              : { ...TRANSLATED_NOVEL_QUERY, bookId: { $lte: highWaterBookId } },
-          );
-      const processedUpperBookId = state.afterBookId && highWaterBookId
-        ? state.afterBookId < highWaterBookId
-          ? state.afterBookId
-          : highWaterBookId
-        : state.afterBookId;
-      const backfillProcessedBooks = processedUpperBookId && highWaterBookId !== null
-        ? await booksCollection.countDocuments({
-            ...TRANSLATED_NOVEL_QUERY,
-            bookId: { $lte: processedUpperBookId },
-          })
+      const targetBooks = await booksCollection.countDocuments(TRANSLATED_NOVEL_QUERY);
+      const backfillProcessedBooks = state.afterBookId
+        ? await booksCollection.countDocuments({ ...TRANSLATED_NOVEL_QUERY, bookId: { $lte: state.afterBookId } })
         : 0;
-      const nextBackfillSelection = state.backfillCompletedAt
+      const nextBackfillBook = state.backfillCompletedAt
         ? null
         : await loadNextBackfillBook(booksCollection, state);
-      const nextBackfillBook = nextBackfillSelection?.book ?? null;
       mongo = {
         configured: true,
         targetBooks,
@@ -1974,7 +1174,6 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
     backfill: {
       completed: Boolean(state.backfillCompletedAt),
       completedAt: state.backfillCompletedAt ?? null,
-      highWaterBookId: state.backfillHighWaterBookId ?? null,
       afterBookId: state.afterBookId ?? null,
       currentBookId: state.currentBookId ?? null,
       chapterOffset: state.chapterOffset ?? 0,
@@ -1987,12 +1186,9 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
       currentBookId: state.incremental?.currentBookId ?? null,
       chapterOffset: state.incremental?.chapterOffset ?? 0,
       sweepUntil: state.incremental?.sweepUntil ?? null,
-      afterUpdatedAt: state.incremental?.afterUpdatedAt ?? null,
-      afterBookId: state.incremental?.afterBookId ?? null,
     },
-    postgres: postgresCounts,
+    postgres: postgresCounts ?? { novels: 0, publishedNovels: 0, chapters: 0, paidChapters: 0, covers: 0 },
     mongo,
-    job,
     lastRun: state.lastRun ?? null,
   };
 }
@@ -2000,31 +1196,22 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
 export async function runTranslatedNovelImport(options = parseOptions()) {
   loadLocalDotEnv();
   const mongoEnv = requireMongoEnv();
+  assertImageConfiguration(options);
   const startedAt = Date.now();
-  const lease = await acquireImportLease(options.maxRuntimeMs + LEASE_EXPIRY_BUFFER_MS);
-  const client = new MongoClient(mongoEnv.MONGODB_URL, {
-    connectTimeoutMS: MONGO_CONNECT_TIMEOUT_MS,
-    serverSelectionTimeoutMS: 15_000,
-    socketTimeoutMS: MONGO_SOCKET_TIMEOUT_MS,
-  });
+  const client = new MongoClient(mongoEnv.MONGODB_URL, { serverSelectionTimeoutMS: 15_000 });
+  await client.connect();
   try {
-    const state = await loadCursorState();
-    const identityCursor = initializeMongoSourceIdentityCursor(state);
-    if (options.execute && identityCursor.changed) {
-      await saveCursorState(state, options.now, lease);
-    }
-    assertTranslatedNovelIncrementalReady(options.mode, state.backfillCompletedAt);
-    await client.connect();
     const mongoDb = client.db(MONGO_DATABASE);
     const booksCollection = mongoDb.collection<MongoBook>("books");
     const chaptersCollection = mongoDb.collection<MongoChapter>("chapters");
     const orderCollection = mongoDb.collection<MongoChapterOrder>("books-chapters-order");
     const mongoGenreMap = await loadMongoGenreMap(mongoDb.collection<MongoTag>("tags"));
+    const state = await loadCursorState();
+
     let result: ReturnType<typeof createSummary>;
     if (options.mode === "backfill" || (options.mode === "auto" && !state.backfillCompletedAt)) {
       result = await runBackfill({
         state,
-        lease,
         options,
         startedAt,
         booksCollection,
@@ -2035,7 +1222,6 @@ export async function runTranslatedNovelImport(options = parseOptions()) {
     } else if (options.mode === "incremental" || options.mode === "auto") {
       result = await runIncremental({
         state,
-        lease,
         options,
         startedAt,
         booksCollection,
@@ -2054,15 +1240,11 @@ export async function runTranslatedNovelImport(options = parseOptions()) {
         dryRun: result.dryRun,
         summary: result as unknown as Record<string, unknown>,
       };
-      await saveCursorState(state, options.now, lease);
+      await saveCursorState(state, options.now);
     }
     return result;
   } finally {
-    try {
-      await client.close();
-    } finally {
-      await releaseImportLease(lease);
-    }
+    await client.close();
   }
 }
 
