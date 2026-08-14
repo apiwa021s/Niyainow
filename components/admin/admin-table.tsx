@@ -63,7 +63,7 @@ export function DataTable<T>({
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
 
   // ผลลัพธ์เปลี่ยน (กรอง/ค้นหาใหม่) → กลับไปหน้าแรกและล้างการเลือกที่ค้างอยู่
-  const rowsKey = `${rows.length}:${rows.map(getRowKey).slice(0, 3).join("|")}`;
+  const rowsKey = `${rows.length}:${rows.slice(0, 3).map(getRowKey).join("|")}`;
   const [lastRowsKey, setLastRowsKey] = useState(rowsKey);
   if (rowsKey !== lastRowsKey) {
     setLastRowsKey(rowsKey);

@@ -58,8 +58,12 @@ export function RowMenu({ actions, label = "คำสั่งเพิ่มเ
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       const width = 208;
+      // ประมาณความสูงจากจำนวนคำสั่ง ถ้าด้านล่างไม่พอให้พลิกไปเปิดด้านบนแทน
+      const height = Math.min(actions.length * 40 + 12, 320);
+      const openUpward = rect.bottom + 6 + height > window.innerHeight;
+
       setPosition({
-        top: Math.min(rect.bottom + 6, window.innerHeight - 8),
+        top: openUpward ? Math.max(8, rect.top - 6 - height) : rect.bottom + 6,
         left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
       });
     }
