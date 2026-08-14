@@ -32,7 +32,8 @@ const groups = [
     title: "กฎหมาย",
     links: [
       ["เงื่อนไขการใช้งาน", "/terms"],
-      ["นโยบายความเป็นส่วนตัว", "/privacy"]
+      ["นโยบายความเป็นส่วนตัว", "/privacy"],
+      ["ลิขสิทธิ์และการแจ้งละเมิด", "/copyright"]
     ]
   }
 ];
@@ -95,7 +96,20 @@ export function Footer() {
           <p className="max-w-sm text-sm leading-6 text-[#A79CC4]">อ่านเนื้อหาสาธารณะได้ทันที และใช้ Google เพื่อซิงก์คลังกับความคืบหน้าระหว่างอุปกรณ์</p>
         </div>
 
-        <p className="mt-6 text-xs text-[#A79CC4]">© {new Date().getFullYear()} NiyaiNow. สงวนลิขสิทธิ์ทุกประการ</p>
+        {/* ประกาศถาวร — แถบแจ้งเตือนปิดได้ ประกาศนี้จึงต้องอยู่ให้เห็นเสมอ */}
+        <p className="mt-6 max-w-3xl text-xs leading-6 text-[#A79CC4]">
+          NiyaiNow ไม่เผยแพร่งานที่ยังมีลิขสิทธิ์ในประเทศไทย หากพบเนื้อหาที่ละเมิดสิทธิ์ของคุณ{" "}
+          <Link href="/copyright" className="font-semibold text-white underline-offset-4 hover:underline">
+            แจ้งเราได้ที่นี่
+          </Link>{" "}
+          ทีมงานจะตรวจสอบและนำออกโดยเร็วที่สุด
+          <span lang="en" className="mt-1 block">
+            This site does not publish works still under copyright in Thailand. Rights holders can report
+            infringing content for prompt review and removal.
+          </span>
+        </p>
+
+        <p className="mt-4 text-xs text-[#A79CC4]">© {new Date().getFullYear()} NiyaiNow. สงวนลิขสิทธิ์ทุกประการ</p>
       </div>
     </footer>
   );

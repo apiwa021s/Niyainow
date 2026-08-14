@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { fontVariables } from "./fonts";
 import { ThemeProvider } from "@/components/interactive/theme-provider";
+import { CopyrightNotice } from "@/components/layout/copyright-notice";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
@@ -77,6 +78,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <SiteChrome>
               <Footer />
               <MobileBottomNav />
+              <CopyrightNotice />
             </SiteChrome>
           </ToastProvider>
         </ThemeProvider>
