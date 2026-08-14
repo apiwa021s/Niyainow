@@ -1,0 +1,6 @@
+ALTER TABLE "chapters" ADD COLUMN "mongo_chapter_id" varchar(255);--> statement-breakpoint
+ALTER TABLE "novels" ADD COLUMN "mongo_book_id" varchar(255);--> statement-breakpoint
+CREATE UNIQUE INDEX "chapters_novel_mongo_chapter_uidx" ON "chapters" USING btree ("novel_id","mongo_chapter_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "novels_mongo_book_id_uidx" ON "novels" USING btree ("mongo_book_id");--> statement-breakpoint
+ALTER TABLE "chapters" ADD CONSTRAINT "chapters_mongo_chapter_id_valid" CHECK ("chapters"."mongo_chapter_id" is null or (length("chapters"."mongo_chapter_id") > 0 and "chapters"."mongo_chapter_id" = btrim("chapters"."mongo_chapter_id") and "chapters"."mongo_chapter_id" !~ '[[:cntrl:]]'));--> statement-breakpoint
+ALTER TABLE "novels" ADD CONSTRAINT "novels_mongo_book_id_valid" CHECK ("novels"."mongo_book_id" is null or (length("novels"."mongo_book_id") > 0 and "novels"."mongo_book_id" = btrim("novels"."mongo_book_id") and "novels"."mongo_book_id" !~ '[[:cntrl:]]'));

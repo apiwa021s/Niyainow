@@ -6,7 +6,41 @@ import { assertAdmin } from "@/lib/auth/dal";
 import {
   getTranslatedNovelImportStatus,
   runTranslatedNovelImport,
+  TranslatedNovelImportLeaseError,
 } from "@/db/import-translated-novels";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 600;
+
+function noStore(response: NextResponse) {
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  return response;
+}
+
+function syncApiError(error: unknown) {
+  if (error instanceof TranslatedNovelImportLeaseError) {
+    return noStore(
+      NextResponse.json(
+        {
+          error: {
+            code: error.code,
+            message: error.message,
+            retryable: true,
+            retryAfterSeconds: error.retryAfterSeconds,
+            leaseExpiresAt: error.leaseExpiresAt,
+          },
+        },
+        {
+          status: 409,
+          headers: { "Retry-After": String(error.retryAfterSeconds) },
+        },
+      ),
+    );
+  }
+  return noStore(adminApiError(error));
+}
 
 const syncRequestSchema = z
   .object({
@@ -22,9 +56,9 @@ const syncRequestSchema = z
 export async function GET() {
   try {
     await assertAdmin();
-    return NextResponse.json({ status: await getTranslatedNovelImportStatus() });
+    return noStore(NextResponse.json({ status: await getTranslatedNovelImportStatus() }));
   } catch (error) {
-    return adminApiError(error);
+    return syncApiError(error);
   }
 }
 
@@ -40,11 +74,13 @@ export async function POST(request: Request) {
       uploadImages: !input.skipImages,
       now: new Date(),
     });
-    return NextResponse.json({
-      result,
-      status: await getTranslatedNovelImportStatus(),
-    });
+    return noStore(
+      NextResponse.json({
+        result,
+        status: await getTranslatedNovelImportStatus(),
+      }),
+    );
   } catch (error) {
-    return adminApiError(error);
+    return syncApiError(error);
   }
 }

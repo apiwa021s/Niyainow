@@ -56,6 +56,7 @@ jobs:
       NODE_ENV: production
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       MONGODB_URL: ${{ secrets.MONGODB_URL }}
+      MONGO_COVER_ALLOWED_ORIGINS: ${{ vars.MONGO_COVER_ALLOWED_ORIGINS }}
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}

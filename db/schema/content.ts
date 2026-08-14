@@ -27,6 +27,8 @@ import {
 
 const timestampConfig = { mode: "date", withTimezone: true } as const;
 
+export const MAX_MONGO_SOURCE_ID_LENGTH = 255;
+
 export const authors = pgTable(
   "authors",
   {
@@ -103,6 +105,7 @@ export const novels = pgTable(
   "novels",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    mongoBookId: varchar("mongo_book_id", { length: MAX_MONGO_SOURCE_ID_LENGTH }),
     slug: varchar("slug", { length: 180 }).notNull(),
     title: text("title").notNull(),
     titleOriginal: text("title_original"),
@@ -129,6 +132,7 @@ export const novels = pgTable(
     deletedAt: timestamp("deleted_at", timestampConfig),
   },
   (table) => [
+    uniqueIndex("novels_mongo_book_id_uidx").on(table.mongoBookId),
     uniqueIndex("novels_slug_uidx").on(table.slug),
     index("novels_public_latest_idx").on(table.publicationStatus, table.latestChapterAt.desc(), table.id),
     index("novels_latest_published_idx")
@@ -143,6 +147,10 @@ export const novels = pgTable(
     ),
     check("novels_cover_key_is_object_key", sql`${table.coverKey} is null or (${table.coverKey} !~ '://' and left(${table.coverKey}, 1) <> '/')`),
     check("novels_banner_key_is_object_key", sql`${table.bannerKey} is null or (${table.bannerKey} !~ '://' and left(${table.bannerKey}, 1) <> '/')`),
+    check(
+      "novels_mongo_book_id_valid",
+      sql`${table.mongoBookId} is null or (length(${table.mongoBookId}) > 0 and ${table.mongoBookId} = btrim(${table.mongoBookId}) and ${table.mongoBookId} !~ '[[:cntrl:]]')`,
+    ),
     check(
       "novels_publication_dates_valid",
       sql`(${table.publicationStatus} <> 'PUBLISHED' or ${table.publishedAt} is not null) and (${table.publicationStatus} <> 'SCHEDULED' or ${table.scheduledFor} is not null)`,
@@ -253,6 +261,7 @@ export const chapters = pgTable(
     novelId: uuid("novel_id")
       .notNull()
       .references(() => novels.id, { onDelete: "cascade" }),
+    mongoChapterId: varchar("mongo_chapter_id", { length: MAX_MONGO_SOURCE_ID_LENGTH }),
     chapterNumber: numeric("chapter_number", { precision: 10, scale: 2, mode: "number" }).notNull(),
     sortOrder: integer("sort_order").notNull(),
     slug: varchar("slug", { length: 180 }).notNull(),
@@ -275,6 +284,7 @@ export const chapters = pgTable(
     deletedAt: timestamp("deleted_at", timestampConfig),
   },
   (table) => [
+    uniqueIndex("chapters_novel_mongo_chapter_uidx").on(table.novelId, table.mongoChapterId),
     uniqueIndex("chapters_novel_number_uidx").on(table.novelId, table.chapterNumber),
     uniqueIndex("chapters_novel_sort_order_uidx").on(table.novelId, table.sortOrder),
     uniqueIndex("chapters_novel_slug_uidx").on(table.novelId, table.slug),
@@ -292,6 +302,10 @@ export const chapters = pgTable(
     check("chapters_sort_order_positive", sql`${table.sortOrder} > 0`),
     check("chapters_word_count_nonnegative", sql`${table.wordCount} >= 0`),
     check("chapters_coin_price_nonnegative", sql`${table.coinPrice} >= 0`),
+    check(
+      "chapters_mongo_chapter_id_valid",
+      sql`${table.mongoChapterId} is null or (length(${table.mongoChapterId}) > 0 and ${table.mongoChapterId} = btrim(${table.mongoChapterId}) and ${table.mongoChapterId} !~ '[[:cntrl:]]')`,
+    ),
     check(
       "chapters_free_price_consistent",
       sql`(${table.isFree} and ${table.coinPrice} = 0) or (not ${table.isFree} and ${table.coinPrice} > 0)`,

@@ -1,37 +1,26 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Coins, Database, Play, RefreshCw, Search, Timer } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, Coins, Database, Play, RefreshCw, Search, Square, Timer } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminPageHeader, DetailRow, Panel, StatCard } from "@/components/admin/admin-ui";
 import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
+import {
+  isRetryableMongoSyncFailure,
+  mergeMongoSyncSummaries,
+  mongoSyncCursorFingerprint,
+  shouldContinueMongoAutoSync,
+  type MongoSyncSummary,
+} from "@/lib/domain/mongo-sync";
 
-type SyncSummary = {
-  dryRun: boolean;
-  mode: string;
-  selectedBooks: number;
-  completedBooks: number;
-  partialBooks: number;
-  importedChapters: number;
-  paidChapters: number;
-  skippedChapters: number;
-  processedSourceChapters: number;
-  coverCandidates: number;
-  uploadedCovers: number;
-  skippedCovers: number;
-  stoppedForRuntime: boolean;
-  backfillComplete: boolean;
-  incrementalDue: boolean;
-  nextAfterBookId: string | null;
-  currentBookId: string | null;
-  currentChapterOffset: number | null;
-};
+type SyncSummary = MongoSyncSummary;
 
 type SyncStatus = {
   backfill: {
     completed: boolean;
     completedAt: string | null;
+    highWaterBookId?: string | null;
     afterBookId: string | null;
     currentBookId: string | null;
     chapterOffset: number;
@@ -41,6 +30,8 @@ type SyncStatus = {
     lastSweepCompletedAt: string | null;
     nextDueAt: string | null;
     dueNow: boolean;
+    afterUpdatedAt: string | null;
+    afterBookId: string | null;
     currentBookId: string | null;
     chapterOffset: number;
     sweepUntil: string | null;
@@ -66,13 +57,30 @@ type SyncStatus = {
       }
     | { configured: false; error: string };
   lastRun: { at: string; mode: string; dryRun: boolean; summary: Partial<SyncSummary> } | null;
+  job?: {
+    running: boolean;
+    leaseExpiresAt: string | null;
+    retryAfterSeconds?: number | null;
+  };
 };
 
 type ApiPayload = {
   status: SyncStatus;
   result?: SyncSummary;
-  error?: { message?: string };
+  error?: { code?: string; message?: string };
 };
+
+class SyncRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly code?: string,
+    readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = "SyncRequestError";
+  }
+}
 
 const commandConfig = {
   auto: {
@@ -122,30 +130,65 @@ function successMessage(result: SyncSummary | undefined) {
   if (!result) return "คำสั่ง sync จบแล้ว";
   if (result.dryRun) return "Dry run เสร็จแล้ว ยังไม่ได้บันทึกข้อมูลจริง";
   if (result.backfillComplete) return "Sync ทั้งหมดครบแล้ว";
+  if (result.mode === "incremental" && !result.incrementalDue && result.selectedBooks === 0) {
+    return "ข้อมูลเป็นปัจจุบันแล้ว ยังไม่มี incremental sync ที่ถึงกำหนด";
+  }
   if (result.stoppedForRuntime) {
     return `Sync batch นี้หยุดตามเวลาที่กำหนด: ${formatNumber(result.completedBooks)} เรื่อง, ${formatNumber(result.importedChapters)} ตอน`;
   }
   return `Sync batch นี้จบแล้ว: ${formatNumber(result.completedBooks)} เรื่อง, ${formatNumber(result.importedChapters)} ตอน`;
 }
 
-async function requestStatus() {
+async function readPayload(response: Response) {
+  const payload = (await response.json().catch(() => ({}))) as ApiPayload;
+  if (response.ok) return payload;
+
+  const retryAfter = Number(response.headers.get("Retry-After"));
+  throw new SyncRequestError(
+    payload.error?.message || "สั่ง sync ไม่สำเร็จ",
+    response.status,
+    payload.error?.code,
+    Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : undefined,
+  );
+}
+
+async function requestStatus(signal?: AbortSignal) {
   const response = await fetch("/api/admin/sync/mongo-translated-novels", {
     headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal,
   });
-  const payload = (await response.json()) as ApiPayload;
-  if (!response.ok) throw new Error(payload.error?.message || "โหลดสถานะไม่สำเร็จ");
+  const payload = await readPayload(response);
+  if (!payload.status) throw new SyncRequestError("โหลดสถานะไม่สำเร็จ");
   return payload.status;
 }
 
-async function runCommand(command: keyof typeof commandConfig) {
+async function runCommand(command: keyof typeof commandConfig, signal?: AbortSignal) {
   const response = await fetch("/api/admin/sync/mongo-translated-novels", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(commandConfig[command]),
+    cache: "no-store",
+    signal,
   });
-  const payload = (await response.json()) as ApiPayload;
-  if (!response.ok) throw new Error(payload.error?.message || "สั่ง sync ไม่สำเร็จ");
+  const payload = await readPayload(response);
+  if (!payload.status) throw new SyncRequestError("เซิร์ฟเวอร์ไม่ส่งสถานะ sync กลับมา");
   return payload;
+}
+
+function retryDelay(attempt: number, serverDelay?: number) {
+  if (serverDelay) return Math.min(serverDelay, 120_000);
+  const exponential = Math.min(30_000, 2_000 * (2 ** attempt));
+  return exponential + Math.round(Math.random() * 750);
+}
+
+async function waitForRetry(ms: number, shouldStop: () => boolean) {
+  let remaining = ms;
+  while (remaining > 0 && !shouldStop()) {
+    const step = Math.min(500, remaining);
+    await new Promise((resolve) => setTimeout(resolve, step));
+    remaining -= step;
+  }
 }
 
 export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) {
@@ -153,6 +196,20 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
   const [lastResult, setLastResult] = useState<SyncSummary | null>(null);
   const [busy, setBusy] = useState<keyof typeof commandConfig | "refresh" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageIsError, setMessageIsError] = useState(false);
+  const operationRef = useRef<string | null>(null);
+  const stopRequestedRef = useRef(false);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopRequestedRef.current = true;
+      requestControllerRef.current?.abort();
+    };
+  }, []);
 
   const progress = useMemo(() => {
     if (!status.mongo.configured || status.mongo.targetBooks === 0) return 0;
@@ -164,30 +221,143 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
     ?? (status.mongo.configured && status.mongo.nextBackfillBook ? status.mongo.nextBackfillBook.bookName : "-");
 
   const refresh = async () => {
+    if (operationRef.current) return;
+    operationRef.current = "refresh";
     setBusy("refresh");
     setMessage(null);
+    setMessageIsError(false);
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     try {
-      setStatus(await requestStatus());
+      setStatus(await requestStatus(controller.signal));
     } catch (error) {
+      setMessageIsError(true);
       setMessage(error instanceof Error ? error.message : "โหลดสถานะไม่สำเร็จ");
     } finally {
-      setBusy(null);
+      operationRef.current = null;
+      requestControllerRef.current = null;
+      if (mountedRef.current) setBusy(null);
     }
   };
 
-  const execute = async (command: keyof typeof commandConfig) => {
+  const executeOnce = async (command: "dryRun") => {
+    if (operationRef.current) return;
+    operationRef.current = command;
     setBusy(command);
     setMessage(null);
+    setMessageIsError(false);
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     try {
-      const payload = await runCommand(command);
+      const payload = await runCommand(command, controller.signal);
       setStatus(payload.status);
       setLastResult(payload.result ?? null);
       setMessage(successMessage(payload.result));
     } catch (error) {
+      setMessageIsError(true);
       setMessage(error instanceof Error ? error.message : "สั่ง sync ไม่สำเร็จ");
     } finally {
-      setBusy(null);
+      operationRef.current = null;
+      requestControllerRef.current = null;
+      if (mountedRef.current) setBusy(null);
     }
+  };
+
+  const executeContinuous = async (command: "auto" | "incremental") => {
+    if (operationRef.current) return;
+    operationRef.current = command;
+    stopRequestedRef.current = false;
+    setBusy(command);
+    setMessageIsError(false);
+    setMessage(
+      command === "auto"
+        ? "กำลังเริ่ม Auto sync — กรุณาเปิดหน้านี้ไว้ ระบบจะทำต่อทีละ batch"
+        : "กำลัง sync ตอนใหม่ — ระบบจะทำต่อทีละ batch จน sweep นี้ครบ",
+    );
+
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    let accumulated: SyncSummary | null = null;
+    let previousCursor = mongoSyncCursorFingerprint(status);
+    let unchangedCursorCount = 0;
+    let completedBatches = 0;
+
+    try {
+      while (!stopRequestedRef.current) {
+        let payload: ApiPayload | null = null;
+
+        for (let attempt = 0; attempt < 12 && !stopRequestedRef.current; attempt += 1) {
+          try {
+            payload = await runCommand(command, controller.signal);
+            break;
+          } catch (error) {
+            const requestError = error instanceof SyncRequestError ? error : null;
+            const isTransientNetworkError = error instanceof TypeError;
+            const maxAttempts = requestError?.code === "SYNC_ALREADY_RUNNING" ? 12 : 5;
+            if (
+              error instanceof DOMException && error.name === "AbortError"
+              || (!isTransientNetworkError && !isRetryableMongoSyncFailure(requestError?.status, requestError?.code))
+              || attempt === maxAttempts - 1
+            ) {
+              throw error;
+            }
+
+            const delay = retryDelay(attempt, requestError?.retryAfterMs);
+            if (mountedRef.current) {
+              setMessageIsError(false);
+              setMessage(`มี worker อื่นหรือการเชื่อมต่อสะดุด กำลังลองใหม่ใน ${Math.ceil(delay / 1_000)} วินาที (ครั้งที่ ${attempt + 1}/${maxAttempts})`);
+            }
+            await waitForRetry(delay, () => stopRequestedRef.current);
+          }
+        }
+
+        if (!payload && stopRequestedRef.current) break;
+        if (!payload?.result) throw new SyncRequestError("เซิร์ฟเวอร์ไม่ส่งผลลัพธ์ sync กลับมา");
+
+        completedBatches += 1;
+        accumulated = mergeMongoSyncSummaries(accumulated, payload.result);
+        const nextCursor = mongoSyncCursorFingerprint(payload.status);
+        const shouldContinue = shouldContinueMongoAutoSync(payload.status, payload.result);
+        unchangedCursorCount = shouldContinue && nextCursor === previousCursor ? unchangedCursorCount + 1 : 0;
+        previousCursor = nextCursor;
+
+        if (mountedRef.current) {
+          setStatus(payload.status);
+          setLastResult(accumulated);
+          setMessageIsError(false);
+          setMessage(
+            shouldContinue
+              ? `Sync ทำต่ออัตโนมัติ: ${formatNumber(accumulated.completedBooks)} เรื่อง, ${formatNumber(accumulated.importedChapters)} ตอน (${completedBatches} batches)`
+              : successMessage(accumulated),
+          );
+        }
+
+        if (!shouldContinue || stopRequestedRef.current) break;
+        if (unchangedCursorCount >= 3) {
+          throw new SyncRequestError("Sync หยุดเพื่อความปลอดภัย เพราะ cursor ไม่ขยับติดต่อกัน 3 batches กรุณาตรวจสอบข้อมูลต้นทางแล้วกด sync เพื่อทำต่อ");
+        }
+      }
+
+      if (stopRequestedRef.current && mountedRef.current) {
+        setMessageIsError(false);
+        setMessage("หยุด sync แล้ว ระบบบันทึก cursor ล่าสุดไว้ กด sync อีกครั้งเพื่อทำต่อได้");
+      }
+    } catch (error) {
+      if (mountedRef.current && !(error instanceof DOMException && error.name === "AbortError")) {
+        setMessageIsError(true);
+        setMessage(error instanceof Error ? error.message : "Sync ไม่สำเร็จ");
+      }
+    } finally {
+      operationRef.current = null;
+      requestControllerRef.current = null;
+      if (mountedRef.current) setBusy(null);
+    }
+  };
+
+  const stopContinuous = () => {
+    stopRequestedRef.current = true;
+    setMessageIsError(false);
+    setMessage("กำลังหยุดหลัง batch ปัจจุบัน เพื่อบันทึก cursor ให้เรียบร้อย…");
   };
 
   const backfillTone = status.backfill.completed ? "success" : status.backfill.currentBookId ? "warning" : "info";
@@ -200,25 +370,32 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
         description="ควบคุมการนำเข้านิยายแปลจาก MongoDB เข้า PostgreSQL และติดตาม cursor ของ job"
         actions={
           <>
-            <Button type="button" variant="outline" onClick={refresh} loading={busy === "refresh"}>
+            <Button type="button" variant="outline" onClick={refresh} loading={busy === "refresh"} disabled={busy !== null}>
               <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
-            <Button type="button" variant="outline" onClick={() => execute("dryRun")} loading={busy === "dryRun"}>
+            <Button type="button" variant="outline" onClick={() => executeOnce("dryRun")} loading={busy === "dryRun"} disabled={busy !== null}>
               <Search className="h-4 w-4" />
               Dry run
             </Button>
-            <Button type="button" onClick={() => execute("auto")} loading={busy === "auto"}>
-              <Play className="h-4 w-4" />
-              Auto sync
-            </Button>
+            {busy === "auto" ? (
+              <Button type="button" onClick={stopContinuous}>
+                <Square className="h-4 w-4" />
+                หยุดหลัง batch นี้
+              </Button>
+            ) : (
+              <Button type="button" onClick={() => executeContinuous("auto")} disabled={busy !== null}>
+                <Play className="h-4 w-4" />
+                Auto sync
+              </Button>
+            )}
           </>
         }
       />
 
       {message ? (
         <div className="mb-4 flex items-center gap-2 rounded-[12px] border border-border bg-card px-4 py-3 text-sm">
-          {message.includes("ไม่สำเร็จ") ? <AlertCircle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+          {messageIsError ? <AlertCircle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
           <span>{message}</span>
         </div>
       ) : null}
@@ -233,12 +410,25 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <Panel
           title="Sync control"
-          description="คำสั่งจากหน้านี้รันแบบ bounded รอบละ 1 เรื่อง และตัดตอนเป็น chunk ละ 100 ตอน"
+          description="Auto sync จะรันต่อทีละ 1 เรื่อง และบันทึก cursor ทุก chunk ละ 100 ตอน จน initial sync ครบ"
           action={
-            <Button type="button" variant="secondary" onClick={() => execute("incremental")} loading={busy === "incremental"}>
-              <RefreshCw className="h-4 w-4" />
-              Sync new chapters
-            </Button>
+            busy === "incremental" ? (
+              <Button type="button" variant="secondary" onClick={stopContinuous}>
+                <Square className="h-4 w-4" />
+                หยุดหลัง batch นี้
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => executeContinuous("incremental")}
+                disabled={busy !== null || !status.backfill.completed}
+                title={!status.backfill.completed ? "ทำ initial sync ให้ครบก่อน" : undefined}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Sync new chapters
+              </Button>
+            )
           }
         >
           <div className="mb-5">
@@ -256,6 +446,8 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
             <DetailRow label="Current book">{currentBookLabel}</DetailRow>
             <DetailRow label="Chapter offset">{formatNumber(status.backfill.chapterOffset)}</DetailRow>
             <DetailRow label="After bookId">{status.backfill.afterBookId ?? "-"}</DetailRow>
+            <DetailRow label="Initial snapshot">{status.backfill.highWaterBookId ?? "-"}</DetailRow>
+            <DetailRow label="Worker"><StatusPill label={status.job?.running ? "Running" : "Idle"} tone={status.job?.running ? "warning" : "neutral"} /></DetailRow>
             <DetailRow label="Incremental"><StatusPill label={status.incremental.active ? "Active" : status.incremental.dueNow ? "Due now" : "Idle"} tone={incrementalTone} /></DetailRow>
             <DetailRow label="Last sweep">{formatDate(status.incremental.lastSweepCompletedAt)}</DetailRow>
           </dl>
