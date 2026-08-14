@@ -23,7 +23,6 @@ const runtimeEnvSchema = z.object({
       })
       .optional(),
   ),
-  MONGO_COVER_ALLOWED_ORIGINS: optionalString,
   DATABASE_URL: z.preprocess(
     emptyToUndefined,
     z
@@ -55,7 +54,7 @@ export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export type RequiredDatabaseEnv = Pick<RuntimeEnv, "DATABASE_URL" | "DATABASE_MAX_CONNECTIONS"> & {
   DATABASE_URL: string;
 };
-export type RequiredMongoEnv = Pick<RuntimeEnv, "MONGODB_URL" | "MONGO_COVER_ALLOWED_ORIGINS"> & {
+export type RequiredMongoEnv = Pick<RuntimeEnv, "MONGODB_URL"> & {
   MONGODB_URL: string;
 };
 export type RequiredAuthEnv = Required<

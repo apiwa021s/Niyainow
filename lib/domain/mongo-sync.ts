@@ -92,6 +92,7 @@ export function mongoSyncCursorFingerprint(status: MongoSyncLoopStatus) {
 }
 
 export function isRetryableMongoSyncFailure(status: number | undefined, code?: string) {
+  if (code === "SYNC_CONFIGURATION_ERROR") return false;
   if (status === 409) return code === "SYNC_ALREADY_RUNNING";
   return status === 408 || status === 425 || status === 429 || (status !== undefined && status >= 500 && status <= 599);
 }

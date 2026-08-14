@@ -208,6 +208,7 @@ describe("isRetryableMongoSyncFailure", () => {
     [409, undefined],
     [409, "OTHER_CONFLICT"],
     [499, undefined],
+    [503, "SYNC_CONFIGURATION_ERROR"],
     [600, undefined],
   ])("does not retry HTTP %s with code %s", (status, code) => {
     expect(isRetryableMongoSyncFailure(status, code)).toBe(false);

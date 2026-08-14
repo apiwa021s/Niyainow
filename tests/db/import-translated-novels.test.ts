@@ -16,7 +16,6 @@ import {
   normalizeTranslatedNovelImportCursor,
   planMongoImportedChapterIdentity,
   planMongoImportedNovelIdentity,
-  parseMongoCoverAllowedOrigins,
   readBoundedMongoCoverBody,
   resolveTranslatedNovelIncrementalOrderingTimestamp,
   shouldRequireLegacyMongoNovelIdentity,
@@ -404,16 +403,15 @@ describe("translated novel import", () => {
     ).toBe("2026-08-04T06:00:00.000Z");
   });
 
-  it("accepts only explicit exact HTTPS cover origins and allowlisted source URLs", () => {
-    const origins = parseMongoCoverAllowedOrigins("https://covers.example.com, https://cdn.example.com:8443");
-    expect(origins).toEqual(["https://covers.example.com", "https://cdn.example.com:8443"]);
-    expect(validateMongoCoverUrl("https://covers.example.com/path/cover.jpg?size=large", origins).origin).toBe(
+  it("accepts the original importer HTTP and HTTPS cover URL behavior", () => {
+    expect(validateMongoCoverUrl("https://covers.example.com/path/cover.jpg?size=large").origin).toBe(
       "https://covers.example.com",
     );
-    expect(() => parseMongoCoverAllowedOrigins("http://covers.example.com")).toThrow();
-    expect(() => parseMongoCoverAllowedOrigins("https://covers.example.com/path")).toThrow();
-    expect(() => validateMongoCoverUrl("https://unlisted.example.com/cover.jpg", origins)).toThrow();
-    expect(() => validateMongoCoverUrl("https://user:secret@covers.example.com/cover.jpg", origins)).toThrow();
+    expect(validateMongoCoverUrl("http://legacy-covers.example.com/cover.jpg").origin).toBe(
+      "http://legacy-covers.example.com",
+    );
+    expect(() => validateMongoCoverUrl("file:///private/cover.jpg")).toThrow();
+    expect(() => validateMongoCoverUrl("not-a-url")).toThrow();
   });
 
   it("rejects oversized declared and streamed cover bodies before unbounded buffering", async () => {

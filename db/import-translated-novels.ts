@@ -23,7 +23,7 @@ import {
   tags,
 } from "@/db/schema";
 import { countChapterWords } from "@/lib/domain/chapter";
-import { EnvironmentConfigurationError, requireMongoEnv, requireR2Env } from "@/lib/env";
+import { requireMongoEnv, requireR2Env } from "@/lib/env";
 import { ApiError } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
 import { destroyR2Client, getR2Client } from "@/lib/r2/client";
@@ -109,7 +109,6 @@ type ImportOptions = {
   chapterLimit: number;
   maxRuntimeMs: number;
   uploadImages: boolean;
-  coverAllowedOrigins?: readonly string[];
   now: Date;
 };
 
@@ -558,51 +557,15 @@ export function validateMongoImportSourceIds(values: readonly unknown[], field: 
   });
 }
 
-export function parseMongoCoverAllowedOrigins(value: unknown) {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new EnvironmentConfigurationError(
-      "Mongo cover uploads are not configured. Set MONGO_COVER_ALLOWED_ORIGINS to explicit HTTPS origins",
-      ["MONGO_COVER_ALLOWED_ORIGINS"],
-    );
-  }
-  const entries = value.split(",").map((entry) => entry.trim());
-  if (entries.some((entry) => !entry)) {
-    throw new EnvironmentConfigurationError("MONGO_COVER_ALLOWED_ORIGINS contains an empty origin");
-  }
-  const origins = entries.map((entry) => {
-    let url: URL;
-    try {
-      url = new URL(entry);
-    } catch {
-      throw new EnvironmentConfigurationError(`Invalid Mongo cover origin: ${entry}`);
-    }
-    if (
-      url.protocol !== "https:"
-      || url.username
-      || url.password
-      || entry !== url.origin
-    ) {
-      throw new EnvironmentConfigurationError(
-        `Mongo cover origin must be an exact HTTPS origin without credentials, path, query, or fragment: ${entry}`,
-      );
-    }
-    return url.origin;
-  });
-  if (new Set(origins).size !== origins.length) {
-    throw new EnvironmentConfigurationError("MONGO_COVER_ALLOWED_ORIGINS contains duplicate origins");
-  }
-  return origins;
-}
-
-export function validateMongoCoverUrl(value: string, allowedOrigins: readonly string[]) {
+export function validateMongoCoverUrl(value: string) {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     throw new Error("Mongo cover URL is invalid");
   }
-  if (url.protocol !== "https:" || url.username || url.password || !allowedOrigins.includes(url.origin)) {
-    throw new Error(`Mongo cover URL origin is not allowlisted: ${url.origin}`);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("Mongo cover URL must use HTTP or HTTPS");
   }
   return url;
 }
@@ -941,16 +904,14 @@ export function completeTranslatedNovelIncrementalBook(
 
 async function putCoverToR2(input: {
   sourceUrl: string;
-  allowedOrigins: readonly string[];
   bookId: string;
   title: string;
   now: Date;
 }) {
-  const sourceUrl = validateMongoCoverUrl(input.sourceUrl, input.allowedOrigins);
+  const sourceUrl = validateMongoCoverUrl(input.sourceUrl);
   const controller = new AbortController();
   const response = await fetch(sourceUrl, {
     headers: { Accept: "image/avif,image/webp,image/png,image/jpeg,*/*;q=0.1" },
-    redirect: "error",
     signal: AbortSignal.any([controller.signal, AbortSignal.timeout(COVER_FETCH_TIMEOUT_MS)]),
   });
   if (!response.ok) {
@@ -1009,7 +970,6 @@ async function ensureCover(book: MongoBook, existingCoverKey: string | null, opt
   if (!sourceUrl) return null;
   return putCoverToR2({
     sourceUrl,
-    allowedOrigins: options.coverAllowedOrigins ?? [],
     bookId: book.bookId,
     title: book.bookName,
     now: options.now,
@@ -1903,12 +1863,6 @@ async function runIncremental(input: {
   return summary;
 }
 
-function resolveCoverAllowedOrigins(options: ImportOptions, configuredOrigins: string | undefined) {
-  if (!options.execute || !options.uploadImages) return [];
-  requireR2Env();
-  return parseMongoCoverAllowedOrigins(configuredOrigins);
-}
-
 export async function getTranslatedNovelImportStatus(now = new Date()) {
   loadLocalDotEnv();
   const [state, [leaseSetting]] = await Promise.all([
@@ -2046,10 +2000,6 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
 export async function runTranslatedNovelImport(options = parseOptions()) {
   loadLocalDotEnv();
   const mongoEnv = requireMongoEnv();
-  options = {
-    ...options,
-    coverAllowedOrigins: resolveCoverAllowedOrigins(options, mongoEnv.MONGO_COVER_ALLOWED_ORIGINS),
-  };
   const startedAt = Date.now();
   const lease = await acquireImportLease(options.maxRuntimeMs + LEASE_EXPIRY_BUFFER_MS);
   const client = new MongoClient(mongoEnv.MONGODB_URL, {

@@ -75,18 +75,10 @@ guard stops the command gracefully before the platform timeout and exits
 successfully with `stoppedForRuntime: true`.
 
 Normal execute runs require `MONGODB_URL`, `DATABASE_URL`, and the four `R2_*`
-credentials. Cover uploads additionally require an explicit comma-separated
-`MONGO_COVER_ALLOWED_ORIGINS` list of exact HTTPS origins (for example,
-`https://covers.example.com,https://cdn.example.com`). Paths, credentials,
-HTTP origins, and redirects are rejected. Available, valid allowlisted cover
-images are streamed through a hard size limit and uploaded to R2 before
-`novels.cover_key` is written. Use `--skip-images` only for controlled recovery
-runs.
-
-Configure the same value as the GitHub Environment variable
-`MONGO_COVER_ALLOWED_ORIGINS`; the scheduled import workflow passes it to the
-CLI. Keep credentials in GitHub secrets, but the origin allowlist itself is
-non-secret configuration.
+credentials. As in the original importer, cover URLs stored in Mongo may use
+HTTP or HTTPS and redirects are followed. Available images are streamed through
+a hard size limit and uploaded to R2 before `novels.cover_key` is written. Use
+`--skip-images` only for controlled recovery runs.
 
 Mongo source chapters with `chapterPrice > 0` are imported as locked PostgreSQL
 chapters with `is_free = false` and `coin_price = 1` regardless of the original

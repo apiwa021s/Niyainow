@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { adminApiError, parseAdminMutation } from "@/app/api/admin/_shared";
 import { assertAdmin } from "@/lib/auth/dal";
+import { EnvironmentConfigurationError } from "@/lib/env";
 import {
   getTranslatedNovelImportStatus,
   runTranslatedNovelImport,
@@ -20,6 +21,20 @@ function noStore(response: NextResponse) {
 }
 
 function syncApiError(error: unknown) {
+  if (error instanceof EnvironmentConfigurationError) {
+    return noStore(
+      NextResponse.json(
+        {
+          error: {
+            code: "SYNC_CONFIGURATION_ERROR",
+            message: error.message,
+            retryable: false,
+          },
+        },
+        { status: 503 },
+      ),
+    );
+  }
   if (error instanceof TranslatedNovelImportLeaseError) {
     return noStore(
       NextResponse.json(
