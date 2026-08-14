@@ -10,7 +10,7 @@ function loginRedirect(request: NextAuthRequest, admin = false): NextResponse {
   return NextResponse.redirect(url);
 }
 
-export default auth((request) => {
+export const proxy = auth((request) => {
   const pathname = request.nextUrl.pathname;
   const decision = decideProxyAccess(pathname, request.auth?.user);
 
