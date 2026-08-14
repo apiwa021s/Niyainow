@@ -207,8 +207,8 @@ export function HomeFeed({ data, hero, banners }: { data: HomeData; hero: React.
   // ผู้ใช้ที่ login แล้ว: "อ่านต่อ" อยู่บนสุด ไม่มี hero (ส่วนที่ 6.3)
   const sections = showReturningLayout
     ? [
-        continueItems.length > 0 ? continueReading : null,
         banners ? <div key="banners">{banners}</div> : null,
+        continueItems.length > 0 ? continueReading : null,
         followedUpdatesSection,
         latestUpdates,
         recommended,
@@ -216,7 +216,8 @@ export function HomeFeed({ data, hero, banners }: { data: HomeData; hero: React.
         genres,
         completed
       ]
-    : [<div key="hero">{hero}</div>, banners ? <div key="banners">{banners}</div> : null, newThisWeek, ranking, genres, latestUpdates, recommended, completed, signupPitch];
+    // มีแบนเนอร์จากหลังบ้านเมื่อไร ให้แทน hero มาตรฐานไปเลย ไม่ซ้อนสองชั้น
+    : [<div key="hero">{banners ?? hero}</div>, newThisWeek, ranking, genres, latestUpdates, recommended, completed, signupPitch];
 
   // 40px mobile / 56px desktop — กระชับกว่าสเปก (48/64) หนึ่งขั้น
   // เพราะแถวเลื่อนแนวนอนมีข้อความใต้การ์ดสั้น ช่องว่างจึงดูกว้างกว่าค่าจริง
