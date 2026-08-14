@@ -118,6 +118,16 @@ function summaryValue(summary: Partial<SyncSummary> | null | undefined, key: key
   return summary?.[key] ?? "-";
 }
 
+function successMessage(result: SyncSummary | undefined) {
+  if (!result) return "คำสั่ง sync จบแล้ว";
+  if (result.dryRun) return "Dry run เสร็จแล้ว ยังไม่ได้บันทึกข้อมูลจริง";
+  if (result.backfillComplete) return "Sync ทั้งหมดครบแล้ว";
+  if (result.stoppedForRuntime) {
+    return `Sync batch นี้หยุดตามเวลาที่กำหนด: ${formatNumber(result.completedBooks)} เรื่อง, ${formatNumber(result.importedChapters)} ตอน`;
+  }
+  return `Sync batch นี้จบแล้ว: ${formatNumber(result.completedBooks)} เรื่อง, ${formatNumber(result.importedChapters)} ตอน`;
+}
+
 async function requestStatus() {
   const response = await fetch("/api/admin/sync/mongo-translated-novels", {
     headers: { Accept: "application/json" },
@@ -172,7 +182,7 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
       const payload = await runCommand(command);
       setStatus(payload.status);
       setLastResult(payload.result ?? null);
-      setMessage(payload.result?.dryRun ? "Dry run เสร็จแล้ว" : "Sync รอบนี้เสร็จแล้ว");
+      setMessage(successMessage(payload.result));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "สั่ง sync ไม่สำเร็จ");
     } finally {
