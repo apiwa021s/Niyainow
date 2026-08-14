@@ -967,7 +967,7 @@ async function putCoverToR2(input: {
 async function ensureCover(book: MongoBook, existingCoverKey: string | null, options: ImportOptions) {
   if (existingCoverKey || !options.uploadImages) return existingCoverKey;
   const sourceUrl = nonBlank(book.bookCover);
-  if (!sourceUrl) return null;
+  if (!sourceUrl || !/^https?:\/\//iu.test(sourceUrl)) return null;
   return putCoverToR2({
     sourceUrl,
     bookId: book.bookId,
