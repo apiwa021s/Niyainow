@@ -1,0 +1,1 @@
+CREATE INDEX "chapters_admin_updated_idx" ON "chapters" USING btree ("updated_at" DESC NULLS LAST,"id" DESC NULLS LAST) WHERE "chapters"."deleted_at" is null;

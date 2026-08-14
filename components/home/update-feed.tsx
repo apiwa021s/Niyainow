@@ -50,7 +50,7 @@ export function UpdateFeed({
             return (
               <li key={`${item.novelSlug}-${item.chapter}-${index}`}>
                 <Link
-                  href={`/novel/${novel.slug}/chapter/${Math.min(item.chapter, 8)}`}
+                  href={`/novel/${novel.slug}/chapter/${item.chapter}`}
                   prefetch
                   className="group flex items-center gap-3 rounded-[12px] border border-border bg-card p-2.5 transition-shadow duration-[var(--dur-base)] hover:shadow-[var(--sh-2)]"
                 >

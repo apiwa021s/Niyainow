@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import type { PillTone } from "@/lib/admin-labels";
+
+type PillTone = "success" | "warning" | "danger" | "info" | "neutral" | "brand";
 
 /**
  * ป้ายสถานะของตารางหลังบ้าน

@@ -308,19 +308,9 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
 
         <div className="flex flex-col gap-1 border-t border-current/10 pt-3">
           <Toggle
-            label="เลื่อนต่อเนื่อง"
-            checked={prefs.continuousScroll}
-            onChange={(continuousScroll) => setPrefs({ continuousScroll })}
-          />
-          <Toggle
             label="ล็อกหน้าจอไม่ให้ดับ"
             checked={prefs.keepScreenAwake}
             onChange={(keepScreenAwake) => setPrefs({ keepScreenAwake })}
-          />
-          <Toggle
-            label="แสดงคอมเมนต์ในบท"
-            checked={prefs.showInlineComments}
-            onChange={(showInlineComments) => setPrefs({ showInlineComments })}
           />
         </div>
 

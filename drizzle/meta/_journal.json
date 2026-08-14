@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786674056376,
+      "tag": "20260814022056_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786676814268,
+      "tag": "20260814030654_media-staging-hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786677716322,
+      "tag": "20260814032156_media-verification-lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786678117413,
+      "tag": "20260814032837_admin-chapter-list-index",
+      "breakpoints": true
+    }
+  ]
+}

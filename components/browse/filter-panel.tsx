@@ -2,7 +2,14 @@
 
 import { cn } from "@/lib/utils";
 import type { Genre } from "@/types/novel";
-import type { ChapterRange, ContentFilter, NovelQuery, RatingFilter, UpdatedFilter } from "@/services/novel-service";
+import {
+  parseGenreParam,
+  type ChapterRange,
+  type ContentFilter,
+  type NovelQuery,
+  type RatingFilter,
+  type UpdatedFilter,
+} from "@/types/novel-query";
 
 type GenreFacet = Genre & { matches: number };
 
@@ -38,7 +45,7 @@ const UPDATED_OPTIONS: { value: UpdatedFilter; label: string }[] = [
 const CONTENT_OPTIONS: { value: ContentFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
   { value: "free", label: "ฟรีทั้งเรื่อง" },
-  { value: "paid", label: "มีตอนเหรียญ" }
+  { value: "paid", label: "มีตอนจำกัดการเข้าถึง" }
 ];
 
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
@@ -93,12 +100,12 @@ export function FilterPanel({
   genres: GenreFacet[];
   onChange: (next: NovelQuery) => void;
 }) {
-  const selectedGenres = query.genre ? query.genre.split(",").filter(Boolean) : [];
+  const selectedGenres = parseGenreParam(query.genre);
 
   const toggleGenre = (slug: string) => {
     const next = selectedGenres.includes(slug)
       ? selectedGenres.filter((item) => item !== slug)
-      : [...selectedGenres, slug];
+      : [...selectedGenres, slug].slice(0, 8);
     onChange({ ...query, genre: next.length ? next.join(",") : undefined });
   };
 

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Globe2, MessageCircle, Send } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 
 /** 4 คอลัมน์ตามส่วนที่ 6.13 — บนมือถือเป็น accordion ด้วย <details> (ไม่ต้องใช้ JS) */
@@ -8,42 +7,34 @@ const groups = [
     title: "เกี่ยวกับ",
     links: [
       ["เกี่ยวกับเรา", "/about"],
-      ["ติดต่อ", "/about"],
-      ["ร่วมงานกับเรา", "/about"],
-      ["บล็อก", "/about"]
+      ["นิยายทั้งหมด", "/novels"],
+      ["อันดับยอดนิยม", "/rankings"]
     ]
   },
   {
     title: "สำหรับผู้อ่าน",
     links: [
       ["วิธีใช้งาน", "/about"],
-      ["ระบบเหรียญ", "/wallet"],
-      ["คำถามที่พบบ่อย", "/about"],
-      ["แจ้งปัญหา", "/about"]
+      ["ค้นหานิยาย", "/search"],
+      ["ชั้นหนังสือ", "/library"],
+      ["ประวัติการอ่าน", "/history"]
     ]
   },
   {
-    title: "สำหรับผู้แปล",
+    title: "สำรวจ",
     links: [
-      ["สมัครเป็นผู้แปล", "/about"],
-      ["แนวทางการแปล", "/about"],
-      ["ระบบรายได้", "/about"]
+      ["แนวนิยาย", "/genres"],
+      ["แท็ก", "/tags"],
+      ["อัปเดตล่าสุด", "/updates"]
     ]
   },
   {
     title: "กฎหมาย",
     links: [
       ["เงื่อนไขการใช้งาน", "/terms"],
-      ["นโยบายความเป็นส่วนตัว (PDPA)", "/privacy"],
-      ["ลิขสิทธิ์ / DMCA", "/terms"]
+      ["นโยบายความเป็นส่วนตัว", "/privacy"]
     ]
   }
-];
-
-const socials = [
-  { icon: Globe2, label: "เว็บไซต์" },
-  { icon: MessageCircle, label: "LINE" },
-  { icon: Send, label: "Telegram" }
 ];
 
 export function Footer() {
@@ -101,19 +92,7 @@ export function Footer() {
             <p className="mt-2 text-sm text-[#A79CC4]">Your next chapter, right now.</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {socials.map(({ icon: Icon, label }) => (
-              <Link
-                key={label}
-                href="/about"
-                aria-label={label}
-                title={label}
-                className="grid h-11 w-11 place-items-center rounded-[12px] border border-white/15 text-[#A79CC4] transition-colors hover:border-white/30 hover:text-white"
-              >
-                <Icon className="h-4 w-4" />
-              </Link>
-            ))}
-          </div>
+          <p className="max-w-sm text-sm leading-6 text-[#A79CC4]">อ่านเนื้อหาสาธารณะได้ทันที และใช้ Google เพื่อซิงก์คลังกับความคืบหน้าระหว่างอุปกรณ์</p>
         </div>
 
         <p className="mt-6 text-xs text-[#A79CC4]">© {new Date().getFullYear()} NiyaiNow. สงวนลิขสิทธิ์ทุกประการ</p>

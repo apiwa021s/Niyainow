@@ -1,50 +1,18 @@
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ExternalLink } from "lucide-react";
+import { notFound } from "next/navigation";
+import { Eye } from "lucide-react";
+
 import { AdminPageHeader } from "@/components/admin/admin-ui";
 import { ChapterEditorView } from "@/components/admin/views/chapter-editor-view";
 import { ButtonLink } from "@/components/ui/button";
 import { getAdminChapter, getAdminNovel } from "@/services/admin-service";
-import { getChapter } from "@/services/novel-service";
 
-type Params = Promise<{ slug: string; chapter: string }>;
+type Props = { params: Promise<{ slug: string; chapter: string }> };
+export const metadata: Metadata = { title: "แก้ไขตอน" };
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const { slug, chapter } = await params;
-  const novel = getAdminNovel(slug);
-  return { title: novel ? `แก้ไขตอนที่ ${chapter} — ${novel.thaiTitle}` : "ไม่พบตอน" };
-}
-
-export default async function AdminEditChapterPage({ params }: { params: Params }) {
-  const { slug, chapter } = await params;
-  const number = Number(chapter);
-  const novel = getAdminNovel(slug);
-  const adminChapter = Number.isFinite(number) ? getAdminChapter(slug, number) : undefined;
-  if (!novel || !adminChapter) notFound();
-
-  // เนื้อหาตอนอยู่ในชุดข้อมูลฝั่งผู้อ่าน — ดึงมาเติมในกล่องแก้ไข
-  const readerChapter = getChapter(slug, number);
-
-  return (
-    <>
-      <AdminPageHeader
-        title={`ตอนที่ ${adminChapter.number}: ${adminChapter.title}`}
-        description={`${novel.thaiTitle} — แก้ไขล่าสุด ${adminChapter.updatedAt} โดย ${adminChapter.editor}`}
-        crumbs={[
-          { label: "หลังบ้าน", href: "/admin" },
-          { label: "นิยาย", href: "/admin/novels" },
-          { label: novel.thaiTitle, href: `/admin/novels/${novel.slug}` },
-          { label: "ตอน", href: `/admin/novels/${novel.slug}/chapters` },
-          { label: `ตอนที่ ${adminChapter.number}` }
-        ]}
-        actions={
-          <ButtonLink href={`/novel/${novel.slug}/chapter/${adminChapter.number}`} variant="outline">
-            <ExternalLink className="h-4 w-4" />
-            ดูหน้าเว็บจริง
-          </ButtonLink>
-        }
-      />
-      <ChapterEditorView novel={novel} chapter={adminChapter} body={readerChapter?.body ?? []} />
-    </>
-  );
+export default async function EditChapterPage({ params }: Props) {
+  const { slug, chapter: number } = await params;
+  const [novel, chapter] = await Promise.all([getAdminNovel(slug), getAdminChapter(slug, number)]);
+  if (!novel || !chapter) notFound();
+  return <><AdminPageHeader title={`ตอน ${chapter.chapterNumber}: ${chapter.title}`} description={`sortOrder ${chapter.sortOrder} · ${chapter.status}`} crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: novel.title, href: `/admin/novels/${novel.slug}` }, { label: "ตอน", href: `/admin/novels/${novel.slug}/chapters` }, { label: String(chapter.chapterNumber) }]} actions={<ButtonLink href={`/admin/novels/${novel.slug}/chapters/${chapter.chapterNumber}/preview`} variant="outline"><Eye className="h-4 w-4" />ตัวอย่าง</ButtonLink>} /><ChapterEditorView novel={novel} chapter={chapter} defaults={{ chapterNumber: chapter.chapterNumber, sortOrder: chapter.sortOrder }} /></>;
 }

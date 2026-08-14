@@ -37,17 +37,17 @@ export function HomeHero({ novels }: { novels: Novel[] }) {
           </h1>
 
           <p className="mt-3 text-base leading-[1.75] text-white/80 sm:text-lg">
-            นิยายแปลกว่า 12,000 เรื่อง ตอนใหม่มาทุกวัน
+            ค้นหานิยายภาษาไทยและติดตามตอนใหม่จากข้อมูลที่เผยแพร่จริง
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
-              href={primary ? `/novel/${primary.slug}/chapter/1` : "/novels"}
+              href={primary ? `/novel/${primary.slug}` : "/novels"}
               prefetch
               className="flex h-12 items-center gap-2 rounded-[12px] bg-[image:var(--grad-primary)] px-6 text-base font-semibold shadow-[var(--sh-brand)] transition-transform duration-[var(--dur-fast)] active:translate-y-px"
             >
               <Play className="h-5 w-5 fill-current" />
-              เริ่มอ่านฟรี
+              ดูเรื่องแนะนำ
             </Link>
             <Link
               href="/novels"

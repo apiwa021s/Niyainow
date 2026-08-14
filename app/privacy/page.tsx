@@ -1,13 +1,23 @@
-import type { Metadata } from "next";
 import { PageShell, SectionHeader } from "@/components/ui/section";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "นโยบายความเป็นส่วนตัว" };
+export const metadata = pageMetadata({
+  title: "นโยบายความเป็นส่วนตัว",
+  description: "นโยบายการเก็บ ใช้ และรักษาข้อมูลบัญชีและข้อมูลการอ่านของผู้ใช้ NiyaiNow",
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (
-    <PageShell className="space-y-4">
+    <PageShell className="space-y-6">
       <SectionHeader title="นโยบายความเป็นส่วนตัว" />
-      <p className="max-w-3xl leading-7 text-muted-foreground">เดโมนี้ไม่ส่งข้อมูลไปยัง backend ข้อมูลการอ่าน ธีม บุ๊กมาร์ก และบัญชี mock ถูกเก็บไว้ใน LocalStorage ของเบราว์เซอร์เท่านั้น</p>
+      <div className="max-w-3xl space-y-4 leading-7 text-muted-foreground">
+        <p>เมื่อคุณเข้าสู่ระบบด้วย Google เราเก็บรหัสบัญชี อีเมล ชื่อ และรูปโปรไฟล์ที่ Google ส่งให้ เพื่อสร้างบัญชีและรักษาความปลอดภัยของเซสชัน</p>
+        <p>ข้อมูลคลัง การติดตาม คะแนน รีวิว ประวัติ และความคืบหน้าการอ่านถูกเก็บในฐานข้อมูลเพื่อซิงก์ระหว่างอุปกรณ์ การตั้งค่าหน้าอ่านเก็บเฉพาะในเบราว์เซอร์ของคุณ</p>
+        <p>ระบบอาจเก็บบันทึกทางเทคนิคที่จำเป็นต่อความปลอดภัยและการแก้ปัญหา โดยหลีกเลี่ยงการบันทึกความลับและไม่ใช้ข้อมูลส่วนบุคคลเกินวัตถุประสงค์ของบริการ</p>
+        <p>คุณสามารถออกจากระบบได้ทุกเมื่อ และสามารถขอเข้าถึง แก้ไข หรือลบบัญชีผ่านช่องทางอย่างเป็นทางการของผู้ให้บริการเมื่อเปิดให้บริการจริง</p>
+        <p className="text-sm">ปรับปรุงล่าสุด: 14 สิงหาคม 2569</p>
+      </div>
     </PageShell>
   );
 }

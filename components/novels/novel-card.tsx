@@ -4,7 +4,6 @@ import { Coins, Eye, Star } from "lucide-react";
 import { BookmarkToggle } from "@/components/interactive/novel-actions";
 import { cn, formatNumber } from "@/lib/utils";
 import type { Novel } from "@/types/novel";
-import { genres as allGenres } from "@/data/mock-data";
 
 const statusLabel: Record<Novel["status"], string> = {
   ongoing: "กำลังแปล",
@@ -12,7 +11,7 @@ const statusLabel: Record<Novel["status"], string> = {
   hiatus: "พักการแปล"
 };
 
-const genreNameOf = (slug: string) => allGenres.find((genre) => genre.slug === slug)?.thaiName ?? slug;
+const genreNameOf = (novel: Novel, slug: string) => novel.genreNames?.[slug] ?? slug;
 
 /* ---------------------------------------------------------------------------
    Badge บนปก (ส่วนที่ 6.3)
@@ -42,10 +41,10 @@ function CoverBadge({ novel }: { novel: Novel }) {
 }
 
 /** chip แนว — สีฟ้าอ่อนตามสเปก ใช้ --brand-blue-on-light เพื่อให้ contrast ผ่าน */
-function GenreChip({ slug }: { slug: string }) {
+function GenreChip({ label }: { label: string }) {
   return (
     <span className="rounded-[8px] bg-[var(--brand-blue)]/12 px-1.5 py-0.5 text-[11px] font-medium text-[var(--brand-blue-on-light)]">
-      {genreNameOf(slug)}
+      {label}
     </span>
   );
 }
@@ -94,7 +93,7 @@ export function NovelCard({
             {novel.hasPaidChapters ? (
               <span className="flex w-fit items-center gap-1 rounded-[8px] bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
                 <Coins className="h-3 w-3" />
-                มีตอนเหรียญ
+                มีตอนจำกัดการเข้าถึง
               </span>
             ) : null}
           </div>
@@ -117,7 +116,7 @@ export function NovelCard({
       <div className="mt-1.5 flex flex-wrap gap-1">
         {novel.genres.slice(0, 2).map((slug) => (
           <Link key={slug} href={`/genre/${slug}`} className="rounded-[8px]">
-            <GenreChip slug={slug} />
+            <GenreChip label={genreNameOf(novel, slug)} />
           </Link>
         ))}
       </div>
@@ -242,7 +241,7 @@ export function NovelMiniCard({ novel }: { novel: Novel }) {
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
         <p className="tabular truncate text-xs text-muted-foreground">
-          {genreNameOf(novel.genres[0])} · {formatNumber(novel.views)} ครั้ง
+          {genreNameOf(novel, novel.genres[0])} · {formatNumber(novel.views)} ครั้ง
         </p>
       </div>
     </Link>
@@ -276,7 +275,7 @@ export function NovelRankingItem({ novel, rank }: { novel: Novel; rank: number }
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
         <p className="tabular truncate text-xs text-muted-foreground">
-          {genreNameOf(novel.genres[0])} · {novel.chapters} ตอน
+          {genreNameOf(novel, novel.genres[0])} · {novel.chapters} ตอน
         </p>
       </div>
     </Link>

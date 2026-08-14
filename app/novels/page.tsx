@@ -1,41 +1,101 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { cache } from "react";
+
 import { NovelBrowser } from "@/components/interactive/novel-browser";
-import { getNovels, parseGenreParam, type NovelQuery } from "@/services/novel-service";
-import { genres as allGenres } from "@/data/mock-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { pageMetadata } from "@/lib/seo";
+import { absoluteUrl } from "@/lib/site-config";
+import {
+  canonicalizeNovelSearchParams,
+  normalizeTagCandidate,
+  novelBrowseHref,
+  rawSearchParamsHref,
+  type RawSearchParams,
+} from "@/lib/validation/public-query";
+import { getGenreFacets, getGenres, getNovelPage, getRankings, getTagBySlug } from "@/services/novel-service";
+import { parseGenreParam, type NovelQuery } from "@/types/novel-query";
 
-type SearchParams = NovelQuery & { page?: string };
+type SearchParams = RawSearchParams;
 
-/** title/description สะท้อนตัวกรองที่เลือก เพื่อให้แต่ละลิงก์มี metadata ของตัวเอง (ส่วนที่ 6.4) */
+export const dynamic = "force-dynamic";
+
+const getCanonicalNovelPage = cache((queryKey: string) =>
+  getNovelPage(JSON.parse(queryKey) as NovelQuery),
+);
+
+async function resolveBrowseRequest(raw: SearchParams) {
+  const tagCandidate = normalizeTagCandidate(raw.tag);
+  const [allGenres, activeTag] = await Promise.all([
+    getGenres(200),
+    tagCandidate ? getTagBySlug(tagCandidate) : Promise.resolve(undefined),
+  ]);
+  const normalized = canonicalizeNovelSearchParams(raw, {
+    activeGenreSlugs: allGenres.map((genre) => genre.slug),
+    activeTagSlug: activeTag?.slug,
+  });
+  return { ...normalized, allGenres };
+}
+
+function resolvedPageQuery(query: NovelQuery, page: number): NovelQuery {
+  const resolved = { ...query };
+  if (page > 1) resolved.page = page;
+  else delete resolved.page;
+  return resolved;
+}
+
 export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
-  const query = await searchParams;
+  const raw = await searchParams;
+  const { query, allGenres } = await resolveBrowseRequest(raw);
+  const result = await getCanonicalNovelPage(JSON.stringify(query));
+  const canonicalQuery = resolvedPageQuery(query, result.page);
   const selected = parseGenreParam(query.genre)
     .map((slug) => allGenres.find((genre) => genre.slug === slug)?.thaiName)
-    .filter(Boolean);
-
+    .filter((value): value is string => Boolean(value));
   const title = selected.length ? `นิยาย${selected.join(" · ")}` : "นิยายทั้งหมด";
-  const count = getNovels(query).length;
 
-  return {
+  return pageMetadata({
     title,
-    description: `${title} บน NiyaiNow — ${count.toLocaleString("th-TH")} เรื่อง อัปเดตไว อ่านได้ทันที`
-  };
+    description: `${title} บน NiyaiNow พบ ${result.total.toLocaleString("th-TH")} เรื่อง เลือกตามแนว สถานะ คะแนน และช่วงเวลาอัปเดต`,
+    path: novelBrowseHref(canonicalQuery, allGenres.map((genre) => genre.slug)),
+    noIndex: Boolean(query.q),
+  });
 }
 
 export default async function NovelsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { page, ...query } = await searchParams;
-  const initialPage = Math.max(1, Number(page) || 1);
+  const raw = await searchParams;
+  const { query, allGenres } = await resolveBrowseRequest(raw);
+  const result = await getCanonicalNovelPage(JSON.stringify(query));
+  const canonicalQuery = resolvedPageQuery(query, result.page);
+  const canonicalHref = novelBrowseHref(canonicalQuery, allGenres.map((genre) => genre.slug));
+  if (rawSearchParamsHref("/novels", raw) !== canonicalHref) redirect(canonicalHref);
 
-  const selected = parseGenreParam(query.genre)
+  const [facets, suggestions] = await Promise.all([
+    getGenreFacets({ ...query, page: undefined }),
+    getRankings("WEEKLY", 6),
+  ]);
+  const selected = parseGenreParam(canonicalQuery.genre)
     .map((slug) => allGenres.find((genre) => genre.slug === slug)?.thaiName)
-    .filter(Boolean);
+    .filter((value): value is string => Boolean(value));
+  const title = selected.length ? `นิยาย${selected.join(" · ")}` : "นิยายทั้งหมด";
 
   return (
     <main id="main" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-20 sm:px-6 lg:px-8">
-      <NovelBrowser
-        initialQuery={query}
-        initialPage={initialPage}
-        title={selected.length ? `นิยาย${selected.join(" · ")}` : "นิยายทั้งหมด"}
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: title,
+          numberOfItems: result.total,
+          itemListElement: result.items.map((novel, index) => ({
+            "@type": "ListItem",
+            position: (result.page - 1) * result.pageSize + index + 1,
+            name: novel.thaiTitle,
+            url: absoluteUrl(`/novel/${novel.slug}`),
+          })),
+        }}
       />
+      <NovelBrowser query={canonicalQuery} result={result} facets={facets} suggestions={suggestions} title={title} />
     </main>
   );
 }

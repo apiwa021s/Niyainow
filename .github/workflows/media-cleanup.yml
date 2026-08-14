@@ -1,0 +1,75 @@
+name: Production media cleanup
+
+on:
+  schedule:
+    # Hourly stale/staging/orphan cleanup and a separate weekly READY reconciliation.
+    - cron: "17 * * * *"
+    - cron: "47 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: Delete objects (leave disabled for a dry run)
+        required: true
+        default: false
+        type: boolean
+      reconcile_unattached_ready:
+        description: Also reconcile READY media after the seven-day grace period
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-media-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Preview cleanup
+        if: github.event_name == 'workflow_dispatch' && !inputs.execute
+        run: >-
+          npx tsx db/cleanup-media.ts
+          --older-than-hours=24
+          --delete-limit=200
+          --orphan-scan-limit=1000
+
+      - name: Delete expired and orphaned media
+        if: github.event_name == 'schedule' || inputs.execute
+        run: >-
+          npx tsx db/cleanup-media.ts
+          --execute
+          --older-than-hours=24
+          --delete-limit=200
+          --orphan-scan-limit=1000
+
+      - name: Reconcile unattached READY media
+        if: >-
+          github.event.schedule == '47 3 * * 0' ||
+          (github.event_name == 'workflow_dispatch' && inputs.execute && inputs.reconcile_unattached_ready)
+        run: >-
+          npx tsx db/cleanup-media.ts
+          --execute
+          --reconcile-unattached-ready
+          --ready-grace-hours=168
+          --delete-limit=200
+          --orphan-scan-limit=1000

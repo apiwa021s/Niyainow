@@ -1,213 +1,163 @@
 "use client";
 
-import Link from "next/link";
-import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { DataTable, FilterBar, type Column } from "@/components/admin/admin-table";
+import { useRouter } from "next/navigation";
+import { Pencil, Plus, Power, PowerOff } from "lucide-react";
+import { useState, type FormEvent } from "react";
+
+import { Panel } from "@/components/admin/admin-ui";
 import { ConfirmDialog, Modal } from "@/components/admin/modal";
-import { RowMenu } from "@/components/admin/row-menu";
+import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form-controls";
-import { useToast } from "@/components/ui/toast";
-import { slugify } from "@/lib/utils";
-import { genres, novels } from "@/data/mock-data";
-import type { Genre } from "@/types/novel";
+import type { AdminGenreRow } from "@/services/admin-service";
 
-type Draft = { slug: string; name: string; thaiName: string; description: string };
+type GenreDraft = {
+  id?: string;
+  slug?: string;
+  name: string;
+  thaiName: string;
+  description: string;
+  sortOrder: number;
+  isActive: boolean;
+};
 
-const EMPTY: Draft = { slug: "", name: "", thaiName: "", description: "" };
+async function errorMessage(response: Response) {
+  const body = await response.json().catch(() => null) as { error?: { message?: string; fields?: Record<string, string[]> } } | null;
+  return (body?.error?.fields && Object.values(body.error.fields).flat()[0]) || body?.error?.message || `Request failed (${response.status})`;
+}
 
-export function GenresView() {
-  const { toast } = useToast();
-  const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<Draft | null>(null);
-  const [isNew, setIsNew] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<Genre | null>(null);
-  const [error, setError] = useState<string>();
+export function GenresView({ genres }: { genres: AdminGenreRow[] }) {
+  const router = useRouter();
+  const [draft, setDraft] = useState<GenreDraft | null>(null);
+  const [pendingDeactivate, setPendingDeactivate] = useState<AdminGenreRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const nextSortOrder = genres.reduce((maximum, genre) => Math.max(maximum, genre.sortOrder), 0) + 1;
 
-  /** จำนวนเรื่องจริงในระบบ ณ ตอนนี้ — ต่างจาก count ที่เป็นตัวเลขโชว์หน้าเว็บ */
-  const usage = useMemo(() => {
-    const map = new Map<string, number>();
-    novels.forEach((novel) => novel.genres.forEach((slug) => map.set(slug, (map.get(slug) ?? 0) + 1)));
-    return map;
-  }, []);
-
-  const rows = useMemo(
-    () =>
-      genres.filter(
-        (genre) =>
-          !search || [genre.thaiName, genre.name, genre.slug].some((field) => field.toLowerCase().includes(search.toLowerCase()))
-      ),
-    [search]
-  );
-
-  function openCreate() {
-    setEditing(EMPTY);
-    setIsNew(true);
-    setError(undefined);
+  function create() {
+    setMessage("");
+    setDraft({ name: "", thaiName: "", description: "", sortOrder: nextSortOrder, isActive: true });
   }
 
-  function openEdit(genre: Genre) {
-    setEditing({ slug: genre.slug, name: genre.name, thaiName: genre.thaiName, description: genre.description });
-    setIsNew(false);
-    setError(undefined);
+  function edit(genre: AdminGenreRow) {
+    setMessage("");
+    setDraft({
+      id: genre.id,
+      slug: genre.slug,
+      name: genre.name,
+      thaiName: genre.thaiName ?? "",
+      description: genre.description ?? "",
+      sortOrder: genre.sortOrder,
+      isActive: genre.isActive,
+    });
   }
 
-  function save() {
-    if (!editing) return;
-    if (editing.thaiName.trim().length < 2 || editing.slug.trim().length < 2) {
-      setError("กรุณากรอกชื่อภาษาไทยและ slug ให้ครบ");
-      return;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!draft) return;
+    setBusy(true);
+    setMessage("");
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      name: String(form.get("name") ?? ""),
+      thaiName: String(form.get("thaiName") ?? "") || null,
+      description: String(form.get("description") ?? "") || null,
+      sortOrder: Number(form.get("sortOrder")),
+      isActive: form.get("isActive") === "on",
+    };
+    try {
+      const response = await fetch(draft.id ? `/api/admin/genres/${draft.id}` : "/api/admin/genres", {
+        method: draft.id ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      setDraft(null);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ไม่สามารถบันทึกแนวนิยายได้");
+    } finally {
+      setBusy(false);
     }
-    toast({ tone: "success", message: isNew ? `เพิ่มแนว ${editing.thaiName} แล้ว` : `บันทึกแนว ${editing.thaiName} แล้ว` });
-    setEditing(null);
   }
 
-  const columns: Column<Genre>[] = [
-    {
-      key: "name",
-      header: "แนว",
-      cell: (genre) => (
-        <div className="min-w-0">
-          <p className="truncate font-semibold">{genre.thaiName}</p>
-          <p className="truncate text-xs text-muted-foreground">{genre.name}</p>
-        </div>
-      )
-    },
-    {
-      key: "slug",
-      header: "Slug",
-      hideBelow: "sm",
-      cell: (genre) => <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{genre.slug}</code>
-    },
-    {
-      key: "description",
-      header: "คำอธิบาย",
-      hideBelow: "lg",
-      cell: (genre) => <p className="max-w-md truncate text-sm text-muted-foreground">{genre.description}</p>
-    },
-    {
-      key: "usage",
-      header: "เรื่องในระบบ",
-      className: "tabular",
-      cell: (genre) => (usage.get(genre.slug) ?? 0).toLocaleString("th-TH")
-    },
-    {
-      key: "count",
-      header: "ตัวเลขที่แสดงบนเว็บ",
-      hideBelow: "xl",
-      className: "tabular",
-      cell: (genre) => genre.count.toLocaleString("th-TH")
-    },
-    {
-      key: "actions",
-      header: <span className="sr-only">คำสั่ง</span>,
-      className: "text-right",
-      headClassName: "text-right",
-      cell: (genre) => (
-        <div className="flex justify-end">
-          <RowMenu
-            label={`คำสั่งสำหรับแนว ${genre.thaiName}`}
-            actions={[
-              { label: "แก้ไขแนวนี้", icon: <Pencil className="h-4 w-4" />, onSelect: () => openEdit(genre) },
-              { label: "ดูหน้าแนวบนเว็บ", icon: <ExternalLink className="h-4 w-4" />, href: `/genre/${genre.slug}` },
-              {
-                label: "ลบแนวนี้",
-                icon: <Trash2 className="h-4 w-4" />,
-                tone: "danger",
-                onSelect: () => setPendingDelete(genre)
-              }
-            ]}
-          />
-        </div>
-      )
+  async function toggleActive(genre: AdminGenreRow) {
+    const nextActive = !genre.isActive;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/admin/genres/${genre.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: genre.name,
+          thaiName: genre.thaiName,
+          description: genre.description,
+          sortOrder: genre.sortOrder,
+          isActive: nextActive,
+        }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนสถานะแนวนิยายได้");
+    } finally {
+      setBusy(false);
     }
-  ];
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      <FilterBar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="ค้นหาแนวนิยาย…"
-        onReset={() => setSearch("")}
-        resultLabel={`ทั้งหมด ${rows.length.toLocaleString("th-TH")} แนว`}
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            เพิ่มแนว
-          </Button>
-        }
-      />
-
-      <DataTable caption="ตารางแนวนิยายทั้งหมด" rows={rows} columns={columns} getRowKey={(genre) => genre.slug} pageSize={20} />
+    <div className="grid gap-4">
+      {message ? <p role="alert" className="rounded-[12px] border border-border bg-card px-4 py-3 text-sm text-destructive">{message}</p> : null}
+      <Panel
+        title="แนวนิยายจากฐานข้อมูล"
+        description="Slug สร้างครั้งเดียวและไม่เปลี่ยนเมื่อแก้ชื่อ; การปิดใช้งานไม่ลบความสัมพันธ์เดิม"
+        action={<Button onClick={create}><Plus className="h-4 w-4" />เพิ่มแนว</Button>}
+      >
+        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
+          <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-3 pr-4">ชื่อ</th><th className="px-4 py-3">Slug</th><th className="px-4 py-3">ลำดับ</th><th className="px-4 py-3">นิยาย</th><th className="px-4 py-3">สถานะ</th><th className="pl-4 py-3"><span className="sr-only">คำสั่ง</span></th></tr></thead>
+          <tbody>{genres.map((genre) => <tr key={genre.id} className="border-b border-border/70 last:border-0">
+            <td className="py-3 pr-4"><p className="font-semibold">{genre.thaiName || genre.name}</p><p className="text-xs text-muted-foreground">{genre.name}</p></td>
+            <td className="px-4 py-3"><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{genre.slug}</code></td>
+            <td className="tabular px-4 py-3">{genre.sortOrder}</td><td className="tabular px-4 py-3">{genre.usageCount.toLocaleString("th-TH")}</td>
+            <td className="px-4 py-3"><StatusPill label={genre.isActive ? "ใช้งาน" : "ปิดใช้งาน"} tone={genre.isActive ? "success" : "neutral"} /></td>
+            <td className="pl-4 py-3"><div className="flex justify-end gap-1">
+              <button type="button" onClick={() => edit(genre)} disabled={busy} aria-label={`แก้ไข ${genre.name}`} className="grid h-9 w-9 place-items-center rounded-[9px] hover:bg-muted disabled:opacity-50"><Pencil className="h-4 w-4" /></button>
+              <button type="button" onClick={() => { if (genre.isActive) setPendingDeactivate(genre); else void toggleActive(genre); }} disabled={busy} aria-label={genre.isActive ? `ปิดใช้งาน ${genre.name}` : `เปิดใช้งาน ${genre.name}`} className="grid h-9 w-9 place-items-center rounded-[9px] hover:bg-muted disabled:opacity-50">{genre.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}</button>
+            </div></td>
+          </tr>)}</tbody>
+        </table></div>
+        {!genres.length ? <p className="py-8 text-center text-sm text-muted-foreground">ยังไม่มีแนวนิยาย กด “เพิ่มแนว” เพื่อสร้าง taxonomy แรกสำหรับ production</p> : null}
+      </Panel>
 
       <Modal
-        open={Boolean(editing)}
-        onClose={() => setEditing(null)}
-        title={isNew ? "เพิ่มแนวนิยาย" : "แก้ไขแนวนิยาย"}
-        description="ชื่อภาษาไทยคือสิ่งที่ผู้อ่านเห็น ส่วน slug ใช้ในลิงก์ /genre/…"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setEditing(null)}>
-              ยกเลิก
-            </Button>
-            <Button onClick={save}>{isNew ? "เพิ่มแนว" : "บันทึก"}</Button>
-          </>
-        }
+        open={Boolean(draft)}
+        onClose={() => { if (!busy) setDraft(null); }}
+        title={draft?.id ? "แก้ไขแนวนิยาย" : "เพิ่มแนวนิยาย"}
+        description={draft?.slug ? `Slug คงที่: ${draft.slug}` : "Slug จะสร้างอัตโนมัติจากชื่อและไม่ซ้ำในระบบ"}
+        footer={<><Button type="button" variant="outline" disabled={busy} onClick={() => setDraft(null)}>ยกเลิก</Button><Button type="submit" form="genre-editor-form" loading={busy}>บันทึก</Button></>}
       >
-        {editing ? (
-          <div className="grid gap-4">
-            <Field label="ชื่อภาษาไทย" error={error}>
-              <Input
-                value={editing.thaiName}
-                onChange={(event) => setEditing({ ...editing, thaiName: event.target.value })}
-                placeholder="เช่น แฟนตาซี"
-              />
-            </Field>
-            <Field label="ชื่อภาษาอังกฤษ">
-              <Input
-                value={editing.name}
-                onChange={(event) =>
-                  setEditing({
-                    ...editing,
-                    name: event.target.value,
-                    slug: isNew ? slugify(event.target.value) : editing.slug
-                  })
-                }
-                placeholder="Fantasy"
-              />
-            </Field>
-            <Field label="Slug" hint={isNew ? "สร้างอัตโนมัติจากชื่ออังกฤษ แก้เองได้" : "เปลี่ยนแล้วลิงก์เดิมจะเข้าไม่ได้"}>
-              <Input value={editing.slug} onChange={(event) => setEditing({ ...editing, slug: event.target.value })} />
-            </Field>
-            <Field label="คำอธิบาย" hint="แสดงใต้ชื่อแนวในหน้ารวมแนว">
-              <Textarea
-                value={editing.description}
-                onChange={(event) => setEditing({ ...editing, description: event.target.value })}
-                className="min-h-20"
-              />
-            </Field>
-          </div>
-        ) : null}
+        {draft ? <form id="genre-editor-form" onSubmit={submit} className="grid gap-4">
+          <Field label="ชื่อสากล"><Input name="name" required minLength={2} maxLength={160} defaultValue={draft.name} placeholder="Fantasy" /></Field>
+          <Field label="ชื่อภาษาไทย"><Input name="thaiName" maxLength={160} defaultValue={draft.thaiName} placeholder="แฟนตาซี" /></Field>
+          <Field label="คำอธิบาย"><Textarea name="description" maxLength={2_000} defaultValue={draft.description} /></Field>
+          <Field label="ลำดับแสดงผล"><Input name="sortOrder" type="number" min="0" step="1" required defaultValue={draft.sortOrder} /></Field>
+          <label className="flex items-center gap-2 rounded-[12px] border border-border p-3 text-sm font-medium"><input name="isActive" type="checkbox" defaultChecked={draft.isActive} className="h-4 w-4 accent-[var(--brand-primary)]" />เปิดใช้งานในหน้าสาธารณะและฟอร์มนิยาย</label>
+        </form> : null}
       </Modal>
-
       <ConfirmDialog
-        open={Boolean(pendingDelete)}
-        onClose={() => setPendingDelete(null)}
-        onConfirm={() => toast({ tone: "error", message: `ลบแนว ${pendingDelete?.thaiName} แล้ว` })}
-        title={`ลบแนว ${pendingDelete?.thaiName ?? ""}?`}
-        description={`มีนิยาย ${usage.get(pendingDelete?.slug ?? "") ?? 0} เรื่องที่ใช้แนวนี้อยู่ เรื่องเหล่านั้นจะถูกถอดแนวนี้ออกแต่ยังอยู่ในระบบตามปกติ`}
-        confirmLabel="ลบแนวนี้"
+        open={Boolean(pendingDeactivate)}
+        onClose={() => setPendingDeactivate(null)}
+        onConfirm={() => {
+          const genre = pendingDeactivate;
+          setPendingDeactivate(null);
+          if (genre) void toggleActive(genre);
+        }}
+        title="ปิดใช้งานแนวนิยาย"
+        description={`แนว “${pendingDeactivate?.thaiName || pendingDeactivate?.name || ""}” จะไม่แสดงในตัวเลือกสาธารณะ แต่ความสัมพันธ์กับนิยาย ${pendingDeactivate?.usageCount ?? 0} เรื่องจะยังคงอยู่และไม่มีข้อมูลถูกลบ`}
+        confirmLabel="ปิดใช้งาน"
         tone="danger"
       />
-
-      <p className="text-xs text-muted-foreground">
-        ต้องการดูว่าแนวไหนมีคนอ่านมากที่สุด? ดูได้ที่{" "}
-        <Link href="/admin/analytics" prefetch className="font-semibold text-[var(--brand-light-on-light)] hover:underline">
-          หน้าสถิติเชิงลึก
-        </Link>
-      </p>
     </div>
   );
 }

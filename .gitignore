@@ -6,9 +6,9 @@ node_modules/
 out/
 dist/
 
-# local env files
-.env
-.env*.local
+# local env files (the documented template is safe to commit)
+.env*
+!.env.example
 
 # logs
 npm-debug.log*
@@ -19,3 +19,4 @@ pnpm-debug.log*
 # editor and local tooling
 .codesight/
 .DS_Store
+*.tsbuildinfo

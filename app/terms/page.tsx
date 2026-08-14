@@ -1,13 +1,23 @@
-import type { Metadata } from "next";
 import { PageShell, SectionHeader } from "@/components/ui/section";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "ข้อกำหนดการใช้งาน" };
+export const metadata = pageMetadata({
+  title: "ข้อกำหนดการใช้งาน",
+  description: "ข้อกำหนดการเข้าถึงบัญชี เนื้อหา และฟีเจอร์ของแพลตฟอร์ม NiyaiNow",
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (
-    <PageShell className="space-y-4">
+    <PageShell className="space-y-6">
       <SectionHeader title="ข้อกำหนดการใช้งาน" />
-      <p className="max-w-3xl leading-7 text-muted-foreground">เนื้อหาในเดโมนี้เป็นข้อมูลสมมติ ใช้เพื่อทดสอบ UI/UX เท่านั้น การเข้าสู่ระบบ คลัง และการแจ้งเตือนเป็นระบบจำลองผ่าน LocalStorage</p>
+      <div className="max-w-3xl space-y-4 leading-7 text-muted-foreground">
+        <p>คุณสามารถอ่านเนื้อหาที่เผยแพร่สู่สาธารณะได้โดยไม่ต้องเข้าสู่ระบบ ฟีเจอร์ส่วนบุคคลต้องใช้บัญชี Google และต้องไม่ใช้บัญชีของผู้อื่นโดยไม่ได้รับอนุญาต</p>
+        <p>ห้ามรบกวนระบบ พยายามข้ามสิทธิ์ เข้าถึงเนื้อหาที่ไม่เผยแพร่ อัปโหลดไฟล์อันตราย หรือส่งรีวิวที่ผิดกฎหมาย ละเมิดสิทธิ์ หรือเป็นสแปม</p>
+        <p>เนื้อหานิยายและสื่อประกอบเป็นสิทธิ์ของเจ้าของผลงานตามที่ระบุ การเข้าถึงผ่านเว็บไซต์ไม่ได้ให้สิทธิ์คัดลอกหรือเผยแพร่ซ้ำ</p>
+        <p>ผู้ให้บริการอาจระงับบัญชีหรือซ่อนเนื้อหาที่ฝ่าฝืนข้อกำหนด และอาจปรับปรุงบริการหรือข้อกำหนดเมื่อจำเป็นโดยประกาศฉบับที่มีผลใช้งานบนหน้านี้</p>
+        <p className="text-sm">ปรับปรุงล่าสุด: 14 สิงหาคม 2569</p>
+      </div>
     </PageShell>
   );
 }

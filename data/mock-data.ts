@@ -1,4 +1,4 @@
-import type { Chapter, CoinPackage, Genre, Novel, UpdateItem } from "@/types/novel";
+import type { Chapter, Genre, Novel, UpdateItem } from "@/types/novel";
 
 export const genres: Genre[] = [
   { slug: "action", name: "Action", thaiName: "แอ็กชัน", description: "ฉากปะทะเร็ว เข้มข้น และเดิมพันสูง", count: 1283 },
@@ -517,13 +517,3 @@ export const chapters: Chapter[] = novels.flatMap((novel) =>
     };
   })
 );
-
-/** แพ็กเกจเติมเหรียญ (ส่วนที่ 6.11) — mock */
-export const coinPackages: CoinPackage[] = [
-  { id: "starter", coins: 50, bonus: 0, priceTHB: 50 },
-  { id: "regular", coins: 120, bonus: 10, priceTHB: 120 },
-  { id: "plus", coins: 250, bonus: 30, priceTHB: 250 },
-  { id: "pro", coins: 500, bonus: 80, priceTHB: 500, bestValue: true },
-  { id: "mega", coins: 1000, bonus: 200, priceTHB: 1000 },
-  { id: "ultra", coins: 2000, bonus: 500, priceTHB: 2000 }
-];

@@ -1,69 +1,75 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import { useFormStatus } from "react-dom";
+
+import { signInWithGoogle } from "@/lib/auth/actions";
+import { Button, type ButtonSize } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input, Label } from "@/components/ui/form-controls";
-import { useReaderStore } from "@/stores/use-reader-store";
 
-const schema = z.object({
-  name: z.string().min(2, "กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร"),
-  email: z.string().email("อีเมลไม่ถูกต้อง"),
-  password: z.string().min(6, "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")
-});
+function GoogleMark() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+      <path d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.91h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.4Z" />
+      <path d="M12 22c2.7 0 4.98-.9 6.63-2.43l-3.24-2.54c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.77-5.61-4.14H3.04v2.62A10 10 0 0 0 12 22Z" opacity=".85" />
+      <path d="M6.39 13.85A6.02 6.02 0 0 1 6.07 12c0-.64.11-1.27.32-1.85V7.53H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.47l3.35-2.62Z" opacity=".7" />
+      <path d="M12 6.01c1.47 0 2.79.51 3.83 1.5l2.87-2.88A9.65 9.65 0 0 0 12 2a10 10 0 0 0-8.96 5.53l3.35 2.62C7.18 7.78 9.39 6.01 12 6.01Z" opacity=".55" />
+    </svg>
+  );
+}
 
-type FormData = z.infer<typeof schema>;
+export function GoogleSignInButton({
+  label = "ดำเนินการต่อด้วย Google",
+  size = "lg",
+  className,
+}: {
+  label?: string;
+  size?: ButtonSize;
+  className?: string;
+}) {
+  const { pending } = useFormStatus();
 
-export function AuthForm({ mode }: { mode: "login" | "register" | "forgot" }) {
-  const router = useRouter();
-  const login = useReaderStore((state) => state.login);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: { name: "นักอ่าน NiyaiNow", email: "reader@niyainow.test", password: "reader123" }
-  });
+  return (
+    <Button type="submit" size={size} className={className} loading={pending}>
+      <GoogleMark />
+      {label}
+    </Button>
+  );
+}
 
-  function onSubmit(data: Partial<FormData>) {
-    if (mode !== "forgot") login(data.name || "นักอ่าน NiyaiNow");
-    router.push(mode === "forgot" ? "/login" : "/profile");
-  }
-
+export function AuthForm({ callbackUrl = "/profile", error }: { callbackUrl?: string; error?: string }) {
   return (
     <Card className="mx-auto max-w-md">
       <CardHeader>
-        <CardTitle>{mode === "login" ? "เข้าสู่ระบบ" : mode === "register" ? "สมัครสมาชิก" : "ลืมรหัสผ่าน"}</CardTitle>
+        <CardTitle>เข้าสู่ระบบ</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4" onSubmit={handleSubmit(onSubmit)}>
-          {mode === "register" ? (
-            <label className="grid gap-2">
-              <Label>ชื่อที่แสดง</Label>
-              <Input {...register("name")} />
-              {errors.name ? <span className="text-xs text-destructive">{errors.name.message}</span> : null}
-            </label>
-          ) : null}
-          <label className="grid gap-2">
-            <Label>อีเมล</Label>
-            <Input {...register("email")} />
-            {errors.email ? <span className="text-xs text-destructive">{errors.email.message}</span> : null}
-          </label>
-          {mode !== "forgot" ? (
-            <label className="grid gap-2">
-              <Label>รหัสผ่าน</Label>
-              <Input type="password" {...register("password")} />
-              {errors.password ? <span className="text-xs text-destructive">{errors.password.message}</span> : null}
-            </label>
-          ) : null}
-          <Button disabled={isSubmitting}>{mode === "forgot" ? "ส่งลิงก์รีเซ็ต" : mode === "login" ? "เข้าสู่ระบบ" : "สร้างบัญชี"}</Button>
+        <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+          ใช้บัญชี Google เพื่อเข้าสู่ NiyaiNow ระบบจะสร้างบัญชีผู้อ่านให้โดยอัตโนมัติเมื่อเข้าสู่ระบบครั้งแรก
+        </p>
+
+        {error ? (
+          <p role="alert" className="mb-4 rounded-[10px] bg-destructive/10 p-3 text-sm text-destructive">
+            ไม่สามารถเข้าสู่ระบบได้ โปรดลองอีกครั้งหรือตรวจสอบสิทธิ์ของบัญชี Google
+          </p>
+        ) : null}
+
+        <form className="grid gap-4" action={signInWithGoogle}>
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+          <GoogleSignInButton />
         </form>
-        <div className="mt-4 flex justify-between text-sm text-muted-foreground">
-          <Link href="/login" className="hover:text-foreground">เข้าสู่ระบบ</Link>
-          <Link href="/register" className="hover:text-foreground">สมัครสมาชิก</Link>
-          <Link href="/forgot-password" className="hover:text-foreground">ลืมรหัสผ่าน</Link>
-        </div>
+
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+          เมื่อดำเนินการต่อ แสดงว่าคุณยอมรับ
+          <Link href="/terms" className="font-medium text-foreground hover:underline">
+            ข้อกำหนดการใช้งาน
+          </Link>{" "}
+          และ
+          <Link href="/privacy" className="font-medium text-foreground hover:underline">
+            นโยบายความเป็นส่วนตัว
+          </Link>
+          ของ NiyaiNow
+        </p>
       </CardContent>
     </Card>
   );

@@ -1,34 +1,15 @@
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
 import { AdminPageHeader } from "@/components/admin/admin-ui";
 import { ChapterEditorView } from "@/components/admin/views/chapter-editor-view";
-import { getAdminNovel } from "@/services/admin-service";
+import { getAdminNovel, getNextChapterDefaults } from "@/services/admin-service";
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
-  const novel = getAdminNovel(slug);
-  return { title: novel ? `เพิ่มตอนใหม่ — ${novel.thaiTitle}` : "ไม่พบนิยาย" };
-}
+export const metadata: Metadata = { title: "เพิ่มตอน" };
 
-export default async function AdminNewChapterPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function NewChapterPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const novel = getAdminNovel(slug);
+  const [novel, defaults] = await Promise.all([getAdminNovel(slug), getNextChapterDefaults(slug)]);
   if (!novel) notFound();
-
-  return (
-    <>
-      <AdminPageHeader
-        title="เพิ่มตอนใหม่"
-        description={`${novel.thaiTitle} — ระบบเติมเลขตอนถัดไปให้แล้ว แก้ได้ถ้าต้องการแทรกตอน`}
-        crumbs={[
-          { label: "หลังบ้าน", href: "/admin" },
-          { label: "นิยาย", href: "/admin/novels" },
-          { label: novel.thaiTitle, href: `/admin/novels/${novel.slug}` },
-          { label: "ตอน", href: `/admin/novels/${novel.slug}/chapters` },
-          { label: "เพิ่มตอนใหม่" }
-        ]}
-      />
-      <ChapterEditorView novel={novel} />
-    </>
-  );
+  return <><AdminPageHeader title="เพิ่มตอน" description={novel.title} crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "นิยาย", href: "/admin/novels" }, { label: novel.title, href: `/admin/novels/${novel.slug}` }, { label: "ตอน", href: `/admin/novels/${novel.slug}/chapters` }, { label: "เพิ่มตอน" }]} /><ChapterEditorView novel={novel} defaults={defaults} /></>;
 }

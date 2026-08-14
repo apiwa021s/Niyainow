@@ -1,9 +1,5 @@
-import type { Metadata } from "next";
-import { AuthForm } from "@/components/interactive/auth-form";
-import { PageShell } from "@/components/ui/section";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "สมัครสมาชิก" };
-
-export default function RegisterPage() {
-  return <PageShell><AuthForm mode="register" /></PageShell>;
+export default function RegisterPage(): never {
+  redirect("/login");
 }

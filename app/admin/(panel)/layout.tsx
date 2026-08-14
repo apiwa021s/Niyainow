@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/auth/dal";
 import { getPendingWork } from "@/services/admin-service";
 
 export const metadata: Metadata = {
@@ -11,11 +12,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }
 };
 
-export default function AdminPanelLayout({ children }: { children: React.ReactNode }) {
-  const pending = getPendingWork();
+export default async function AdminPanelLayout({ children }: { children: React.ReactNode }) {
+  const [user, pending] = await Promise.all([requireAdmin("/admin"), getPendingWork()]);
 
   return (
     <AdminShell
+      user={{ name: user.name, email: user.email, role: user.role as "EDITOR" | "ADMIN" }}
       pending={{
         submissions: pending.submissions,
         reports: pending.reports,

@@ -9,14 +9,18 @@ export type Genre = {
 };
 
 export type Novel = {
+  id?: string;
   slug: string;
   title: string;
   thaiTitle: string;
   author: string;
   genres: string[];
+  /** Labels keyed by genre slug; keeps presentation independent from seed data. */
+  genreNames?: Record<string, string>;
   tags: string[];
   status: NovelStatus;
   rating: number;
+  ratingCount?: number;
   views: number;
   chapters: number;
   synopsis: string;
@@ -37,28 +41,46 @@ export type Novel = {
   hasPaidChapters?: boolean;
   /** อัปเดตล่าสุดเมื่อกี่ชั่วโมงที่แล้ว — ใช้กับตัวกรองช่วงเวลา (ส่วนที่ 6.4) */
   updatedHoursAgo?: number;
+  publishedAt?: string;
+  latestChapter?: Pick<Chapter, "number" | "title">;
 };
 
 export type Chapter = {
+  id?: string;
   novelSlug: string;
   number: number;
+  slug?: string;
+  sortOrder?: number;
   title: string;
   body: string[];
   updatedAt: string;
-  /** ตอนที่ต้องจ่ายเหรียญเพื่ออ่าน (ส่วนที่ 6.7 — Paywall) */
+  /** ตอนที่ยังไม่เปิดเนื้อหาเต็มแก่สาธารณะ */
   locked?: boolean;
-  /** ราคาเป็นเหรียญ แสดงเสมอ ห้ามซ่อนจนกว่าจะกด (ส่วนที่ 11) */
+  /** Reserved legacy price; production admin currently accepts free chapters only. */
   coinPrice?: number;
 };
 
-/** แพ็กเกจเติมเหรียญ (ส่วนที่ 6.11) */
-export type CoinPackage = {
+export type ChapterSummary = Omit<Chapter, "body">;
+
+export type Review = {
   id: string;
-  coins: number;
-  bonus: number;
-  priceTHB: number;
-  bestValue?: boolean;
+  authorName: string;
+  authorImage?: string | null;
+  rating?: number | null;
+  title?: string | null;
+  content: string;
+  isSpoiler: boolean;
+  createdAt: string;
 };
+
+export type Paginated<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 
 export type UpdateItem = {
   novelSlug: string;

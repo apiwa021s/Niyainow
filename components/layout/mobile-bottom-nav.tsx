@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, BookMarked, Home, Search, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useReaderStore } from "@/stores/use-reader-store";
 
 /**
  * Bottom tab bar (ส่วนที่ 6.2)
@@ -15,13 +14,12 @@ const nav = [
   { href: "/", label: "หน้าแรก", icon: Home },
   { href: "/search", label: "ค้นหา", icon: Search },
   { href: "/library", label: "ชั้นหนังสือ", icon: BookMarked },
-  { href: "/updates", label: "อัปเดต", icon: Bell, badge: true },
+  { href: "/updates", label: "อัปเดต", icon: Bell },
   { href: "/profile", label: "ฉัน", icon: UserRound }
 ];
 
 export function MobileBottomNav() {
   const pathname = usePathname();
-  const follows = useReaderStore((state) => state.follows);
 
   return (
     <nav
@@ -32,9 +30,6 @@ export function MobileBottomNav() {
         {nav.map((item) => {
           const active = item.href === "/" ? pathname === "/" : Boolean(pathname?.startsWith(item.href));
           const Icon = item.icon;
-          // จุดชมพูบน "อัปเดต" เมื่อมีเรื่องที่ติดตาม (ส่วนที่ 6.2)
-          const showBadge = item.badge && follows.length > 0;
-
           return (
             <li key={item.href}>
               <Link
@@ -48,12 +43,6 @@ export function MobileBottomNav() {
               >
                 <span className="relative">
                   <Icon className="h-6 w-6" strokeWidth={active ? 2.4 : 1.8} />
-                  {showBadge ? (
-                    <span
-                      aria-hidden
-                      className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--brand-pink)] ring-2 ring-background"
-                    />
-                  ) : null}
                 </span>
                 <span className={cn("text-[10px] leading-none", active && "font-semibold")}>{item.label}</span>
               </Link>

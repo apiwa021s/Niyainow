@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { BellRing, BookMarked, LibraryBig, Play } from "lucide-react";
-import { useSyncExternalStore } from "react";
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { GenrePicker } from "@/components/home/genre-picker";
 import { UpdateFeed } from "@/components/home/update-feed";
 import { NovelCard, NovelListItem, RankingCard } from "@/components/novels/novel-card";
 import type { Genre, Novel, UpdateItem } from "@/types/novel";
-import { useReaderStore } from "@/stores/use-reader-store";
+import type { HomePersonalization } from "@/services/user-service";
 
 export type HomeData = {
   featured: Novel[];
@@ -17,43 +16,24 @@ export type HomeData = {
   rankings: Novel[];
   completed: Novel[];
   updates: UpdateItem[];
+  followedUpdates: UpdateItem[];
   genreShowcase: { genre: Genre; covers: string[] }[];
   novelsBySlug: Record<string, Novel>;
-};
-
-/* ---------- hydration guard ---------- */
-const subscribe = (onChange: () => void) => {
-  const id = window.setTimeout(onChange, 0);
-  return () => window.clearTimeout(id);
+  personalization?: HomePersonalization;
 };
 
 /**
  * หน้าแรก (ส่วนที่ 6.3)
  * ลำดับ section ต่างกันตามสถานะผู้ใช้ — สำคัญมาก
  *
- * สถานะ login เก็บใน localStorage จึงรู้ได้เฉพาะฝั่ง client
- * ก่อน mount จะเรนเดอร์ลำดับของ "ผู้ใช้ใหม่" ไว้ก่อน (ตรงกับที่ server เรนเดอร์)
- * แล้วค่อยสลับหลัง hydrate — กัน hydration mismatch
+ * Server ส่ง personalization เฉพาะเมื่อ session และสถานะผู้ใช้ในฐานข้อมูล
+ * ผ่านการตรวจแล้ว จึงไม่มีการสลับ state จำลองหลัง hydrate
  */
 export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode }) {
-  const mounted = useSyncExternalStore(
-    subscribe,
-    () => true,
-    () => false
-  );
-
-  const isLoggedIn = useReaderStore((state) => state.isLoggedIn);
-  const history = useReaderStore((state) => state.history);
-  const follows = useReaderStore((state) => state.follows);
-
-  const showReturningLayout = mounted && isLoggedIn;
-
-  const continueItems = history
-    .map((record) => ({ record, novel: data.novelsBySlug[record.novelSlug] }))
-    .filter((item): item is { record: (typeof history)[number]; novel: Novel } => Boolean(item.novel))
-    .slice(0, 5);
-
-  const followedUpdates = data.updates.filter((item) => follows.includes(item.novelSlug)).slice(0, 8);
+  const showReturningLayout = Boolean(data.personalization);
+  const continueItems = data.personalization?.continueReading.slice(0, 5) ?? [];
+  const followedSlugs = data.personalization?.followedNovelSlugs ?? [];
+  const followedUpdates = data.followedUpdates.slice(0, 8);
 
   /* ---------------- section ย่อย ---------------- */
 
@@ -64,7 +44,13 @@ export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode
       href="/library/reading"
       key="continue"
     >
-      {continueItems.map(({ record, novel }) => (
+      {continueItems.map((item) => {
+        const novel = item.novel;
+        const record = {
+          chapter: item.chapter?.number ?? 1,
+          progress: Math.round(item.progressPercent ?? 0),
+        };
+        return (
         <RowItem key={novel.slug}>
           <div className="w-[260px] sm:w-[300px]">
             <NovelListItem
@@ -82,7 +68,8 @@ export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode
             />
           </div>
         </RowItem>
-      ))}
+        );
+      })}
     </ContentRow>
   );
 
@@ -94,7 +81,7 @@ export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode
       href="/updates"
       items={followedUpdates}
       novelsBySlug={data.novelsBySlug}
-      emptyText="ยังไม่ได้ติดตามเรื่องไหน กดติดตามแล้วตอนใหม่จะมาโผล่ตรงนี้"
+      emptyText={followedSlugs.length > 0 ? "ยังไม่มีตอนใหม่จากเรื่องที่ติดตาม" : "ยังไม่ได้ติดตามเรื่องไหน กดติดตามแล้วตอนใหม่จะมาโผล่ตรงนี้"}
     />
   );
 
@@ -112,8 +99,8 @@ export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode
   const recommended = (
     <ContentRow
       key="recommended"
-      title={showReturningLayout ? "แนะนำสำหรับคุณ" : "คะแนนสูงสุด"}
-      description={showReturningLayout ? "คัดจากแนวที่คุณอ่านบ่อย" : "เรื่องที่นักอ่านให้คะแนนสูงที่สุด"}
+      title={showReturningLayout ? "เรื่องน่าอ่าน" : "คะแนนสูงสุด"}
+      description={showReturningLayout ? "เรียงจากคะแนนของนักอ่านในชุมชน" : "เรื่องที่นักอ่านให้คะแนนสูงที่สุด"}
       href="/novels?sort=rating"
     >
       {data.recommended.map((novel) => (
@@ -179,7 +166,7 @@ export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode
       <ul className="mt-5 grid gap-3 sm:grid-cols-3">
         {[
           { icon: BookMarked, title: "บันทึกตำแหน่งอ่าน", text: "อ่านค้างบนมือถือ ต่อบนคอมได้ทันที" },
-          { icon: BellRing, title: "แจ้งเตือนตอนใหม่", text: "รู้ทันทีที่เรื่องที่ติดตามอัปเดต" },
+          { icon: BellRing, title: "อัปเดตเรื่องที่ติดตาม", text: "ดูตอนใหม่จากเรื่องที่ติดตามได้บนหน้าแรก" },
           { icon: LibraryBig, title: "ชั้นหนังสือของตัวเอง", text: "จัดเรื่องที่ชอบไว้ที่เดียว" }
         ].map((item) => {
           const Icon = item.icon;

@@ -1,246 +1,111 @@
-"use client";
-
-import Image from "next/image";
 import Link from "next/link";
-import { CheckCircle2, ExternalLink, EyeOff, FileStack, Pencil, Star, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { DataTable, FilterBar, allOption, type Column } from "@/components/admin/admin-table";
-import { RowMenu } from "@/components/admin/row-menu";
-import { ConfirmDialog } from "@/components/admin/modal";
+import { ExternalLink, FileStack, Pencil } from "lucide-react";
+
+import { Panel } from "@/components/admin/admin-ui";
 import { StatusPill } from "@/components/admin/status-pill";
-import { useAdminQuery } from "@/components/admin/use-admin-query";
-import { useToast } from "@/components/ui/toast";
-import { PUBLISH_STATUS } from "@/lib/admin-labels";
-import { formatNumber } from "@/lib/utils";
-import { genres } from "@/data/mock-data";
-import { getAdminNovels, type AdminNovelQuery, type AdminNovelSort } from "@/services/admin-service";
-import type { AdminNovel, PublishStatus } from "@/types/admin";
+import { ButtonLink } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/form-controls";
+import type { AdminNovelQuery, AdminNovelRow, AdminPage, AdminReferenceData, PublicationStatus } from "@/services/admin-service";
 
-const SORT_OPTIONS = [
-  { value: "updated", label: "อัปเดตล่าสุด" },
-  { value: "views", label: "ยอดอ่านสูงสุด" },
-  { value: "revenue", label: "รายได้สูงสุด" },
-  { value: "chapters", label: "จำนวนตอน" },
-  { value: "title", label: "ชื่อเรื่อง ก–ฮ" }
-];
+const statusLabels: Record<PublicationStatus, { label: string; tone: "neutral" | "warning" | "info" | "success" }> = {
+  DRAFT: { label: "ฉบับร่าง", tone: "neutral" },
+  IN_REVIEW: { label: "รอตรวจ", tone: "warning" },
+  SCHEDULED: { label: "ตั้งเวลา", tone: "info" },
+  PUBLISHED: { label: "เผยแพร่", tone: "success" },
+  ARCHIVED: { label: "เก็บถาวร", tone: "neutral" },
+};
 
-export function NovelsView({ initialQuery }: { initialQuery: AdminNovelQuery }) {
-  const { toast } = useToast();
-  const { query, setQuery, reset } = useAdminQuery("/admin/novels", {
-    q: initialQuery.q,
-    status: initialQuery.status,
-    genre: initialQuery.genre,
-    sort: initialQuery.sort ?? "updated"
-  });
-  const [pendingDelete, setPendingDelete] = useState<AdminNovel | null>(null);
-
-  const rows = useMemo(
-    () =>
-      getAdminNovels({
-        q: query.q,
-        status: query.status as PublishStatus | "all" | undefined,
-        genre: query.genre,
-        sort: query.sort as AdminNovelSort
-      }),
-    [query]
-  );
-
-  const columns: Column<AdminNovel>[] = [
-    {
-      key: "title",
-      header: "เรื่อง",
-      cell: (novel) => (
-        <div className="flex items-center gap-3">
-          <Image
-            src={novel.cover}
-            alt=""
-            width={36}
-            height={52}
-            className="h-13 w-9 shrink-0 rounded-[6px] object-cover"
-            sizes="36px"
-          />
-          <div className="min-w-0">
-            <Link href={`/admin/novels/${novel.slug}`} prefetch className="block truncate font-semibold hover:underline">
-              {novel.thaiTitle}
-            </Link>
-            <p className="truncate text-xs text-muted-foreground">
-              {novel.author} · {novel.owner}
-            </p>
-          </div>
-        </div>
-      )
-    },
-    {
-      key: "status",
-      header: "สถานะ",
-      cell: (novel) => (
-        <div className="flex flex-col items-start gap-1">
-          <StatusPill label={PUBLISH_STATUS[novel.publishStatus].label} tone={PUBLISH_STATUS[novel.publishStatus].tone} />
-          {novel.reports > 0 ? <span className="text-xs text-destructive">มีรายงาน {novel.reports} รายการ</span> : null}
-        </div>
-      )
-    },
-    {
-      key: "chapters",
-      header: "ตอน",
-      hideBelow: "md",
-      cell: (novel) => (
-        <div className="tabular">
-          <p className="font-medium">{novel.chapters.toLocaleString("th-TH")}</p>
-          {novel.scheduledChapters > 0 ? (
-            <p className="text-xs text-muted-foreground">ตั้งเวลาไว้ {novel.scheduledChapters}</p>
-          ) : null}
-        </div>
-      )
-    },
-    {
-      key: "views",
-      header: "ยอดอ่าน",
-      hideBelow: "lg",
-      cell: (novel) => (
-        <div className="tabular">
-          <p className="font-medium">{formatNumber(novel.views)}</p>
-          <p className="text-xs text-muted-foreground">+{formatNumber(novel.viewsThisWeek)} สัปดาห์นี้</p>
-        </div>
-      )
-    },
-    {
-      key: "revenue",
-      header: "รายได้",
-      hideBelow: "lg",
-      cell: (novel) => <span className="tabular font-medium">{novel.revenueTHB.toLocaleString("th-TH")} ฿</span>
-    },
-    {
-      key: "updated",
-      header: "อัปเดต",
-      hideBelow: "xl",
-      cell: (novel) => <span className="whitespace-nowrap text-xs text-muted-foreground">{novel.updatedAt}</span>
-    },
-    {
-      key: "actions",
-      header: <span className="sr-only">คำสั่ง</span>,
-      className: "text-right",
-      headClassName: "text-right",
-      cell: (novel) => (
-        <div className="flex justify-end">
-          <RowMenu
-            label={`คำสั่งสำหรับ ${novel.thaiTitle}`}
-            actions={[
-              { label: "แก้ไขข้อมูลเรื่อง", icon: <Pencil className="h-4 w-4" />, href: `/admin/novels/${novel.slug}` },
-              { label: "จัดการตอน", icon: <FileStack className="h-4 w-4" />, href: `/admin/novels/${novel.slug}/chapters` },
-              { label: "เปิดหน้าเว็บจริง", icon: <ExternalLink className="h-4 w-4" />, href: `/novel/${novel.slug}` },
-              {
-                label: novel.featured ? "เอาออกจากแนะนำ" : "ตั้งเป็นเรื่องแนะนำ",
-                icon: <Star className="h-4 w-4" />,
-                onSelect: () =>
-                  toast({
-                    tone: "success",
-                    message: novel.featured ? `เอา ${novel.thaiTitle} ออกจากเรื่องแนะนำแล้ว` : `ตั้ง ${novel.thaiTitle} เป็นเรื่องแนะนำแล้ว`
-                  })
-              },
-              {
-                label: "ซ่อนจากหน้าเว็บ",
-                icon: <EyeOff className="h-4 w-4" />,
-                onSelect: () => toast({ tone: "info", message: `ซ่อน ${novel.thaiTitle} จากหน้าเว็บแล้ว` })
-              },
-              {
-                label: "ลบเรื่องนี้",
-                icon: <Trash2 className="h-4 w-4" />,
-                tone: "danger",
-                onSelect: () => setPendingDelete(novel)
-              }
-            ]}
-          />
-        </div>
-      )
-    }
-  ];
-
+function pageHref(query: AdminNovelQuery, page: number) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...query, page })) {
+    if (value && value !== "all") params.set(key, String(value));
+  }
+  return `/admin/novels?${params}`;
+}
+export function NovelsView({
+  result,
+  query,
+  references,
+}: {
+  result: AdminPage<AdminNovelRow>;
+  query: AdminNovelQuery;
+  references: AdminReferenceData;
+}) {
   return (
-    <div className="flex flex-col gap-4">
-      <FilterBar
-        search={query.q ?? ""}
-        onSearchChange={(value) => setQuery({ q: value || undefined })}
-        searchPlaceholder="ค้นหาชื่อเรื่อง ผู้แต่ง หรือทีมแปล…"
-        filters={[
-          {
-            key: "status",
-            label: "สถานะ",
-            value: query.status ?? "all",
-            options: allOption(
-              (Object.keys(PUBLISH_STATUS) as PublishStatus[]).map((status) => ({
-                value: status,
-                label: PUBLISH_STATUS[status].label
-              }))
-            ),
-            onChange: (value) => setQuery({ status: value })
-          },
-          {
-            key: "genre",
-            label: "แนว",
-            value: query.genre ?? "all",
-            options: allOption(genres.map((genre) => ({ value: genre.slug, label: genre.thaiName }))),
-            onChange: (value) => setQuery({ genre: value })
-          },
-          {
-            key: "sort",
-            label: "เรียงตาม",
-            value: query.sort ?? "updated",
-            options: SORT_OPTIONS,
-            onChange: (value) => setQuery({ sort: value })
-          }
-        ]}
-        onReset={reset}
-        resultLabel={`พบ ${rows.length.toLocaleString("th-TH")} เรื่อง`}
-      />
+    <div className="grid gap-4">
+      <Panel bodyClassName="p-4">
+        <form action="/admin/novels" method="get" className="flex flex-wrap items-end gap-2">
+          <label className="grid min-w-52 flex-1 gap-1 text-xs font-medium text-muted-foreground">
+            ค้นหา
+            <Input name="q" defaultValue={query.q ?? ""} placeholder="ชื่อเรื่อง ผู้แต่ง หรือ slug" />
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            สถานะ
+            <Select name="status" defaultValue={query.status ?? "all"} className="min-w-36">
+              <option value="all">ทั้งหมด</option>
+              {Object.entries(statusLabels).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
+            </Select>
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            แนว
+            <Select name="genre" defaultValue={query.genre ?? "all"} className="min-w-36">
+              <option value="all">ทุกแนว</option>
+              {references.genres.map((genre) => <option key={genre.id} value={genre.slug}>{genre.name}</option>)}
+            </Select>
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            เรียงตาม
+            <Select name="sort" defaultValue={query.sort ?? "updated"} className="min-w-36">
+              <option value="updated">อัปเดตล่าสุด</option>
+              <option value="views">ยอดอ่าน</option>
+              <option value="chapters">จำนวนตอน</option>
+              <option value="title">ชื่อเรื่อง</option>
+            </Select>
+          </label>
+          <button className="h-11 rounded-[12px] bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white">ค้นหา</button>
+          <ButtonLink href="/admin/novels" variant="outline">ล้างตัวกรอง</ButtonLink>
+        </form>
+      </Panel>
 
-      <DataTable
-        caption="ตารางนิยายทั้งหมดในระบบ"
-        rows={rows}
-        columns={columns}
-        getRowKey={(novel) => novel.slug}
-        selectable
-        bulkActions={[
-          {
-            label: "เผยแพร่",
-            icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-            onRun: (ids) => toast({ tone: "success", message: `เผยแพร่ ${ids.length} เรื่องแล้ว` })
-          },
-          {
-            label: "ซ่อน",
-            icon: <EyeOff className="h-3.5 w-3.5" />,
-            onRun: (ids) => toast({ tone: "info", message: `ซ่อน ${ids.length} เรื่องจากหน้าเว็บแล้ว` })
-          },
-          {
-            label: "ลบ",
-            icon: <Trash2 className="h-3.5 w-3.5" />,
-            tone: "danger",
-            onRun: (ids) => toast({ tone: "error", message: `ลบ ${ids.length} เรื่องแล้ว`, action: { label: "เลิกทำ", onClick: () => {} } })
-          }
-        ]}
-        empty={
-          <div className="text-center">
-            <p className="text-sm font-semibold">ไม่พบนิยายที่ตรงกับตัวกรองนี้</p>
-            <p className="mt-1 text-sm text-muted-foreground">ลองล้างตัวกรอง หรือเพิ่มเรื่องใหม่เข้าระบบ</p>
+      <div className="overflow-hidden rounded-[16px] border border-border bg-card shadow-[var(--sh-1)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[820px] border-collapse text-sm">
+            <caption className="sr-only">รายการนิยายในระบบ</caption>
+            <thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground">
+              <th className="px-4 py-3">เรื่อง</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ตอน</th>
+              <th className="px-4 py-3">ยอดอ่าน</th><th className="px-4 py-3">อัปเดต</th><th className="px-4 py-3"><span className="sr-only">คำสั่ง</span></th>
+            </tr></thead>
+            <tbody>
+              {result.items.map((novel) => (
+                <tr key={novel.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
+                  <td className="px-4 py-3">
+                    <Link href={`/admin/novels/${novel.slug}`} className="font-semibold hover:underline">{novel.title}</Link>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{novel.authors.join(", ") || "ไม่ระบุผู้แต่ง"} · {novel.genres.map((genre) => genre.name).join(", ")}</p>
+                  </td>
+                  <td className="px-4 py-3"><StatusPill {...statusLabels[novel.publicationStatus]} /></td>
+                  <td className="tabular px-4 py-3">{novel.publishedChapters.toLocaleString("th-TH")} / {novel.totalChapters.toLocaleString("th-TH")}</td>
+                  <td className="tabular px-4 py-3">{novel.viewCount.toLocaleString("th-TH")}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{new Date(novel.updatedAt).toLocaleString("th-TH")}</td>
+                  <td className="px-4 py-3"><div className="flex justify-end gap-1">
+                    <Link href={`/admin/novels/${novel.slug}`} aria-label={`แก้ไข ${novel.title}`} className="grid h-9 w-9 place-items-center rounded-[9px] hover:bg-muted"><Pencil className="h-4 w-4" /></Link>
+                    <Link href={`/admin/novels/${novel.slug}/chapters`} aria-label={`จัดการตอน ${novel.title}`} className="grid h-9 w-9 place-items-center rounded-[9px] hover:bg-muted"><FileStack className="h-4 w-4" /></Link>
+                    {novel.publicationStatus === "PUBLISHED" ? <Link href={`/novel/${novel.slug}`} aria-label={`ดูหน้าเผยแพร่ ${novel.title}`} className="grid h-9 w-9 place-items-center rounded-[9px] hover:bg-muted"><ExternalLink className="h-4 w-4" /></Link> : null}
+                  </div></td>
+                </tr>
+              ))}
+              {!result.items.length ? <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">ไม่พบข้อมูลที่ตรงกับตัวกรอง</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground">
+          <span>ทั้งหมด {result.total.toLocaleString("th-TH")} เรื่อง</span>
+          <div className="flex items-center gap-2">
+            {result.page > 1 ? <ButtonLink size="sm" variant="outline" href={pageHref(query, result.page - 1)}>ก่อนหน้า</ButtonLink> : null}
+            <span>หน้า {result.page} / {result.totalPages}</span>
+            {result.page < result.totalPages ? <ButtonLink size="sm" variant="outline" href={pageHref(query, result.page + 1)}>ถัดไป</ButtonLink> : null}
           </div>
-        }
-      />
-
-      <ConfirmDialog
-        open={Boolean(pendingDelete)}
-        onClose={() => setPendingDelete(null)}
-        onConfirm={() =>
-          toast({
-            tone: "error",
-            message: `ลบ ${pendingDelete?.thaiTitle} แล้ว`,
-            action: { label: "เลิกทำ", onClick: () => toast({ tone: "success", message: "กู้คืนเรื่องกลับมาแล้ว" }) }
-          })
-        }
-        title={`ลบ ${pendingDelete?.thaiTitle ?? ""}?`}
-        description={`ตอนทั้งหมด ${pendingDelete?.chapters ?? 0} ตอน คอมเมนต์ และประวัติการอ่านของเรื่องนี้จะถูกลบไปด้วย ผู้ที่ซื้อตอนไว้จะได้รับเหรียญคืนอัตโนมัติ`}
-        confirmLabel="ลบเรื่องนี้"
-        tone="danger"
-      />
+        </div>
+      </div>
     </div>
   );
 }
