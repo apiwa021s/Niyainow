@@ -99,7 +99,7 @@ export function NovelCard({
           </div>
         </div>
 
-        <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
+        <h3 title={novel.thaiTitle} className="mt-2 truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
 
         <div className="tabular mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-0.5">
@@ -161,7 +161,7 @@ export function RankingCard({ novel, rank }: { novel: Novel; rank: number }) {
               className="object-cover transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:scale-[1.03]"
             />
           </div>
-          <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
+          <h3 title={novel.thaiTitle} className="mt-2 truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
           <p className="tabular mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
             <Star className="h-3 w-3 fill-[var(--brand-pink)] text-[var(--brand-pink)]" />
             {novel.rating}

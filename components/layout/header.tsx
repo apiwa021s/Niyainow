@@ -105,6 +105,7 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
   const isStaff = viewer?.role === "ADMIN" || viewer?.role === "EDITOR";
 
   return (
+    <>
     <header className={cn("fixed inset-x-0 top-0 z-50 border-b bg-background/85 backdrop-blur-xl transition-[transform,box-shadow,border-color] duration-[var(--dur-base)] ease-[var(--ease-out)]", scrolled ? "border-border shadow-[var(--sh-1)]" : "border-transparent", hidden ? "-translate-y-full" : "translate-y-0")}>
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
         <Logo />
@@ -162,11 +163,13 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
           </div>
         </div>
 
-        <button type="button" className="ml-auto grid h-11 w-11 place-items-center rounded-[12px] text-muted-foreground hover:bg-muted md:hidden" onClick={() => setOpen(true)} aria-label="เปิดเมนู"><Menu className="h-5 w-5" /></button>
+        <button type="button" className="ml-auto grid h-11 w-11 place-items-center rounded-[12px] text-muted-foreground hover:bg-muted md:hidden" onClick={() => setOpen(true)} aria-expanded={open} aria-label="เปิดเมนู"><Menu className="h-5 w-5" /></button>
       </div>
+    </header>
 
+      {/* อยู่นอก <header> เพราะ header มี transform — ถ้าอยู่ข้างในจะกลายเป็น fixed เทียบกับ header (สูงแค่ 64px) แทน viewport */}
       {open ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-background p-4 md:hidden">
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-background p-4 md:hidden">
           <div className="mb-5 flex items-center justify-between"><Logo /><button type="button" onClick={() => setOpen(false)} aria-label="ปิดเมนู" className="grid h-11 w-11 place-items-center rounded-[12px] hover:bg-muted"><X className="h-5 w-5" /></button></div>
           <GlobalSearch mode="mobile" onNavigate={() => setOpen(false)} />
 
@@ -192,7 +195,7 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
           {viewer ? <form action={signOutUser} className="mt-5"><input type="hidden" name="callbackUrl" value="/" /><button type="submit" className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-border font-semibold"><LogOut className="h-4 w-4" />ออกจากระบบ</button></form> : null}
         </div>
       ) : null}
-    </header>
+    </>
   );
 }
 
