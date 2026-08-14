@@ -1,12 +1,12 @@
 "use client";
 
-import { Bell, Bookmark, Check, Heart, LoaderCircle } from "lucide-react";
+import { Bell, Bookmark, Check, Heart, LoaderCircle, Share2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 type ActionKind = "follow" | "library";
 
@@ -146,6 +146,67 @@ export function BookmarkToggle({
         <Bookmark className={cn("h-4 w-4", action.active && "fill-[var(--brand-pink)] text-[var(--brand-pink)]")} />
       )}
     </button>
+  );
+}
+
+/** ปุ่มคลังแบบมีป้ายกำกับ + จำนวนคนที่บันทึกไว้ ใช้ในหัวหน้ารายละเอียดนิยาย */
+export function LibraryButton({
+  slug,
+  initialActive,
+  count,
+}: {
+  slug: string;
+  initialActive?: boolean;
+  count?: number;
+}) {
+  const action = useNovelAction({ slug, kind: "library", initialActive });
+  // นับแบบมองเห็นทันทีหลังกด ก่อน router.refresh() จะพาค่าจริงมา
+  const displayCount = typeof count === "number"
+    ? Math.max(0, count + (action.active === Boolean(initialActive) ? 0 : action.active ? 1 : -1))
+    : undefined;
+
+  return (
+    <Button variant={action.active ? "secondary" : "outline"} onClick={action.toggle} disabled={action.pending} aria-pressed={action.active}>
+      {action.pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Heart className={cn("h-4 w-4", action.active && "fill-current")} />}
+      {action.active ? "อยู่ในคลัง" : "เพิ่มในคลัง"}
+      {typeof displayCount === "number" ? (
+        <span className="tabular text-xs font-medium opacity-70">{formatNumber(displayCount)}</span>
+      ) : null}
+    </Button>
+  );
+}
+
+/** แชร์ผ่านเมนูของระบบถ้ามี ไม่มีก็คัดลอกลิงก์ให้แทน */
+export function ShareButton({ title }: { title: string }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const share = async () => {
+    if (busy) return;
+    setBusy(true);
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast({ tone: "success", message: "คัดลอกลิงก์แล้ว" });
+      }
+    } catch (error) {
+      // ผู้ใช้กดยกเลิกแผงแชร์ไม่ใช่ความผิดพลาด จึงไม่ต้องเตือน
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        toast({ tone: "error", message: "แชร์ไม่สำเร็จ กรุณาคัดลอกลิงก์จากแถบที่อยู่" });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" onClick={() => void share()} disabled={busy}>
+      <Share2 className="h-4 w-4" />
+      แชร์
+    </Button>
   );
 }
 
