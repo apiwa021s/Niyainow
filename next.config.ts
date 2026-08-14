@@ -28,6 +28,7 @@ export default function createNextConfig(phase: string): NextConfig {
   buildPublicUrl("NEXT_PUBLIC_APP_URL", phase);
   const assetUrl = buildPublicUrl("NEXT_PUBLIC_ASSET_URL", phase);
   const isProduction = process.env.NODE_ENV === "production";
+  const vercelLiveOrigin = process.env.VERCEL === "1" ? "https://vercel.live" : null;
 
   const assetOrigin = (() => {
     try {
@@ -53,7 +54,10 @@ export default function createNextConfig(phase: string): NextConfig {
     "form-action 'self' https://accounts.google.com",
     "frame-ancestors 'none'",
     "object-src 'none'",
-    `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
+    [
+      `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
+      ...(vercelLiveOrigin ? [vercelLiveOrigin] : []),
+    ].join(" "),
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
@@ -63,8 +67,10 @@ export default function createNextConfig(phase: string): NextConfig {
       "https://oauth2.googleapis.com",
       "https://*.r2.cloudflarestorage.com",
       ...(assetOrigin ? [assetOrigin] : []),
+      ...(vercelLiveOrigin ? [vercelLiveOrigin] : []),
       ...(isProduction ? [] : ["ws:", "wss:"]),
     ].join(" "),
+    ...(vercelLiveOrigin ? [`frame-src 'self' ${vercelLiveOrigin}`] : []),
     "worker-src 'self' blob:",
     ...(isProduction ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
