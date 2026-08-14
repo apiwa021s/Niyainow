@@ -1,9 +1,11 @@
 import { HomeFeed, type HomeData } from "@/components/home/home-feed";
 import { HomeHero } from "@/components/home/home-hero";
+import { PromoBanners } from "@/components/home/promo-banners";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
 import {
+  getActiveBanners,
   getCompletedNovels,
   getFeaturedNovels,
   getGenreShowcase,
@@ -24,7 +26,7 @@ export const metadata = pageMetadata({
 });
 
 export default async function HomePage() {
-  const [featured, newThisWeek, recommended, rankings, completed, updates, genreShowcase, currentUser] = await Promise.all([
+  const [featured, newThisWeek, recommended, rankings, completed, updates, genreShowcase, banners, currentUser] = await Promise.all([
     getFeaturedNovels(),
     getNewThisWeek(12),
     getRecommendedNovels(12),
@@ -32,6 +34,7 @@ export default async function HomePage() {
     getCompletedNovels(12),
     getUpdates("all", undefined, 12),
     getGenreShowcase(8),
+    getActiveBanners(),
     getCurrentUser(),
   ]);
   const personalization = currentUser?.status === "ACTIVE" ? await getHomePersonalization(currentUser.id) : undefined;
@@ -63,7 +66,11 @@ export default async function HomePage() {
 
   return (
     <main id="main" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-16 sm:px-6 lg:px-8">
-      <HomeFeed data={data} hero={<HomeHero novels={data.featured} />} />
+      <HomeFeed
+        data={data}
+        hero={<HomeHero novels={data.featured} />}
+        banners={banners.length ? <PromoBanners banners={banners} /> : null}
+      />
     </main>
   );
 }

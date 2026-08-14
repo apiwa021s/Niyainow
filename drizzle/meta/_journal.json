@@ -29,6 +29,13 @@
       "when": 1786678117413,
       "tag": "20260814032837_admin-chapter-list-index",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786691461926,
+      "tag": "20260814071101_abandoned_squadron_sinister",
+      "breakpoints": true
     }
   ]
 }

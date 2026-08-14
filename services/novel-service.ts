@@ -34,6 +34,7 @@ import {
   novelStatistics,
   novelTags,
   novels,
+  promoBanners,
   ratings,
   reviews,
   tags,
@@ -650,6 +651,48 @@ async function getGenresUncached(requestedLimit = MAX_LIST_LIMIT): Promise<Genre
     count: Number(row.count),
   }));
 }
+
+export type PromoBannerItem = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  image: string;
+  linkUrl: string | null;
+  ctaLabel: string | null;
+};
+
+/**
+ * Banners for the home page. The schedule window is evaluated per request, so
+ * the cache is short-lived: a banner must not outlive `endsAt` by a full
+ * revalidate period.
+ */
+export const getActiveBanners = unstable_cache(
+  async (limit = 6): Promise<PromoBannerItem[]> => {
+    const now = new Date();
+    const rows = await getDb()
+      .select()
+      .from(promoBanners)
+      .where(
+        and(
+          eq(promoBanners.isActive, true),
+          or(isNull(promoBanners.startsAt), lte(promoBanners.startsAt, now)),
+          or(isNull(promoBanners.endsAt), gte(promoBanners.endsAt, now)),
+        ),
+      )
+      .orderBy(asc(promoBanners.sortOrder), desc(promoBanners.createdAt))
+      .limit(Math.min(Math.max(limit, 1), MAX_LIST_LIMIT));
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      subtitle: row.subtitle,
+      image: assetUrl(row.imageKey),
+      linkUrl: row.linkUrl,
+      ctaLabel: row.ctaLabel,
+    }));
+  },
+  ["public-banners-v1"],
+  { revalidate: 60, tags: ["public-banners"] },
+);
 
 export const getGenres = unstable_cache(getGenresUncached, ["public-genres-v2"], {
   revalidate: PUBLIC_CACHE_SECONDS,

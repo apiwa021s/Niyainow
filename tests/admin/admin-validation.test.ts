@@ -5,6 +5,7 @@ vi.mock("@/lib/auth/dal", () => ({ assertAdmin: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 
 import {
+  adminBannerInputSchema,
   adminChapterInputSchema,
   adminGenreInputSchema,
   adminNovelInputSchema,
@@ -152,5 +153,38 @@ describe("admin genre validation", () => {
     expect(adminGenreInputSchema.safeParse({ ...genre, name: "x" }).success).toBe(false);
     expect(adminGenreInputSchema.safeParse({ ...genre, sortOrder: -1 }).success).toBe(false);
     expect(adminGenreInputSchema.safeParse({ ...genre, sortOrder: 1.5 }).success).toBe(false);
+  });
+});
+
+describe("admin banner validation", () => {
+  const banner = {
+    title: "อ่านฟรีสัปดาห์นี้",
+    subtitle: "รวมเรื่องเปิดให้อ่านฟรีถึงสิ้นเดือน",
+    imageKey: "banners/2f6d1c8a-3b4e-4d5f-8a9b-0c1d2e3f4a5b.webp",
+    linkUrl: "/novels?status=completed",
+    ctaLabel: "อ่านเลย",
+    sortOrder: 1,
+    isActive: true,
+    startsAt: null,
+    endsAt: null,
+  };
+
+  it("accepts a verified banner object key and rejects other media prefixes", () => {
+    expect(adminBannerInputSchema.safeParse(banner).success).toBe(true);
+    expect(adminBannerInputSchema.safeParse({ ...banner, imageKey: banner.imageKey.replace("banners/", "covers/") }).success).toBe(false);
+    expect(adminBannerInputSchema.safeParse({ ...banner, imageKey: "" }).success).toBe(false);
+  });
+
+  it("only stores same-origin paths or http(s) links so the renderer cannot emit a script url", () => {
+    expect(adminBannerInputSchema.safeParse({ ...banner, linkUrl: "https://example.com/promo" }).success).toBe(true);
+    expect(adminBannerInputSchema.parse({ ...banner, linkUrl: "" }).linkUrl).toBeNull();
+    expect(adminBannerInputSchema.safeParse({ ...banner, linkUrl: "javascript:alert(1)" }).success).toBe(false);
+    expect(adminBannerInputSchema.safeParse({ ...banner, linkUrl: "//evil.example.com" }).success).toBe(false);
+  });
+
+  it("requires the schedule window to end after it starts", () => {
+    const startsAt = "2026-09-01T00:00:00+07:00";
+    expect(adminBannerInputSchema.safeParse({ ...banner, startsAt, endsAt: "2026-09-08T00:00:00+07:00" }).success).toBe(true);
+    expect(adminBannerInputSchema.safeParse({ ...banner, startsAt, endsAt: "2026-08-08T00:00:00+07:00" }).success).toBe(false);
   });
 });

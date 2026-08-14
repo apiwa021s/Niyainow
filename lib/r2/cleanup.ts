@@ -2,7 +2,7 @@ import { DeleteObjectsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { and, asc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { adminAuditLogs, authors, mediaAssets, novels, siteSettings, users } from "@/db/schema";
+import { adminAuditLogs, authors, mediaAssets, novels, promoBanners, siteSettings, users } from "@/db/schema";
 import { requireR2Env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import {
@@ -198,11 +198,12 @@ async function claimUnattachedReadyMedia(cutoff: Date, limit: number, now: Date,
     const keys = candidates.map((candidate) => candidate.objectKey);
     if (keys.length === 0) return [];
 
-    const [novelReferences, authorReferences, userReferences, settingRows] = await Promise.all([
+    const [novelReferences, bannerReferences, authorReferences, userReferences, settingRows] = await Promise.all([
       tx
         .select({ coverKey: novels.coverKey, bannerKey: novels.bannerKey })
         .from(novels)
         .where(or(inArray(novels.coverKey, keys), inArray(novels.bannerKey, keys))),
+      tx.select({ imageKey: promoBanners.imageKey }).from(promoBanners).where(inArray(promoBanners.imageKey, keys)),
       tx.select({ avatarKey: authors.avatarKey }).from(authors).where(inArray(authors.avatarKey, keys)),
       tx.select({ avatarKey: users.avatarKey }).from(users).where(inArray(users.avatarKey, keys)),
       // Site settings are intentionally bounded; JSON settings may reference OG/media keys.
@@ -213,6 +214,7 @@ async function claimUnattachedReadyMedia(cutoff: Date, limit: number, now: Date,
       if (row.coverKey) referenced.add(row.coverKey);
       if (row.bannerKey) referenced.add(row.bannerKey);
     }
+    for (const row of bannerReferences) referenced.add(row.imageKey);
     for (const row of [...authorReferences, ...userReferences]) {
       if (row.avatarKey) referenced.add(row.avatarKey);
     }

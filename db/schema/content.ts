@@ -346,6 +346,42 @@ export const novelStatistics = pgTable(
   ],
 );
 
+/** Promotional banners rendered on the public home page. Editorial content, not
+ * per-novel artwork: `image_key` is an R2 object key of kind BANNER and is
+ * tracked by the same media lifecycle as covers. */
+export const promoBanners = pgTable(
+  "promo_banners",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    subtitle: text("subtitle"),
+    imageKey: text("image_key").notNull(),
+    linkUrl: text("link_url"),
+    ctaLabel: varchar("cta_label", { length: 80 }),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    startsAt: timestamp("starts_at", timestampConfig),
+    endsAt: timestamp("ends_at", timestampConfig),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", timestampConfig)
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("promo_banners_active_order_idx").on(table.isActive, table.sortOrder, table.id),
+    check("promo_banners_image_key_is_object_key", sql`${table.imageKey} !~ '://' and left(${table.imageKey}, 1) <> '/'`),
+    // Only same-origin paths or absolute http(s) links may be stored, so the
+    // public renderer never emits a javascript:/data: href.
+    check("promo_banners_link_url_safe", sql`${table.linkUrl} is null or ${table.linkUrl} ~ '^(/[^/]|https?://)'`),
+    check("promo_banners_window_valid", sql`${table.startsAt} is null or ${table.endsAt} is null or ${table.startsAt} < ${table.endsAt}`),
+  ],
+);
+
+export type PromoBanner = typeof promoBanners.$inferSelect;
+export type NewPromoBanner = typeof promoBanners.$inferInsert;
+
 export type Novel = typeof novels.$inferSelect;
 export type NewNovel = typeof novels.$inferInsert;
 export type Chapter = typeof chapters.$inferSelect;

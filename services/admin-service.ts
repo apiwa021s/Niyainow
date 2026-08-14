@@ -32,6 +32,7 @@ import {
   novelStatistics,
   novelTags,
   novels,
+  promoBanners,
   reviews,
   tags,
   users,
@@ -221,6 +222,55 @@ export type ChapterStatus = z.infer<typeof chapterStatusSchema>;
 export type ReviewStatus = z.infer<typeof reviewStatusSchema>;
 export type ReviewModerationInput = z.infer<typeof adminReviewModerationSchema>;
 export type AdminGenreInput = z.infer<typeof adminGenreInputSchema>;
+
+/** Same-origin path or absolute http(s) URL. Mirrors the promo_banners check
+ * constraint so a rejected value fails validation before it reaches Postgres. */
+const bannerLinkSchema = z
+  .union([z.string().trim().max(2_000), z.null()])
+  .transform((value) => (value && value.length > 0 ? value : null))
+  .refine(
+    (value) => value === null || /^(?:\/(?!\/)|https?:\/\/)/u.test(value),
+    "Link must be a path starting with / or an http(s) URL",
+  );
+
+export const adminBannerInputSchema = z
+  .object({
+    title: z.string().trim().min(2).max(200),
+    subtitle: nullableTrimmedText(500),
+    imageKey: z
+      .string()
+      .trim()
+      .pipe(objectKeySchema)
+      .refine((value) => value.startsWith("banners/"), "Object key must start with banners/"),
+    linkUrl: bannerLinkSchema,
+    ctaLabel: nullableTrimmedText(80),
+    sortOrder: z.number().int().min(0).max(2_147_483_647),
+    isActive: z.boolean(),
+    startsAt: z.iso.datetime({ offset: true }).nullable().default(null),
+    endsAt: z.iso.datetime({ offset: true }).nullable().default(null),
+  })
+  .strict()
+  .refine(
+    (input) => !input.startsAt || !input.endsAt || new Date(input.startsAt) < new Date(input.endsAt),
+    { path: ["endsAt"], message: "The end time must come after the start time" },
+  );
+
+export type AdminBannerInput = z.infer<typeof adminBannerInputSchema>;
+
+export type AdminBannerRow = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  imageKey: string;
+  linkUrl: string | null;
+  ctaLabel: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type AdminPage<T> = {
   items: T[];
@@ -714,18 +764,23 @@ async function orphanUnreferencedNovelMedia(
   // deterministic media-row order.
   const keys = [...new Set(keysInput.filter((key): key is string => Boolean(key)))];
   if (keys.length === 0) return;
-  const references = await tx
-    .select({ coverKey: novels.coverKey, bannerKey: novels.bannerKey })
-    .from(novels)
-    .where(
-      and(
-        isNull(novels.deletedAt),
-        or(inArray(novels.coverKey, keys), inArray(novels.bannerKey, keys)),
+  const [references, bannerReferences] = await Promise.all([
+    tx
+      .select({ coverKey: novels.coverKey, bannerKey: novels.bannerKey })
+      .from(novels)
+      .where(
+        and(
+          isNull(novels.deletedAt),
+          or(inArray(novels.coverKey, keys), inArray(novels.bannerKey, keys)),
+        ),
       ),
-    );
-  const referenced = new Set(
-    references.flatMap((row) => [row.coverKey, row.bannerKey].filter((key): key is string => Boolean(key))),
-  );
+    // A promo banner may reuse an artwork key that a novel just released.
+    tx.select({ imageKey: promoBanners.imageKey }).from(promoBanners).where(inArray(promoBanners.imageKey, keys)),
+  ]);
+  const referenced = new Set([
+    ...references.flatMap((row) => [row.coverKey, row.bannerKey].filter((key): key is string => Boolean(key))),
+    ...bannerReferences.map((row) => row.imageKey),
+  ]);
   const orphaned = keys.filter((key) => !referenced.has(key));
   if (orphaned.length === 0) return;
   await tx
@@ -1604,4 +1659,110 @@ export async function getAdminTaxonomy() {
     tags: tagRows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     authors: authorRows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
   };
+}
+
+/* ---------------------------------------------------------------------------
+   Promo banners — editorial artwork for the public home page
+   --------------------------------------------------------------------------- */
+
+function revalidateBannerContent() {
+  revalidateTag("public-banners", { expire: 0 });
+}
+
+function serializeBanner(row: typeof promoBanners.$inferSelect): AdminBannerRow {
+  return {
+    id: row.id,
+    title: row.title,
+    subtitle: row.subtitle,
+    imageKey: row.imageKey,
+    linkUrl: row.linkUrl,
+    ctaLabel: row.ctaLabel,
+    sortOrder: row.sortOrder,
+    isActive: row.isActive,
+    startsAt: row.startsAt?.toISOString() ?? null,
+    endsAt: row.endsAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function bannerValues(input: AdminBannerInput) {
+  return {
+    title: input.title,
+    subtitle: input.subtitle,
+    imageKey: input.imageKey,
+    linkUrl: input.linkUrl,
+    ctaLabel: input.ctaLabel,
+    sortOrder: input.sortOrder,
+    isActive: input.isActive,
+    startsAt: input.startsAt ? new Date(input.startsAt) : null,
+    endsAt: input.endsAt ? new Date(input.endsAt) : null,
+  };
+}
+
+export async function getAdminBanners(): Promise<AdminBannerRow[]> {
+  await assertAdmin();
+  const rows = await getDb()
+    .select()
+    .from(promoBanners)
+    .orderBy(asc(promoBanners.sortOrder), desc(promoBanners.createdAt))
+    .limit(200);
+  return rows.map(serializeBanner);
+}
+
+export async function createAdminBanner(inputValue: unknown) {
+  const actor = await assertAdmin();
+  const input = adminBannerInputSchema.parse(inputValue);
+  const result = await getDb().transaction(async (tx) => {
+    // Locks the media row, so an artwork key cannot be orphaned by the cleanup
+    // job between verification and attachment.
+    await assertReadyMedia(tx, null, input.imageKey);
+    const [created] = await tx
+      .insert(promoBanners)
+      .values({ ...bannerValues(input), createdBy: actor.id })
+      .returning();
+    await writeAudit(tx, actor, "banner.create", "banner", created.id, null, serializeBanner(created));
+    return serializeBanner(created);
+  });
+  revalidateBannerContent();
+  return result;
+}
+
+export async function updateAdminBanner(idInput: string, inputValue: unknown) {
+  const actor = await assertAdmin();
+  const id = z.uuid().parse(idInput);
+  const input = adminBannerInputSchema.parse(inputValue);
+  const result = await getDb().transaction(async (tx) => {
+    const [before] = await tx.select().from(promoBanners).where(eq(promoBanners.id, id)).for("update").limit(1);
+    if (!before) throw new AdminDataError("BANNER_NOT_FOUND", "Banner not found", 404);
+    const now = new Date();
+    await assertReadyMedia(tx, null, input.imageKey, [before.imageKey]);
+    const [updated] = await tx
+      .update(promoBanners)
+      .set({ ...bannerValues(input), updatedAt: now })
+      .where(eq(promoBanners.id, id))
+      .returning();
+    await orphanUnreferencedNovelMedia(tx, [before.imageKey], now);
+    await writeAudit(tx, actor, "banner.update", "banner", updated.id, serializeBanner(before), serializeBanner(updated));
+    return serializeBanner(updated);
+  });
+  revalidateBannerContent();
+  return result;
+}
+
+export async function deleteAdminBanner(idInput: string) {
+  const actor = await assertAdmin();
+  const id = z.uuid().parse(idInput);
+  const result = await getDb().transaction(async (tx) => {
+    const [before] = await tx.select().from(promoBanners).where(eq(promoBanners.id, id)).for("update").limit(1);
+    if (!before) throw new AdminDataError("BANNER_NOT_FOUND", "Banner not found", 404);
+    const now = new Date();
+    await assertReadyMedia(tx, null, null, [before.imageKey]);
+    await tx.delete(promoBanners).where(eq(promoBanners.id, id));
+    await orphanUnreferencedNovelMedia(tx, [before.imageKey], now);
+    await writeAudit(tx, actor, "banner.delete", "banner", before.id, serializeBanner(before), null);
+    return { id: before.id };
+  });
+  revalidateBannerContent();
+  return result;
 }

@@ -6,7 +6,13 @@
       "Bash(echo \"home: $\\(curl -s -o /dev/null -w '%{http_code}' --max-time 60 http://localhost:3512/\\)\")",
       "Read(//tmp/**)",
       "Bash(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://localhost:3000/)",
-      "Bash(echo \"port 3000: $\\(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://localhost:3000/\\)\")"
+      "Bash(echo \"port 3000: $\\(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://localhost:3000/\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(npx vitest *)",
+      "Bash(node \"C:/Users/apiwat.l/AppData/Local/Temp/claude/c--UI-Niyainow/1c1a16cc-0c3e-44d9-b96d-bcbc446ede26/scratchpad/check-banners.mjs\")",
+      "Bash(cp \"C:/Users/apiwat.l/AppData/Local/Temp/claude/c--UI-Niyainow/1c1a16cc-0c3e-44d9-b96d-bcbc446ede26/scratchpad/check-banners.mjs\" ./check-banners.mjs)",
+      "Bash(node ./check-banners.mjs)",
+      "Bash(rm -f ./check-banners.mjs)"
     ]
   }
 }

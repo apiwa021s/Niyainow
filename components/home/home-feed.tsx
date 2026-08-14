@@ -29,7 +29,7 @@ export type HomeData = {
  * Server ส่ง personalization เฉพาะเมื่อ session และสถานะผู้ใช้ในฐานข้อมูล
  * ผ่านการตรวจแล้ว จึงไม่มีการสลับ state จำลองหลัง hydrate
  */
-export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode }) {
+export function HomeFeed({ data, hero, banners }: { data: HomeData; hero: React.ReactNode; banners?: React.ReactNode }) {
   const showReturningLayout = Boolean(data.personalization);
   const continueItems = data.personalization?.continueReading.slice(0, 5) ?? [];
   const followedSlugs = data.personalization?.followedNovelSlugs ?? [];
@@ -208,6 +208,7 @@ export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode
   const sections = showReturningLayout
     ? [
         continueItems.length > 0 ? continueReading : null,
+        banners ? <div key="banners">{banners}</div> : null,
         followedUpdatesSection,
         latestUpdates,
         recommended,
@@ -215,7 +216,7 @@ export function HomeFeed({ data, hero }: { data: HomeData; hero: React.ReactNode
         genres,
         completed
       ]
-    : [<div key="hero">{hero}</div>, newThisWeek, ranking, genres, latestUpdates, recommended, completed, signupPitch];
+    : [<div key="hero">{hero}</div>, banners ? <div key="banners">{banners}</div> : null, newThisWeek, ranking, genres, latestUpdates, recommended, completed, signupPitch];
 
   // 40px mobile / 56px desktop — กระชับกว่าสเปก (48/64) หนึ่งขั้น
   // เพราะแถวเลื่อนแนวนอนมีข้อความใต้การ์ดสั้น ช่องว่างจึงดูกว้างกว่าค่าจริง
