@@ -45,7 +45,7 @@ export function AuthForm({ callbackUrl = "/profile", error }: { callbackUrl?: st
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
-          ใช้บัญชี Google เพื่อเข้าสู่ NiyaiNow ระบบจะสร้างบัญชีผู้อ่านให้โดยอัตโนมัติเมื่อเข้าสู่ระบบครั้งแรก
+          ใช้บัญชี Google เพื่อเข้าสู่ NiyaiThai ระบบจะสร้างบัญชีผู้อ่านให้โดยอัตโนมัติเมื่อเข้าสู่ระบบครั้งแรก
         </p>
 
         {error ? (
@@ -68,7 +68,7 @@ export function AuthForm({ callbackUrl = "/profile", error }: { callbackUrl?: st
           <Link href="/privacy" className="font-medium text-foreground hover:underline">
             นโยบายความเป็นส่วนตัว
           </Link>
-          ของ NiyaiNow
+          ของ NiyaiThai
         </p>
       </CardContent>
     </Card>

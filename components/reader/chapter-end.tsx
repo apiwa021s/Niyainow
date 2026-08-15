@@ -9,9 +9,9 @@ import type { ChapterSummary, Novel } from "@/types/novel";
 function BrandDivider() {
   return (
     <div aria-hidden className="flex items-center gap-3">
-      <span className="h-px flex-1 bg-[image:var(--grad-primary)] opacity-40" />
-      <Zap className="h-4 w-4 text-[var(--brand-pink)]" />
-      <span className="h-px flex-1 bg-[image:var(--grad-hot)] opacity-40" />
+      <span className="h-px flex-1 bg-current opacity-15" />
+      <span className="grid h-7 w-7 place-items-center border border-[var(--brand-primary)] text-[var(--brand-primary)]"><Zap className="h-3.5 w-3.5" /></span>
+      <span className="h-px flex-1 bg-current opacity-15" />
     </div>
   );
 }
@@ -35,7 +35,7 @@ export function ChapterEnd({
 
       {next ? (
         next.locked ? (
-          <div className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[16px] border border-current/15 px-5 text-center text-sm font-semibold opacity-75">
+          <div className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[8px] border border-current/15 px-5 text-center text-sm font-semibold opacity-75">
             <Lock className="h-4 w-4 shrink-0" />
             ตอนที่ {next.number} ยังไม่เปิดให้อ่านบนระบบนี้
           </div>
@@ -43,14 +43,14 @@ export function ChapterEnd({
           <Link
             href={`/novel/${novel.slug}/chapter/${next.number}`}
             prefetch
-            className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[16px] bg-[image:var(--grad-primary)] px-5 text-center text-base font-semibold text-white shadow-[var(--sh-brand)]"
+            className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-5 text-center text-base font-semibold text-white shadow-[var(--sh-brand)]"
           >
             <span className="line-clamp-2">ตอนถัดไป  ตอนที่ {next.number}: {next.title}</span>
             <ChevronRight className="h-5 w-5 shrink-0" />
           </Link>
         )
       ) : (
-        <div className="flex flex-col gap-3 rounded-[16px] border border-current/15 p-4 text-center">
+        <div className="flex flex-col gap-3 rounded-[8px] border border-current/15 p-4 text-center">
           <p className="text-sm font-semibold">คุณอ่านถึงตอนล่าสุดแล้ว</p>
           <div className="mx-auto">
             <FollowButton slug={novel.slug} initialActive={initialFollowing} />

@@ -5,7 +5,7 @@ import { safeRedirectPath } from "@/lib/auth/redirects";
 
 export const metadata: Metadata = {
   title: "เข้าสู่ระบบหลังบ้าน",
-  description: "หน้าเข้าสู่ระบบสำหรับทีมงาน NiyaiNow",
+  description: "หน้าเข้าสู่ระบบสำหรับทีมงาน NiyaiThai",
   robots: { index: false, follow: false },
 };
 

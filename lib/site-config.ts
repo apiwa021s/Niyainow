@@ -9,9 +9,9 @@ function normalizedBaseUrl(value: string | undefined, fallback = DEFAULT_APP_URL
   }
 }
 export const siteConfig = {
-  name: "NiyaiNow",
-  title: "อ่านนิยายแปล นิยายออนไลน์ อัปเดตตอนใหม่ทุกวัน",
-  description: "แพลตฟอร์มอ่านนิยายออนไลน์ภาษาไทย ค้นหา จัดคลัง และอ่านต่อได้ทุกอุปกรณ์",
+  name: "NiyaiThai",
+  title: "นิยายไทยในจังหวะการอ่านที่สงบ",
+  description: "แพลตฟอร์มอ่านนิยายภาษาไทยสไตล์ญี่ปุ่น ค้นหา จัดชั้นหนังสือ และอ่านต่อได้ทุกอุปกรณ์",
   url: normalizedBaseUrl(process.env.NEXT_PUBLIC_APP_URL),
   assetUrl: normalizedBaseUrl(process.env.NEXT_PUBLIC_ASSET_URL, DEFAULT_APP_URL)
 } as const;

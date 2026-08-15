@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "ข้อกำหนดการใช้งาน",
-  description: "ข้อกำหนดการเข้าถึงบัญชี เนื้อหา และฟีเจอร์ของแพลตฟอร์ม NiyaiNow",
+  description: "ข้อกำหนดการเข้าถึงบัญชี เนื้อหา และฟีเจอร์ของแพลตฟอร์ม NiyaiThai",
   path: "/terms",
 });
 

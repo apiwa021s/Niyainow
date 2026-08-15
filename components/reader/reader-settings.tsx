@@ -60,7 +60,7 @@ function SegmentedControl<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex w-full gap-1 rounded-[12px] border border-current/15 p-1">
+    <div role="radiogroup" aria-label={label} className="inline-flex w-full gap-1 rounded-[8px] border border-current/15 p-1">
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -71,7 +71,7 @@ function SegmentedControl<T extends string>({
             aria-checked={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              "h-11 flex-1 rounded-[8px] text-sm font-semibold transition-colors",
+              "h-11 flex-1 rounded-[6px] text-sm font-semibold transition-colors",
               active ? "bg-[var(--brand-primary)] text-white" : "hover:bg-current/8"
             )}
           >
@@ -174,9 +174,9 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
         className={cn(
           "fixed z-50 flex flex-col gap-5 overflow-y-auto bg-[var(--reader-bg)] text-[var(--reader-text)] shadow-[var(--sh-3)]",
           // mobile: bottom sheet
-          "inset-x-0 bottom-0 max-h-[85vh] rounded-t-[24px] px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3",
+          "inset-x-0 bottom-0 max-h-[85vh] rounded-t-[12px] px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3",
           // desktop: popover มุมขวาบน
-          "sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[80vh] sm:w-[380px] sm:rounded-[16px] sm:p-5"
+          "sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[80vh] sm:w-[380px] sm:rounded-[8px] sm:p-5"
         )}
       >
         {/* drag handle ของ bottom sheet */}
@@ -188,7 +188,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
             type="button"
             onClick={onClose}
             aria-label="ปิดตั้งค่าการอ่าน"
-            className="grid h-11 w-11 place-items-center rounded-[12px] hover:bg-current/8"
+            className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-current/8"
           >
             <X className="h-5 w-5" />
           </button>
@@ -228,7 +228,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
               aria-label="ลดขนาดอักษร"
               disabled={prefs.fontSize <= FONT_SIZE_MIN}
               onClick={() => setPrefs({ fontSize: Math.max(FONT_SIZE_MIN, prefs.fontSize - FONT_SIZE_STEP) })}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border border-current/20 disabled:opacity-40"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] border border-current/20 disabled:opacity-40"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -247,7 +247,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
               aria-label="เพิ่มขนาดอักษร"
               disabled={prefs.fontSize >= FONT_SIZE_MAX}
               onClick={() => setPrefs({ fontSize: Math.min(FONT_SIZE_MAX, prefs.fontSize + FONT_SIZE_STEP) })}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border border-current/20 disabled:opacity-40"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] border border-current/20 disabled:opacity-40"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -266,7 +266,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
                   aria-checked={active}
                   onClick={() => setPrefs({ font })}
                   className={cn(
-                    "flex min-h-11 items-center justify-between gap-3 rounded-[12px] border px-3 py-2 text-left transition-colors",
+                    "flex min-h-11 items-center justify-between gap-3 rounded-[8px] border px-3 py-2 text-left transition-colors",
                     active ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10" : "border-current/15 hover:bg-current/6"
                   )}
                 >
@@ -293,6 +293,19 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
           <SegmentedControl label="ความกว้าง" value={prefs.width} options={WIDTH_OPTIONS} onChange={(width) => setPrefs({ width })} />
         </Row>
 
+        <Row label={`ระยะย่อหน้า · ${prefs.paragraphGap.toFixed(1)}em`}>
+          <input
+            type="range"
+            min={0.6}
+            max={1.8}
+            step={0.1}
+            value={prefs.paragraphGap}
+            aria-label="ระยะห่างระหว่างย่อหน้า"
+            onChange={(event) => setPrefs({ paragraphGap: Number(event.target.value) })}
+            className="h-11 w-full accent-[var(--brand-primary)]"
+          />
+        </Row>
+
         <Row label={`ความสว่าง · ${Math.round((1 - prefs.dim) * 100)}%`}>
           <input
             type="range"
@@ -317,7 +330,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
         <button
           type="button"
           onClick={resetPrefs}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-[12px] border border-current/20 text-sm font-semibold hover:bg-current/8"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-[8px] border border-current/20 text-sm font-semibold hover:bg-current/8"
         >
           <RotateCcw className="h-4 w-4" />
           รีเซ็ตค่าเริ่มต้น

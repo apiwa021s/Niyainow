@@ -7,19 +7,19 @@ export const READER_THEMES = ["light", "sepia", "mist", "dark", "amoled"] as con
 export type ReaderTheme = (typeof READER_THEMES)[number];
 
 export const READER_THEME_LABELS: Record<ReaderTheme, string> = {
-  light: "สว่าง",
-  sepia: "ถนอมสายตา",
-  mist: "ม่วงจาง",
+  light: "ขาว",
+  sepia: "กระดาษ",
+  mist: "เทาอุ่น",
   dark: "มืด",
-  amoled: "ดำสนิท",
+  amoled: "ดำ",
 };
 
 export const READER_THEME_SWATCH: Record<ReaderTheme, { bg: string; fg: string }> = {
-  light: { bg: "#FFFFFF", fg: "#1A1030" },
-  sepia: { bg: "#F6EDDC", fg: "#3A2E1E" },
-  mist: { bg: "#EDEAF3", fg: "#241547" },
-  dark: { bg: "#1A1030", fg: "#DDD6EB" },
-  amoled: { bg: "#000000", fg: "#C9C2D9" },
+  light: { bg: "#FFFFFF", fg: "#242321" },
+  sepia: { bg: "#FFFCF6", fg: "#292724" },
+  mist: { bg: "#F7F5F1", fg: "#292724" },
+  dark: { bg: "#161616", fg: "#D8D3CB" },
+  amoled: { bg: "#0F0F0F", fg: "#D0CCC5" },
 };
 
 export const READER_FONTS = ["looped", "sarabun", "anuphan", "serif"] as const;
@@ -43,7 +43,7 @@ export const LINE_HEIGHT_VALUES: Record<ReaderLineHeight, number> = {
 
 export const WIDTH_VALUES: Record<ReaderWidth, string> = {
   narrow: "560px",
-  normal: "680px",
+  normal: "720px",
   wide: "820px",
 };
 
@@ -60,6 +60,7 @@ export type ReaderPrefs = {
   paragraphGap: number;
   dim: number;
   keepScreenAwake: boolean;
+  sidebarOpen: boolean;
 };
 
 export const DEFAULT_PREFS: ReaderPrefs = {
@@ -71,6 +72,7 @@ export const DEFAULT_PREFS: ReaderPrefs = {
   paragraphGap: 1,
   dim: 0,
   keepScreenAwake: false,
+  sidebarOpen: false,
 };
 
 type ReaderState = {
@@ -92,7 +94,7 @@ export const useReaderStore = create<ReaderState>()(
     }),
     {
       name: "niyainow-reader",
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const state = (persisted ?? {}) as { prefs?: Partial<ReaderPrefs>; fontSize?: number };
         return {

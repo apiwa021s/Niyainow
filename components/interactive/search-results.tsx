@@ -8,7 +8,7 @@ import { NovelCardHorizontal } from "@/components/novels/novel-card";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/form-controls";
-import { EmptyState, SectionHeader } from "@/components/ui/section";
+import { EmptyState } from "@/components/ui/section";
 import type { PublicSearchResult } from "@/services/novel-service";
 
 type Tab = "all" | "novels" | "genres" | "tags";
@@ -32,7 +32,11 @@ export function SearchResults({ initialQ, results }: { initialQ: string; results
 
   return (
     <section className="space-y-5">
-      <SectionHeader title="ค้นหา" />
+      <div>
+        <p className="editorial-kicker">SEARCH / 探す</p>
+        <h1 className="mt-1 font-serif text-3xl font-semibold">ค้นหานิยาย</h1>
+        <p className="mt-2 text-sm text-muted-foreground">ชื่อเรื่อง ผู้แต่ง ชื่อรอง หมวดหมู่ และแท็ก—ค้นหาได้จากจุดเดียว</p>
+      </div>
       <form action="/search" className="flex gap-2">
         <Input
           name="q"
@@ -60,7 +64,7 @@ export function SearchResults({ initialQ, results }: { initialQ: string; results
         <div className="space-y-3">
           {tab === "all" ? <h2 className="font-semibold">นิยาย ({results.total.toLocaleString("th-TH")})</h2> : null}
           <div className="grid gap-3 md:grid-cols-2">
-            {results.novels.map((novel) => <NovelCardHorizontal key={novel.slug} novel={novel} />)}
+            {results.novels.map((novel) => <NovelCardHorizontal key={novel.slug} novel={novel} highlight={initialQ} />)}
           </div>
           {results.totalPages > 1 ? (
             <nav aria-label="หน้าผลการค้นหา" className="flex items-center justify-center gap-2 pt-2">

@@ -13,14 +13,14 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "text" | "danger
 export type ButtonSize = "sm" | "md" | "lg" | "icon" | "icon-sm";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-[image:var(--grad-primary)] text-white shadow-[var(--sh-brand)] hover:brightness-[1.06] active:translate-y-px",
-  secondary: "bg-[var(--brand-primary)] text-white hover:bg-[color-mix(in_srgb,var(--brand-primary)_88%,black)] active:translate-y-px",
+  primary: "bg-[var(--brand-primary)] text-white shadow-[var(--sh-brand)] hover:bg-[var(--brand-light)] active:translate-y-px",
+  secondary: "bg-muted text-foreground hover:bg-[color-mix(in_srgb,var(--muted)_82%,var(--foreground))] active:translate-y-px",
   ghost: "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground active:translate-y-px",
   text: "bg-transparent p-0 text-[var(--brand-light-on-light)] underline-offset-4 hover:underline",
   danger: "bg-destructive text-white hover:brightness-95 active:translate-y-px",
   // alias ของเดิม
   outline: "border border-border bg-card text-foreground hover:bg-muted active:translate-y-px",
-  default: "bg-[image:var(--grad-primary)] text-white shadow-[var(--sh-brand)] hover:brightness-[1.06] active:translate-y-px"
+  default: "bg-[var(--brand-primary)] text-white shadow-[var(--sh-brand)] hover:bg-[var(--brand-light)] active:translate-y-px"
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -32,7 +32,7 @@ const sizes: Record<ButtonSize, string> = {
 };
 
 const base =
-  "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-[12px] font-semibold transition-[background,box-shadow,filter,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] disabled:pointer-events-none disabled:opacity-50";
+  "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-[8px] font-semibold transition-[background,box-shadow,filter,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] disabled:pointer-events-none disabled:opacity-50";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;

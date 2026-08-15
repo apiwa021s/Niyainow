@@ -1,88 +1,66 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, Play } from "lucide-react";
+import { ArrowRight, BookOpen, Star } from "lucide-react";
+
+import { formatNumber } from "@/lib/utils";
 import type { Novel } from "@/types/novel";
 
-/**
- * Hero (ส่วนที่ 6.3)
- * เปลี่ยนจาก carousel เลื่อนอัตโนมัติ  hero นิ่ง เพราะส่วนที่ 11 ห้าม autoplay carousel
- * ปกสามใบเอียง -8° / 0° / +8° ลอยขึ้นลงช้า ๆ, ปิด animation เมื่อ prefers-reduced-motion
- * สูง 380px mobile / 480px desktop และห้ามเกิน 60vh
- */
 export function HomeHero({ novels }: { novels: Novel[] }) {
-  const covers = novels.slice(0, 3);
-  const primary = covers[0];
+  const primary = novels[0];
+
+  if (!primary) {
+    return (
+      <section className="grid min-h-[420px] place-items-center overflow-hidden rounded-[8px] border border-border bg-card px-6 text-center">
+        <div>
+          <p className="editorial-kicker">AKANE / 物語</p>
+          <h1 className="mt-3 font-serif text-4xl font-semibold">เรื่องต่อไปของคุณ เริ่มที่นี่</h1>
+          <Link href="/novels" className="mt-6 inline-flex h-12 items-center rounded-[8px] bg-[var(--brand-primary)] px-6 font-semibold text-white">สำรวจนิยาย</Link>
+        </div>
+      </section>
+    );
+  }
+
+  const genre = primary.genreNames?.[primary.genres[0]] ?? primary.genres[0];
 
   return (
-    <section
-      className="relative -mx-4 overflow-hidden bg-[image:var(--grad-hero)] px-4 text-white sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-[24px] lg:px-10"
-      style={{ minHeight: "min(380px, 60vh)" }}
-    >
-      {/* จุดแสงเบลอเลียนแบบ "แสงพุ่ง" ในโลโก้ — opacity ≤ 12% ตามสเปก */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white opacity-[0.12] blur-3xl"
+    <section className="relative -mx-4 min-h-[540px] overflow-hidden bg-[#0a0a0a] text-[#f5f3ef] sm:-mx-6 lg:mx-0 lg:min-h-[440px] lg:rounded-[8px] lg:border lg:border-[#292929]">
+      <Image
+        src={primary.backdrop || primary.cover}
+        alt=""
+        fill
+        priority
+        sizes="(max-width: 1024px) 100vw, 1400px"
+        className="object-cover object-center lg:object-[72%_center]"
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-32 left-1/4 h-80 w-80 rounded-full bg-[var(--brand-pink)] opacity-[0.10] blur-3xl"
-      />
+      <span aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,rgba(10,10,10,.98)_0%,rgba(10,10,10,.91)_42%,rgba(10,10,10,.42)_70%,rgba(10,10,10,.12)_100%)]" />
+      <span aria-hidden className="absolute inset-0 bg-[linear-gradient(0deg,rgba(10,10,10,.92)_0%,transparent_52%)] lg:hidden" />
+      <span aria-hidden className="absolute right-5 top-5 hidden border-r border-[#e02028]/70 pr-3 font-serif text-xs leading-[1.8] tracking-[.35em] text-white/55 [writing-mode:vertical-rl] lg:block">静かな物語を、あなたへ</span>
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-8 py-12 lg:min-h-[480px] lg:grid-cols-[1.1fr_auto] lg:py-16">
-        <div className="max-w-xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.04em] text-white/70">NIYAINOW</p>
-
-          <h1 className="mt-3 text-[2rem] font-bold leading-[1.35] sm:text-[2.75rem] sm:leading-[1.25]">
-            นิยายใหม่ อัปเดตไว อ่านได้ทันที
-          </h1>
-
-          <p className="mt-3 text-base leading-[1.75] text-white/80 sm:text-lg">
-            ค้นหานิยายภาษาไทยและติดตามตอนใหม่จากข้อมูลที่เผยแพร่จริง
-          </p>
-
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link
-              href={primary ? `/novel/${primary.slug}` : "/novels"}
-              prefetch
-              className="flex h-12 items-center gap-2 rounded-[12px] bg-[image:var(--grad-primary)] px-6 text-base font-semibold shadow-[var(--sh-brand)] transition-transform duration-[var(--dur-fast)] active:translate-y-px"
-            >
-              <Play className="h-5 w-5 fill-current" />
-              ดูเรื่องแนะนำ
-            </Link>
-            <Link
-              href="/novels"
-              prefetch
-              className="flex h-12 items-center gap-2 rounded-[12px] border border-white/30 px-6 text-base font-semibold transition-colors hover:bg-white/10"
-            >
-              <BookOpen className="h-5 w-5" />
-              เลือกดูทั้งหมด
-            </Link>
-          </div>
-
-          <p className="mt-5 text-sm text-white/65">อ่านฟรีได้ทันที ไม่ต้องสมัครสมาชิก</p>
+      <div className="relative flex min-h-[540px] max-w-[720px] flex-col justify-end px-5 py-9 sm:px-10 lg:min-h-[440px] lg:justify-center lg:px-14 lg:py-12">
+        <div className="flex items-center gap-3">
+          <span className="border border-[#c91820] bg-[#c91820]/12 px-2.5 py-1 text-[11px] font-semibold text-[#ffb5b8]">เรื่องแนะนำ</span>
+          <span className="editorial-kicker text-white/55">FEATURED STORY · 01</span>
         </div>
 
-        {/* ปก 3 ใบเหลื่อมกัน */}
-        <div aria-hidden className="hidden justify-center gap-0 lg:flex">
-          {covers.map((novel, index) => {
-            const rotation = [-8, 0, 8][index] ?? 0;
-            return (
-              <div
-                key={novel.slug}
-                className="hero-cover relative aspect-[2/3] w-[150px] shrink-0 overflow-hidden rounded-[16px] shadow-[0_18px_48px_rgba(0,0,0,0.4)] ring-1 ring-white/15"
-                style={
-                  {
-                    "--rot": `${rotation}deg`,
-                    marginLeft: index === 0 ? 0 : -28,
-                    zIndex: index === 1 ? 3 : 2 - Math.abs(index - 1),
-                    animationDelay: `${index * 0.6}s`
-                  } as React.CSSProperties
-                }
-              >
-                <Image src={novel.cover} alt="" fill sizes="150px" priority={index === 1} className="object-cover" />
-              </div>
-            );
-          })}
+        <h1 className="mt-5 max-w-[620px] font-serif text-[2.25rem] font-semibold leading-[1.25] sm:text-[3rem] lg:text-[3.45rem]">{primary.thaiTitle}</h1>
+        {primary.title !== primary.thaiTitle ? <p className="mt-1 line-clamp-1 text-sm text-white/50">{primary.title}</p> : null}
+        <p className="mt-4 line-clamp-3 max-w-xl text-sm leading-[1.9] text-white/72 sm:text-base">{primary.synopsis}</p>
+
+        <div className="tabular mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-white/62">
+          <span>{genre}</span>
+          <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-[#c91820] text-[#c91820]" />{primary.rating.toFixed(1)}</span>
+          <span>{primary.chapters.toLocaleString("th-TH")} ตอน</span>
+          <span>{formatNumber(primary.views)} ครั้ง</span>
+          <span>{primary.updatedAt}</span>
+        </div>
+
+        <div className="mt-7 flex flex-wrap gap-3">
+          <Link href={`/novel/${primary.slug}`} prefetch className="inline-flex h-12 items-center gap-2 rounded-[8px] bg-[#c91820] px-6 font-semibold text-white transition-colors hover:bg-[#e02028]">
+            <BookOpen className="h-4.5 w-4.5" />เริ่มอ่าน
+          </Link>
+          <Link href={`/novel/${primary.slug}`} prefetch className="inline-flex h-12 items-center gap-2 rounded-[8px] border border-white/25 px-6 font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/5">
+            รายละเอียด<ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </section>

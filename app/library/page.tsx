@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { LibraryView } from "@/components/interactive/library-view";
 import { Button } from "@/components/ui/button";
-import { PageShell } from "@/components/ui/section";
+import { PageHeader, PageShell } from "@/components/ui/section";
 import { requireActiveUser } from "@/lib/auth/dal";
 import { listUserLibrary } from "@/services/user-service";
 
@@ -15,6 +15,7 @@ export default async function LibraryPage() {
   const items = await listUserLibrary(user.id, "READING");
   return (
     <PageShell className="space-y-5">
+      <PageHeader title="ชั้นหนังสือ" description="เรื่องที่กำลังอ่าน รายการไว้อ่าน และเล่มที่อ่านจบแล้ว" />
       <div className="flex flex-wrap gap-2">
         <Link href="/library/reading"><Button>กำลังอ่าน</Button></Link>
         <Link href="/library/bookmarks"><Button variant="secondary">รายการไว้อ่าน</Button></Link>

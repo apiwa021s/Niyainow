@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, BookMarked, Home, Search, UserRound } from "lucide-react";
+import { BookMarked, Clock3, Home, Search, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,8 +14,8 @@ const nav = [
   { href: "/", label: "หน้าแรก", icon: Home },
   { href: "/search", label: "ค้นหา", icon: Search },
   { href: "/library", label: "ชั้นหนังสือ", icon: BookMarked },
-  { href: "/updates", label: "อัปเดต", icon: Bell },
-  { href: "/profile", label: "ฉัน", icon: UserRound }
+  { href: "/history", label: "ประวัติ", icon: Clock3 },
+  { href: "/profile", label: "บัญชี", icon: UserRound }
 ];
 
 export function MobileBottomNav() {
@@ -24,7 +24,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="เมนูหลักบนมือถือ"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
     >
       <ul className="grid h-14 grid-cols-5">
         {nav.map((item) => {

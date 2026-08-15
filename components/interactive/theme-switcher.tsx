@@ -28,11 +28,28 @@ function getServerSnapshot() {
   return false;
 }
 
-export function ThemeSwitcher() {
+export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
   const { setTheme, resolvedTheme } = useTheme();
   const mounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
   // defaultTheme="system"  ต้องอ่าน resolvedTheme ไม่ใช่ theme (ซึ่งจะเป็น "system")
   const activeTheme = mounted ? normalizeTheme(resolvedTheme) : undefined;
+
+  if (compact) {
+    const isDark = activeTheme !== "light";
+    const Icon = isDark ? Sun : Moon;
+    const label = isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด";
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={() => setTheme(isDark ? "light" : "dark")}
+        className="grid h-11 w-11 place-items-center rounded-[8px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <Icon className="h-4.5 w-4.5" />
+      </button>
+    );
+  }
 
   return (
     <div className="inline-flex rounded-md border border-border bg-card p-1" aria-label="เลือกโหมดสี">

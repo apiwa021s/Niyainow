@@ -356,14 +356,14 @@ async function loadMongoGenreMap(collection: Collection<MongoTag>) {
 
 async function loadNextBackfillBook(collection: Collection<MongoBook>, state: ImportCursorState) {
   if (state.currentBookId) {
-    return collection.findOne({ ...TRANSLATED_NOVEL_QUERY, bookId: state.currentBookId });
+    const currentBook = await collection.findOne({ ...TRANSLATED_NOVEL_QUERY, bookId: state.currentBookId });
+    if (currentBook) return currentBook;
   }
   const query: Filter<MongoBook> = state.afterBookId
     ? { ...TRANSLATED_NOVEL_QUERY, bookId: { $gt: state.afterBookId } }
     : TRANSLATED_NOVEL_QUERY;
   const [book] = await collection.find(query).sort({ bookId: 1 }).limit(1).toArray();
-  if (book || !state.afterBookId) return book ?? null;
-  return collection.find(TRANSLATED_NOVEL_QUERY).sort({ bookId: 1 }).limit(1).next();
+  return book ?? null;
 }
 
 async function loadIncrementalBook(
@@ -1183,6 +1183,8 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
       lastSweepCompletedAt: state.incremental?.lastSweepCompletedAt ?? null,
       nextDueAt: nextIncrementalDueAt,
       dueNow: Boolean(state.backfillCompletedAt && isIncrementalDue(state, now)),
+      afterUpdatedAt: state.incremental?.afterUpdatedAt ?? null,
+      afterBookId: state.incremental?.afterBookId ?? null,
       currentBookId: state.incremental?.currentBookId ?? null,
       chapterOffset: state.incremental?.chapterOffset ?? 0,
       sweepUntil: state.incremental?.sweepUntil ?? null,

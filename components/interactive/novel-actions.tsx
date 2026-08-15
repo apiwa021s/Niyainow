@@ -137,14 +137,14 @@ export function BookmarkToggle({
       aria-label={action.active ? "นำออกจากคลัง" : "เพิ่มเข้าคลัง"}
       title={action.active ? "นำออกจากคลัง" : "เพิ่มเข้าคลัง"}
       className={cn(
-        "grid place-items-center rounded-[8px] bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75 disabled:cursor-wait disabled:opacity-70",
+        "grid place-items-center rounded-[6px] bg-black/62 text-white backdrop-blur-sm transition-colors hover:bg-black/80 disabled:cursor-wait disabled:opacity-70",
         compact ? "h-8 w-8" : "h-11 w-11",
       )}
     >
       {action.pending ? (
         <LoaderCircle className="h-4 w-4 animate-spin" />
       ) : (
-        <Bookmark className={cn("h-4 w-4", action.active && "fill-[var(--brand-pink)] text-[var(--brand-pink)]")} />
+        <Bookmark className={cn("h-4 w-4", action.active && "fill-[var(--brand-primary)] text-[var(--brand-primary)]")} />
       )}
     </button>
   );
@@ -204,7 +204,7 @@ export function NovelActionBar({
         <Link
           href={startHref}
           prefetch
-          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[image:var(--grad-primary)] text-base font-semibold text-white shadow-[var(--sh-brand)] active:translate-y-px"
+          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[var(--brand-primary)] text-base font-semibold text-white shadow-[var(--sh-brand)] active:translate-y-px"
         >
           <BookOpen className="h-5 w-5" />
           {startLabel}
@@ -217,7 +217,7 @@ export function NovelActionBar({
           aria-pressed={follow.active}
           aria-label={follow.active ? "เลิกติดตามเรื่องนี้" : "ติดตามเรื่องนี้"}
           className={cn(
-            "grid h-12 w-12 shrink-0 place-items-center rounded-[12px] border border-border transition-colors disabled:opacity-60",
+            "grid h-12 w-12 shrink-0 place-items-center rounded-[8px] border border-border transition-colors disabled:opacity-60",
             follow.active ? "bg-[var(--brand-primary)] text-white" : "bg-card text-muted-foreground",
           )}
         >
@@ -231,7 +231,7 @@ export function NovelActionBar({
           aria-pressed={library.active}
           aria-label={library.active ? "นำออกจากคลัง" : "เพิ่มในคลัง"}
           className={cn(
-            "grid h-12 w-12 shrink-0 place-items-center rounded-[12px] border border-border transition-colors disabled:opacity-60",
+            "grid h-12 w-12 shrink-0 place-items-center rounded-[8px] border border-border transition-colors disabled:opacity-60",
             library.active ? "bg-[var(--brand-primary)] text-white" : "bg-card text-muted-foreground",
           )}
         >

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  */
 export function PageShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <main id="main" className={cn("mx-auto w-full max-w-7xl px-4 pb-24 pt-20 sm:px-6 lg:px-8", className)}>
+    <main id="main" className={cn("mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[88px] sm:px-6 lg:px-8", className)}>
       {children}
     </main>
   );
@@ -28,7 +28,8 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold sm:text-2xl">{title}</h1>
+        <p className="editorial-kicker mb-1" aria-hidden>物語 / STORY</p>
+        <h1 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h1>
         {description ? <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
@@ -53,9 +54,13 @@ export function SectionHeader({
   return (
     <div className="mb-3 flex items-end justify-between gap-4">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <span aria-hidden className="h-8 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
           {icon}
-          <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
+          <div>
+            <p className="editorial-kicker" aria-hidden>NIYAI / 読む</p>
+            <h2 className="font-serif text-xl font-semibold sm:text-2xl">{title}</h2>
+          </div>
         </div>
         {description ? <p className="mt-0.5 text-sm text-muted-foreground">{description}</p> : null}
       </div>
@@ -88,8 +93,8 @@ export function EmptyState({
   icon?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-[16px] border border-dashed border-border px-6 py-10 text-center">
-      <div aria-hidden className="mb-3 grid h-14 w-14 place-items-center rounded-full bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
+    <div className="flex flex-col items-center rounded-[8px] border border-dashed border-border px-6 py-10 text-center">
+      <div aria-hidden className="mb-3 grid h-14 w-14 place-items-center border border-[var(--brand-primary)]/35 bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]">
         {icon ?? <BookGlyph />}
       </div>
       <p className="text-base font-semibold">{title}</p>

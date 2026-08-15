@@ -94,7 +94,7 @@ export function NovelBrowser({
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="hidden lg:block">
-        <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-[16px] border border-border bg-card p-4">
+        <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-[8px] border border-border bg-card p-4">
           <div className="mb-4 flex items-center justify-between gap-2">
             <h2 className="font-semibold">ตัวกรอง</h2>
             {hasFilters ? (
@@ -110,7 +110,8 @@ export function NovelBrowser({
       <section className="min-w-0">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold sm:text-2xl">{title}</h1>
+            <p className="editorial-kicker">DISCOVER / 探す</p>
+            <h1 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h1>
             <p className="tabular mt-1 text-sm text-muted-foreground">
               {result.total.toLocaleString("th-TH")} เรื่อง{hasFilters ? " ที่ตรงกับตัวกรอง" : ""}
             </p>
@@ -199,7 +200,7 @@ export function NovelBrowser({
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
-        className="fixed bottom-20 left-1/2 z-40 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-[image:var(--grad-primary)] px-5 text-sm font-semibold text-white shadow-[var(--sh-brand)] lg:hidden"
+        className="fixed bottom-20 left-1/2 z-40 flex h-12 -translate-x-1/2 items-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white shadow-[var(--sh-brand)] lg:hidden"
       >
         <SlidersHorizontal className="h-4 w-4" />
         ตัวกรอง
@@ -217,7 +218,7 @@ export function NovelBrowser({
             role="dialog"
             aria-modal="true"
             aria-label="ตัวกรอง"
-            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[24px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))]"
+            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[12px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))]"
           >
             <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
             <div className="mb-4 flex items-center justify-between gap-2">
@@ -232,7 +233,7 @@ export function NovelBrowser({
             <button
               type="button"
               onClick={() => setSheetOpen(false)}
-              className="mt-6 grid h-12 w-full place-items-center rounded-[12px] bg-[image:var(--grad-primary)] text-sm font-semibold text-white"
+              className="mt-6 grid h-12 w-full place-items-center rounded-[8px] bg-[var(--brand-primary)] text-sm font-semibold text-white"
             >
               ดูผลลัพธ์ {result.total.toLocaleString("th-TH")} เรื่อง
             </button>
@@ -246,7 +247,7 @@ export function NovelBrowser({
 function EmptyResults({ onClear, suggestions }: { onClear: () => void; suggestions: Novel[] }) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="rounded-[16px] border border-dashed border-border p-8 text-center">
+      <div className="rounded-[8px] border border-dashed border-border p-8 text-center">
         <p className="text-base font-semibold">ไม่พบนิยายที่ตรงกับตัวกรองนี้</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
           ลองเอาตัวกรองบางอันออก หรือเริ่มใหม่จากเรื่องยอดนิยมด้านล่าง
@@ -254,7 +255,7 @@ function EmptyResults({ onClear, suggestions }: { onClear: () => void; suggestio
         <button
           type="button"
           onClick={onClear}
-          className="mt-4 inline-flex h-11 items-center rounded-[12px] bg-[image:var(--grad-primary)] px-5 text-sm font-semibold text-white shadow-[var(--sh-brand)]"
+          className="mt-4 inline-flex h-11 items-center rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white shadow-[var(--sh-brand)]"
         >
           ล้างตัวกรอง
         </button>

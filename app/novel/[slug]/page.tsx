@@ -61,9 +61,9 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function statusMeta(status: Novel["status"]) {
-  if (status === "completed") return { label: "จบแล้ว", dot: "bg-[var(--brand-blue)]" };
+  if (status === "completed") return { label: "จบแล้ว", dot: "bg-foreground" };
   if (status === "hiatus") return { label: "พักการแปล", dot: "bg-amber-500" };
-  return { label: "กำลังแปล", dot: "bg-emerald-500" };
+  return { label: "กำลังแปล", dot: "bg-[var(--brand-primary)]" };
 }
 
 export default async function NovelDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -82,6 +82,11 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
   const startHref = firstChapter
     ? `/novel/${novel.slug}/chapter/${firstChapter.number}`
     : `/novel/${novel.slug}/chapters`;
+  const continueChapter = userState?.progress
+    ? firstChapters.find((chapter) => chapter.id === userState.progress?.chapterId)
+    : undefined;
+  const primaryHref = continueChapter ? `/novel/${novel.slug}/chapter/${continueChapter.number}` : startHref;
+  const primaryLabel = continueChapter ? `อ่านต่อ ตอนที่ ${continueChapter.number}` : firstChapter ? "เริ่มอ่าน" : "ดูสารบัญ";
   const status = statusMeta(novel.status);
 
   return (
@@ -117,74 +122,67 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         ]}
       />
 
-      {/* ---------- หัวเรื่อง ---------- */}
-      <section className="relative -mx-4 overflow-hidden sm:-mx-6 lg:mx-0 lg:rounded-[24px] lg:border lg:border-border">
-        {/* ปกขยายเบลอเป็นพื้นหลัง + ชั้นทึบทับ เพื่อให้ตัวอักษรผ่าน contrast บนปกทุกโทน */}
-        <Image src={novel.backdrop} alt="" fill sizes="100vw" priority className="scale-110 object-cover blur-xl" />
-        <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,8,18,.72),rgba(10,8,18,.94))]" />
+      <nav aria-label="เส้นทาง" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <Link href="/" className="hover:text-foreground">หน้าแรก</Link><span aria-hidden>/</span>
+        <Link href="/novels" className="hover:text-foreground">นิยาย</Link><span aria-hidden>/</span>
+        <span className="line-clamp-1 text-foreground">{novel.thaiTitle}</span>
+      </nav>
 
-        {/* มือถือ: ปกอยู่กลาง ข้อความจัดกึ่งกลาง — จอ md ขึ้นไปค่อยแยกสองคอลัมน์ */}
-        <div className="relative grid gap-5 p-5 sm:p-8 md:grid-cols-[minmax(0,208px)_1fr] md:gap-8 lg:p-10">
-          <div className="mx-auto w-[150px] sm:w-[176px] md:mx-0 md:w-full">
-            <div className="relative aspect-[2/3] overflow-hidden rounded-[16px] shadow-[0_18px_48px_rgba(0,0,0,.45)] ring-1 ring-white/15">
-              <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="(max-width: 768px) 176px, 208px" className="object-cover" priority />
+      <section className="relative overflow-hidden rounded-[8px] border border-border bg-card">
+        <span aria-hidden className="absolute inset-y-0 right-0 hidden w-[30%] opacity-[0.08] xl:block"><Image src={novel.backdrop} alt="" fill sizes="420px" className="object-cover" /></span>
+        <div className="relative grid gap-6 p-5 sm:p-7 md:grid-cols-[220px_1fr] md:gap-8 xl:grid-cols-[240px_minmax(0,1fr)_270px] xl:p-9">
+          <div className="mx-auto w-[160px] sm:w-[190px] md:mx-0 md:w-full">
+            <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted shadow-[var(--sh-2)]">
+              <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="(max-width: 768px) 190px, 240px" className="object-cover" priority />
             </div>
           </div>
 
-          <div className="min-w-0 text-center text-white md:text-left">
-            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-white/75 sm:text-sm md:justify-start">
-              {novel.genres.map((genre, index) => (
-                <span key={genre} className="flex items-center gap-2">
-                  {index > 0 ? <span aria-hidden className="text-white/35">•</span> : null}
-                  <Link href={`/genre/${genre}`} prefetch className="rounded-[6px] py-1 hover:text-white hover:underline">
-                    {novel.genreNames?.[genre] ?? genre}
-                  </Link>
-                </span>
-              ))}
+          <div className="min-w-0 text-center md:text-left">
+            <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+              <span className="rounded-[4px] bg-[var(--brand-primary)] px-2 py-1 text-[11px] font-semibold text-white">{status.label}</span>
+              {novel.genres.map((genre) => <Link key={genre} href={`/genre/${genre}`} className="rounded-[4px] border border-border px-2 py-1 text-xs text-muted-foreground hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">{novel.genreNames?.[genre] ?? genre}</Link>)}
             </div>
 
-            <h1 className="mt-1.5 text-2xl font-bold leading-[1.3] sm:text-[2rem] lg:text-[2.75rem] lg:leading-[1.2]">{novel.thaiTitle}</h1>
+            <p className="editorial-kicker mt-5">BOOK / 物語</p>
+            <h1 className="mt-1 font-serif text-3xl font-semibold leading-[1.3] sm:text-4xl xl:text-5xl">{novel.thaiTitle}</h1>
+            {novel.title !== novel.thaiTitle ? <p className="mt-2 text-sm text-muted-foreground">{novel.title}</p> : null}
+            <p className="mt-3 flex items-center justify-center gap-1.5 text-sm text-muted-foreground md:justify-start"><span>โดย {novel.author}</span><BadgeCheck className="h-4 w-4 text-[var(--brand-primary)]" aria-hidden /></p>
+            <p className="mt-4 line-clamp-4 text-left text-sm leading-[1.9] text-muted-foreground sm:text-base">{novel.synopsis}</p>
 
-            <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-white/80 md:justify-start">
-              <span className="flex items-center gap-1.5 font-medium">
-                By {novel.author}
-                <BadgeCheck className="h-4 w-4 text-[var(--brand-light)]" aria-hidden />
-              </span>
-              {novel.title !== novel.thaiTitle ? <span className="text-white/55">· {novel.title}</span> : null}
-            </p>
-
-            <p className="mt-3 line-clamp-3 text-left text-sm leading-[1.85] text-white/75 sm:line-clamp-4 sm:text-base md:max-w-2xl">
-              {novel.synopsis}
-            </p>
-
-            {/* บนมือถือใช้แถบลอยล่างจอแทน จึงซ่อนแถวปุ่มนี้ไว้ ไม่ให้คำสั่งซ้ำสองที่ */}
-            <div className="mt-5 hidden flex-wrap gap-2.5 lg:flex">
-              <ButtonLink href={startHref} size="lg" className="flex-col gap-0 px-7 leading-tight">
-                <span className="flex items-center gap-2">
-                  <Play className="h-4 w-4 fill-current" />
-                  {firstChapter ? "เริ่มอ่าน" : "ดูสารบัญ"}
-                </span>
-                {firstChapter ? <span className="text-[11px] font-medium opacity-80">ตอนที่ {firstChapter.number}</span> : null}
-              </ButtonLink>
-              <FollowButton slug={novel.slug} initialActive={userState?.followed} />
+            <div className="mt-6 hidden flex-wrap gap-2.5 lg:flex">
+              <ButtonLink href={primaryHref} size="lg"><Play className="h-4 w-4 fill-current" />{primaryLabel}</ButtonLink>
               <LibraryButton slug={novel.slug} initialActive={Boolean(userState?.libraryStatus)} count={novel.bookmarkCount} />
+              <FollowButton slug={novel.slug} initialActive={userState?.followed} />
               <ShareButton title={novel.thaiTitle} />
             </div>
+            {continueChapter && userState?.progress ? <div className="mt-4 hidden max-w-md lg:block"><div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>ความคืบหน้าตอนล่าสุด</span><span className="tabular">{Math.round(userState.progress.progressPercent)}%</span></div><div className="h-1 bg-muted"><div className="h-full bg-[var(--brand-primary)]" style={{ width: `${Math.round(userState.progress.progressPercent)}%` }} /></div></div> : null}
           </div>
+
+          <aside className="hidden border-l border-border pl-7 xl:block">
+            <p className="editorial-kicker">EDITION INFO</p>
+            <dl className="mt-3 divide-y divide-border text-sm">
+              <InfoRow label="ผู้เขียน" value={novel.author} />
+              {novel.translator ? <InfoRow label="ผู้แปล" value={novel.translator} /> : null}
+              <InfoRow label="ตอนล่าสุด" value={novel.latestChapter ? `ตอนที่ ${novel.latestChapter.number}` : "—"} />
+              <InfoRow label="อัปเดต" value={novel.updatedAt} />
+              <InfoRow label="สถานะ" value={status.label} />
+            </dl>
+            <ButtonLink href={`/novel/${novel.slug}/chapters`} variant="outline" className="mt-5 w-full"><ListOrdered className="h-4 w-4" />สารบัญทั้งหมด</ButtonLink>
+          </aside>
         </div>
       </section>
 
       <NovelActionBar
         slug={novel.slug}
-        startHref={startHref}
-        startLabel={firstChapter ? `อ่านตอนที่ ${firstChapter.number}` : "ดูสารบัญ"}
+        startHref={primaryHref}
+        startLabel={primaryLabel}
         followed={userState?.followed}
         inLibrary={Boolean(userState?.libraryStatus)}
       />
 
       {/* ---------- แถบสถิติ ---------- */}
       {/* มือถือ 2 คอลัมน์ (ไม่ต้องเลื่อนแนวนอนเพื่ออ่านสถิติ) → 3 → 5 บนจอใหญ่ */}
-      <section aria-label="สถิติของเรื่อง" className="overflow-hidden rounded-[16px] border border-border bg-card">
+      <section aria-label="สถิติของเรื่อง" className="overflow-hidden rounded-[8px] border-y border-border bg-card">
         <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3 lg:grid-cols-5 lg:divide-y-0">
           <StatCell
             label="สถานะ"
@@ -202,7 +200,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             label="คะแนนเฉลี่ย"
             value={
               <span className="flex items-center justify-center gap-1.5">
-                <Star className="h-4 w-4 fill-[var(--brand-accent)] text-[var(--brand-accent)]" aria-hidden />
+                <Star className="h-4 w-4 fill-[var(--brand-primary)] text-[var(--brand-primary)]" aria-hidden />
                 {novel.rating > 0 ? novel.rating.toFixed(1) : "—"}
               </span>
             }
@@ -214,8 +212,9 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
       {/* ---------- เนื้อหา + แถบข้าง ---------- */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-6">
-          <section className="rounded-[16px] border border-border bg-card p-4 sm:p-6">
-            <h2 className="text-lg font-semibold">เรื่องย่อ</h2>
+          <section className="rounded-[8px] border border-border bg-card p-4 sm:p-6">
+            <p className="editorial-kicker">SYNOPSIS / あらすじ</p>
+            <h2 className="mt-1 font-serif text-xl font-semibold">เรื่องย่อ</h2>
             {/* details/summary ย่อ-ขยายได้โดยไม่ต้องพึ่ง JS ฝั่งไคลเอนต์ */}
             <details className="group mt-3">
               <summary className="list-none [&::-webkit-details-marker]:hidden">
@@ -231,7 +230,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             </details>
           </section>
 
-          <section className="rounded-[16px] border border-border bg-card p-4 sm:p-6">
+          <section className="rounded-[8px] border border-border bg-card p-4 sm:p-6">
             <SectionHeader title="ตอนล่าสุด" href={`/novel/${slug}/chapters`} action="ดูสารบัญทั้งหมด" icon={<ListOrdered className="h-5 w-5 text-[var(--brand-light-on-light)]" />} />
             {latestChapters.length > 0 ? (
               <ul className="divide-y divide-border">
@@ -256,7 +255,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             )}
           </section>
 
-          <section className="rounded-[16px] border border-border bg-card p-4 sm:p-6">
+          <section className="rounded-[8px] border border-border bg-card p-4 sm:p-6">
             <SectionHeader title="ให้คะแนนและเขียนรีวิว" />
             <RatingReviewForm
               slug={novel.slug}
@@ -276,12 +275,12 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
               <SectionHeader title="รีวิวจากนักอ่าน" description={`${formatNumber(novel.ratingCount ?? reviews.length)} รีวิวจากผู้อ่านจริง`} />
               <div className="grid gap-3 md:grid-cols-2">
                 {reviews.map((review) => (
-                  <article key={review.id} className="rounded-[16px] border border-border bg-card p-4">
+                  <article key={review.id} className="rounded-[8px] border border-border bg-card p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="truncate font-semibold">{review.authorName}</p>
                       {review.rating ? (
                         <span className="tabular flex shrink-0 items-center gap-1 text-sm">
-                          <Star className="h-4 w-4 fill-[var(--brand-accent)] text-[var(--brand-accent)]" aria-hidden />
+                          <Star className="h-4 w-4 fill-[var(--brand-primary)] text-[var(--brand-primary)]" aria-hidden />
                           {review.rating}
                         </span>
                       ) : null}
@@ -311,7 +310,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         {/* แถบข้าง — บนจอเล็กไหลลงมาต่อท้ายเนื้อหาตามปกติ */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
           {novel.tags.length > 0 ? (
-            <section className="rounded-[16px] border border-border bg-card p-5">
+            <section className="rounded-[8px] border border-border bg-card p-5">
               <h2 className="text-sm font-semibold">แท็ก</h2>
               <div className="mt-3 flex flex-wrap gap-2">
                 {novel.tags.map((tag) => (
@@ -319,7 +318,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
                     key={tag}
                     href={`/tag/${tag}`}
                     prefetch
-                    className="rounded-[8px] border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--brand-light)] hover:text-foreground"
+                    className="rounded-[6px] border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--brand-primary)] hover:text-foreground"
                   >
                     #{novel.tagNames?.[tag] ?? tag}
                   </Link>
@@ -328,7 +327,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             </section>
           ) : null}
 
-          <section className="rounded-[16px] border border-border bg-card p-5">
+          <section className="rounded-[8px] border border-border bg-card p-5">
             <h2 className="text-sm font-semibold">ข้อมูล</h2>
             <dl className="mt-2 divide-y divide-border">
               <InfoRow label="ผู้เขียน" value={novel.author} />

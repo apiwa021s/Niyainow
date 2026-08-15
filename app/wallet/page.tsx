@@ -6,7 +6,7 @@ import { requireActiveUser } from "@/lib/auth/dal";
 
 export const metadata: Metadata = {
   title: "ระบบชำระเงิน",
-  description: "สถานะระบบชำระเงินของ NiyaiNow",
+  description: "สถานะระบบชำระเงินของ NiyaiThai",
   robots: { index: false, follow: false },
 };
 export const dynamic = "force-dynamic";

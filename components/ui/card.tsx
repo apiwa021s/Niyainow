@@ -9,7 +9,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[16px] border border-border bg-card text-card-foreground shadow-[var(--sh-1)]",
+        "rounded-[8px] border border-border bg-card text-card-foreground",
         interactive && "transition-shadow duration-[var(--dur-base)] hover:shadow-[var(--sh-2)]",
         className
       )}

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { NovelCard, NovelRankingItem } from "@/components/novels/novel-card";
+import { NovelRankingItem, RankingCard } from "@/components/novels/novel-card";
 import { JsonLd } from "@/components/seo/json-ld";
 import { ButtonLink } from "@/components/ui/button";
-import { EmptyState, PageShell, SectionHeader } from "@/components/ui/section";
+import { EmptyState, PageShell } from "@/components/ui/section";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getRankings, type RankingPeriod } from "@/services/novel-service";
@@ -24,7 +24,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const selected = periods.find((period) => period.value === rawPeriod) ?? periods[1];
   return pageMetadata({
     title: `อันดับนิยาย${selected.label}`,
-    description: `อันดับนิยายยอดนิยม${selected.label}จากข้อมูลการอ่านบน NiyaiNow`,
+    description: `อันดับนิยายยอดนิยม${selected.label}จากข้อมูลการอ่านบน NiyaiThai`,
     path: selected.value === "weekly" ? "/rankings" : `/rankings?period=${selected.value}`,
   });
 }
@@ -51,7 +51,11 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
           }}
         />
       ) : null}
-      <SectionHeader title="อันดับนิยาย" />
+      <div>
+        <p className="editorial-kicker">RANKING / 番付</p>
+        <h1 className="mt-1 font-serif text-3xl font-semibold">อันดับนิยาย</h1>
+        <p className="mt-2 text-sm text-muted-foreground">จัดลำดับจากพฤติกรรมการอ่านจริงบน NiyaiThai</p>
+      </div>
       <div className="flex gap-2 overflow-x-auto">
         {periods.map((period) => (
           <ButtonLink
@@ -65,8 +69,8 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
       </div>
       {rankedNovels.length > 0 ? (
         <>
-          <div className="grid grid-cols-3 gap-4">
-            {rankedNovels.slice(0, 3).map((novel) => <NovelCard key={novel.slug} novel={novel} fluid />)}
+          <div className="grid grid-cols-1 gap-6 border-y border-border py-7 sm:grid-cols-3">
+            {rankedNovels.slice(0, 3).map((novel, index) => <div key={novel.slug} className="flex justify-center"><RankingCard novel={novel} rank={index + 1} /></div>)}
           </div>
           <div className="grid gap-3">
             {rankedNovels.slice(3).map((novel, index) => <NovelRankingItem key={novel.slug} novel={novel} rank={index + 4} />)}

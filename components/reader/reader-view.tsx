@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ChevronLeft, ChevronRight, List, Type } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, List, Search, Type, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
@@ -43,6 +43,7 @@ export function ReaderView({
   chapter,
   previous,
   next,
+  chapters,
   children,
   isAuthenticated = false,
   initialBookmarked,
@@ -53,6 +54,7 @@ export function ReaderView({
   chapter: ChapterSummary;
   previous?: ChapterSummary;
   next?: ChapterSummary;
+  chapters: ChapterSummary[];
   children: ReactNode;
   isAuthenticated?: boolean;
   initialBookmarked?: boolean;
@@ -64,12 +66,14 @@ export function ReaderView({
   const setPrefs = useReaderStore((state) => state.setPrefs);
   const [chromeVisible, setChromeVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [progress, setProgress] = useState(0);
   const [novelState, setNovelState] = useState<{ bookmarked: boolean; following: boolean } | null>(null);
 
   const nextHref = next && !next.locked ? `/novel/${novel.slug}/chapter/${next.number}` : null;
   const previousHref = previous ? `/novel/${novel.slug}/chapter/${previous.number}` : null;
   const chaptersHref = `/novel/${novel.slug}/chapters`;
+  const sidebarOpen = prefs.sidebarOpen;
   const lastScrollY = useRef(0);
   const progressRef = useRef(0);
   const prefetchedNext = useRef(false);
@@ -226,23 +230,35 @@ export function ReaderView({
       {prefs.dim > 0 ? <div aria-hidden className="pointer-events-none fixed inset-0 z-30 bg-black" style={{ opacity: prefs.dim }} /> : null}
 
       <div role="progressbar" aria-label="ความคืบหน้าการอ่าน" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} className="fixed inset-x-0 top-0 z-50 h-0.5 bg-transparent">
-        <div className="h-full bg-[image:var(--grad-primary)] transition-[width] duration-[var(--dur-fast)] ease-[var(--ease-out)]" style={{ width: `${progress}%` }} />
+        <div className="h-full bg-[var(--brand-primary)] transition-[width] duration-[var(--dur-fast)] ease-[var(--ease-out)]" style={{ width: `${progress}%` }} />
       </div>
 
-      <header className={cn("fixed inset-x-0 top-0 z-40 h-14 border-b border-current/10 bg-[var(--reader-bg)]/92 backdrop-blur-md transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0")}>
-        <div className="mx-auto flex h-full max-w-[var(--reader-measure)] items-center gap-1 px-2">
-          <Link href={`/novel/${novel.slug}`} aria-label="กลับไปหน้าเรื่อง" className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] hover:bg-current/8"><ArrowLeft className="h-5 w-5" /></Link>
-          <Link href={chaptersHref} className="min-w-0 flex-1 truncate px-1 text-sm font-semibold">{novel.thaiTitle}</Link>
-          <button type="button" onClick={() => setSettingsOpen(true)} aria-label="ตั้งค่าการอ่าน" aria-haspopup="dialog" className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] hover:bg-current/8"><Type className="h-5 w-5" /></button>
-          <Link href={chaptersHref} aria-label="สารบัญตอน" className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] hover:bg-current/8"><List className="h-5 w-5" /></Link>
+      <header className={cn("fixed inset-x-0 top-0 z-40 h-16 border-b border-current/10 bg-[var(--reader-paper)]/94 backdrop-blur-md transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0")}>
+        <div className="mx-auto flex h-full max-w-[calc(var(--reader-measure)+12rem)] items-center gap-1 px-2 sm:px-4">
+          <Link href={`/novel/${novel.slug}`} aria-label="กลับไปหน้าเรื่อง" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><ArrowLeft className="h-5 w-5" /></Link>
+          <Link href={chaptersHref} className="min-w-0 flex-1 px-1">
+            <span className="block truncate text-xs opacity-65">{novel.thaiTitle}</span>
+            <span className="block truncate text-sm font-semibold">ตอนที่ {chapter.number} · {chapter.title}</span>
+          </Link>
+          <button type="button" onClick={() => setPrefs({ sidebarOpen: !sidebarOpen })} aria-label="เปิดสารบัญตอน" aria-expanded={sidebarOpen} className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><List className="h-5 w-5" /></button>
+          <button type="button" onClick={() => setSettingsOpen(true)} aria-label="ตั้งค่าการอ่าน" aria-haspopup="dialog" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><Type className="h-5 w-5" /></button>
           <BookmarkButton slug={novel.slug} initialActive={novelState?.bookmarked ?? initialBookmarked} />
+          <div className="relative hidden sm:block">
+            <button type="button" onClick={() => setMoreOpen((value) => !value)} aria-label="เมนูเพิ่มเติม" aria-expanded={moreOpen} className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-current/8"><Ellipsis className="h-5 w-5" /></button>
+            {moreOpen ? <div className="absolute right-0 top-12 w-48 rounded-[8px] border border-current/12 bg-[var(--reader-paper)] p-2 shadow-[var(--sh-2)]"><Link href={`/novel/${novel.slug}`} className="block rounded-[6px] px-3 py-2 text-sm hover:bg-current/8">รายละเอียดเรื่อง</Link><Link href={chaptersHref} className="block rounded-[6px] px-3 py-2 text-sm hover:bg-current/8">สารบัญทั้งหมด</Link></div> : null}
+          </div>
         </div>
       </header>
 
-      <main id="main" onClick={handleContentClick} className="mx-auto w-full px-5 pb-28 pt-20 sm:px-8" style={{ maxWidth: "calc(var(--reader-measure) + 4rem)" }}>
-        <article className="mx-auto" style={{ maxWidth: "var(--reader-measure)" }}>
-          <p className="text-sm opacity-65">{novel.thaiTitle} · ตอนที่ {chapter.number}</p>
-          <h1 className="mt-2 text-2xl font-semibold leading-[1.4] sm:text-3xl">{chapter.title}</h1>
+      <ReaderSidebar novel={novel} current={chapter} chapters={chapters} open={sidebarOpen} onClose={() => setPrefs({ sidebarOpen: false })} />
+
+      <main id="main" onClick={handleContentClick} className="mx-auto w-full px-5 pb-28 pt-20 sm:px-8 sm:pt-24" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
+        <article className="mx-auto sm:rounded-[8px] sm:border sm:border-current/10 sm:bg-[var(--reader-paper)] sm:px-10 sm:py-12 lg:px-14" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
+          <div className="mx-auto" style={{ maxWidth: "var(--reader-measure)" }}>
+          <p className="font-mono text-xs text-[var(--brand-primary)]">CH. {chapter.number}</p>
+          <p className="mt-2 text-sm opacity-60">{novel.thaiTitle}</p>
+          <h1 className="mt-2 font-serif text-2xl font-semibold leading-[1.45] sm:text-3xl">{chapter.title}</h1>
+          <div aria-hidden className="ink-divider mt-6" />
           <div className="mt-8" style={{ fontFamily: "var(--reader-family)", fontSize: "var(--reader-font-size)", lineHeight: "var(--reader-line-height)" }}>
             {children}
           </div>
@@ -260,18 +276,50 @@ export function ReaderView({
               initialFollowing={novelState?.following ?? initialFollowing}
             />
           )}
+          </div>
         </article>
       </main>
 
       <nav aria-label="เปลี่ยนตอน" className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-bg)]/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-md transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0")}>
-        <div className="mx-auto flex h-14 max-w-[var(--reader-measure)] items-center justify-between gap-2 px-2">
-          {previousHref ? <Link href={previousHref} prefetch aria-label="ตอนก่อนหน้า" className="flex h-11 items-center gap-1 rounded-[12px] px-3 text-sm font-semibold hover:bg-current/8"><ChevronLeft className="h-4 w-4" />ตอนก่อนหน้า</Link> : <span aria-hidden className="h-11 w-20" />}
-          <span className="tabular text-xs opacity-70">ตอนที่ {chapter.number} / {novel.chapters} · {progress}%</span>
-          {nextHref ? <Link href={nextHref} prefetch aria-label="ตอนถัดไป" className="flex h-11 items-center gap-1 rounded-[12px] px-3 text-sm font-semibold hover:bg-current/8">ตอนถัดไป<ChevronRight className="h-4 w-4" /></Link> : <span aria-hidden className="h-11 w-20" />}
+        <div className="mx-auto grid h-14 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
+          {previousHref ? <Link href={previousHref} prefetch aria-label="ตอนก่อนหน้า" className="flex h-12 items-center justify-start gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><ChevronLeft className="h-4 w-4" /><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
+          <button type="button" onClick={() => setPrefs({ sidebarOpen: true })} className="flex h-12 items-center justify-center gap-2 rounded-[8px] text-sm font-semibold hover:bg-current/8"><List className="h-4 w-4" />สารบัญ</button>
+          {nextHref ? <Link href={nextHref} prefetch aria-label="ตอนถัดไป" className="flex h-12 items-center justify-end gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><span className="hidden sm:inline">ตอนถัดไป</span><ChevronRight className="h-4 w-4" /></Link> : <span aria-hidden />}
         </div>
       </nav>
 
       <ReaderSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
+  );
+}
+
+function ReaderSidebar({ novel, current, chapters, open, onClose }: { novel: Novel; current: ChapterSummary; chapters: ChapterSummary[]; open: boolean; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const visible = chapters.filter((chapter) => {
+    const needle = query.trim().toLocaleLowerCase("th");
+    return !needle || chapter.title.toLocaleLowerCase("th").includes(needle) || String(chapter.number).includes(needle);
+  });
+
+  return (
+    <>
+      {open ? <button type="button" aria-label="ปิดสารบัญ" onClick={onClose} className="fixed inset-0 z-40 bg-black/45 lg:hidden" /> : null}
+      <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(320px,88vw)] flex-col border-r border-current/10 bg-[var(--reader-paper)] shadow-[var(--sh-3)] transition-transform duration-[var(--dur-base)]", open ? "translate-x-0" : "-translate-x-full")} aria-hidden={!open} inert={!open}>
+        <div className="flex h-16 items-center justify-between gap-3 border-b border-current/10 px-4">
+          <div className="min-w-0"><p className="editorial-kicker">TABLE OF CONTENTS</p><p className="truncate font-serif text-sm font-semibold">{novel.thaiTitle}</p></div>
+          <button type="button" onClick={onClose} aria-label="ปิดสารบัญ" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><X className="h-5 w-5" /></button>
+        </div>
+        <label className="relative m-4">
+          <span className="sr-only">ค้นหาตอน</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-55" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาเลขตอนหรือชื่อตอน" className="h-11 w-full rounded-[8px] border border-current/15 bg-transparent pl-9 pr-3 text-sm outline-none focus:border-[var(--brand-primary)]" />
+        </label>
+        <nav aria-label="รายชื่อตอน" className="min-h-0 flex-1 overflow-y-auto px-2 pb-5">
+          {visible.map((item) => {
+            const active = item.id ? item.id === current.id : item.number === current.number;
+            return <Link key={item.id ?? item.number} href={`/novel/${novel.slug}/chapter/${item.number}`} onClick={onClose} aria-current={active ? "page" : undefined} className={cn("grid min-h-[58px] grid-cols-[54px_1fr] items-center gap-2 border-b border-current/8 px-3 py-2 text-sm", active ? "border-l-2 border-l-[var(--brand-primary)] bg-[var(--brand-primary)]/8 text-[var(--brand-primary)]" : "hover:bg-current/6")}><span className="font-mono text-[11px]">CH. {item.number}</span><span className="line-clamp-2 font-medium leading-[1.5]">{item.title}</span></Link>;
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }

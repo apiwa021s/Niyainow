@@ -1061,6 +1061,7 @@ function chapterSummaryFromRow(row: {
   slug: string;
   title: string;
   publishedAt: Date | null;
+  wordCount: number;
   isFree: boolean;
   coinPrice: number;
 }): ChapterSummary {
@@ -1072,6 +1073,7 @@ function chapterSummaryFromRow(row: {
     sortOrder: row.sortOrder,
     title: row.title,
     updatedAt: formatThaiDate(row.publishedAt),
+    wordCount: row.wordCount,
     locked: !row.isFree,
     coinPrice: row.coinPrice,
   };
@@ -1085,6 +1087,7 @@ const chapterSummarySelection = {
   slug: chapters.slug,
   title: chapters.title,
   publishedAt: chapters.publishedAt,
+  wordCount: chapters.wordCount,
   isFree: chapters.isFree,
   coinPrice: chapters.coinPrice,
 };

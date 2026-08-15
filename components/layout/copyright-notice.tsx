@@ -71,7 +71,7 @@ export function CopyrightNotice() {
         </span>
 
         <div className="min-w-0">
-          <p className="text-sm font-semibold">NiyaiNow เคารพลิขสิทธิ์ของผู้สร้างสรรค์</p>
+          <p className="text-sm font-semibold">NiyaiThai เคารพลิขสิทธิ์ของผู้สร้างสรรค์</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             เราไม่เผยแพร่งานที่ยังมีลิขสิทธิ์ในประเทศไทย หากพบเนื้อหาที่ละเมิดสิทธิ์ของคุณ แจ้งเราได้ทันที
             ทีมงานจะตรวจสอบและนำออกโดยเร็วที่สุด

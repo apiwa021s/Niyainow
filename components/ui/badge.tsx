@@ -10,10 +10,10 @@ export type BadgeTone = "neutral" | "genre" | "brand" | "new" | "hot" | "muted";
 
 const tones: Record<BadgeTone, string> = {
   neutral: "border border-border bg-card text-muted-foreground",
-  genre: "border border-transparent bg-[var(--brand-blue)]/12 text-[var(--brand-blue-on-light)]",
+  genre: "border border-border bg-transparent text-muted-foreground",
   brand: "border border-transparent bg-[var(--brand-primary)]/12 text-[var(--brand-light-on-light)]",
   new: "border border-transparent bg-[var(--brand-pink)] text-white",
-  hot: "border border-transparent bg-[image:var(--grad-hot)] text-white",
+  hot: "border border-transparent bg-[var(--brand-primary)] text-white",
   muted: "border border-transparent bg-muted text-muted-foreground"
 };
 

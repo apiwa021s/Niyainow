@@ -23,6 +23,20 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.name,
+  openGraph: {
+    type: "website",
+    locale: "th_TH",
+    siteName: siteConfig.name,
+    title: siteConfig.title,
+    description: siteConfig.description,
+    images: [{ url: absoluteUrl("/og.png"), width: 1200, height: 630, alt: `${siteConfig.name} — ${siteConfig.title}` }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.title,
+    description: siteConfig.description,
+    images: [absoluteUrl("/og.png")]
+  },
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",
@@ -34,8 +48,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
-    { media: "(prefers-color-scheme: dark)", color: "#120A24" }
+    { media: "(prefers-color-scheme: light)", color: "#F7F5F1" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0A0A" }
   ]
 };
 

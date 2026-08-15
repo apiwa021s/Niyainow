@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { ProfilePanel } from "@/components/interactive/account-panels";
-import { PageShell, SectionHeader } from "@/components/ui/section";
+import { PageHeader, PageShell } from "@/components/ui/section";
 import { requireActiveUser } from "@/lib/auth/dal";
 import { getProfileSummary } from "@/services/user-service";
 
@@ -13,7 +13,7 @@ export default async function ProfilePage() {
   const summary = await getProfileSummary(user.id);
   return (
     <PageShell className="space-y-5">
-      <SectionHeader title="โปรไฟล์" />
+      <PageHeader title="โปรไฟล์" description="บัญชี การอ่าน และชั้นหนังสือของคุณ" />
       <ProfilePanel user={user} summary={summary} />
     </PageShell>
   );

@@ -16,7 +16,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const query = q.trim().slice(0, 100);
   return pageMetadata({
     title: query ? `ค้นหา “${query}”` : "ค้นหา",
-    description: query ? `ผลการค้นหานิยาย ผู้แต่ง หมวดหมู่ และแท็กสำหรับ “${query}”` : "ค้นหานิยายบน NiyaiNow",
+    description: query ? `ผลการค้นหานิยาย ผู้แต่ง หมวดหมู่ และแท็กสำหรับ “${query}”` : "ค้นหานิยายบน NiyaiThai",
     path: query ? `/search?q=${encodeURIComponent(query)}` : "/search",
     noIndex: true,
   });

@@ -91,7 +91,7 @@ export function GlobalSearch({ mode, onNavigate }: { mode: "inline" | "mobile"; 
           setActive(0);
         }}
         onKeyDown={onKeyDown}
-        placeholder="ค้นหานิยาย..."
+        placeholder="ค้นหาชื่อนิยาย ผู้แต่ง หรือหมวดหมู่"
         className="pl-9 pr-10"
         aria-label="ค้นหานิยาย"
         aria-autocomplete="list"

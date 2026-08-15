@@ -1,50 +1,30 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+
 import type { Genre } from "@/types/novel";
 
-/**
- * เลือกตามแนว (ส่วนที่ 6.3)
- * การ์ดแนวแทน chip เปล่า ๆ — แสดงจำนวนเรื่อง + คำอธิบายสั้น ให้ผู้อ่านตัดสินใจได้เร็ว
- */
 export function GenrePicker({ items }: { items: { genre: Genre; covers: string[] }[] }) {
   return (
-    <section aria-label="เลือกตามแนว" className="flex flex-col gap-3">
-      <div className="flex items-end justify-between gap-4">
+    <section aria-label="เลือกตามแนว" className="border-y border-border py-8 sm:py-10">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[280px_1fr] lg:gap-10">
         <div>
-          <h2 className="text-lg font-semibold sm:text-xl">เลือกตามแนว</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">เริ่มจากแนวที่คุณชอบ แล้วค่อยขยับไปแนวใกล้เคียง</p>
+          <p className="editorial-kicker">TAXONOMY / 分類</p>
+          <h2 className="mt-1 font-serif text-2xl font-semibold sm:text-3xl">เลือกตามแนว</h2>
+          <p className="mt-2 text-sm leading-[1.8] text-muted-foreground">เริ่มจากบรรยากาศที่คุณอยากอ่าน แล้วค้นพบเรื่องที่อยู่ใกล้เคียง</p>
+          <Link href="/genres" prefetch className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--brand-primary)]">ดูหมวดหมู่ทั้งหมด<ArrowRight className="h-4 w-4" /></Link>
         </div>
-        <Link href="/genres" prefetch className="shrink-0 rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted">
-          ทั้งหมด 
-        </Link>
+
+        <ul className="flex flex-wrap content-start gap-2.5">
+          {items.map(({ genre }) => (
+            <li key={genre.slug}>
+              <Link href={`/genre/${genre.slug}`} prefetch className="group inline-flex min-h-11 items-center gap-3 rounded-[6px] border border-border bg-card px-4 text-sm transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
+                <span className="font-medium">{genre.thaiName}</span>
+                <span className="tabular text-[11px] text-muted-foreground group-hover:text-[var(--brand-primary)]/75">{genre.count.toLocaleString("th-TH")}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
-
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map(({ genre, covers }) => (
-          <li key={genre.slug}>
-            <Link
-              href={`/genre/${genre.slug}`}
-              prefetch
-              className="group relative flex h-full flex-col justify-between overflow-hidden rounded-[16px] border border-border bg-card p-4 transition-shadow duration-[var(--dur-base)] hover:shadow-[var(--sh-2)]"
-            >
-              {/* ปกจาง ๆ เป็นพื้นหลัง ให้แต่ละแนวหน้าตาไม่เหมือนกัน */}
-              <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 flex w-24 opacity-[0.14]">
-                {covers.slice(0, 2).map((cover, index) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={index} src={cover} alt="" loading="lazy" className="h-full w-1/2 object-cover" />
-                ))}
-              </span>
-
-              <span className="relative">
-                <span className="block text-sm font-semibold">{genre.thaiName}</span>
-                <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{genre.description}</span>
-              </span>
-              <span className="tabular relative mt-3 block text-xs font-medium text-[var(--brand-light-on-light)]">
-                {genre.count.toLocaleString("th-TH")} เรื่อง
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }

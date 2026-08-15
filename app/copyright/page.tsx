@@ -6,7 +6,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata = pageMetadata({
   title: "ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด",
   description:
-    "NiyaiNow ไม่เผยแพร่งานที่ยังมีลิขสิทธิ์ในประเทศไทย และนำเนื้อหาที่ละเมิดสิทธิ์ออกทันทีที่ตรวจสอบแล้ว",
+    "NiyaiThai ไม่เผยแพร่งานที่ยังมีลิขสิทธิ์ในประเทศไทย และนำเนื้อหาที่ละเมิดสิทธิ์ออกทันทีที่ตรวจสอบแล้ว",
   path: "/copyright",
 });
 
@@ -40,7 +40,7 @@ export default function CopyrightPage() {
         </span>
         <h1 className="mt-4 text-2xl font-bold sm:text-3xl">ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด</h1>
         <p className="mt-3 max-w-3xl leading-[1.9] text-muted-foreground">
-          NiyaiNow ไม่เผยแพร่งานที่ยังได้รับความคุ้มครองลิขสิทธิ์ในประเทศไทย
+          NiyaiThai ไม่เผยแพร่งานที่ยังได้รับความคุ้มครองลิขสิทธิ์ในประเทศไทย
           เราเชื่อว่าผลงานที่ดีต้องกลับไปสร้างรายได้ให้ผู้เขียนและผู้แปลตัวจริง
           หากคุณพบเนื้อหาบนเว็บไซต์นี้ที่ละเมิดสิทธิ์ของคุณ แจ้งเราได้ทันที
           เราจะตรวจสอบและนำออกโดยเร็วที่สุดโดยไม่คิดค่าใช้จ่ายใด ๆ
@@ -86,7 +86,7 @@ export default function CopyrightPage() {
       <section lang="en" className="rounded-[16px] border border-border bg-card p-5 sm:p-6">
         <h2 className="font-semibold">Copyright notice</h2>
         <p className="mt-2 max-w-3xl text-sm leading-[1.85] text-muted-foreground">
-          NiyaiNow does not publish works that remain under copyright protection in Thailand. If you are a
+          NiyaiThai does not publish works that remain under copyright protection in Thailand. If you are a
           rights holder and find content on this site that infringes your rights, please send us the page
           link, the title of the work, and the basis of your claim. Reported content is hidden from readers
           while we review it, removed permanently once the claim is verified, and we reply to every report.

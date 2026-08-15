@@ -202,7 +202,7 @@ export function BannersView({ banners }: { banners: AdminBannerRow[] }) {
             </div></td>
           </tr>)}</tbody>
         </table></div>
-        {!banners.length ? <p className="py-8 text-center text-sm text-muted-foreground">ยังไม่มีแบนเนอร์ — เมื่อไม่มีแบนเนอร์ที่แสดงอยู่ หน้าแรกจะใช้ hero มาตรฐานแทน</p> : null}
+        {!banners.length ? <p className="py-8 text-center text-sm text-muted-foreground">ยังไม่มีแบนเนอร์ — หน้าแรกจะแสดงหมวดเนื้อหาถัดไปเป็นส่วนแรก</p> : null}
       </Panel>
 
       <Modal

@@ -75,7 +75,7 @@ function OptionChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex min-h-9 items-center gap-1.5 rounded-[8px] border px-2.5 py-1.5 text-xs font-medium transition-colors",
+        "flex min-h-11 items-center gap-1.5 rounded-[6px] border px-3 py-2 text-xs font-medium transition-colors",
         active
           ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/12 text-[var(--brand-light-on-light)]"
           : "border-border bg-card hover:bg-muted"

@@ -63,9 +63,13 @@ export function ContentRow({
   return (
     <section className={cn("flex flex-col gap-3", className)} aria-label={title}>
       <div className="flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
+        <div className="flex min-w-0 items-start gap-3">
+          <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
+          <div>
+          <p className="editorial-kicker">CONTINUE / 続き</p>
+          <h2 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
           {description ? <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{description}</p> : null}
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1">

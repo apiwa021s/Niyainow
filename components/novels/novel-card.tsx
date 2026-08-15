@@ -13,6 +13,14 @@ const statusLabel: Record<Novel["status"], string> = {
 
 const genreNameOf = (novel: Novel, slug: string) => novel.genreNames?.[slug] ?? slug;
 
+function HighlightedTitle({ text, query }: { text: string; query?: string }) {
+  const needle = query?.trim();
+  if (!needle) return <>{text}</>;
+  const index = text.toLocaleLowerCase("th").indexOf(needle.toLocaleLowerCase("th"));
+  if (index < 0) return <>{text}</>;
+  return <>{text.slice(0, index)}<mark className="bg-[var(--brand-primary)]/15 text-inherit">{text.slice(index, index + needle.length)}</mark>{text.slice(index + needle.length)}</>;
+}
+
 /* ---------------------------------------------------------------------------
    Badge บนปก (ส่วนที่ 6.3)
    ใหม่ = ชมพู · HOT = gradient · จบแล้ว = เทา
@@ -20,21 +28,21 @@ const genreNameOf = (novel: Novel, slug: string) => novel.genreNames?.[slug] ?? 
 function CoverBadge({ novel }: { novel: Novel }) {
   if (novel.isNew) {
     return (
-      <span className="rounded-[8px] bg-[var(--brand-pink)] px-2 py-0.5 text-[11px] font-semibold text-white shadow-[var(--sh-1)]">
+      <span className="rounded-[4px] bg-[var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
         ใหม่
       </span>
     );
   }
   if (novel.featured) {
     return (
-      <span className="rounded-[8px] bg-[image:var(--grad-hot)] px-2 py-0.5 text-[11px] font-semibold text-white shadow-[var(--sh-1)]">
-        HOT
+      <span className="rounded-[4px] border border-white/25 bg-black/72 px-2 py-0.5 text-[11px] font-semibold text-white">
+        แนะนำ
       </span>
     );
   }
   if (novel.status === "completed") {
     return (
-      <span className="rounded-[8px] bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">จบแล้ว</span>
+      <span className="rounded-[4px] bg-black/72 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">จบแล้ว</span>
     );
   }
   return null;
@@ -43,7 +51,7 @@ function CoverBadge({ novel }: { novel: Novel }) {
 /** chip แนว — สีฟ้าอ่อนตามสเปก ใช้ --brand-blue-on-light เพื่อให้ contrast ผ่าน */
 function GenreChip({ label }: { label: string }) {
   return (
-    <span className="rounded-[8px] bg-[var(--brand-blue)]/12 px-1.5 py-0.5 text-[11px] font-medium text-[var(--brand-blue-on-light)]">
+    <span className="rounded-[4px] border border-border bg-transparent px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
       {label}
     </span>
   );
@@ -80,13 +88,13 @@ export function NovelCard({
 
       <Link href={`/novel/${novel.slug}`} prefetch className="block">
         {/* aspect 2:3 ตายตัว  CLS 0 (ส่วนที่ 4 ข้อ 7) */}
-        <div className="relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted shadow-[var(--sh-1)] transition-all duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:-translate-y-1 group-hover:shadow-[var(--sh-2)]">
+        <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted transition-[border-color] duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:border-[var(--brand-primary)]/55">
           <Image
             src={novel.cover}
             alt={`ปกนิยาย ${novel.thaiTitle}`}
             fill
             sizes="(max-width: 640px) 132px, (max-width: 1024px) 152px, 168px"
-            className="object-cover transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:scale-[1.03]"
+            className="object-cover transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:scale-[1.02]"
           />
           <div className="absolute left-2 top-2 flex flex-col gap-1">
             <CoverBadge novel={novel} />
@@ -99,11 +107,11 @@ export function NovelCard({
           </div>
         </div>
 
-        <h3 title={novel.thaiTitle} className="mt-2 block max-w-full truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
+        <h3 title={novel.thaiTitle} className="mt-2 line-clamp-2 min-h-[2.8rem] max-w-full font-serif text-sm font-semibold leading-[1.45] transition-colors group-hover:text-[var(--brand-primary)]">{novel.thaiTitle}</h3>
 
         <div className="tabular mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-0.5">
-            <Star className="h-3 w-3 fill-[var(--brand-pink)] text-[var(--brand-pink)]" />
+            <Star className="h-3 w-3 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
             {novel.rating}
           </span>
           <span aria-hidden>·</span>
@@ -123,8 +131,8 @@ export function NovelCard({
 
       {typeof progress === "number" ? (
         <div className="mt-2">
-          <div className="h-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-[image:var(--grad-primary)]" style={{ width: `${Math.min(progress, 100)}%` }} />
+          <div className="h-1 overflow-hidden bg-muted">
+            <div className="h-full bg-[var(--brand-primary)]" style={{ width: `${Math.min(progress, 100)}%` }} />
           </div>
         </div>
       ) : null}
@@ -143,27 +151,27 @@ export function RankingCard({ novel, rank }: { novel: Novel; rank: number }) {
       <span
         aria-hidden
         className={cn(
-          "-mr-2 select-none font-sans text-[64px] font-extrabold leading-[0.8] tracking-tighter",
-          topThree ? "bg-[image:var(--grad-hot)] bg-clip-text text-transparent opacity-90" : "text-[var(--brand-primary)] opacity-[0.18]"
+          "-mr-2 select-none font-mono text-[56px] font-light leading-[0.8] tracking-[-.12em]",
+          topThree ? "text-[var(--brand-primary)]" : "text-muted-foreground opacity-35"
         )}
       >
-        {rank}
+        {String(rank).padStart(2, "0")}
       </span>
 
       <div className="min-w-0 flex-1">
         <Link href={`/novel/${novel.slug}`} prefetch className="block">
-          <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[12px] bg-muted shadow-[var(--sh-1)] transition-all duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:-translate-y-1 group-hover:shadow-[var(--sh-2)]">
+          <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[6px] border border-border bg-muted transition-colors duration-[var(--dur-base)] group-hover:border-[var(--brand-primary)]/55">
             <Image
               src={novel.cover}
               alt={`ปกนิยาย ${novel.thaiTitle}`}
               fill
               sizes="140px"
-              className="object-cover transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:scale-[1.03]"
+              className="object-cover transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:scale-[1.02]"
             />
           </div>
-          <h3 title={novel.thaiTitle} className="mt-2 block max-w-full truncate text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
+          <h3 title={novel.thaiTitle} className="mt-2 block max-w-full truncate font-serif text-sm font-semibold leading-snug">{novel.thaiTitle}</h3>
           <p className="tabular mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Star className="h-3 w-3 fill-[var(--brand-pink)] text-[var(--brand-pink)]" />
+            <Star className="h-3 w-3 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
             {novel.rating}
             <span aria-hidden>·</span>
             <Eye className="h-3 w-3" />
@@ -185,7 +193,8 @@ export function NovelListItem({
   chapterLabel,
   progress,
   meta,
-  action
+  action,
+  highlight,
 }: {
   novel: Novel;
   href?: string;
@@ -193,18 +202,19 @@ export function NovelListItem({
   progress?: number;
   meta?: React.ReactNode;
   action?: React.ReactNode;
+  highlight?: string;
 }) {
   return (
-    <article className="group flex gap-3 rounded-[16px] border border-border bg-card p-3 transition-shadow duration-[var(--dur-base)] hover:shadow-[var(--sh-2)]">
+    <article className="group flex gap-3 rounded-[8px] border border-border bg-card p-3 transition-colors duration-[var(--dur-base)] hover:border-[var(--brand-primary)]/45">
       <Link href={href ?? `/novel/${novel.slug}`} prefetch className="shrink-0">
-        <div className="relative aspect-[2/3] w-16 overflow-hidden rounded-[12px] bg-muted">
+        <div className="relative aspect-[2/3] w-16 overflow-hidden rounded-[5px] bg-muted">
           <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="64px" className="object-cover" />
         </div>
       </Link>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
         <Link href={href ?? `/novel/${novel.slug}`} prefetch className="block min-w-0">
-          <h3 title={novel.thaiTitle} className="truncate text-sm font-semibold">{novel.thaiTitle}</h3>
+          <h3 title={novel.thaiTitle} className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-primary)]"><HighlightedTitle text={novel.thaiTitle} query={highlight} /></h3>
         </Link>
 
         <p className="tabular line-clamp-1 text-xs text-muted-foreground">
@@ -214,8 +224,8 @@ export function NovelListItem({
 
         {typeof progress === "number" ? (
           <div className="mt-1 flex items-center gap-2">
-            <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-[image:var(--grad-primary)]" style={{ width: `${Math.min(progress, 100)}%` }} />
+            <div className="h-1 flex-1 overflow-hidden bg-muted">
+              <div className="h-full bg-[var(--brand-primary)]" style={{ width: `${Math.min(progress, 100)}%` }} />
             </div>
             <span className="tabular shrink-0 text-[11px] text-muted-foreground">{progress}%</span>
           </div>
@@ -233,9 +243,9 @@ export function NovelMiniCard({ novel }: { novel: Novel }) {
     <Link
       href={`/novel/${novel.slug}`}
       prefetch
-      className="flex min-w-0 items-center gap-3 rounded-[12px] p-2 transition-colors hover:bg-muted"
+      className="flex min-w-0 items-center gap-3 rounded-[8px] p-2 transition-colors hover:bg-muted"
     >
-      <div className="relative h-15 w-10 shrink-0 overflow-hidden rounded-[8px] bg-muted" style={{ aspectRatio: "2 / 3" }}>
+      <div className="relative h-15 w-10 shrink-0 overflow-hidden rounded-[4px] bg-muted" style={{ aspectRatio: "2 / 3" }}>
         <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="40px" className="object-cover" />
       </div>
       <div className="min-w-0">
@@ -250,8 +260,30 @@ export function NovelMiniCard({ novel }: { novel: Novel }) {
 
 /* ---------- ของเดิมที่หน้าอื่นยังเรียกใช้อยู่ — คงชื่อไว้ ---------- */
 
-export function NovelCardHorizontal({ novel, href }: { novel: Novel; href?: string }) {
-  return <NovelListItem novel={novel} href={href} meta={statusLabel[novel.status]} />;
+export function NovelCardHorizontal({ novel, href, highlight }: { novel: Novel; href?: string; highlight?: string }) {
+  return <NovelListItem novel={novel} href={href} meta={statusLabel[novel.status]} highlight={highlight} />;
+}
+
+export function NovelHorizontalCard({ novel }: { novel: Novel }) {
+  return (
+    <article className="group w-[310px] shrink-0 border-y border-border bg-card sm:w-[390px]">
+      <Link href={`/novel/${novel.slug}`} prefetch className="grid grid-cols-[84px_1fr] gap-4 py-4 sm:grid-cols-[96px_1fr]">
+        <div className="relative aspect-[2/3] overflow-hidden rounded-[5px] bg-muted">
+          <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="96px" className="object-cover transition-transform duration-[var(--dur-base)] group-hover:scale-[1.02]" />
+        </div>
+        <div className="min-w-0 self-center">
+          <p className="editorial-kicker">EDITORS&apos; CHOICE</p>
+          <h3 className="mt-1 line-clamp-2 font-serif text-base font-semibold leading-[1.5] transition-colors group-hover:text-[var(--brand-primary)]">{novel.thaiTitle}</h3>
+          <p className="mt-2 line-clamp-2 text-xs leading-[1.7] text-muted-foreground">{novel.synopsis}</p>
+          <div className="tabular mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />{novel.rating}</span>
+            <span>{novel.chapters} ตอน</span>
+            <span>{genreNameOf(novel, novel.genres[0])}</span>
+          </div>
+        </div>
+      </Link>
+    </article>
+  );
 }
 
 export function NovelRankingItem({ novel, rank }: { novel: Novel; rank: number }) {
@@ -259,21 +291,21 @@ export function NovelRankingItem({ novel, rank }: { novel: Novel; rank: number }
     <Link
       href={`/novel/${novel.slug}`}
       prefetch
-      className="group grid grid-cols-[32px_44px_1fr] items-center gap-3 rounded-[12px] border border-border bg-card p-2 transition-shadow hover:shadow-[var(--sh-2)]"
+      className="group grid grid-cols-[48px_44px_1fr] items-center gap-3 border-b border-border bg-card p-3 transition-colors hover:bg-muted/55"
     >
       <span
         className={cn(
-          "tabular text-center text-lg font-extrabold",
-          rank <= 3 ? "bg-[image:var(--grad-hot)] bg-clip-text text-transparent" : "text-muted-foreground"
+          "tabular font-mono text-center text-xl font-light",
+          rank <= 3 ? "text-[var(--brand-primary)]" : "text-muted-foreground"
         )}
       >
-        {rank}
+        {String(rank).padStart(2, "0")}
       </span>
-      <div className="relative aspect-[2/3] w-11 overflow-hidden rounded-[8px] bg-muted">
+      <div className="relative aspect-[2/3] w-11 overflow-hidden rounded-[4px] bg-muted">
         <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="44px" className="object-cover" />
       </div>
       <div className="min-w-0">
-        <p title={novel.thaiTitle} className="truncate text-sm font-semibold">{novel.thaiTitle}</p>
+        <p title={novel.thaiTitle} className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-primary)]">{novel.thaiTitle}</p>
         <p className="tabular truncate text-xs text-muted-foreground">
           {genreNameOf(novel, novel.genres[0])} · {novel.chapters} ตอน
         </p>

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { JsonLd } from "@/components/seo/json-ld";
+import { ChapterList } from "@/components/novels/chapter-list";
 import { ButtonLink } from "@/components/ui/button";
-import { EmptyState, PageShell, SectionHeader } from "@/components/ui/section";
+import { EmptyState, PageShell } from "@/components/ui/section";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getChapterPage, getNovelBySlug } from "@/services/novel-service";
@@ -64,21 +64,13 @@ export default async function ChaptersPage({
           })),
         }}
       />
-      <SectionHeader title={`สารบัญ ${novel.thaiTitle}`} />
+      <div className="border-b border-border pb-5">
+        <p className="editorial-kicker">CHAPTER INDEX / 目次</p>
+        <h1 className="mt-1 font-serif text-3xl font-semibold">สารบัญ</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{novel.thaiTitle} · {chapterPage.total.toLocaleString("th-TH")} ตอน</p>
+      </div>
       {chapterPage.items.length > 0 ? (
-        <div className="grid gap-2">
-          {chapterPage.items.map((chapter) => (
-            <Link
-              key={chapter.id ?? chapter.number}
-              href={`/novel/${slug}/chapter/${chapter.number}`}
-              className="grid gap-1 rounded-lg border border-border bg-card p-4 hover:bg-muted sm:grid-cols-[120px_1fr_auto]"
-            >
-              <span className="font-mono text-sm text-[var(--brand-accent)]">ตอนที่ {chapter.number}</span>
-              <span>{chapter.title}</span>
-              <span className="text-sm text-muted-foreground">{chapter.updatedAt}</span>
-            </Link>
-          ))}
-        </div>
+        <ChapterList slug={slug} chapters={chapterPage.items} />
       ) : (
         <EmptyState title="ยังไม่มีตอนที่เผยแพร่" description="กลับมาดูใหม่เมื่อนักเขียนเผยแพร่ตอนแรก" />
       )}

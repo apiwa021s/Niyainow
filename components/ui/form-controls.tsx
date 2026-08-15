@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * focus ring มาจาก :focus-visible ใน globals.css จึงไม่ต้องประกาศซ้ำที่นี่
  */
 const fieldBase =
-  "w-full rounded-[12px] border bg-card px-3 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-[var(--text-tertiary)] disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60";
+  "w-full rounded-[8px] border bg-card px-3 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-[var(--text-tertiary)] disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60";
 
 const fieldTone = (invalid?: boolean) =>
   invalid

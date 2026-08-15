@@ -6,7 +6,7 @@ import { getPendingWork } from "@/services/admin-service";
 export const metadata: Metadata = {
   title: {
     default: "ระบบหลังบ้าน",
-    template: "%s | หลังบ้าน NiyaiNow"
+    template: "%s | หลังบ้าน NiyaiThai"
   },
   // หน้าหลังบ้านไม่ควรถูกเก็บเข้า index ของ search engine
   robots: { index: false, follow: false }

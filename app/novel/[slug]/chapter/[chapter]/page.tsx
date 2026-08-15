@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { parseChapterNumberSegment, splitChapterParagraphs } from "@/lib/domain/chapter";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
-import { getAdjacentChapters, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
+import { getAdjacentChapters, getChapters, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
 
 type ChapterRouteProps = { params: Promise<{ slug: string; chapter: string }> };
 
@@ -51,10 +51,11 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
   const parsed = parseChapterNumberSegment(chapter);
   if (!parsed) notFound();
 
-  const [novel, published, adjacent, currentUser] = await Promise.all([
+  const [novel, published, adjacent, chapters, currentUser] = await Promise.all([
     getNovelBySlug(slug),
     getPublishedChapter(slug, parsed.number),
     getAdjacentChapters(slug, parsed.number),
+    getChapters(slug, 50),
     getCurrentUser(),
   ]);
   if (!novel || !published) notFound();
@@ -82,6 +83,7 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
         chapter={chapterSummary}
         previous={adjacent.previous}
         next={adjacent.next}
+        chapters={chapters}
         locked={locked}
         isAuthenticated={currentUser?.status === "ACTIVE"}
       >

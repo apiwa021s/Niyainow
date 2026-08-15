@@ -56,6 +56,7 @@ export type Chapter = {
   title: string;
   body: string[];
   updatedAt: string;
+  wordCount?: number;
   /** ตอนที่ยังไม่เปิดเนื้อหาเต็มแก่สาธารณะ */
   locked?: boolean;
   /** Reserved legacy price; production admin currently accepts free chapters only. */

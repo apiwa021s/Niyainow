@@ -56,7 +56,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 
   return pageMetadata({
     title,
-    description: `${title} บน NiyaiNow พบ ${result.total.toLocaleString("th-TH")} เรื่อง เลือกตามแนว สถานะ คะแนน และช่วงเวลาอัปเดต`,
+    description: `${title} บน NiyaiThai พบ ${result.total.toLocaleString("th-TH")} เรื่อง เลือกตามแนว สถานะ คะแนน และช่วงเวลาอัปเดต`,
     path: novelBrowseHref(canonicalQuery, allGenres.map((genre) => genre.slug)),
     noIndex: Boolean(query.q),
   });
@@ -80,7 +80,7 @@ export default async function NovelsPage({ searchParams }: { searchParams: Promi
   const title = selected.length ? `นิยาย${selected.join(" · ")}` : "นิยายทั้งหมด";
 
   return (
-    <main id="main" className="mx-auto w-full max-w-7xl px-4 pb-24 pt-20 sm:px-6 lg:px-8">
+    <main id="main" className="mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[88px] sm:px-6 lg:px-8">
       <JsonLd
         data={{
           "@context": "https://schema.org",

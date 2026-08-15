@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { UpdateList } from "@/components/novels/update-list";
 import { ButtonLink } from "@/components/ui/button";
-import { EmptyState, PageShell, SectionHeader } from "@/components/ui/section";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui/section";
 import { pageMetadata } from "@/lib/seo";
 import {
   canonicalizeUpdatesSearchParams,
@@ -26,7 +26,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const { href } = await resolveUpdatesRequest(await searchParams);
   return pageMetadata({
     title: "อัปเดตนิยายล่าสุด",
-    description: "ติดตามตอนใหม่จากนิยายที่เผยแพร่ล่าสุดบน NiyaiNow",
+    description: "ติดตามตอนใหม่จากนิยายที่เผยแพร่ล่าสุดบน NiyaiThai",
     path: href,
   });
 }
@@ -48,7 +48,7 @@ export default async function UpdatesPage({ searchParams }: { searchParams: Prom
 
   return (
     <PageShell className="space-y-5">
-      <SectionHeader title="อัปเดตล่าสุด" />
+      <PageHeader title="อัปเดตล่าสุด" description="ตอนใหม่จากทุกเรื่อง เรียงให้สแกนได้เร็วและกลับเข้าเรื่องได้ทันที" />
       <div className="flex gap-2 overflow-x-auto">
         {ranges.map((option) => (
           <ButtonLink

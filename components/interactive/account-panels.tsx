@@ -27,7 +27,7 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
               <UserRound className="h-8 w-8" />
             </div>
             <div className="min-w-0">
-              <p className="truncate font-semibold">{user.name || "นักอ่าน NiyaiNow"}</p>
+              <p className="truncate font-semibold">{user.name || "นักอ่าน NiyaiThai"}</p>
               <p className="truncate text-sm text-muted-foreground">{user.email}</p>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5" /> เข้าสู่ระบบด้วย Google
@@ -64,7 +64,7 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
         <CardContent className="grid gap-4">
           <label className="grid gap-2">
             <Label>ชื่อที่แสดง</Label>
-            <Input value={user.name || "นักอ่าน NiyaiNow"} readOnly disabled />
+            <Input value={user.name || "นักอ่าน NiyaiThai"} readOnly disabled />
           </label>
           <label className="grid gap-2">
             <Label>อีเมล</Label>
