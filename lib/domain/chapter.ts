@@ -5,7 +5,11 @@ export function countChapterWords(content: string) {
   // Intl.Segmenter handles Thai text without depending on ASCII whitespace.
   const Segmenter = Intl.Segmenter;
   const segmenter = new Segmenter("th", { granularity: "word" });
-  return [...segmenter.segment(normalized)].filter((segment) => segment.isWordLike).length;
+  let count = 0;
+  for (const segment of segmenter.segment(normalized)) {
+    if (segment.isWordLike) count += 1;
+  }
+  return count;
 }
 
 export function splitChapterParagraphs(content: string) {

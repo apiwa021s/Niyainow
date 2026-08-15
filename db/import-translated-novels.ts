@@ -37,6 +37,7 @@ const DEFAULT_MAX_RUNTIME_SECONDS = 600;
 const MAX_RUNTIME_SECONDS = 1_500;
 const RUNTIME_STOP_BUFFER_MS = 30_000;
 const MAX_CHAPTER_UTF8_BYTES = 4 * 1024 * 1024;
+const TEXT_BUILDER_CHUNK_CHARACTERS = 8 * 1024;
 const MONGO_DATABASE = "my-novel";
 const INCREMENTAL_INTERVAL_MS = 2 * 24 * 60 * 60_000;
 const INCREMENTAL_SAFETY_WINDOW_MS = 6 * 60 * 60_000;
@@ -278,25 +279,134 @@ function normalizeWhitespace(value: string) {
   return value.replace(/\u00a0/gu, " ").replace(/[ \t]+/gu, " ").trim();
 }
 
-function htmlToText(value: string) {
-  return normalizeWhitespace(
-    value
-      .replace(/<\s*br\s*\/?>/giu, "\n")
-      .replace(/<\/\s*(?:p|div|section|article|h[1-6]|li|tr)\s*>/giu, "\n\n")
-      .replace(/<[^>]+>/gu, "")
-      .replace(/&nbsp;/giu, " ")
-      .replace(/&amp;/giu, "&")
-      .replace(/&lt;/giu, "<")
-      .replace(/&gt;/giu, ">")
-      .replace(/&quot;/giu, "\"")
-      .replace(/&#39;/gu, "'")
-      .replace(/\n{3,}/gu, "\n\n"),
-  );
+type HtmlTextResult = { text: string; exceededLimit: boolean };
+
+const HTML_ENTITY_REPLACEMENTS: Readonly<Record<string, string>> = {
+  "&nbsp;": " ",
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": "\"",
+  "&#39;": "'",
+};
+const HTML_BREAK_TAG = /^\s*br\s*\/?\s*$/iu;
+const HTML_BLOCK_CLOSE_TAG = /^\s*\/\s*(?:p|div|section|article|h[1-6]|li|tr)\s*$/iu;
+
+function utf8CodePointBytes(value: string) {
+  const codePoint = value.codePointAt(0) ?? 0;
+  if (codePoint <= 0x7f) return 1;
+  if (codePoint <= 0x7ff) return 2;
+  if (codePoint <= 0xffff) return 3;
+  return 4;
+}
+
+/**
+ * Converts the small HTML subset found in Mongo without chaining global
+ * String.replace calls. V8 can represent each replacement result as a deep
+ * rope; flattening that rope in the next replacement may overflow the stack
+ * for entity-heavy chapters. The bounded builder is single-pass, keeps rope
+ * depth shallow, and stops allocating once the caller's output budget is hit.
+ */
+function htmlToText(value: string, maximumUtf8Bytes = Number.POSITIVE_INFINITY): HtmlTextResult {
+  const chunks: string[] = [];
+  let buffer = "";
+  let outputBytes = 0;
+  let consecutiveNewlines = 0;
+  let pendingSpace = false;
+  let exceededLimit = false;
+  let noMoreTagEnd = false;
+
+  const flush = () => {
+    if (!buffer) return;
+    chunks.push(buffer);
+    buffer = "";
+  };
+  const appendRaw = (text: string) => {
+    const bytes = utf8CodePointBytes(text);
+    if (outputBytes + bytes > maximumUtf8Bytes) {
+      exceededLimit = true;
+      return false;
+    }
+    outputBytes += bytes;
+    buffer += text;
+    if (buffer.length >= TEXT_BUILDER_CHUNK_CHARACTERS) flush();
+    return true;
+  };
+  const appendNormalized = (text: string) => {
+    for (const character of text) {
+      if (character === " " || character === "\t" || character === "\u00a0") {
+        pendingSpace = true;
+        continue;
+      }
+      if (pendingSpace) {
+        pendingSpace = false;
+        consecutiveNewlines = 0;
+        if (!appendRaw(" ")) return false;
+      }
+      if (character === "\n") {
+        if (consecutiveNewlines >= 2) continue;
+        consecutiveNewlines += 1;
+      } else {
+        consecutiveNewlines = 0;
+      }
+      if (!appendRaw(character)) return false;
+    }
+    return true;
+  };
+
+  for (let index = 0; index < value.length && !exceededLimit;) {
+    if (!noMoreTagEnd && value[index] === "<") {
+      const tagEnd = value.indexOf(">", index + 1);
+      if (tagEnd === -1) {
+        noMoreTagEnd = true;
+      } else if (tagEnd > index + 1) {
+        // Only block/break detection needs the tag text. Bound the sample so a
+        // malformed multi-megabyte tag cannot create another large allocation.
+        const tag = value.slice(index + 1, Math.min(tagEnd, index + 81));
+        const replacement = HTML_BREAK_TAG.test(tag)
+          ? "\n"
+          : HTML_BLOCK_CLOSE_TAG.test(tag)
+            ? "\n\n"
+            : "";
+        index = tagEnd + 1;
+        if (!appendNormalized(replacement)) break;
+        continue;
+      }
+    }
+
+    if (value[index] === "&") {
+      let entityEnd = -1;
+      const maximumEntityEnd = Math.min(value.length, index + 7);
+      for (let cursor = index + 1; cursor < maximumEntityEnd; cursor += 1) {
+        if (value[cursor] === ";") {
+          entityEnd = cursor;
+          break;
+        }
+      }
+      if (entityEnd !== -1) {
+        const entity = value.slice(index, entityEnd + 1).toLowerCase();
+        const replacement = HTML_ENTITY_REPLACEMENTS[entity];
+        if (replacement !== undefined) {
+          index = entityEnd + 1;
+          if (!appendNormalized(replacement)) break;
+          continue;
+        }
+      }
+    }
+
+    const codePoint = value.codePointAt(index) ?? 0;
+    const character = String.fromCodePoint(codePoint);
+    index += character.length;
+    if (!appendNormalized(character)) break;
+  }
+
+  flush();
+  return { text: chunks.join("").trim(), exceededLimit };
 }
 
 function cleanText(value: unknown, maximum: number) {
   if (typeof value !== "string") return null;
-  const text = htmlToText(value).slice(0, maximum).trim();
+  const text = htmlToText(value, maximum * 4).text.slice(0, maximum).trim();
   return text || null;
 }
 
@@ -674,9 +784,14 @@ function orderMap(orderDoc: MongoChapterOrder | null) {
   return result;
 }
 
-function normalizeChapterContent(value: unknown) {
-  if (typeof value !== "string") return "";
-  return htmlToText(value).replace(/\n{3,}/gu, "\n\n").trim();
+export function normalizeImportedChapterContent(value: unknown):
+  | { content: string; reason: null }
+  | { content: null; reason: "empty" | "too_large" } {
+  if (typeof value !== "string") return { content: null, reason: "empty" };
+  const normalized = htmlToText(value, MAX_CHAPTER_UTF8_BYTES);
+  if (normalized.exceededLimit) return { content: null, reason: "too_large" };
+  if (!normalized.text) return { content: null, reason: "empty" };
+  return { content: normalized.text, reason: null };
 }
 
 async function loadSortedChapters(input: {
@@ -752,15 +867,26 @@ async function importChapterChunk(input: {
   let imported = 0;
   let paid = 0;
   let skipped = 0;
+  let loggedOversizedChapter = false;
 
   await getDb().transaction(async (tx) => {
     for (const [chunkIndex, chapter] of chunk.entries()) {
       const sourceIndex = input.chapterOffset + chunkIndex;
-      const content = normalizeChapterContent(chapter.chapterContent);
-      if (!content || Buffer.byteLength(content, "utf8") > MAX_CHAPTER_UTF8_BYTES) {
+      const normalizedContent = normalizeImportedChapterContent(chapter.chapterContent);
+      if (!normalizedContent.content) {
+        if (normalizedContent.reason === "too_large" && !loggedOversizedChapter) {
+          loggedOversizedChapter = true;
+          logger.warn("Skipping oversized Mongo chapter during translated novel import", {
+            sourceBookId: input.book.bookId,
+            sourceChapterId: chapter.chapterId,
+            sourceCharacters: typeof chapter.chapterContent === "string" ? chapter.chapterContent.length : 0,
+            maximumOutputBytes: MAX_CHAPTER_UTF8_BYTES,
+          });
+        }
         skipped += 1;
         continue;
       }
+      const content = normalizedContent.content;
       const chapterNumber = sourceIndex + 1;
       const access = mapImportedChapterAccess(chapter.chapterPrice);
       if (!access.isFree) paid += 1;
