@@ -4,12 +4,6 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 import { Check, Info, TriangleAlert, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/**
- * Toast (ส่วนที่ 7)
- * มุมล่างขวาบนเดสก์ท็อป / บนสุดบนมือถือ, auto-dismiss 4s
- * รองรับปุ่ม action สำหรับสิ่งที่ย้อนได้ ("เลิกทำ" / "ลองใหม่")
- * ประกาศผ่าน aria-live เพื่อให้ screen reader ได้ยิน (ส่วนที่ 8)
- */
 export type ToastTone = "success" | "error" | "info";
 
 type Toast = {
@@ -46,7 +40,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     (input: Omit<Toast, "id">) => {
       const id = nextToastId++;
       setToasts((current) => [...current, { ...input, id }]);
-      window.setTimeout(() => dismiss(id), DURATION);
+      if (!input.action && input.tone !== "error") {
+        window.setTimeout(() => dismiss(id), DURATION);
+      }
     },
     [dismiss]
   );
@@ -67,8 +63,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={item.id}
-              role="status"
-              className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-[12px] border border-border bg-popover p-3 shadow-[var(--sh-3)]"
+              role={item.tone === "error" ? "alert" : "status"}
+              className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-[10px] border border-border bg-popover p-3 shadow-[var(--sh-2)]"
             >
               <Icon className={cn("h-5 w-5 shrink-0", className)} aria-hidden />
               <p className="min-w-0 flex-1 text-sm">{item.message}</p>
@@ -80,7 +76,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     item.action?.onClick();
                     dismiss(item.id);
                   }}
-                  className="shrink-0 rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
+                  className="min-h-11 shrink-0 rounded-[6px] px-2 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
                 >
                   {item.action.label}
                 </button>
@@ -90,7 +86,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => dismiss(item.id)}
                 aria-label="ปิดการแจ้งเตือน"
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-muted-foreground hover:bg-muted"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] text-muted-foreground hover:bg-muted"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -102,7 +98,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** คืน no-op เมื่อไม่มี provider เพื่อให้ component ที่ใช้ toast ยังทำงานได้ */
 export function useToast() {
   const context = useContext(ToastContext);
   return context ?? { toast: () => {} };

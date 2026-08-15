@@ -23,6 +23,7 @@ export type Novel = {
   status: NovelStatus;
   rating: number;
   ratingCount?: number;
+  reviewCount?: number;
   views: number;
   chapters: number;
   synopsis: string;
@@ -64,6 +65,40 @@ export type Chapter = {
 };
 
 export type ChapterSummary = Omit<Chapter, "body">;
+
+export type ChapterWindow = {
+  items: ChapterSummary[];
+  total: number;
+  startPosition: number;
+  endPosition: number;
+  hasEarlier: boolean;
+  hasLater: boolean;
+  /** First chapter just outside the reader drawer's earlier edge. */
+  earlierBoundary?: ChapterSummary;
+  /** First chapter just outside the reader drawer's later edge. */
+  laterBoundary?: ChapterSummary;
+};
+
+export type NovelResumeServerProgress = {
+  chapterNumber: number;
+  chapterTitle?: string;
+  chapterSortOrder?: number;
+  progressPercent: number;
+  position: number;
+  lastReadAt: string;
+};
+
+export type ChapterCatalogOrder = "latest" | "oldest";
+
+export type ChapterCatalogPage = Paginated<ChapterSummary> & {
+  catalogTotal: number;
+  order: ChapterCatalogOrder;
+  query: string;
+  rangeStart: number | null;
+  rangeEnd: number | null;
+  jumpChapter: number | null;
+  jumpFound: boolean;
+};
 
 export type Review = {
   id: string;

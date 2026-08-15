@@ -1,16 +1,13 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { PageShell } from "@/components/ui/section";
+import { RouteRecovery, type RouteErrorBoundaryProps } from "@/components/interactive/route-recovery";
 
-export default function ErrorPage({ reset }: { reset: () => void }) {
+export default function ErrorPage({ retry }: RouteErrorBoundaryProps) {
   return (
-    <PageShell className="grid min-h-[60vh] place-items-center text-center">
-      <div>
-        <h1 className="text-3xl font-semibold">มีบางอย่างผิดพลาด</h1>
-        <p className="mt-2 text-muted-foreground">ลองโหลดหน้านี้ใหม่อีกครั้ง</p>
-        <Button className="mt-5" onClick={reset}>ลองใหม่</Button>
-      </div>
-    </PageShell>
+    <RouteRecovery
+      retry={retry}
+      title="หน้านี้ยังเปิดไม่ได้"
+      description="การเชื่อมต่อหรือข้อมูลบางส่วนอาจมีปัญหาชั่วคราว ลองโหลดเนื้อหาอีกครั้งโดยไม่เสียตำแหน่งที่กำลังดู"
+    />
   );
 }

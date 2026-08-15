@@ -66,13 +66,13 @@ export function AdminShell({
             <button type="button" onClick={() => setDrawerOpen(true)} aria-label="เปิดเมนู" className="grid h-11 w-11 place-items-center rounded-[12px] text-muted-foreground hover:bg-muted lg:hidden"><Menu className="h-5 w-5" /></button>
             <form role="search" action="/admin/novels" method="get" className="relative hidden min-w-0 max-w-sm flex-1 md:block">
               <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input name="q" type="search" placeholder="ค้นหานิยายหรือผู้แต่ง…" aria-label="ค้นหานิยายในระบบหลังบ้าน" className="h-10 w-full rounded-[12px] border border-border bg-card pl-9 pr-3 text-sm placeholder:text-[var(--text-tertiary)] focus:border-[var(--brand-primary)]" />
+              <input name="q" type="search" placeholder="ค้นหานิยายหรือผู้แต่ง…" aria-label="ค้นหานิยายในระบบหลังบ้าน" className="h-10 w-full rounded-[12px] border border-border bg-card pl-9 pr-3 text-sm placeholder:text-[var(--text-tertiary)] focus:border-[var(--brand-emphasis)]" />
             </form>
             <div className="ml-auto flex items-center gap-1">
               <Link href="/" className="hidden h-10 items-center gap-1.5 rounded-[12px] px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:flex"><ExternalLink className="h-4 w-4" />ดูเว็บไซต์</Link>
               <div ref={accountRef} className="relative">
                 <button type="button" onClick={() => setAccountOpen((value) => !value)} aria-expanded={accountOpen} aria-haspopup="menu" className="flex h-11 items-center gap-2 rounded-[12px] px-2 text-left hover:bg-muted">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[image:var(--grad-primary)] text-white"><UserRound className="h-4 w-4" /></span>
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--brand-primary)] text-white"><UserRound className="h-4 w-4" /></span>
                   <span className="hidden min-w-0 sm:block"><span className="block max-w-48 truncate text-sm font-semibold">{user.name || user.email || "ผู้ดูแล"}</span><span className="block text-[11px] text-muted-foreground">{user.role}</span></span>
                 </button>
                 {accountOpen ? <div role="menu" className="absolute right-0 top-[calc(100%+8px)] w-60 overflow-hidden rounded-[16px] border border-border bg-popover p-2 shadow-[var(--sh-3)]">

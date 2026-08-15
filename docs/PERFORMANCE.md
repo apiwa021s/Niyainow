@@ -17,7 +17,7 @@
   shared read-through layers described in `docs/CACHING.md`.
 - Public list links use Partial Prefetching's shared route shell. Explicit
   runtime prefetch is reserved for the reader's likely next chapter after the
-  reader reaches 50%; large chapter lists deliberately disable prefetch.
+  reader reaches 70%; large chapter lists deliberately disable prefetch.
 - Search suggestions are debounced and abort superseded requests. The endpoint
   is rate limited and CDN-cacheable for 60 seconds with stale-while-revalidate.
 - User and admin APIs explicitly enter request-time rendering, avoiding failed

@@ -9,8 +9,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[8px] border border-border bg-card text-card-foreground",
-        interactive && "transition-shadow duration-[var(--dur-base)] hover:shadow-[var(--sh-2)]",
+        "rounded-[10px] border border-border bg-card text-card-foreground",
+        interactive && "transition-[border-color,box-shadow] duration-[var(--dur-base)] hover:border-[color-mix(in_srgb,var(--brand-primary)_28%,var(--border))] hover:shadow-[var(--sh-1)]",
         className
       )}
       {...props}
@@ -24,10 +24,6 @@ export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElemen
 
 export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return <h3 className={cn("text-lg font-semibold", className)} {...props} />;
-}
-
-export function CardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm leading-relaxed text-muted-foreground", className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

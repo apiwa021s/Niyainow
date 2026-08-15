@@ -37,19 +37,20 @@ export function GoogleSignInButton({
   );
 }
 
-export function AuthForm({ callbackUrl = "/profile", error }: { callbackUrl?: string; error?: string }) {
+export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; error?: string }) {
   return (
-    <Card className="mx-auto max-w-md">
+    <Card className="max-w-lg shadow-[var(--sh-1)]">
       <CardHeader>
-        <CardTitle>เข้าสู่ระบบ</CardTitle>
+        <p className="editorial-kicker">READER ACCOUNT</p>
+        <CardTitle className="font-serif text-2xl">ซิงก์พื้นที่อ่านของคุณ</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
-          ใช้บัญชี Google เพื่อเข้าสู่ NiyaiThai ระบบจะสร้างบัญชีผู้อ่านให้โดยอัตโนมัติเมื่อเข้าสู่ระบบครั้งแรก
+          ใช้บัญชี Google เพื่อเก็บชั้นหนังสือ ประวัติ และความคืบหน้าไว้ข้ามอุปกรณ์ การอ่านเนื้อหาสาธารณะไม่จำเป็นต้องเข้าสู่ระบบ
         </p>
 
         {error ? (
-          <p role="alert" className="mb-4 rounded-[10px] bg-destructive/10 p-3 text-sm text-destructive">
+          <p role="alert" className="mb-4 rounded-[6px] border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive">
             ไม่สามารถเข้าสู่ระบบได้ โปรดลองอีกครั้งหรือตรวจสอบสิทธิ์ของบัญชี Google
           </p>
         ) : null}
@@ -60,7 +61,7 @@ export function AuthForm({ callbackUrl = "/profile", error }: { callbackUrl?: st
         </form>
 
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          เมื่อดำเนินการต่อ แสดงว่าคุณยอมรับ
+          เมื่อดำเนินการต่อ แสดงว่าคุณยอมรับ{" "}
           <Link href="/terms" className="font-medium text-foreground hover:underline">
             ข้อกำหนดการใช้งาน
           </Link>{" "}
@@ -70,6 +71,10 @@ export function AuthForm({ callbackUrl = "/profile", error }: { callbackUrl?: st
           </Link>
           ของ NiyaiThai
         </p>
+
+        <Link href={callbackUrl} className="mt-4 flex min-h-11 items-center justify-center rounded-[6px] text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground">
+          อ่านต่อโดยไม่เข้าสู่ระบบ
+        </Link>
       </CardContent>
     </Card>
   );

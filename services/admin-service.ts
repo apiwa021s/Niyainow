@@ -26,6 +26,7 @@ import {
   chapters,
   genres,
   mediaAssets,
+  novelAlternativeTitles,
   novelAuthors,
   novelGenres,
   novelSearchDocuments,
@@ -908,14 +909,21 @@ async function updateSearchDocument(
   authorsForNovel: { name: string }[],
   tagsForNovel: { name: string }[],
 ) {
-  const genreRows = await tx
-    .select({ name: genres.name, thaiName: genres.thaiName })
-    .from(novelGenres)
-    .innerJoin(genres, eq(genres.id, novelGenres.genreId))
-    .where(eq(novelGenres.novelId, novelId));
+  const [genreRows, alternativeTitleRows] = await Promise.all([
+    tx
+      .select({ name: genres.name, thaiName: genres.thaiName })
+      .from(novelGenres)
+      .innerJoin(genres, eq(genres.id, novelGenres.genreId))
+      .where(eq(novelGenres.novelId, novelId)),
+    tx
+      .select({ title: novelAlternativeTitles.title })
+      .from(novelAlternativeTitles)
+      .where(eq(novelAlternativeTitles.novelId, novelId)),
+  ]);
   const searchText = [
     title,
     titleOriginal,
+    ...alternativeTitleRows.map((row) => row.title),
     ...authorsForNovel.map((author) => author.name),
     ...genreRows.flatMap((genre) => [genre.name, genre.thaiName]),
     ...tagsForNovel.map((tag) => tag.name),

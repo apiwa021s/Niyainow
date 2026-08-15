@@ -9,7 +9,8 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { parseChapterNumberSegment, splitChapterParagraphs } from "@/lib/domain/chapter";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
-import { getAdjacentChapters, getChapters, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
+import { getAdjacentChapters, getChapterWindow, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
+import { getUserNovelState } from "@/services/user-service";
 
 type ChapterRouteProps = { params: Promise<{ slug: string; chapter: string }> };
 
@@ -51,11 +52,11 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
   const parsed = parseChapterNumberSegment(chapter);
   if (!parsed) notFound();
 
-  const [novel, published, adjacent, chapters, currentUser] = await Promise.all([
+  const [novel, published, adjacent, chapterWindow, currentUser] = await Promise.all([
     getNovelBySlug(slug),
     getPublishedChapter(slug, parsed.number),
     getAdjacentChapters(slug, parsed.number),
-    getChapters(slug, 50),
+    getChapterWindow(slug, parsed.number),
     getCurrentUser(),
   ]);
   if (!novel || !published) notFound();
@@ -64,6 +65,9 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
   }
 
   const { chapter: chapterSummary, content, locked } = published;
+  const userState = currentUser?.status === "ACTIVE"
+    ? await getUserNovelState(currentUser.id, novel.slug)
+    : null;
   const paragraphs = splitChapterParagraphs(content ?? "");
   return (
     <>
@@ -79,13 +83,17 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
         }}
       />
       <ReaderView
+        key={chapterSummary.id ?? chapterSummary.number}
         novel={novel}
         chapter={chapterSummary}
         previous={adjacent.previous}
         next={adjacent.next}
-        chapters={chapters}
+        chapterWindow={chapterWindow}
         locked={locked}
         isAuthenticated={currentUser?.status === "ACTIVE"}
+        initialLibraryStatus={userState?.libraryStatus}
+        initialFollowing={userState?.followed}
+        initialProgress={userState?.progress}
       >
         <ChapterContent paragraphs={paragraphs} teaser={locked} />
       </ReaderView>

@@ -1,43 +1,41 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * โครงหน้า (ใช้ทุกหน้า)
- * pt-20 เผื่อความสูง header ที่ fixed อยู่ · pb-24 เผื่อ bottom nav บนมือถือ
- * id="main" ให้ skip link กระโดดมาถึง (ส่วนที่ 8)
- */
-export function PageShell({ children, className }: { children: ReactNode; className?: string }) {
+export function PageShell({ children, className, ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode }) {
   return (
-    <main id="main" className={cn("mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[88px] sm:px-6 lg:px-8", className)}>
+    <main id="main" className={cn("mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[92px] sm:px-6 lg:px-8", className)} {...props}>
       {children}
     </main>
   );
 }
 
-/** หัวหน้าเพจ — ใช้กับ h1 ของแต่ละหน้า */
 export function PageHeader({
   title,
   description,
-  action
+  action,
+  eyebrow = "NIYAITHAI / EDITORIAL"
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  eyebrow?: string;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        <p className="editorial-kicker mb-1" aria-hidden>物語 / STORY</p>
-        <h1 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h1>
-        {description ? <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
+    <header className="mb-8 flex flex-wrap items-end justify-between gap-5 border-b border-border pb-6">
+      <div className="flex min-w-0 gap-4">
+        <span aria-hidden className="mt-1 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
+        <div className="min-w-0">
+          {eyebrow ? <p className="editorial-kicker mb-1.5">{eyebrow}</p> : null}
+          <h1 className="font-serif text-2xl font-semibold sm:text-3xl lg:text-4xl">{title}</h1>
+          {description ? <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">{description}</p> : null}
+        </div>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
-    </div>
+    </header>
   );
 }
 
-/** หัวข้อ section ภายในหน้า */
 export function SectionHeader({
   title,
   description,
@@ -55,19 +53,16 @@ export function SectionHeader({
     <div className="mb-3 flex items-end justify-between gap-4">
       <div className="min-w-0">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="h-8 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
+          <span aria-hidden className="h-7 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
           {icon}
-          <div>
-            <p className="editorial-kicker" aria-hidden>NIYAI / 読む</p>
-            <h2 className="font-serif text-xl font-semibold sm:text-2xl">{title}</h2>
-          </div>
+          <h2 className="font-serif text-xl font-semibold sm:text-2xl">{title}</h2>
         </div>
-        {description ? <p className="mt-0.5 text-sm text-muted-foreground">{description}</p> : null}
+        {description ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </div>
       {href && action ? (
         <Link
           href={href}
-          className="shrink-0 rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
+          className="inline-flex min-h-11 shrink-0 items-center rounded-[6px] px-3 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
         >
           {action} 
         </Link>
@@ -76,10 +71,6 @@ export function SectionHeader({
   );
 }
 
-/**
- * Empty state (ส่วนที่ 7) — ทุกหน้าที่มี list ต้องมี
- * ภาพประกอบ + ข้อความอธิบาย + ปุ่ม action เพื่อไม่ให้เป็น dead end (ส่วนที่ 4 ข้อ 3)
- */
 export function EmptyState({
   title,
   description,
@@ -92,8 +83,8 @@ export function EmptyState({
   icon?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-[8px] border border-dashed border-border px-6 py-10 text-center">
-      <div aria-hidden className="mb-3 grid h-14 w-14 place-items-center border border-[var(--brand-primary)]/35 bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]">
+    <div className="flex flex-col items-center rounded-[10px] border border-dashed border-border px-6 py-10 text-center">
+      <div aria-hidden className="mb-3 grid h-14 w-14 place-items-center border border-[var(--brand-emphasis)]/35 bg-[var(--brand-primary)]/5 text-[var(--brand-emphasis)]">
         {icon ?? <BookGlyph />}
       </div>
       <p className="text-base font-semibold">{title}</p>
@@ -103,7 +94,6 @@ export function EmptyState({
   );
 }
 
-/** Error state (ส่วนที่ 7) — บอกว่าเกิดอะไร + วิธีแก้ ห้ามโชว์ error code ล้วน */
 export function ErrorState({
   title = "โหลดข้อมูลไม่สำเร็จ",
   description = "การเชื่อมต่ออาจมีปัญหาชั่วคราว ลองอีกครั้งได้เลย",
@@ -114,7 +104,7 @@ export function ErrorState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-[16px] border border-destructive/30 bg-destructive/5 px-6 py-10 text-center">
+    <div className="flex flex-col items-center rounded-[10px] border border-destructive/30 bg-destructive/5 px-6 py-10 text-center">
       <p className="text-base font-semibold">{title}</p>
       <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
       {action ? <div className="mt-5">{action}</div> : null}
@@ -122,9 +112,8 @@ export function ErrorState({
   );
 }
 
-/** Skeleton — ใช้ .skeleton จาก globals.css ให้ shimmer เหมือนกันทั้งระบบ */
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("skeleton rounded-[8px]", className)} aria-hidden />;
+  return <div className={cn("skeleton rounded-[6px]", className)} aria-hidden />;
 }
 
 function BookGlyph() {

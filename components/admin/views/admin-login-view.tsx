@@ -7,7 +7,7 @@ import { signInWithGoogle } from "@/lib/auth/actions";
 
 export function AdminLoginView({ callbackUrl = "/admin", error }: { callbackUrl?: string; error?: string }) {
   return (
-    <main id="main" className="grid min-h-screen place-items-center bg-[image:var(--grad-hero)] px-4 py-10">
+    <main id="main" className="grid min-h-screen place-items-center bg-[#151517] px-4 py-10">
       <div className="w-full max-w-md rounded-[24px] border border-border bg-card p-6 shadow-[var(--sh-3)]">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <Logo />

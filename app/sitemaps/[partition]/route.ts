@@ -10,6 +10,7 @@ const staticRoutes = [
   { path: "/genres", changeFrequency: "weekly", priority: 0.7 },
   { path: "/tags", changeFrequency: "weekly", priority: 0.6 },
   { path: "/about", changeFrequency: "monthly", priority: 0.4 },
+  { path: "/copyright", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.2 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.2 },
 ] as const;
@@ -59,12 +60,24 @@ export async function GET(_request: Request, context: { params: Promise<{ partit
           priority: route.priority,
         }))
       : []),
+    ...entries.genres.map((genre) => urlEntry({
+      url: absoluteUrl(`/genre/${genre.slug}`),
+      lastModified: genre.updatedAt,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    })),
+    ...entries.tags.map((tag) => urlEntry({
+      url: absoluteUrl(`/tag/${tag.slug}`),
+      lastModified: tag.updatedAt,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    })),
     ...entries.novels.map((novel) => urlEntry({
       url: absoluteUrl(`/novel/${novel.slug}`),
       lastModified: novel.updatedAt,
       changeFrequency: "weekly",
       priority: 0.8,
-      image: novel.cover,
+      image: novel.cover ? absoluteUrl(novel.cover) : undefined,
     })),
     ...entries.chapters.map((chapter) => urlEntry({
       url: absoluteUrl(`/novel/${chapter.novelSlug}/chapter/${chapter.chapterNumber}`),

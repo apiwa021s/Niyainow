@@ -1,14 +1,14 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 
-// ธีมของเว็บมีแค่ light/dark — ธีมหน้าอ่าน (5 ธีม) อยู่ในแผงตั้งค่าของ Reader
 const items = [
-  { value: "dark", icon: Moon, label: "มืด" },
-  { value: "light", icon: Sun, label: "สว่าง" }
+  { value: "system", icon: Monitor, label: "ตามระบบ" },
+  { value: "light", icon: Sun, label: "สว่าง" },
+  { value: "dark", icon: Moon, label: "มืด" }
 ];
 
 function normalizeTheme(theme?: string) {
@@ -29,10 +29,10 @@ function getServerSnapshot() {
 }
 
 export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
-  const { setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme, theme } = useTheme();
   const mounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
-  // defaultTheme="system"  ต้องอ่าน resolvedTheme ไม่ใช่ theme (ซึ่งจะเป็น "system")
   const activeTheme = mounted ? normalizeTheme(resolvedTheme) : undefined;
+  const selectedTheme = mounted ? (theme ?? "system") : undefined;
 
   if (compact) {
     const isDark = activeTheme !== "light";
@@ -52,10 +52,10 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div className="inline-flex rounded-md border border-border bg-card p-1" aria-label="เลือกโหมดสี">
+    <div role="group" className="inline-flex rounded-[6px] border border-border bg-card p-1" aria-label="เลือกโหมดสี">
       {items.map((item) => {
         const Icon = item.icon;
-        const active = activeTheme === item.value;
+        const active = selectedTheme === item.value;
 
         return (
           <Button
@@ -66,7 +66,7 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
             size="sm"
             variant={active ? "secondary" : "ghost"}
             onClick={() => setTheme(item.value)}
-            className="h-8 px-2 text-xs"
+            className="h-11 px-2.5 text-xs"
           >
             <Icon className="h-3.5 w-3.5" />
             <span>{item.label}</span>

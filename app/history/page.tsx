@@ -1,14 +1,28 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { LibraryView } from "@/components/interactive/library-view";
-import { PageHeader, PageShell } from "@/components/ui/section";
+import { PageShell } from "@/components/ui/section";
 import { requireActiveUser } from "@/lib/auth/dal";
-import { listReadingHistory } from "@/services/user-service";
+import {
+  collectionPageHref,
+  parseCollectionPage,
+  type CollectionSearchParams,
+} from "@/lib/validation/collection-pagination";
+import { listReadingHistoryPage } from "@/services/user-service";
 
 export const metadata: Metadata = { title: "ประวัติการอ่าน", robots: { index: false, follow: false } };
 
-export default async function HistoryPage() {
-  const user = await requireActiveUser("/history");
-  const items = await listReadingHistory(user.id);
-  return <PageShell><PageHeader title="ประวัติการอ่าน" description="กลับไปยังตอนล่าสุดของแต่ละเรื่องได้ในจังหวะเดียว" /><LibraryView mode="history" items={items} /></PageShell>;
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<CollectionSearchParams>;
+}) {
+  const requestedPage = parseCollectionPage((await searchParams).page);
+  const pathname = "/history";
+  const user = await requireActiveUser(collectionPageHref(pathname, requestedPage));
+  const result = await listReadingHistoryPage(user.id, requestedPage);
+  if (result.page !== requestedPage) redirect(collectionPageHref(pathname, result.page));
+
+  return <PageShell><LibraryView mode="history" items={result.items} pagination={result} /></PageShell>;
 }

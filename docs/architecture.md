@@ -2,7 +2,7 @@
 
 ## ภาพรวม
 
-NiyaiNow เป็น modular monolith เพื่อให้ deploy และดูแลง่าย แต่แยก boundary ที่มีโอกาส scale ต่างกันอย่างชัดเจน
+NiyaiThai เป็น modular monolith เพื่อให้ deploy และดูแลง่าย แต่แยก boundary ที่มีโอกาส scale ต่างกันอย่างชัดเจน
 
 ```text
 Browser

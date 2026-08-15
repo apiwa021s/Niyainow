@@ -1,5 +1,11 @@
 const DEFAULT_APP_URL = "http://localhost:3000";
 
+export const publicAssetFallbacks = {
+  icon: "/icon.svg",
+  novelCover: "/fallback-cover.svg",
+  novelBackdrop: "/fallback-backdrop.svg",
+} as const;
+
 function normalizedBaseUrl(value: string | undefined, fallback = DEFAULT_APP_URL) {
   try {
     const url = new URL(value || fallback);
@@ -10,8 +16,8 @@ function normalizedBaseUrl(value: string | undefined, fallback = DEFAULT_APP_URL
 }
 export const siteConfig = {
   name: "NiyaiThai",
-  title: "นิยายไทยในจังหวะการอ่านที่สงบ",
-  description: "แพลตฟอร์มอ่านนิยายภาษาไทยสไตล์ญี่ปุ่น ค้นหา จัดชั้นหนังสือ และอ่านต่อได้ทุกอุปกรณ์",
+  title: "ค้นพบเรื่องใหม่ แล้วอ่านต่อได้ทันที",
+  description: "แพลตฟอร์มอ่านนิยายภาษาไทยที่ออกแบบเพื่อการค้นหา อ่านต่อ และซิงก์ความคืบหน้าอย่างสบายตาบนทุกอุปกรณ์",
   url: normalizedBaseUrl(process.env.NEXT_PUBLIC_APP_URL),
   assetUrl: normalizedBaseUrl(process.env.NEXT_PUBLIC_ASSET_URL, DEFAULT_APP_URL)
 } as const;
@@ -21,7 +27,7 @@ export function absoluteUrl(path = "/") {
 }
 
 /** Convert an R2 object key to a public CDN URL. Database values remain keys. */
-export function assetUrl(key: string | null | undefined, fallback = "/icon.svg") {
+export function assetUrl(key: string | null | undefined, fallback: string = publicAssetFallbacks.icon) {
   if (!key) return fallback;
 
   const normalizedKey = key.replace(/^\/+/, "");

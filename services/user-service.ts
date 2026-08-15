@@ -25,7 +25,11 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { isActiveUser } from "@/lib/auth/permissions";
 import { ApiError } from "@/lib/http/api-response";
 import { invalidateEngagementCache } from "@/lib/redis/invalidation";
-import { assetUrl } from "@/lib/site-config";
+import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
+import {
+  collectionPagination,
+  type CollectionPagination,
+} from "@/lib/validation/collection-pagination";
 import type { Novel } from "@/types/novel";
 
 import {
@@ -161,8 +165,8 @@ function mapNovel(row: NovelProjectionRow): Novel {
     views: Number(row.viewCount ?? 0),
     chapters: row.publishedChapters ?? 0,
     synopsis: row.synopsis,
-    cover: assetUrl(row.coverKey, "/icon.svg"),
-    backdrop: assetUrl(row.bannerKey ?? row.coverKey, "/icon.svg"),
+    cover: assetUrl(row.coverKey, publicAssetFallbacks.novelCover),
+    backdrop: assetUrl(row.bannerKey, publicAssetFallbacks.novelBackdrop),
     updatedAt: updatedAt?.toISOString() ?? "",
     featured: row.isFeatured,
     completed: status === "completed",
@@ -220,11 +224,18 @@ export type UserNovelListItem = {
   lastReadAt: string | null;
 };
 
+export type UserNovelCollectionPage = CollectionPagination & {
+  items: UserNovelListItem[];
+};
+
 export async function listUserLibrary(
   userId: string,
   status?: LibraryStatus,
   limit = 48,
+  offset = 0,
 ): Promise<UserNovelListItem[]> {
+  const safeLimit = Math.min(Math.max(Number.isFinite(limit) ? Math.floor(limit) : 48, 1), 100);
+  const safeOffset = Number.isSafeInteger(offset) && offset > 0 ? offset : 0;
   const rows = await getDb()
     .select({
       ...novelProjection,
@@ -252,7 +263,8 @@ export async function listUserLibrary(
       ),
     )
     .orderBy(desc(userLibrary.updatedAt), desc(userLibrary.novelId))
-    .limit(Math.min(Math.max(limit, 1), 100));
+    .limit(safeLimit)
+    .offset(safeOffset);
 
   return rows.map((row) => ({
     novel: mapNovel(row as NovelProjectionRow),
@@ -267,7 +279,34 @@ export async function listUserLibrary(
   }));
 }
 
-export async function listReadingHistory(userId: string, limit = 48): Promise<UserNovelListItem[]> {
+export async function listUserLibraryPage(
+  userId: string,
+  status: LibraryStatus,
+  requestedPage: number,
+): Promise<UserNovelCollectionPage> {
+  const [countRow] = await getDb()
+    .select({ value: sql<number>`count(*)::int` })
+    .from(userLibrary)
+    .innerJoin(novels, eq(novels.id, userLibrary.novelId))
+    .where(and(eq(userLibrary.userId, userId), eq(userLibrary.status, status), publicNovelWhere()));
+  const pagination = collectionPagination(Number(countRow?.value ?? 0), requestedPage);
+  const items = await listUserLibrary(
+    userId,
+    status,
+    pagination.pageSize,
+    (pagination.page - 1) * pagination.pageSize,
+  );
+
+  return { items, ...pagination };
+}
+
+export async function listReadingHistory(
+  userId: string,
+  limit = 48,
+  offset = 0,
+): Promise<UserNovelListItem[]> {
+  const safeLimit = Math.min(Math.max(Number.isFinite(limit) ? Math.floor(limit) : 48, 1), 100);
+  const safeOffset = Number.isSafeInteger(offset) && offset > 0 ? offset : 0;
   const rows = await getDb()
     .select({
       ...novelProjection,
@@ -293,7 +332,8 @@ export async function listReadingHistory(userId: string, limit = 48): Promise<Us
     )
     .where(and(eq(readingHistory.userId, userId), publicNovelWhere(), publicChapterWhere()))
     .orderBy(desc(readingHistory.lastReadAt), desc(readingHistory.novelId))
-    .limit(Math.min(Math.max(limit, 1), 100));
+    .limit(safeLimit)
+    .offset(safeOffset);
 
   return rows.map((row) => ({
     novel: mapNovel(row as NovelProjectionRow),
@@ -303,6 +343,26 @@ export async function listReadingHistory(userId: string, limit = 48): Promise<Us
     chapter: { number: row.chapterNumber, slug: row.chapterSlug, title: row.chapterTitle },
     lastReadAt: row.lastReadAt.toISOString(),
   }));
+}
+
+export async function listReadingHistoryPage(
+  userId: string,
+  requestedPage: number,
+): Promise<UserNovelCollectionPage> {
+  const [countRow] = await getDb()
+    .select({ value: sql<number>`count(*)::int` })
+    .from(readingHistory)
+    .innerJoin(novels, eq(novels.id, readingHistory.novelId))
+    .innerJoin(chapters, eq(chapters.id, readingHistory.chapterId))
+    .where(and(eq(readingHistory.userId, userId), publicNovelWhere(), publicChapterWhere()));
+  const pagination = collectionPagination(Number(countRow?.value ?? 0), requestedPage);
+  const items = await listReadingHistory(
+    userId,
+    pagination.pageSize,
+    (pagination.page - 1) * pagination.pageSize,
+  );
+
+  return { items, ...pagination };
 }
 
 export async function setLibraryStatus(userId: string, novelSlug: string, status: LibraryStatus) {
@@ -398,6 +458,79 @@ export async function listFollows(userId: string, requestedLimit = 100) {
     .where(and(eq(novelFollows.userId, userId), publicNovelWhere()))
     .orderBy(desc(novelFollows.followedAt), desc(novelFollows.novelId))
     .limit(limit);
+}
+
+/**
+ * Resolve followed novels and their reader state in one query for the library UI.
+ * `listFollows` intentionally remains the compact API representation used by
+ * callers that only need follow metadata.
+ */
+export async function listFollowedNovels(
+  userId: string,
+  requestedLimit = 100,
+  requestedOffset = 0,
+): Promise<UserNovelListItem[]> {
+  const limit = Math.max(1, Math.min(200, Math.floor(requestedLimit) || 100));
+  const offset = Number.isSafeInteger(requestedOffset) && requestedOffset > 0 ? requestedOffset : 0;
+  const rows = await getDb()
+    .select({
+      ...novelProjection,
+      libraryStatus: userLibrary.status,
+      progressPercent: readingProgress.progressPercent,
+      position: readingProgress.position,
+      chapterNumber: chapters.chapterNumber,
+      chapterSlug: chapters.slug,
+      chapterTitle: chapters.title,
+      followedAt: novelFollows.followedAt,
+    })
+    .from(novelFollows)
+    .innerJoin(novels, eq(novels.id, novelFollows.novelId))
+    .leftJoin(novelStatistics, eq(novelStatistics.novelId, novels.id))
+    .leftJoin(
+      readingProgress,
+      and(eq(readingProgress.userId, novelFollows.userId), eq(readingProgress.novelId, novelFollows.novelId)),
+    )
+    .leftJoin(chapters, and(eq(chapters.id, readingProgress.chapterId), publicChapterWhere()))
+    .leftJoin(
+      userLibrary,
+      and(eq(userLibrary.userId, novelFollows.userId), eq(userLibrary.novelId, novelFollows.novelId)),
+    )
+    .where(and(eq(novelFollows.userId, userId), publicNovelWhere()))
+    .orderBy(desc(novelFollows.followedAt), desc(novelFollows.novelId))
+    .limit(limit)
+    .offset(offset);
+
+  return rows.map((row) => ({
+    novel: mapNovel(row as NovelProjectionRow),
+    libraryStatus: row.libraryStatus,
+    progressPercent: row.progressPercent,
+    position: row.position,
+    chapter:
+      row.chapterNumber !== null && row.chapterSlug && row.chapterTitle
+        ? { number: row.chapterNumber, slug: row.chapterSlug, title: row.chapterTitle }
+        : null,
+    // The following shelf labels this date as the time the title was followed.
+    lastReadAt: row.followedAt.toISOString(),
+  }));
+}
+
+export async function listFollowedNovelsPage(
+  userId: string,
+  requestedPage: number,
+): Promise<UserNovelCollectionPage> {
+  const [countRow] = await getDb()
+    .select({ value: sql<number>`count(*)::int` })
+    .from(novelFollows)
+    .innerJoin(novels, eq(novels.id, novelFollows.novelId))
+    .where(and(eq(novelFollows.userId, userId), publicNovelWhere()));
+  const pagination = collectionPagination(Number(countRow?.value ?? 0), requestedPage);
+  const items = await listFollowedNovels(
+    userId,
+    pagination.pageSize,
+    (pagination.page - 1) * pagination.pageSize,
+  );
+
+  return { items, ...pagination };
 }
 
 export async function setFollow(
@@ -830,6 +963,10 @@ export type UserNovelState = {
   notificationsEnabled: boolean;
   progress: {
     chapterId: string;
+    chapterNumber: number;
+    chapterSlug: string;
+    chapterTitle: string;
+    chapterSortOrder: number;
     progressPercent: number;
     position: number;
     completed: boolean;
@@ -862,12 +999,24 @@ export async function getUserNovelState(userId: string, slug: string): Promise<U
     getDb()
       .select({
         chapterId: readingProgress.chapterId,
+        chapterNumber: chapters.chapterNumber,
+        chapterSlug: chapters.slug,
+        chapterTitle: chapters.title,
+        chapterSortOrder: chapters.sortOrder,
         progressPercent: readingProgress.progressPercent,
         position: readingProgress.position,
         completed: readingProgress.completed,
         lastReadAt: readingProgress.lastReadAt,
       })
       .from(readingProgress)
+      .innerJoin(
+        chapters,
+        and(
+          eq(chapters.id, readingProgress.chapterId),
+          eq(chapters.novelId, readingProgress.novelId),
+          publicChapterWhere(),
+        ),
+      )
       .where(and(eq(readingProgress.userId, userId), eq(readingProgress.novelId, novel.id)))
       .limit(1),
     getDb()

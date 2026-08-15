@@ -1,4 +1,6 @@
-# NiyaiNow Branding & Visual Asset Report
+# Superseded: NiyaiNow Branding & Visual Asset Report
+
+> เอกสารชุดสีม่วงและพรอมป์ด้านล่างเป็นแนวทางเดิมและไม่ใช่ข้อกำหนดของแบรนด์ที่ใช้งานอยู่ ปัจจุบันใช้ชื่อ NiyaiThai พร้อมระบบสี Akane red, ink และ paper ที่กำหนดใน `app/globals.css`; ห้ามนำพรอมป์เดิมไปสร้าง asset สำหรับ production ใหม่
 
 เอกสารนี้เป็น art direction และ prompt pack สำหรับใช้กับ ChatGPT / image generator เพื่อสร้าง branding asset ของ NiyaiNow ให้ดูเป็น production, จำง่าย, และมีเอกลักษณ์ต่อเนื่องทั้งเว็บไซต์
 

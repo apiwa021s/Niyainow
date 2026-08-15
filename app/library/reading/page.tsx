@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { LibraryView } from "@/components/interactive/library-view";
-import { PageShell } from "@/components/ui/section";
-import { requireActiveUser } from "@/lib/auth/dal";
-import { listUserLibrary } from "@/services/user-service";
+import {
+  collectionPageHref,
+  parseCollectionPage,
+  type CollectionSearchParams,
+} from "@/lib/validation/collection-pagination";
 
-export const metadata: Metadata = { title: "กำลังอ่าน", robots: { index: false, follow: false } };
-
-export default async function ReadingPage() {
-  const user = await requireActiveUser("/library/reading");
-  const items = await listUserLibrary(user.id, "READING");
-  return <PageShell><LibraryView mode="reading" items={items} /></PageShell>;
+export default async function ReadingPage({
+  searchParams,
+}: {
+  searchParams: Promise<CollectionSearchParams>;
+}) {
+  const page = parseCollectionPage((await searchParams).page);
+  redirect(collectionPageHref("/library", page));
 }

@@ -11,6 +11,7 @@ import {
   chapters,
   genres,
   mediaAssets,
+  novelAlternativeTitles,
   novelAuthors,
   novelGenres,
   novelSearchDocuments,
@@ -630,9 +631,14 @@ async function updateSearchDocument(
     now: Date;
   },
 ) {
+  const alternativeTitleRows = await tx
+    .select({ title: novelAlternativeTitles.title })
+    .from(novelAlternativeTitles)
+    .where(eq(novelAlternativeTitles.novelId, input.novelId));
   const searchText = [
     input.title,
     input.titleOriginal,
+    ...alternativeTitleRows.map((row) => row.title),
     ...input.authorNames,
     ...input.genreNames,
     ...input.tagNames,

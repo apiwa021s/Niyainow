@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { serializeJsonLd, truncateDescription } from "@/lib/seo";
+import { pageMetadata, serializeJsonLd, truncateDescription } from "@/lib/seo";
+import { absoluteUrl, siteConfig } from "@/lib/site-config";
 
 describe("SEO helpers", () => {
   it("normalizes and bounds descriptions", () => {
@@ -10,5 +11,29 @@ describe("SEO helpers", () => {
 
   it("cannot close the JSON-LD script element", () => {
     expect(serializeJsonLd({ title: "</script><script>alert(1)</script>" })).not.toContain("<");
+  });
+
+  it("supplies a large default social image when a page has no custom image", () => {
+    const metadata = pageMetadata({
+      title: "หน้าทดสอบ",
+      description: "คำอธิบายหน้าทดสอบ",
+      path: "/test",
+    });
+
+    expect(metadata.openGraph).toMatchObject({
+      images: [{
+        url: absoluteUrl("/og.png"),
+        width: 1200,
+        height: 630,
+        alt: `${siteConfig.name} — ${siteConfig.title}`,
+      }],
+    });
+    expect(metadata.twitter).toMatchObject({
+      card: "summary_large_image",
+      images: [{
+        url: absoluteUrl("/og.png"),
+        alt: `${siteConfig.name} — ${siteConfig.title}`,
+      }],
+    });
   });
 });

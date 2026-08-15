@@ -2,10 +2,6 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 import type { NovelStatus } from "@/types/novel";
 
-/**
- * Chip / Tag (ส่วนที่ 7)
- * neutral · genre(ลิงก์) · status(อ่านอย่างเดียว) · new · hot
- */
 export type BadgeTone = "neutral" | "genre" | "brand" | "new" | "hot" | "muted";
 
 const tones: Record<BadgeTone, string> = {
@@ -25,7 +21,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-[8px] px-2 py-1 text-xs font-semibold",
+        "inline-flex items-center gap-1 rounded-[4px] px-2 py-1 text-xs font-semibold",
         tones[tone],
         className
       )}

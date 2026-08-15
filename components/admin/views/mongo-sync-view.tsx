@@ -437,7 +437,7 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
               <span className="tabular text-muted-foreground">{progress}%</span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-[image:var(--grad-primary)]" style={{ width: `${progress}%` }} />
+              <div className="h-full rounded-full bg-[var(--brand-primary)]" style={{ width: `${progress}%` }} />
             </div>
           </div>
           <dl>

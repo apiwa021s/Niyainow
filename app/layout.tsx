@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { fontVariables } from "./fonts";
 import { ThemeProvider } from "@/components/interactive/theme-provider";
-import { CopyrightNotice } from "@/components/layout/copyright-notice";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
@@ -11,7 +10,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { JsonLd } from "@/components/seo/json-ld";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { absoluteUrl, siteConfig } from "@/lib/site-config";
-import { getFeaturedNovels, getGenres } from "@/services/novel-service";
+import { getGenres } from "@/services/novel-service";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -47,28 +46,23 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F7F5F1" },
-    { media: "(prefers-color-scheme: dark)", color: "#0A0A0A" }
+    { media: "(prefers-color-scheme: light)", color: "#FAFAF8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0E0E10" }
   ]
 };
 
-async function PersonalizedHeader({
-  menuData,
-}: {
-  menuData: { genres: Awaited<ReturnType<typeof getGenres>>; promo: Awaited<ReturnType<typeof getFeaturedNovels>>[number] | undefined };
-}) {
-  const currentUser = await getCurrentUser();
+const emptyMenuData: { genres: Awaited<ReturnType<typeof getGenres>> } = { genres: [] };
+
+async function PersonalizedHeader() {
+  const [genres, currentUser] = await Promise.all([getGenres(), getCurrentUser()]);
   const viewer = currentUser?.status === "ACTIVE"
     ? { name: currentUser.name, email: currentUser.email, role: currentUser.role }
     : null;
 
-  return <Header menuData={menuData} viewer={viewer} />;
+  return <Header menuData={{ genres }} viewer={viewer} />;
 }
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [genres, featured] = await Promise.all([getGenres(), getFeaturedNovels()]);
-  const menuData = { genres, promo: featured[0] };
-
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="th" className={fontVariables} suppressHydrationWarning>
       <body className="font-sans antialiased">
@@ -93,8 +87,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             </a>
             <Suspense fallback={null}>
               <SiteChrome>
-                <Suspense fallback={<Header menuData={menuData} viewer={undefined} />}>
-                  <PersonalizedHeader menuData={menuData} />
+                <Suspense fallback={<Header menuData={emptyMenuData} viewer={undefined} />}>
+                  <PersonalizedHeader />
                 </Suspense>
               </SiteChrome>
             </Suspense>
@@ -103,7 +97,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <SiteChrome>
                 <Footer />
                 <MobileBottomNav />
-                <CopyrightNotice />
               </SiteChrome>
             </Suspense>
           </ToastProvider>

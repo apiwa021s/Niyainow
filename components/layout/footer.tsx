@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { cacheLife } from "next/cache";
+import Link from "next/link";
+
 import { Logo } from "@/components/layout/logo";
 
-/** 4 คอลัมน์ตามส่วนที่ 6.13 — บนมือถือเป็น accordion ด้วย <details> (ไม่ต้องใช้ JS) */
 const groups = [
   {
-    title: "เกี่ยวกับ",
+    title: "NiyaiThai",
     links: [
       ["เกี่ยวกับเรา", "/about"],
       ["นิยายทั้งหมด", "/novels"],
@@ -15,7 +15,6 @@ const groups = [
   {
     title: "สำหรับผู้อ่าน",
     links: [
-      ["วิธีใช้งาน", "/about"],
       ["ค้นหานิยาย", "/search"],
       ["ชั้นหนังสือ", "/library"],
       ["ประวัติการอ่าน", "/history"]
@@ -30,14 +29,14 @@ const groups = [
     ]
   },
   {
-    title: "กฎหมาย",
+    title: "ข้อมูลทางกฎหมาย",
     links: [
-      ["เงื่อนไขการใช้งาน", "/terms"],
+      ["ข้อกำหนดการใช้งาน", "/terms"],
       ["นโยบายความเป็นส่วนตัว", "/privacy"],
       ["ลิขสิทธิ์และการแจ้งละเมิด", "/copyright"]
     ]
   }
-];
+] as const;
 
 async function getCopyrightYear() {
   "use cache";
@@ -47,43 +46,31 @@ async function getCopyrightYear() {
 
 export async function Footer() {
   const copyrightYear = await getCopyrightYear();
+
   return (
-    <footer className="mt-20 border-t border-[#292929] bg-[#0a0a0a] pb-24 text-[#f5f3ef] lg:pb-0">
-      <div aria-hidden className="mx-auto h-px max-w-[1440px] bg-[linear-gradient(90deg,#c91820_0_64px,#292929_64px)]" />
+    <footer className="mt-20 border-t border-[#2d2d34] bg-[#0e0e10] pb-28 text-[#f0ede9] lg:pb-0">
+      <div aria-hidden className="mx-auto h-px max-w-[1440px] bg-[#2d2d34]">
+        <span className="block h-px w-14 bg-[#b51f32]" />
+      </div>
 
       <div className="mx-auto max-w-[1440px] px-4 py-12 sm:px-6 lg:px-8">
-        {/* desktop: 4 คอลัมน์ */}
         <div className="hidden gap-8 md:grid md:grid-cols-4">
           {groups.map((group) => (
-            <div key={group.title}>
-              <h2 className="mb-3 text-sm font-semibold">{group.title}</h2>
-              <ul className="grid gap-2">
-                {group.links.map(([label, href]) => (
-                  <li key={href + label}>
-                    <Link href={href} className="text-sm text-[#b4b0aa] transition-colors hover:text-white">
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <FooterGroup key={group.title} group={group} />
           ))}
         </div>
 
-        {/* mobile: accordion */}
         <div className="md:hidden">
           {groups.map((group) => (
-            <details key={group.title} className="border-b border-white/10">
-              <summary className="flex cursor-pointer list-none items-center justify-between py-4 text-sm font-semibold">
+            <details key={group.title} className="border-b border-[#2d2d34]">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between py-3 text-sm font-semibold">
                 {group.title}
-                <span aria-hidden className="text-[#b4b0aa]">
-                  +
-                </span>
+                <span aria-hidden className="text-[#b8b4b0]">+</span>
               </summary>
-              <ul className="grid gap-2 pb-4">
+              <ul className="grid gap-1 pb-4">
                 {group.links.map(([label, href]) => (
                   <li key={href + label}>
-                    <Link href={href} className="block py-1 text-sm text-[#b4b0aa]">
+                    <Link href={href} className="flex min-h-11 items-center text-sm text-[#b8b4b0] hover:text-white">
                       {label}
                     </Link>
                   </li>
@@ -93,34 +80,40 @@ export async function Footer() {
           ))}
         </div>
 
-        {/* แถวล่าง */}
-        <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 grid gap-6 border-t border-[#2d2d34] pt-7 sm:grid-cols-[minmax(0,1fr)_minmax(260px,420px)] sm:items-end">
           <div>
             <Logo />
-            <p className="mt-2 text-sm text-[#b4b0aa]">静かに読む · Read in quiet.</p>
+            <p className="mt-2 max-w-md text-sm leading-6 text-[#b8b4b0]">
+              พื้นที่อ่านนิยายภาษาไทยที่ให้เนื้อหาเป็นพระเอก อ่านงานสาธารณะได้ทันที และเข้าสู่ระบบเมื่อต้องการซิงก์ความคืบหน้า
+            </p>
           </div>
-
-          <div className="flex max-w-sm items-start gap-4">
-            <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center border border-[#c91820] text-xs font-semibold text-[#e02028]">読<br />書</span>
-            <p className="text-sm leading-6 text-[#b4b0aa]">อ่านเนื้อหาสาธารณะได้ทันที และใช้ Google เพื่อซิงก์ชั้นหนังสือกับความคืบหน้าระหว่างอุปกรณ์</p>
-          </div>
+          <p className="border-l-2 border-[#b51f32] pl-4 text-sm leading-6 text-[#b8b4b0]">
+            เราเคารพสิทธิ์ของผู้สร้างสรรค์ หากพบเนื้อหาที่อาจละเมิดลิขสิทธิ์ โปรดอ่านขั้นตอนและข้อมูลที่ต้องใช้ในหน้า{" "}
+            <Link href="/copyright" className="font-semibold text-[#f0ede9] underline-offset-4 hover:underline">
+              ลิขสิทธิ์และการแจ้งละเมิด
+            </Link>
+          </p>
         </div>
 
-        {/* ประกาศถาวร — แถบแจ้งเตือนปิดได้ ประกาศนี้จึงต้องอยู่ให้เห็นเสมอ */}
-        <p className="mt-6 max-w-3xl text-xs leading-6 text-[#8f8b86]">
-          NiyaiThai ไม่เผยแพร่งานที่ยังมีลิขสิทธิ์ในประเทศไทย หากพบเนื้อหาที่ละเมิดสิทธิ์ของคุณ{" "}
-          <Link href="/copyright" className="font-semibold text-white underline-offset-4 hover:underline">
-            แจ้งเราได้ที่นี่
-          </Link>{" "}
-          ทีมงานจะตรวจสอบและนำออกโดยเร็วที่สุด
-          <span lang="en" className="mt-1 block">
-            This site does not publish works still under copyright in Thailand. Rights holders can report
-            infringing content for prompt review and removal.
-          </span>
-        </p>
-
-        <p className="mt-4 text-xs text-[#77736f]">© {copyrightYear} NiyaiThai. สงวนลิขสิทธิ์ทุกประการ</p>
+        <p className="mt-7 text-xs text-[#85817e]">© {copyrightYear} NiyaiThai. สงวนลิขสิทธิ์ทุกประการ</p>
       </div>
     </footer>
+  );
+}
+
+function FooterGroup({ group }: { group: (typeof groups)[number] }) {
+  return (
+    <section>
+      <h2 className="mb-3 text-sm font-semibold">{group.title}</h2>
+      <ul className="grid gap-1">
+        {group.links.map(([label, href]) => (
+          <li key={href + label}>
+            <Link href={href} className="inline-flex min-h-11 items-center text-sm text-[#b8b4b0] transition-colors hover:text-white">
+              {label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

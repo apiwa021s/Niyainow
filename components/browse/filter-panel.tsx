@@ -57,7 +57,7 @@ function FilterGroup({ label, children }: { label: string; children: React.React
   );
 }
 
-/** ปุ่มตัวเลือกเดี่ยว — สูง 36px แต่พื้นที่กดรวม padding ยังผ่าน 44px ตามแนวตั้งของ list */
+/** ปุ่มตัวเลือกเดี่ยวมีพื้นที่กดอย่างน้อย 44px */
 function OptionChip({
   active,
   onClick,
@@ -77,7 +77,7 @@ function OptionChip({
       className={cn(
         "flex min-h-11 items-center gap-1.5 rounded-[6px] border px-3 py-2 text-xs font-medium transition-colors",
         active
-          ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/12 text-[var(--brand-light-on-light)]"
+          ? "border-[var(--brand-emphasis)] bg-[var(--brand-primary)]/12 text-[var(--brand-light-on-light)]"
           : "border-border bg-card hover:bg-muted"
       )}
     >
@@ -94,11 +94,13 @@ function OptionChip({
 export function FilterPanel({
   query,
   genres,
-  onChange
+  onChange,
+  hideGenres = false,
 }: {
   query: NovelQuery;
   genres: GenreFacet[];
   onChange: (next: NovelQuery) => void;
+  hideGenres?: boolean;
 }) {
   const selectedGenres = parseGenreParam(query.genre);
 
@@ -111,7 +113,7 @@ export function FilterPanel({
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterGroup label="แนวนิยาย">
+      {!hideGenres ? <FilterGroup label="แนวนิยาย">
         <div className="flex flex-wrap gap-1.5">
           {genres.map((genre) => (
             <OptionChip
@@ -124,7 +126,7 @@ export function FilterPanel({
             </OptionChip>
           ))}
         </div>
-      </FilterGroup>
+      </FilterGroup> : null}
 
       <FilterGroup label="สถานะ">
         <div className="flex flex-wrap gap-1.5">

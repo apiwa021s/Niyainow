@@ -120,7 +120,7 @@ export function StatCard({
         {icon ? (
           <span
             aria-hidden
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[var(--brand-primary)]/10 text-[var(--brand-emphasis)]"
           >
             {icon}
           </span>

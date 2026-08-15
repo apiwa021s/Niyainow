@@ -1,7 +1,7 @@
 "use client";
 
-import { Minus, Plus, RotateCcw, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ChevronDown, Minus, Plus, RotateCcw, SlidersHorizontal, X } from "lucide-react";
+import { useEffect, useRef, type RefObject } from "react";
 import { cn } from "@/lib/utils";
 import {
   FONT_SIZE_MAX,
@@ -34,7 +34,6 @@ const WIDTH_OPTIONS: { value: ReaderWidth; label: string }[] = [
 /** class ตัวอย่างฟอนต์ ให้ dropdown แสดงด้วยฟอนต์นั้นจริง ๆ */
 const FONT_PREVIEW_CLASS: Record<ReaderFont, string> = {
   looped: "reader-font-looped",
-  sarabun: "reader-font-sarabun",
   anuphan: "reader-font-anuphan",
   serif: "reader-font-serif"
 };
@@ -72,7 +71,7 @@ function SegmentedControl<T extends string>({
             onClick={() => onChange(option.value)}
             className={cn(
               "h-11 flex-1 rounded-[6px] text-sm font-semibold transition-colors",
-              active ? "bg-[var(--brand-primary)] text-white" : "hover:bg-current/8"
+              active ? "bg-[var(--reader-action)] text-white" : "hover:bg-current/8"
             )}
           >
             {option.label}
@@ -97,7 +96,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (nex
         aria-hidden
         className={cn(
           "relative h-6 w-11 shrink-0 rounded-full transition-colors duration-[var(--dur-fast)]",
-          checked ? "bg-[var(--brand-primary)]" : "bg-current/25"
+          checked ? "bg-[var(--reader-action)]" : "bg-current/25"
         )}
       >
         <span
@@ -116,17 +115,28 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (nex
  * bottom sheet บนมือถือ / popover บนเดสก์ท็อป — เห็นผลทันทีขณะปรับ (live preview)
  * เพราะทุกค่าเขียนกลับ store แล้ว ReaderView อ่านผ่าน CSS variable
  */
-export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ReaderSettings({
+  open,
+  onClose,
+  returnFocusRef,
+}: {
+  open: boolean;
+  onClose: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+}) {
   const prefs = useReaderStore((state) => state.prefs);
   const setPrefs = useReaderStore((state) => state.setPrefs);
   const resetPrefs = useReaderStore((state) => state.resetPrefs);
   const panelRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   // focus trap อย่างง่าย + ปิดด้วย Esc (ส่วนที่ 7)
   useEffect(() => {
     if (!open) return;
 
     const panel = panelRef.current;
+    previousFocusRef.current = returnFocusRef?.current
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     panel?.querySelector<HTMLElement>("button, [href], input, select")?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -154,8 +164,11 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
     };
 
     document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [open, onClose]);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      if (previousFocusRef.current?.isConnected) previousFocusRef.current.focus();
+    };
+  }, [open, onClose, returnFocusRef]);
 
   if (!open) return null;
 
@@ -195,7 +208,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
         </div>
 
         <Row label="ธีม">
-          <div role="radiogroup" aria-label="ธีมหน้าอ่าน" className="flex flex-wrap gap-3">
+          <div role="radiogroup" aria-label="ธีมหน้าอ่าน" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {READER_THEMES.map((theme: ReaderTheme) => {
               const active = prefs.theme === theme;
               const swatch = READER_THEME_SWATCH[theme];
@@ -209,12 +222,13 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
                   title={READER_THEME_LABELS[theme]}
                   onClick={() => setPrefs({ theme })}
                   className={cn(
-                    "grid h-11 w-11 place-items-center rounded-full border-2 text-sm font-semibold transition-transform duration-[var(--dur-fast)]",
-                    active ? "border-[var(--brand-primary)] scale-105" : "border-current/20"
+                    "flex min-h-12 items-center justify-center gap-1.5 rounded-[8px] border-2 px-2 text-xs font-semibold transition-transform duration-[var(--dur-fast)]",
+                    active ? "border-[var(--reader-accent)] scale-105" : "border-current/20"
                   )}
                   style={{ background: swatch.bg, color: swatch.fg }}
                 >
-                  ก
+                  <span className="text-base">ก</span>
+                  <span>{READER_THEME_LABELS[theme]}</span>
                 </button>
               );
             })}
@@ -222,7 +236,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
         </Row>
 
         <Row label={`ขนาดอักษร · ${prefs.fontSize}px`}>
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-[44px_1fr_44px] items-center gap-3">
             <button
               type="button"
               aria-label="ลดขนาดอักษร"
@@ -232,16 +246,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
             >
               <Minus className="h-4 w-4" />
             </button>
-            <input
-              type="range"
-              min={FONT_SIZE_MIN}
-              max={FONT_SIZE_MAX}
-              step={FONT_SIZE_STEP}
-              value={prefs.fontSize}
-              aria-label="ขนาดอักษร"
-              onChange={(event) => setPrefs({ fontSize: Number(event.target.value) })}
-              className="h-11 flex-1 accent-[var(--brand-primary)]"
-            />
+            <span aria-live="polite" className="text-center text-lg font-semibold">ก {prefs.fontSize}px</span>
             <button
               type="button"
               aria-label="เพิ่มขนาดอักษร"
@@ -255,7 +260,7 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
         </Row>
 
         <Row label="ฟอนต์">
-          <div className="flex flex-col gap-2">
+          <div role="radiogroup" aria-label="ฟอนต์หน้าอ่าน" className="grid grid-cols-3 gap-2">
             {READER_FONTS.map((font) => {
               const active = prefs.font === font;
               return (
@@ -266,66 +271,70 @@ export function ReaderSettings({ open, onClose }: { open: boolean; onClose: () =
                   aria-checked={active}
                   onClick={() => setPrefs({ font })}
                   className={cn(
-                    "flex min-h-11 items-center justify-between gap-3 rounded-[8px] border px-3 py-2 text-left transition-colors",
-                    active ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10" : "border-current/15 hover:bg-current/6"
+                    "flex min-h-14 flex-col items-start justify-center gap-0.5 rounded-[8px] border px-3 py-2 text-left transition-colors",
+                    active ? "border-[var(--reader-accent)] bg-current/6" : "border-current/15 hover:bg-current/6"
                   )}
                 >
-                  <span className="text-xs opacity-70">{READER_FONT_LABELS[font]}</span>
-                  <span className={cn("text-base", FONT_PREVIEW_CLASS[font])} style={{ fontFamily: "var(--reader-family)" }}>
-                    นิยายใหม่ อัปเดตไว
-                  </span>
+                  <span className="text-xs font-semibold">{READER_FONT_LABELS[font]}</span>
+                  <span className={cn("text-sm opacity-70", FONT_PREVIEW_CLASS[font])} style={{ fontFamily: "var(--reader-family)" }}>กข</span>
                 </button>
               );
             })}
           </div>
         </Row>
 
-        <Row label="ระยะบรรทัด">
-          <SegmentedControl
-            label="ระยะบรรทัด"
-            value={prefs.lineHeight}
-            options={LINE_HEIGHT_OPTIONS}
-            onChange={(lineHeight) => setPrefs({ lineHeight })}
-          />
-        </Row>
+        <details className="group rounded-[8px] border border-current/15">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />การตั้งค่าขั้นสูง</span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="grid gap-5 border-t border-current/10 p-3">
+            <Row label="ระยะบรรทัด">
+              <SegmentedControl
+                label="ระยะบรรทัด"
+                value={prefs.lineHeight}
+                options={LINE_HEIGHT_OPTIONS}
+                onChange={(lineHeight) => setPrefs({ lineHeight })}
+              />
+            </Row>
 
-        <Row label="ความกว้าง">
-          <SegmentedControl label="ความกว้าง" value={prefs.width} options={WIDTH_OPTIONS} onChange={(width) => setPrefs({ width })} />
-        </Row>
+            <Row label="ความกว้าง">
+              <SegmentedControl label="ความกว้าง" value={prefs.width} options={WIDTH_OPTIONS} onChange={(width) => setPrefs({ width })} />
+            </Row>
 
-        <Row label={`ระยะย่อหน้า · ${prefs.paragraphGap.toFixed(1)}em`}>
-          <input
-            type="range"
-            min={0.6}
-            max={1.8}
-            step={0.1}
-            value={prefs.paragraphGap}
-            aria-label="ระยะห่างระหว่างย่อหน้า"
-            onChange={(event) => setPrefs({ paragraphGap: Number(event.target.value) })}
-            className="h-11 w-full accent-[var(--brand-primary)]"
-          />
-        </Row>
+            <Row label={`ระยะย่อหน้า · ${prefs.paragraphGap.toFixed(1)}em`}>
+              <input
+                type="range"
+                min={0.6}
+                max={1.8}
+                step={0.1}
+                value={prefs.paragraphGap}
+                aria-label="ระยะห่างระหว่างย่อหน้า"
+                onChange={(event) => setPrefs({ paragraphGap: Number(event.target.value) })}
+                className="h-11 w-full accent-[var(--reader-accent)]"
+              />
+            </Row>
 
-        <Row label={`ความสว่าง · ${Math.round((1 - prefs.dim) * 100)}%`}>
-          <input
-            type="range"
-            min={0}
-            max={0.6}
-            step={0.05}
-            value={prefs.dim}
-            aria-label="ความสว่างหน้าจอ"
-            onChange={(event) => setPrefs({ dim: Number(event.target.value) })}
-            className="h-11 w-full accent-[var(--brand-primary)]"
-          />
-        </Row>
+            <Row label={`ความสว่าง · ${Math.round((1 - prefs.dim) * 100)}%`}>
+              <input
+                type="range"
+                min={0}
+                max={0.6}
+                step={0.05}
+                value={prefs.dim}
+                aria-label="ความสว่างหน้าจอ"
+                onChange={(event) => setPrefs({ dim: Number(event.target.value) })}
+                className="h-11 w-full accent-[var(--reader-accent)]"
+              />
+            </Row>
 
-        <div className="flex flex-col gap-1 border-t border-current/10 pt-3">
-          <Toggle
-            label="ล็อกหน้าจอไม่ให้ดับ"
-            checked={prefs.keepScreenAwake}
-            onChange={(keepScreenAwake) => setPrefs({ keepScreenAwake })}
-          />
-        </div>
+            <Toggle
+              label="ล็อกหน้าจอไม่ให้ดับ"
+              checked={prefs.keepScreenAwake}
+              onChange={(keepScreenAwake) => setPrefs({ keepScreenAwake })}
+            />
+          </div>
+        </details>
 
         <button
           type="button"

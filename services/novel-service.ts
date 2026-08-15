@@ -27,6 +27,7 @@ import {
   chapters,
   genres,
   novelAuthors,
+  novelAlternativeTitles,
   novelGenres,
   novelDailyStats,
   novelRankings,
@@ -40,14 +41,25 @@ import {
   tags,
   users,
 } from "@/db/schema";
-import { assetUrl } from "@/lib/site-config";
+import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
 import { toPublicChapterCachePayload } from "@/lib/domain/chapter-cache";
 import { bangkokDateKey } from "@/lib/domain/public-view";
+import { SEARCH_RELEVANCE_WEIGHTS } from "@/lib/search/relevance";
 import { applicationCache } from "@/lib/redis/cache";
 import { cacheDigest, cacheKeys } from "@/lib/redis/keys";
 import { CACHE_TTL_SECONDS } from "@/lib/redis/ttl";
 import type { CacheCategory } from "@/lib/redis/metrics";
-import type { ChapterSummary, Genre, Novel, Paginated, Review, UpdateItem } from "@/types/novel";
+import type {
+  ChapterCatalogOrder,
+  ChapterCatalogPage,
+  ChapterSummary,
+  ChapterWindow,
+  Genre,
+  Novel,
+  Paginated,
+  Review,
+  UpdateItem,
+} from "@/types/novel";
 import {
   BROWSE_PAGE_SIZE,
   CHAPTER_PAGE_SIZE,
@@ -100,8 +112,17 @@ export type TagSummary = {
   count: number;
 };
 
+export type AuthorSearchResult = {
+  slug: string;
+  name: string;
+  nativeName: string | null;
+  novelCount: number;
+};
+
 export type PublicSearchResult = {
   novels: Novel[];
+  authors: AuthorSearchResult[];
+  translators: AuthorSearchResult[];
   genres: Genre[];
   tags: TagSummary[];
   page: number;
@@ -110,6 +131,7 @@ export type PublicSearchResult = {
 };
 
 export type SearchSuggestion = {
+  kind: "novel" | "author" | "translator" | "genre" | "tag";
   label: string;
   meta: string;
   href: string;
@@ -152,6 +174,7 @@ type BaseNovelRow = {
   chapters: number;
   rating: number;
   ratingCount: number;
+  reviewCount: number;
   bookmarkCount: number;
   latestChapterNumber: number | null;
   latestChapterTitle: string | null;
@@ -218,21 +241,132 @@ function safeSearchPattern(value: string) {
   return `%${value.replace(/[%_\\]/gu, " ")}%`;
 }
 
-function searchCondition(term: string) {
-  const db = getDb();
-  const pattern = safeSearchPattern(term);
+function safeSearchPrefix(value: string) {
+  return `${value.replace(/[%_\\]/gu, " ")}%`;
+}
 
-  return exists(
-    db
-      .select({ novelId: novelSearchDocuments.novelId })
-      .from(novelSearchDocuments)
-      .where(
-        and(
-          eq(novelSearchDocuments.novelId, novels.id),
-          ilike(novelSearchDocuments.searchText, pattern),
-        ),
-      ),
-  );
+const PUBLIC_AUTHOR_ROLES = ["AUTHOR", "ORIGINAL_AUTHOR"] as const;
+
+/**
+ * Field-aware relevance used by both filtering and default result ordering.
+ * Correlated subqueries keep one row per novel while still distinguishing the
+ * semantic source of a match. `greatest` makes the strongest source win.
+ */
+function searchRelevanceScore(term: string) {
+  const weights = SEARCH_RELEVANCE_WEIGHTS;
+  const pattern = safeSearchPattern(term);
+  const prefix = safeSearchPrefix(term);
+  const publicAuthorRole = inArray(novelAuthors.role, PUBLIC_AUTHOR_ROLES);
+  const translatorRole = eq(novelAuthors.role, "TRANSLATOR");
+
+  const titleScore = sql<number>`case
+    when lower(${novels.title}) = lower(${term}) then ${weights.titleExact}
+    when ${novels.title} ilike ${prefix} then ${weights.titlePrefix}
+    when ${novels.title} ilike ${pattern} then ${weights.titleContains}
+    else 0
+  end`;
+  const originalTitleScore = sql<number>`case
+    when lower(coalesce(${novels.titleOriginal}, '')) = lower(${term}) then ${weights.originalTitleExact}
+    when coalesce(${novels.titleOriginal}, '') ilike ${prefix} then ${weights.originalTitlePrefix}
+    when coalesce(${novels.titleOriginal}, '') ilike ${pattern} then ${weights.originalTitleContains}
+    else 0
+  end`;
+  const alternativeTitleScore = sql<number>`coalesce((
+    select max(case
+      when lower(${novelAlternativeTitles.title}) = lower(${term}) then ${weights.alternativeTitleExact}
+      when ${novelAlternativeTitles.title} ilike ${prefix} then ${weights.alternativeTitlePrefix}
+      when ${novelAlternativeTitles.title} ilike ${pattern} then ${weights.alternativeTitleContains}
+      else 0
+    end)
+    from ${novelAlternativeTitles}
+    where ${novelAlternativeTitles.novelId} = ${novels.id}
+  ), 0)`;
+  const authorScore = sql<number>`coalesce((
+    select max(case
+      when lower(${authors.name}) = lower(${term})
+        or lower(coalesce(${authors.nativeName}, '')) = lower(${term})
+        or lower(${authors.slug}) = lower(${term}) then ${weights.authorExact}
+      when ${authors.name} ilike ${prefix}
+        or coalesce(${authors.nativeName}, '') ilike ${prefix}
+        or ${authors.slug} ilike ${prefix} then ${weights.authorPrefix}
+      when ${authors.name} ilike ${pattern}
+        or coalesce(${authors.nativeName}, '') ilike ${pattern}
+        or ${authors.slug} ilike ${pattern} then ${weights.authorContains}
+      else 0
+    end)
+    from ${novelAuthors}
+    inner join ${authors} on ${authors.id} = ${novelAuthors.authorId}
+    where ${novelAuthors.novelId} = ${novels.id} and ${publicAuthorRole}
+  ), 0)`;
+  const translatorScore = sql<number>`coalesce((
+    select max(case
+      when lower(${authors.name}) = lower(${term})
+        or lower(coalesce(${authors.nativeName}, '')) = lower(${term})
+        or lower(${authors.slug}) = lower(${term}) then ${weights.translatorExact}
+      when ${authors.name} ilike ${prefix}
+        or coalesce(${authors.nativeName}, '') ilike ${prefix}
+        or ${authors.slug} ilike ${prefix} then ${weights.translatorPrefix}
+      when ${authors.name} ilike ${pattern}
+        or coalesce(${authors.nativeName}, '') ilike ${pattern}
+        or ${authors.slug} ilike ${pattern} then ${weights.translatorContains}
+      else 0
+    end)
+    from ${novelAuthors}
+    inner join ${authors} on ${authors.id} = ${novelAuthors.authorId}
+    where ${novelAuthors.novelId} = ${novels.id} and ${translatorRole}
+  ), 0)`;
+  const genreScore = sql<number>`coalesce((
+    select max(case
+      when lower(${genres.name}) = lower(${term})
+        or lower(coalesce(${genres.thaiName}, '')) = lower(${term})
+        or lower(${genres.slug}) = lower(${term}) then ${weights.genreExact}
+      when ${genres.name} ilike ${prefix}
+        or coalesce(${genres.thaiName}, '') ilike ${prefix}
+        or ${genres.slug} ilike ${prefix} then ${weights.genrePrefix}
+      when ${genres.name} ilike ${pattern}
+        or coalesce(${genres.thaiName}, '') ilike ${pattern}
+        or ${genres.slug} ilike ${pattern} then ${weights.genreContains}
+      else 0
+    end)
+    from ${novelGenres}
+    inner join ${genres} on ${genres.id} = ${novelGenres.genreId}
+    where ${novelGenres.novelId} = ${novels.id} and ${genres.isActive} = true
+  ), 0)`;
+  const tagScore = sql<number>`coalesce((
+    select max(case
+      when lower(${tags.name}) = lower(${term})
+        or lower(${tags.slug}) = lower(${term}) then ${weights.tagExact}
+      when ${tags.name} ilike ${prefix}
+        or ${tags.slug} ilike ${prefix} then ${weights.tagPrefix}
+      when ${tags.name} ilike ${pattern}
+        or ${tags.slug} ilike ${pattern} then ${weights.tagContains}
+      else 0
+    end)
+    from ${novelTags}
+    inner join ${tags} on ${tags.id} = ${novelTags.tagId}
+    where ${novelTags.novelId} = ${novels.id} and ${tags.isActive} = true
+  ), 0)`;
+  const keywordScore = sql<number>`case when exists(
+    select 1
+    from ${novelSearchDocuments}
+    where ${novelSearchDocuments.novelId} = ${novels.id}
+      and ${novelSearchDocuments.searchText} ilike ${pattern}
+  ) then ${weights.keywordContains} else 0 end`;
+
+  return sql<number>`greatest(
+    ${titleScore},
+    ${originalTitleScore},
+    ${alternativeTitleScore},
+    ${authorScore},
+    ${translatorScore},
+    ${genreScore},
+    ${tagScore},
+    ${keywordScore}
+  )`;
+}
+
+function searchCondition(term: string) {
+  return sql`${searchRelevanceScore(term)} > 0`;
 }
 
 function queryCondition(query: NormalizedNovelQuery, now: Date, includeGenre = true) {
@@ -334,6 +468,14 @@ function orderBy(sort: NovelSort): SQL[] {
   ];
 }
 
+function orderByForQuery(query: NormalizedNovelQuery): SQL[] {
+  if (!query.q || query.sort !== "popular") return orderBy(query.sort);
+  return [
+    desc(searchRelevanceScore(query.q)),
+    ...orderBy("popular"),
+  ];
+}
+
 const novelSelection = {
   id: novels.id,
   slug: novels.slug,
@@ -351,6 +493,7 @@ const novelSelection = {
   chapters: sql<number>`coalesce(${novelStatistics.publishedChapters}, 0)`.mapWith(Number),
   rating: sql<number>`coalesce(${novelStatistics.ratingAverage}, 0)`.mapWith(Number),
   ratingCount: sql<number>`coalesce(${novelStatistics.ratingCount}, 0)`.mapWith(Number),
+  reviewCount: sql<number>`coalesce(${novelStatistics.reviewCount}, 0)`.mapWith(Number),
   bookmarkCount: sql<number>`coalesce(${novelStatistics.libraryCount}, 0)`.mapWith(Number),
   latestChapterNumber: latestChapters.chapterNumber,
   latestChapterTitle: latestChapters.title,
@@ -471,7 +614,7 @@ async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
     const people = authorMap.get(row.id) ?? [];
     const primaryAuthor = people.find((person) => person.role === "AUTHOR" || person.role === "ORIGINAL_AUTHOR");
     const translator = people.find((person) => person.role === "TRANSLATOR");
-    const cover = assetUrl(row.coverKey);
+    const cover = assetUrl(row.coverKey, publicAssetFallbacks.novelCover);
     const latestDate = row.latestChapterAt ?? row.publishedAt;
     const hoursAgo = latestDate ? Math.max(0, Math.floor((Date.now() - latestDate.getTime()) / 3_600_000)) : undefined;
 
@@ -492,11 +635,12 @@ async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
       status: toPublicStatus(row.status),
       rating: Number(row.rating.toFixed(2)),
       ratingCount: row.ratingCount,
+      reviewCount: row.reviewCount,
       views: row.views,
       chapters: row.chapters,
       synopsis: row.synopsis,
       cover,
-      backdrop: assetUrl(row.bannerKey, cover),
+      backdrop: assetUrl(row.bannerKey, publicAssetFallbacks.novelBackdrop),
       updatedAt: formatThaiDate(latestDate),
       updatedHoursAgo: hoursAgo,
       publishedAt: row.publishedAt?.toISOString(),
@@ -526,7 +670,7 @@ async function getNovelPageNormalized(query: NormalizedNovelQuery): Promise<Pagi
   const total = Number(countRows[0]?.value ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / BROWSE_PAGE_SIZE));
   const page = Math.min(query.page, totalPages);
-  const rows = await selectBaseNovels(where, orderBy(query.sort), BROWSE_PAGE_SIZE, (page - 1) * BROWSE_PAGE_SIZE);
+  const rows = await selectBaseNovels(where, orderByForQuery(query), BROWSE_PAGE_SIZE, (page - 1) * BROWSE_PAGE_SIZE);
 
   return {
     items: await hydrateNovels(rows),
@@ -757,7 +901,7 @@ export const getActiveBanners = unstable_cache(
           id: row.id,
           title: row.title,
           subtitle: row.subtitle,
-          image: assetUrl(row.imageKey),
+          image: assetUrl(row.imageKey, publicAssetFallbacks.novelBackdrop),
           linkUrl: row.linkUrl,
           ctaLabel: row.ctaLabel,
         }));
@@ -943,13 +1087,59 @@ export const getTagBySlug = cache(async (slugInput: string) => {
   return id ? getTagByIdCached(id) : undefined;
 });
 
-export async function searchNovels(searchInput: string, pageInput = 1): Promise<PublicSearchResult> {
+export async function searchNovels(
+  searchInput: string,
+  pageInput = 1,
+  filtersInput: NovelQuery = {},
+): Promise<PublicSearchResult> {
     const q = cleanText(searchInput);
     const page = parsePositivePage(pageInput);
-    if (!q || q.length < 2) return { novels: [], genres: [], tags: [], page: 1, total: 0, totalPages: 1 };
-    const novelPage = await getNovelPageUncached({ q, page });
+    if (!q || q.length < 2) {
+      return { novels: [], authors: [], translators: [], genres: [], tags: [], page: 1, total: 0, totalPages: 1 };
+    }
+    const novelPage = await getNovelPageUncached({ ...filtersInput, q, page });
     const pattern = safeSearchPattern(q);
-    const [genreRows, tagRows] = await Promise.all([
+    const prefix = safeSearchPrefix(q);
+    const now = new Date();
+    const personMatch = or(ilike(authors.name, pattern), ilike(authors.nativeName, pattern), ilike(authors.slug, pattern));
+    const personRelevance = desc(sql<number>`case
+      when lower(${authors.name}) = lower(${q})
+        or lower(coalesce(${authors.nativeName}, '')) = lower(${q})
+        or lower(${authors.slug}) = lower(${q}) then 3
+      when ${authors.name} ilike ${prefix}
+        or coalesce(${authors.nativeName}, '') ilike ${prefix}
+        or ${authors.slug} ilike ${prefix} then 2
+      else 1
+    end`);
+    const [authorRows, translatorRows, genreRows, tagRows] = await Promise.all([
+      getDb()
+        .select({
+          slug: authors.slug,
+          name: authors.name,
+          nativeName: authors.nativeName,
+          novelCount: countDistinct(novelAuthors.novelId),
+        })
+        .from(authors)
+        .innerJoin(novelAuthors, eq(novelAuthors.authorId, authors.id))
+        .innerJoin(novels, and(eq(novels.id, novelAuthors.novelId), publicNovelCondition(now)))
+        .where(and(inArray(novelAuthors.role, PUBLIC_AUTHOR_ROLES), personMatch))
+        .groupBy(authors.id)
+        .orderBy(personRelevance, desc(countDistinct(novelAuthors.novelId)), asc(authors.name))
+        .limit(SUGGESTION_LIMIT),
+      getDb()
+        .select({
+          slug: authors.slug,
+          name: authors.name,
+          nativeName: authors.nativeName,
+          novelCount: countDistinct(novelAuthors.novelId),
+        })
+        .from(authors)
+        .innerJoin(novelAuthors, eq(novelAuthors.authorId, authors.id))
+        .innerJoin(novels, and(eq(novels.id, novelAuthors.novelId), publicNovelCondition(now)))
+        .where(and(eq(novelAuthors.role, "TRANSLATOR"), personMatch))
+        .groupBy(authors.id)
+        .orderBy(personRelevance, desc(countDistinct(novelAuthors.novelId)), asc(authors.name))
+        .limit(SUGGESTION_LIMIT),
       getDb()
         .select({
           slug: genres.slug,
@@ -971,6 +1161,18 @@ export async function searchNovels(searchInput: string, pageInput = 1): Promise<
 
     return {
       novels: novelPage.items.slice(0, SEARCH_LIMIT),
+      authors: authorRows.map((row) => ({
+        slug: row.slug,
+        name: row.name,
+        nativeName: row.nativeName,
+        novelCount: Number(row.novelCount),
+      })),
+      translators: translatorRows.map((row) => ({
+        slug: row.slug,
+        name: row.name,
+        nativeName: row.nativeName,
+        novelCount: Number(row.novelCount),
+      })),
       genres: genreRows.map((row) => ({
         slug: row.slug,
         name: row.name,
@@ -987,22 +1189,50 @@ export async function searchNovels(searchInput: string, pageInput = 1): Promise<
 
 export async function getSearchSuggestions(searchInput: string): Promise<SearchSuggestion[]> {
   const results = await searchNovels(searchInput, 1);
+  const novelSuggestions = results.novels.map((novel) => ({
+    kind: "novel" as const,
+    label: novel.thaiTitle,
+    meta: novel.title,
+    href: `/novel/${novel.slug}`,
+  }));
+  const authorSuggestions = results.authors.map((author) => ({
+    kind: "author" as const,
+    label: author.name,
+    meta: `${author.novelCount.toLocaleString("th-TH")} เรื่อง`,
+    href: `/search?q=${encodeURIComponent(author.name)}`,
+  }));
+  const translatorSuggestions = results.translators.map((translator) => ({
+    kind: "translator" as const,
+    label: translator.name,
+    meta: `${translator.novelCount.toLocaleString("th-TH")} เรื่อง`,
+    href: `/search?q=${encodeURIComponent(translator.name)}`,
+  }));
+  const genreSuggestions = results.genres.map((genre) => ({
+    kind: "genre" as const,
+    label: genre.thaiName,
+    meta: "หมวดหมู่",
+    href: `/genre/${genre.slug}`,
+  }));
+  const tagSuggestions = results.tags.map((tag) => ({
+    kind: "tag" as const,
+    label: tag.name,
+    meta: "แท็ก",
+    href: `/tag/${tag.slug}`,
+  }));
+
+  // Reserve space for every matched entity type, then backfill unused slots
+  // so searches without taxonomy/author matches still return a full novel list.
   return [
-    ...results.novels.slice(0, 5).map((novel) => ({
-      label: novel.thaiTitle,
-      meta: novel.title,
-      href: `/novel/${novel.slug}`,
-    })),
-    ...results.genres.slice(0, 2).map((genre) => ({
-      label: genre.thaiName,
-      meta: "หมวดหมู่",
-      href: `/genre/${genre.slug}`,
-    })),
-    ...results.tags.slice(0, 2).map((tag) => ({
-      label: tag.name,
-      meta: "แท็ก",
-      href: `/tag/${tag.slug}`,
-    })),
+    ...novelSuggestions.slice(0, 4),
+    ...authorSuggestions.slice(0, 1),
+    ...translatorSuggestions.slice(0, 1),
+    ...genreSuggestions.slice(0, 1),
+    ...tagSuggestions.slice(0, 1),
+    ...novelSuggestions.slice(4),
+    ...authorSuggestions.slice(1),
+    ...translatorSuggestions.slice(1),
+    ...genreSuggestions.slice(1),
+    ...tagSuggestions.slice(1),
   ].slice(0, SUGGESTION_LIMIT);
 }
 
@@ -1115,6 +1345,144 @@ export const getRankings = unstable_cache(
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-rankings", "public-novels"] },
 );
 
+export type RankingMovement = {
+  direction: "up" | "down" | "same" | "new";
+  places?: number;
+};
+
+export type RankingEntry = {
+  novel: Novel;
+  rank: number;
+  movement?: RankingMovement;
+};
+
+/**
+ * Adds honest movement only when two real precomputed snapshots exist.
+ * Aggregate fallbacks still return useful ranks, but never invent movement.
+ */
+export const getRankingEntries = cache(async (
+  periodInput: RankingPeriod = "WEEKLY",
+  requestedLimit = MAX_LIST_LIMIT,
+): Promise<RankingEntry[]> => {
+  const period: RankingPeriod = ["DAILY", "WEEKLY", "MONTHLY", "ALL_TIME"].includes(periodInput)
+    ? periodInput
+    : "WEEKLY";
+  const limit = clampLimit(requestedLimit, MAX_LIST_LIMIT);
+  const rankedNovels = await getRankings(period, limit);
+  if (!rankedNovels.length) return [];
+
+  const db = getDb();
+  const periods = await db
+    .select({ periodStart: novelRankings.periodStart })
+    .from(novelRankings)
+    .where(eq(novelRankings.period, period))
+    .groupBy(novelRankings.periodStart)
+    .orderBy(desc(novelRankings.periodStart))
+    .limit(2);
+  const latest = periods[0]?.periodStart;
+  const previous = periods[1]?.periodStart;
+  if (!latest) {
+    return rankedNovels.map((novel, index) => ({ novel, rank: index + 1 }));
+  }
+
+  const [currentRows, previousRows] = await Promise.all([
+    db
+      .select({ slug: novels.slug, rank: novelRankings.rank })
+      .from(novelRankings)
+      .innerJoin(novels, eq(novels.id, novelRankings.novelId))
+      .where(and(eq(novelRankings.period, period), eq(novelRankings.periodStart, latest)))
+      .orderBy(asc(novelRankings.rank))
+      .limit(limit),
+    previous
+      ? db
+          .select({ slug: novels.slug, rank: novelRankings.rank })
+          .from(novelRankings)
+          .innerJoin(novels, eq(novels.id, novelRankings.novelId))
+          .where(and(eq(novelRankings.period, period), eq(novelRankings.periodStart, previous)))
+      : Promise.resolve([]),
+  ]);
+  const currentBySlug = new Map(currentRows.map((row) => [row.slug, row.rank]));
+  const previousBySlug = new Map(previousRows.map((row) => [row.slug, row.rank]));
+
+  return rankedNovels.map((novel, index) => {
+    const rank = currentBySlug.get(novel.slug) ?? index + 1;
+    if (!previous) return { novel, rank };
+    const previousRank = previousBySlug.get(novel.slug);
+    if (previousRank === undefined) return { novel, rank, movement: { direction: "new" } };
+    const delta = previousRank - rank;
+    if (delta === 0) return { novel, rank, movement: { direction: "same" } };
+    return {
+      novel,
+      rank,
+      movement: {
+        direction: delta > 0 ? "up" : "down",
+        places: Math.abs(delta),
+      },
+    };
+  });
+});
+
+/**
+ * Real seven-day engagement inside one public genre. This powers the editorial
+ * "rising" shelf without pretending that recently published or globally
+ * popular titles are gaining momentum in this specific genre.
+ */
+export const getGenreRising = cache(async (slugInput: string, requestedLimit = 6): Promise<Novel[]> => {
+  const slug = cleanText(slugInput, 120);
+  if (!slug) return [];
+  const limit = clampLimit(requestedLimit, 6, 12);
+
+  return getOrSetVersioned({
+    versionKeys: [cacheKeys.versions.ranking(), cacheKeys.versions.catalog(), cacheKeys.versions.taxonomy()],
+    key: ([rankingVersion, catalogVersion, taxonomyVersion]) =>
+      cacheKeys.ranking(`genre-${slug}-c${catalogVersion}-t${taxonomyVersion}`, limit, rankingVersion),
+    ttlSeconds: CACHE_TTL_SECONDS.RANKING,
+    category: "ranking",
+    loader: async () => {
+      const db = getDb();
+      const now = new Date();
+      const periodStart = bangkokDateKey(new Date(now.getTime() - 6 * 86_400_000));
+      const periodEnd = bangkokDateKey(now);
+      const score = sql<number>`
+        ln(1 + coalesce(sum(${novelDailyStats.views}), 0)) * 1.5 +
+        ln(1 + coalesce(sum(${novelDailyStats.uniqueReaders}), 0)) * 3 +
+        ln(1 + coalesce(sum(${novelDailyStats.chapterReads}), 0)) * 2 +
+        ln(1 + coalesce(sum(${novelDailyStats.libraryAdds}), 0)) * 6 +
+        ln(1 + coalesce(sum(${novelDailyStats.ratings}), 0)) * 4
+      `.mapWith(Number);
+      const rankedRows = await db
+        .select({ id: novels.id, score })
+        .from(novelDailyStats)
+        .innerJoin(novels, eq(novels.id, novelDailyStats.novelId))
+        .innerJoin(novelGenres, eq(novelGenres.novelId, novels.id))
+        .innerJoin(genres, eq(genres.id, novelGenres.genreId))
+        .where(and(
+          gte(novelDailyStats.statDate, periodStart),
+          lte(novelDailyStats.statDate, periodEnd),
+          eq(genres.slug, slug),
+          eq(genres.isActive, true),
+          publicNovelCondition(now),
+        ))
+        .groupBy(novels.id)
+        .orderBy(desc(score), asc(novels.id))
+        .limit(limit);
+      if (!rankedRows.length) return [];
+
+      const ids = rankedRows.map((row) => row.id);
+      const rows = await selectBaseNovels(
+        and(publicNovelCondition(now), inArray(novels.id, ids))!,
+        orderBy("popular"),
+        limit,
+      );
+      const byId = new Map((await hydrateNovels(rows)).map((novel) => [novel.id, novel]));
+      return rankedRows.flatMap((row) => {
+        const novel = byId.get(row.id);
+        return novel ? [novel] : [];
+      });
+    },
+  });
+});
+
 export const getGenreShowcase = unstable_cache(
   async (requestedLimit = 8) => {
     const limit = clampLimit(requestedLimit, 8, 12);
@@ -1152,7 +1520,9 @@ export const getGenreShowcase = unstable_cache(
         const coverMap = new Map<string, string[]>();
         for (const row of rows) {
           const current = coverMap.get(row.genreSlug) ?? [];
-          if (current.length < 3) coverMap.set(row.genreSlug, [...current, assetUrl(row.coverKey)]);
+          if (current.length < 3) {
+            coverMap.set(row.genreSlug, [...current, assetUrl(row.coverKey, publicAssetFallbacks.novelCover)]);
+          }
         }
         return publicGenres.map((genre) => ({ genre, covers: coverMap.get(genre.slug) ?? [] }));
       },
@@ -1242,6 +1612,131 @@ export const getChapterPage = cache(
   },
 );
 
+export type ChapterCatalogOptions = {
+  page?: string | number;
+  order?: ChapterCatalogOrder;
+  query?: string;
+  rangeStart?: number | null;
+  rangeEnd?: number | null;
+  jumpChapter?: number | null;
+};
+
+/**
+ * Server-side chapter catalogue query. Search, ordering, ranges, and jumping
+ * are deliberately resolved before LIMIT/OFFSET so a 2,000-chapter novel does
+ * not present the first page as if it were the latest or searchable globally.
+ * Free-text variants stay outside the persistent cache to avoid unbounded keys.
+ */
+export async function getChapterCatalogPage(
+  slugInput: string,
+  options: ChapterCatalogOptions = {},
+): Promise<ChapterCatalogPage> {
+  const slug = cleanText(slugInput, 180);
+  const order: ChapterCatalogOrder = options.order === "oldest" ? "oldest" : "latest";
+  const query = cleanText(options.query, MAX_SEARCH_LENGTH) ?? "";
+  const rangeStart = Number.isSafeInteger(options.rangeStart) && (options.rangeStart ?? 0) > 0
+    ? Math.max(1, Number(options.rangeStart))
+    : null;
+  const rangeEnd = rangeStart !== null
+    ? Number.isSafeInteger(options.rangeEnd) && Number(options.rangeEnd) >= rangeStart
+      ? Math.min(Number(options.rangeEnd), 100_000_000)
+      : Math.min(rangeStart + 99, 100_000_000)
+    : null;
+  const jumpChapter = typeof options.jumpChapter === "number" && Number.isFinite(options.jumpChapter) && options.jumpChapter >= 0
+    ? options.jumpChapter
+    : null;
+  const requestedPage = parsePositivePage(options.page);
+
+  if (!slug) {
+    return {
+      items: [], page: 1, pageSize: CHAPTER_PAGE_SIZE, total: 0, totalPages: 1,
+      catalogTotal: 0, order, query, rangeStart, rangeEnd, jumpChapter, jumpFound: false,
+    };
+  }
+
+  const now = new Date();
+  const baseCondition = and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now));
+  const filteredCondition = and(
+    baseCondition,
+    ...(rangeStart !== null ? [gte(chapters.sortOrder, rangeStart)] : []),
+    ...(rangeEnd !== null ? [lte(chapters.sortOrder, rangeEnd)] : []),
+    ...(query
+      ? [or(
+          ilike(chapters.title, safeSearchPattern(query)),
+          sql`${chapters.chapterNumber}::text ilike ${safeSearchPattern(query)}`,
+        )]
+      : []),
+  );
+  const db = getDb();
+  const [catalogCountRows, filteredCountRows] = await Promise.all([
+    db
+      .select({ value: countDistinct(chapters.id) })
+      .from(chapters)
+      .innerJoin(novels, eq(novels.id, chapters.novelId))
+      .where(baseCondition),
+    db
+      .select({ value: countDistinct(chapters.id) })
+      .from(chapters)
+      .innerJoin(novels, eq(novels.id, chapters.novelId))
+      .where(filteredCondition),
+  ]);
+  const catalogTotal = Number(catalogCountRows[0]?.value ?? 0);
+  const total = Number(filteredCountRows[0]?.value ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / CHAPTER_PAGE_SIZE));
+
+  let jumpFound = false;
+  let page = Math.min(requestedPage, totalPages);
+  if (jumpChapter !== null) {
+    const [target] = await db
+      .select({ id: chapters.id, sortOrder: chapters.sortOrder })
+      .from(chapters)
+      .innerJoin(novels, eq(novels.id, chapters.novelId))
+      .where(and(filteredCondition, eq(chapters.chapterNumber, jumpChapter)))
+      .limit(1);
+    if (target) {
+      jumpFound = true;
+      const [preceding] = await db
+        .select({ value: countDistinct(chapters.id) })
+        .from(chapters)
+        .innerJoin(novels, eq(novels.id, chapters.novelId))
+        .where(and(
+          filteredCondition,
+          order === "oldest"
+            ? sql`${chapters.sortOrder} < ${target.sortOrder}`
+            : sql`${chapters.sortOrder} > ${target.sortOrder}`,
+        ));
+      page = Math.min(Math.floor(Number(preceding?.value ?? 0) / CHAPTER_PAGE_SIZE) + 1, totalPages);
+    }
+  }
+
+  const rows = await db
+    .select(chapterSummarySelection)
+    .from(chapters)
+    .innerJoin(novels, eq(novels.id, chapters.novelId))
+    .where(filteredCondition)
+    .orderBy(
+      order === "oldest" ? asc(chapters.sortOrder) : desc(chapters.sortOrder),
+      order === "oldest" ? asc(chapters.id) : desc(chapters.id),
+    )
+    .limit(CHAPTER_PAGE_SIZE)
+    .offset((page - 1) * CHAPTER_PAGE_SIZE);
+
+  return {
+    items: rows.map(chapterSummaryFromRow),
+    page,
+    pageSize: CHAPTER_PAGE_SIZE,
+    total,
+    totalPages,
+    catalogTotal,
+    order,
+    query,
+    rangeStart,
+    rangeEnd,
+    jumpChapter,
+    jumpFound,
+  };
+}
+
 export async function getChapters(slug: string, requestedLimit = CHAPTER_PAGE_SIZE) {
   const normalizedSlug = cleanText(slug, 180);
   const limit = clampLimit(requestedLimit, CHAPTER_PAGE_SIZE, CHAPTER_PAGE_SIZE);
@@ -1267,6 +1762,85 @@ export async function getChapters(slug: string, requestedLimit = CHAPTER_PAGE_SI
   const page = await getChapterPage(slug, 1);
   return page.items.slice(0, limit);
 }
+
+export const getChapterWindow = cache(
+  async (slugInput: string, currentInput: string | number, requestedRadius = 24): Promise<ChapterWindow> => {
+    const slug = cleanText(slugInput, 180);
+    const currentNumber = Number(currentInput);
+    const radius = Math.min(Math.max(Math.floor(requestedRadius) || 24, 8), 40);
+    if (!slug || !Number.isFinite(currentNumber)) {
+      return { items: [], total: 0, startPosition: 0, endPosition: 0, hasEarlier: false, hasLater: false };
+    }
+
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.chapters(slug)],
+      key: ([version]) => cacheKeys.chapterReader(slug, `window-${currentNumber}-${radius}`, version),
+      ttlSeconds: CACHE_TTL_SECONDS.CHAPTER_LIST,
+      category: "chapter-list",
+      loader: async () => {
+        const now = new Date();
+        const db = getDb();
+        const [current] = await db
+          .select(chapterSummarySelection)
+          .from(chapters)
+          .innerJoin(novels, eq(novels.id, chapters.novelId))
+          .where(and(
+            eq(novels.slug, slug),
+            eq(chapters.chapterNumber, currentNumber),
+            publicNovelCondition(now),
+            publicChapterCondition(now),
+          ))
+          .limit(1);
+        if (!current) {
+          return { items: [], total: 0, startPosition: 0, endPosition: 0, hasEarlier: false, hasLater: false };
+        }
+
+        const [beforeRows, afterRows, countRows] = await Promise.all([
+          db
+            .select(chapterSummarySelection)
+            .from(chapters)
+            .innerJoin(novels, eq(novels.id, chapters.novelId))
+            .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now), sql`${chapters.sortOrder} < ${current.sortOrder}`))
+            .orderBy(desc(chapters.sortOrder), desc(chapters.id))
+            .limit(radius + 1),
+          db
+            .select(chapterSummarySelection)
+            .from(chapters)
+            .innerJoin(novels, eq(novels.id, chapters.novelId))
+            .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now), sql`${chapters.sortOrder} > ${current.sortOrder}`))
+            .orderBy(asc(chapters.sortOrder), asc(chapters.id))
+            .limit(radius + 1),
+          db
+            .select({
+              total: countDistinct(chapters.id),
+              before: sql<number>`count(*) filter (where ${chapters.sortOrder} < ${current.sortOrder})`,
+            })
+            .from(chapters)
+            .innerJoin(novels, eq(novels.id, chapters.novelId))
+            .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now))),
+        ]);
+        const visibleBeforeRows = beforeRows.slice(0, radius);
+        const visibleAfterRows = afterRows.slice(0, radius);
+        const before = [...visibleBeforeRows].reverse().map(chapterSummaryFromRow);
+        const items = [...before, chapterSummaryFromRow(current), ...visibleAfterRows.map(chapterSummaryFromRow)];
+        const total = Number(countRows[0]?.total ?? items.length);
+        const currentPosition = Number(countRows[0]?.before ?? before.length) + 1;
+        const startPosition = Math.max(1, currentPosition - before.length);
+        const endPosition = startPosition + items.length - 1;
+        return {
+          items,
+          total,
+          startPosition,
+          endPosition,
+          hasEarlier: startPosition > 1,
+          hasLater: endPosition < total,
+          earlierBoundary: beforeRows[radius] ? chapterSummaryFromRow(beforeRows[radius]) : undefined,
+          laterBoundary: afterRows[radius] ? chapterSummaryFromRow(afterRows[radius]) : undefined,
+        };
+      },
+    });
+  },
+);
 
 export const getLatestChapters = cache(
   async (slugInput: string, requestedLimit = 5) => {
@@ -1567,7 +2141,7 @@ async function getPublishedReviewsUncached(
       .limit(limit);
   return rows.map((row) => ({
       id: row.id,
-      authorName: row.authorName || "นักอ่าน NiyaiNow",
+      authorName: row.authorName || "นักอ่าน NiyaiThai",
       authorImage: row.authorImage || (row.authorAvatarKey ? assetUrl(row.authorAvatarKey) : null),
       rating: row.score,
       title: row.title,
@@ -1675,7 +2249,15 @@ export const SITEMAP_PARTITION_SIZE = 10_000;
 
 async function getSitemapCountsUncached() {
   const now = new Date();
-  const [novelRows, chapterRows] = await Promise.all([
+  const [genreRows, tagRows, novelRows, chapterRows] = await Promise.all([
+    getDb()
+      .select({ value: sql<number>`count(*)`.mapWith(Number) })
+      .from(genres)
+      .where(eq(genres.isActive, true)),
+    getDb()
+      .select({ value: sql<number>`count(*)`.mapWith(Number) })
+      .from(tags)
+      .where(eq(tags.isActive, true)),
     getDb()
       .select({ value: sql<number>`count(*)`.mapWith(Number) })
       .from(novels)
@@ -1686,10 +2268,14 @@ async function getSitemapCountsUncached() {
       .innerJoin(novels, eq(novels.id, chapters.novelId))
       .where(and(publicNovelCondition(now), publicChapterCondition(now))),
   ]);
+  const genreCount = genreRows[0]?.value ?? 0;
+  const tagCount = tagRows[0]?.value ?? 0;
   const novelCount = novelRows[0]?.value ?? 0;
   const chapterCount = chapterRows[0]?.value ?? 0;
-  const total = novelCount + chapterCount;
+  const total = genreCount + tagCount + novelCount + chapterCount;
   return {
+    genreCount,
+    tagCount,
     novelCount,
     chapterCount,
     total,
@@ -1697,44 +2283,97 @@ async function getSitemapCountsUncached() {
   };
 }
 
-export const getSitemapCounts = unstable_cache(getSitemapCountsUncached, ["public-sitemap-counts-v3"], {
+export const getSitemapCounts = unstable_cache(getSitemapCountsUncached, ["public-sitemap-counts-v4"], {
   revalidate: 3_600,
-  tags: ["public-sitemap", "public-novels", "public-chapters"],
+  tags: ["public-sitemap", "public-taxonomy", "public-novels", "public-chapters"],
 });
+
+function sitemapSlice(offset: number, start: number, count: number, remaining: number) {
+  if (
+    remaining <= 0
+    || offset >= start + count
+    || offset + SITEMAP_PARTITION_SIZE <= start
+  ) {
+    return { offset: 0, take: 0 };
+  }
+
+  const localOffset = Math.max(0, offset - start);
+  return {
+    offset: localOffset,
+    take: Math.min(remaining, Math.max(0, count - localOffset)),
+  };
+}
 
 export const getSitemapPartition = unstable_cache(
   async (partitionInput: number) => {
     const partition = Number.isSafeInteger(partitionInput) && partitionInput >= 0 ? partitionInput : 0;
     const counts = await getSitemapCountsUncached();
     const offset = partition * SITEMAP_PARTITION_SIZE;
-    if (offset >= counts.total) return { novels: [], chapters: [] };
+    if (offset >= counts.total) return { genres: [], tags: [], novels: [], chapters: [] };
 
     const now = new Date();
-    const novelOffset = Math.min(offset, counts.novelCount);
-    const novelTake = Math.min(SITEMAP_PARTITION_SIZE, Math.max(0, counts.novelCount - novelOffset));
-    const novelRows = novelTake > 0
+    let remaining = SITEMAP_PARTITION_SIZE;
+
+    const genreSlice = sitemapSlice(offset, 0, counts.genreCount, remaining);
+    const genreRows = genreSlice.take > 0
+      ? await getDb()
+          .select({ slug: genres.slug, updatedAt: genres.updatedAt })
+          .from(genres)
+          .where(eq(genres.isActive, true))
+          .orderBy(asc(genres.id))
+          .limit(genreSlice.take)
+          .offset(genreSlice.offset)
+      : [];
+    remaining -= genreRows.length;
+
+    const tagStart = counts.genreCount;
+    const tagSlice = sitemapSlice(offset, tagStart, counts.tagCount, remaining);
+    const tagRows = tagSlice.take > 0
+      ? await getDb()
+          .select({ slug: tags.slug, updatedAt: tags.updatedAt })
+          .from(tags)
+          .where(eq(tags.isActive, true))
+          .orderBy(asc(tags.id))
+          .limit(tagSlice.take)
+          .offset(tagSlice.offset)
+      : [];
+    remaining -= tagRows.length;
+
+    const novelStart = tagStart + counts.tagCount;
+    const novelSlice = sitemapSlice(offset, novelStart, counts.novelCount, remaining);
+    const novelRows = novelSlice.take > 0
       ? await getDb()
           .select({ slug: novels.slug, updatedAt: novels.updatedAt, coverKey: novels.coverKey })
           .from(novels)
           .where(publicNovelCondition(now))
           .orderBy(asc(novels.id))
-          .limit(novelTake)
-          .offset(novelOffset)
+          .limit(novelSlice.take)
+          .offset(novelSlice.offset)
       : [];
-    const remaining = SITEMAP_PARTITION_SIZE - novelRows.length;
-    const chapterOffset = Math.max(0, offset - counts.novelCount);
-    const chapterRows = remaining > 0
+    remaining -= novelRows.length;
+
+    const chapterStart = novelStart + counts.novelCount;
+    const chapterSlice = sitemapSlice(offset, chapterStart, counts.chapterCount, remaining);
+    const chapterRows = chapterSlice.take > 0
       ? await getDb()
           .select({ novelSlug: novels.slug, chapterNumber: chapters.chapterNumber, updatedAt: chapters.updatedAt })
           .from(chapters)
           .innerJoin(novels, eq(novels.id, chapters.novelId))
           .where(and(publicNovelCondition(now), publicChapterCondition(now)))
           .orderBy(asc(novels.id), asc(chapters.sortOrder), asc(chapters.id))
-          .limit(remaining)
-          .offset(chapterOffset)
+          .limit(chapterSlice.take)
+          .offset(chapterSlice.offset)
       : [];
 
     return {
+      genres: genreRows.map((row) => ({
+        slug: row.slug,
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      tags: tagRows.map((row) => ({
+        slug: row.slug,
+        updatedAt: row.updatedAt.toISOString(),
+      })),
       novels: novelRows.map((row) => ({
         slug: row.slug,
         updatedAt: row.updatedAt.toISOString(),
@@ -1747,6 +2386,6 @@ export const getSitemapPartition = unstable_cache(
       })),
     };
   },
-  ["public-sitemap-partition-v3"],
-  { revalidate: 3_600, tags: ["public-sitemap", "public-novels", "public-chapters"] },
+  ["public-sitemap-partition-v4"],
+  { revalidate: 3_600, tags: ["public-sitemap", "public-taxonomy", "public-novels", "public-chapters"] },
 );

@@ -181,7 +181,7 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
               <option value="EVERYONE">ทุกวัย</option><option value="TEEN">วัยรุ่น</option><option value="MATURE">ผู้ใหญ่</option><option value="ADULT">18+</option>
             </Select></label>
             <label className="flex items-center gap-2 rounded-[12px] border border-border p-3 text-sm font-medium">
-              <input type="checkbox" name="isFeatured" defaultChecked={novel?.isFeatured ?? false} className="h-4 w-4 accent-[var(--brand-primary)]" /> แสดงเป็นเรื่องแนะนำ
+              <input type="checkbox" name="isFeatured" defaultChecked={novel?.isFeatured ?? false} className="h-4 w-4 accent-[var(--brand-emphasis)]" /> แสดงเป็นเรื่องแนะนำ
             </label>
             {message ? <p role="alert" className="rounded-[10px] bg-destructive/10 px-3 py-2 text-sm text-destructive">{message}</p> : null}
             <Button type="submit" loading={busy}><Save className="h-4 w-4" />บันทึกข้อมูล</Button>

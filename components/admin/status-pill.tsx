@@ -15,7 +15,7 @@ const TONES: Record<PillTone, { chip: string; dot: string }> = {
     dot: "bg-[var(--brand-blue)]"
   },
   brand: {
-    chip: "border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/10 text-[var(--brand-light-on-light)]",
+    chip: "border-[var(--brand-emphasis)]/25 bg-[var(--brand-primary)]/10 text-[var(--brand-light-on-light)]",
     dot: "bg-[var(--brand-primary)]"
   },
   neutral: { chip: "border-border bg-muted text-muted-foreground", dot: "bg-[var(--text-tertiary)]" }

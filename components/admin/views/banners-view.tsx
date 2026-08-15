@@ -226,7 +226,7 @@ export function BannersView({ banners }: { banners: AdminBannerRow[] }) {
             <Field label="หยุดแสดง"><Input name="endsAt" type="datetime-local" defaultValue={draft.endsAt} /></Field>
             <Field label="ลำดับแสดงผล"><Input name="sortOrder" type="number" min="0" step="1" required defaultValue={draft.sortOrder} /></Field>
           </div>
-          <label className="flex items-center gap-2 rounded-[12px] border border-border p-3 text-sm font-medium"><input name="isActive" type="checkbox" defaultChecked={draft.isActive} className="h-4 w-4 accent-[var(--brand-primary)]" />เปิดใช้งาน</label>
+          <label className="flex items-center gap-2 rounded-[12px] border border-border p-3 text-sm font-medium"><input name="isActive" type="checkbox" defaultChecked={draft.isActive} className="h-4 w-4 accent-[var(--brand-emphasis)]" />เปิดใช้งาน</label>
         </form> : null}
       </Modal>
 

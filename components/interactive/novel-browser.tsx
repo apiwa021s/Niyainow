@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
 import { FilterPanel } from "@/components/browse/filter-panel";
 import { NovelGridSkeleton } from "@/components/browse/novel-grid-skeleton";
@@ -23,12 +23,7 @@ const SORT_OPTIONS: { value: NovelSort; label: string }[] = [
 
 const FILTER_LABELS: Record<string, Record<string, string>> = {
   status: { ongoing: "กำลังแปล", completed: "จบแล้ว", hiatus: "พักการแปล" },
-  chapters: {
-    "under-50": "น้อยกว่า 50 ตอน",
-    "50-200": "50–200 ตอน",
-    "200-500": "200–500 ตอน",
-    "500+": "500 ตอนขึ้นไป",
-  },
+  chapters: { "under-50": "น้อยกว่า 50 ตอน", "50-200": "50–200 ตอน", "200-500": "200–500 ตอน", "500+": "500 ตอนขึ้นไป" },
   rating: { "4.5": "คะแนน 4.5+", "4": "คะแนน 4.0+", "3.5": "คะแนน 3.5+" },
   updated: { today: "อัปเดตวันนี้", "7d": "อัปเดตใน 7 วัน", "30d": "อัปเดตใน 30 วัน" },
   content: { free: "ฟรีทั้งเรื่อง", paid: "มีตอนจำกัดการเข้าถึง" },
@@ -49,6 +44,11 @@ export function NovelBrowser({
   hasResults,
   hasSuggestions,
   title = "นิยายทั้งหมด",
+  description,
+  basePath = "/novels",
+  fixedGenre,
+  fixedTag,
+  headingLevel = "h1",
 }: {
   query: NovelQuery;
   pagination: { page: number; total: number; totalPages: number };
@@ -58,31 +58,78 @@ export function NovelBrowser({
   hasResults: boolean;
   hasSuggestions: boolean;
   title?: string;
+  description?: string;
+  basePath?: string;
+  fixedGenre?: string;
+  fixedTag?: string;
+  headingLevel?: "h1" | "h2";
 }) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const selectedGenres = parseGenreParam(query.genre);
+  const visibleGenres = selectedGenres.filter((slug) => slug !== fixedGenre);
   const activeGenreSlugs = facets.map((genre) => genre.slug);
   const genreLabels = new Map(facets.map((genre) => [genre.slug, genre.thaiName]));
-  const hasFilters =
-    selectedGenres.length > 0 ||
-    Boolean(query.tag || query.status || query.chapters || query.rating || query.updated || query.content || query.q);
+  const hasFilters = visibleGenres.length > 0 || Boolean((query.tag && query.tag !== fixedTag) || query.status || query.chapters || query.rating || query.updated || query.content || query.q);
 
-  function update(next: NovelQuery) {
-    startTransition(() => {
-      router.replace(novelBrowseHref({ ...next, page: undefined }, activeGenreSlugs), { scroll: false });
-    });
+  function routeHref(next: NovelQuery) {
+    const visibleQuery = { ...next };
+    if (fixedGenre) delete visibleQuery.genre;
+    if (fixedTag) delete visibleQuery.tag;
+    const canonical = novelBrowseHref(visibleQuery, activeGenreSlugs);
+    return `${basePath}${canonical.slice("/novels".length)}`;
   }
 
-  const clearAll = () => update(query.q ? { q: query.q } : {});
+  function update(next: NovelQuery) {
+    startTransition(() => router.replace(routeHref({ ...next, page: undefined }), { scroll: false }));
+  }
+
+  function clearAll() {
+    update({ ...(fixedGenre ? { genre: fixedGenre } : {}), ...(fixedTag ? { tag: fixedTag } : {}) });
+  }
+
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const panel = panelRef.current;
+    const trigger = triggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel?.querySelector<HTMLElement>("button, select, input, [href]")?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSheetOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !panel) return;
+      const focusable = panel.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])');
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown, true);
+      trigger?.focus();
+    };
+  }, [sheetOpen]);
+
   const activeChips = [
-    ...selectedGenres.map((slug) => ({
+    ...(query.q ? [{ key: "query", label: `ค้นหา: ${query.q}`, remove: () => update({ ...query, q: undefined, page: undefined }) }] : []),
+    ...(query.tag && query.tag !== fixedTag ? [{ key: "tag", label: `แท็ก: ${query.tag}`, remove: () => update({ ...query, tag: undefined, page: undefined }) }] : []),
+    ...visibleGenres.map((slug) => ({
       key: `genre-${slug}`,
       label: genreLabels.get(slug) ?? slug,
       remove: () => {
         const next = selectedGenres.filter((item) => item !== slug);
-        update({ ...query, genre: next.length ? next.join(",") : undefined, page: undefined });
+        update({ ...query, genre: next.length ? next.join(",") : fixedGenre, page: undefined });
       },
     })),
     ...(["status", "chapters", "rating", "updated", "content"] as const)
@@ -94,185 +141,101 @@ export function NovelBrowser({
       })),
   ];
   const pages = visiblePageNumbers(pagination.page, pagination.totalPages);
+  const Heading = headingLevel;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="hidden lg:block">
-        <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-[8px] border border-border bg-card p-4">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h2 className="font-semibold">ตัวกรอง</h2>
-            {hasFilters ? (
-              <button type="button" onClick={clearAll} className="text-xs font-semibold text-[var(--brand-light-on-light)] hover:underline">
-                ล้างทั้งหมด
-              </button>
-            ) : null}
-          </div>
-          <FilterPanel query={query} genres={facets} onChange={(next) => update({ ...next, page: undefined })} />
-        </div>
-      </aside>
-
-      <section className="min-w-0">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+    <section className="min-w-0">
+      <div className="border-b border-border pb-5">
+        <p className="editorial-kicker">สำรวจคลังนิยาย</p>
+        <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="editorial-kicker">DISCOVER / 探す</p>
-            <h1 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h1>
+            <Heading className="font-serif text-3xl font-semibold">{title}</Heading>
             <p className="tabular mt-1 text-sm text-muted-foreground">
-              {pagination.total.toLocaleString("th-TH")} เรื่อง{hasFilters ? " ที่ตรงกับตัวกรอง" : ""}
+              {description ?? `${pagination.total.toLocaleString("th-TH")} เรื่อง${hasFilters ? " ที่ตรงกับตัวกรอง" : " ในคลัง"}`}
             </p>
           </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <span className="shrink-0 text-muted-foreground">เรียงตาม</span>
-            <Select
-              value={query.sort ?? "popular"}
-              onChange={(event) => update({ ...query, sort: event.target.value as NovelSort, page: undefined })}
-              className="h-10"
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              ref={triggerRef}
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={sheetOpen}
+              aria-controls="browse-filter-dialog"
+              className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-border bg-card px-3 text-sm font-semibold hover:bg-muted"
             >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </label>
+              <SlidersHorizontal className="h-4 w-4" /> ตัวกรอง
+              {activeChips.length ? <span className="tabular rounded-full bg-[var(--brand-primary)] px-1.5 text-[11px] text-white">{activeChips.length}</span> : null}
+            </button>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="sr-only sm:not-sr-only sm:text-muted-foreground">เรียงตาม</span>
+              <Select value={query.sort ?? "popular"} onChange={(event) => update({ ...query, sort: event.target.value as NovelSort })} className="h-11">
+                {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+            </label>
+          </div>
         </div>
 
-        {activeChips.length > 0 ? (
+        {activeChips.length ? (
           <div className="mt-4 flex flex-wrap items-center gap-1.5">
             {activeChips.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={chip.remove}
-                className="flex min-h-8 items-center gap-1 rounded-[8px] bg-[var(--brand-primary)]/12 px-2.5 py-1 text-xs font-medium text-[var(--brand-light-on-light)] hover:bg-[var(--brand-primary)]/20"
-              >
-                {chip.label}
-                <X className="h-3 w-3" aria-hidden />
-                <span className="sr-only">เอาตัวกรอง {chip.label} ออก</span>
+              <button key={chip.key} type="button" onClick={chip.remove} className="flex min-h-11 items-center gap-1 rounded-[8px] bg-[var(--brand-primary)]/12 px-3 py-1 text-xs font-medium text-[var(--brand-emphasis)]">
+                {chip.label}<X className="h-3 w-3" aria-hidden /><span className="sr-only">เอาตัวกรอง {chip.label} ออก</span>
               </button>
             ))}
-            <button type="button" onClick={clearAll} className="ml-1 text-xs font-semibold text-muted-foreground hover:underline">
-              ล้างทั้งหมด
-            </button>
+            <button type="button" onClick={clearAll} className="ml-1 min-h-11 px-2 text-xs font-semibold text-muted-foreground hover:underline">ล้างทั้งหมด</button>
           </div>
         ) : null}
+      </div>
 
-        <div className="mt-5" aria-busy={isPending} aria-live="polite">
-          {isPending ? (
-            <NovelGridSkeleton count={12} />
-          ) : hasResults ? (
-            results
-          ) : (
-            <EmptyResults onClear={clearAll} suggestions={emptySuggestions} hasSuggestions={hasSuggestions} />
-          )}
-        </div>
+      <div className="mt-6" aria-busy={isPending} aria-live="polite">
+        {isPending ? <NovelGridSkeleton count={12} /> : hasResults ? results : <EmptyResults onClear={clearAll} suggestions={emptySuggestions} hasSuggestions={hasSuggestions} />}
+      </div>
 
-        {pagination.totalPages > 1 ? (
-          <nav aria-label="แบ่งหน้า" className="mt-6 flex flex-wrap justify-center gap-1.5">
-            {pages.map((pageNumber, index) => {
-              const previous = pages[index - 1];
-              return (
-                <span key={pageNumber} className="contents">
-                  {previous && pageNumber - previous > 1 ? (
-                    <span className="grid h-10 min-w-8 place-items-center text-muted-foreground" aria-hidden>…</span>
-                  ) : null}
-                  <Link
-                    href={novelBrowseHref({ ...query, page: pageNumber }, activeGenreSlugs)}
-                    aria-current={pageNumber === pagination.page ? "page" : undefined}
-                    className={cn(
-                      "tabular grid h-10 min-w-10 place-items-center rounded-[8px] border px-2 text-sm font-medium",
-                      pageNumber === pagination.page
-                        ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/12"
-                        : "border-border hover:bg-muted",
-                    )}
-                  >
-                    {pageNumber}
-                  </Link>
-                </span>
-              );
-            })}
-          </nav>
-        ) : null}
-      </section>
-
-      <button
-        type="button"
-        onClick={() => setSheetOpen(true)}
-        className="fixed bottom-20 left-1/2 z-40 flex h-12 -translate-x-1/2 items-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white shadow-[var(--sh-brand)] lg:hidden"
-      >
-        <SlidersHorizontal className="h-4 w-4" />
-        ตัวกรอง
-        {activeChips.length > 0 ? (
-          <span className="tabular grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-[var(--brand-primary)]">
-            {activeChips.length}
-          </span>
-        ) : null}
-      </button>
+      {pagination.totalPages > 1 ? (
+        <nav aria-label="หน้าผลลัพธ์" className="mt-7 flex flex-wrap justify-center gap-1.5">
+          {pages.map((pageNumber, index) => {
+            const previous = pages[index - 1];
+            return (
+              <span key={pageNumber} className="contents">
+                {previous && pageNumber - previous > 1 ? <span className="grid h-11 min-w-8 place-items-center text-muted-foreground" aria-hidden>…</span> : null}
+                <Link href={routeHref({ ...query, page: pageNumber })} aria-current={pageNumber === pagination.page ? "page" : undefined} className={cn("tabular grid h-11 min-w-11 place-items-center rounded-[8px] border px-2 text-sm font-medium", pageNumber === pagination.page ? "border-[var(--brand-emphasis)] bg-[var(--brand-primary)]/12" : "border-border hover:bg-muted")}>{pageNumber}</Link>
+              </span>
+            );
+          })}
+        </nav>
+      ) : null}
 
       {sheetOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSheetOpen(false)} aria-hidden />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="ตัวกรอง"
-            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[12px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))]"
-          >
-            <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+        <div className="fixed inset-0 z-50">
+          <button type="button" className="absolute inset-0 h-full w-full bg-black/50" onClick={() => setSheetOpen(false)} aria-label="ปิดตัวกรอง" />
+          <div id="browse-filter-dialog" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="browse-filter-title" className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[12px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border">
+            <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border sm:hidden" />
             <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="font-semibold">ตัวกรอง</h2>
-              {hasFilters ? (
-                <button type="button" onClick={clearAll} className="text-xs font-semibold text-[var(--brand-light-on-light)]">
-                  ล้างทั้งหมด
-                </button>
-              ) : null}
+              <div><h2 id="browse-filter-title" className="font-serif text-xl font-semibold">ตัวกรอง</h2><p className="text-xs text-muted-foreground">เลือกเท่าที่จำเป็นเพื่อจำกัดผลลัพธ์</p></div>
+              <button type="button" onClick={() => setSheetOpen(false)} aria-label="ปิดตัวกรอง" className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
-            <FilterPanel query={query} genres={facets} onChange={(next) => update({ ...next, page: undefined })} />
-            <button
-              type="button"
-              onClick={() => setSheetOpen(false)}
-              className="mt-6 grid h-12 w-full place-items-center rounded-[8px] bg-[var(--brand-primary)] text-sm font-semibold text-white"
-            >
-              ดูผลลัพธ์ {pagination.total.toLocaleString("th-TH")} เรื่อง
-            </button>
+            <FilterPanel query={query} genres={facets} hideGenres={Boolean(fixedGenre)} onChange={(next) => update({ ...next, ...(fixedGenre ? { genre: fixedGenre } : {}), ...(fixedTag ? { tag: fixedTag } : {}) })} />
+            <div className="sticky bottom-0 mt-6 flex gap-2 border-t border-border bg-background pt-4">
+              {hasFilters ? <button type="button" onClick={clearAll} className="h-12 flex-1 rounded-[8px] border border-border text-sm font-semibold">ล้างทั้งหมด</button> : null}
+              <button type="button" onClick={() => setSheetOpen(false)} className="h-12 flex-[2] rounded-[8px] bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white">ดูผลลัพธ์ {pagination.total.toLocaleString("th-TH")} เรื่อง</button>
+            </div>
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }
 
-function EmptyResults({
-  onClear,
-  suggestions,
-  hasSuggestions,
-}: {
-  onClear: () => void;
-  suggestions: ReactNode;
-  hasSuggestions: boolean;
-}) {
+function EmptyResults({ onClear, suggestions, hasSuggestions }: { onClear: () => void; suggestions: ReactNode; hasSuggestions: boolean }) {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div className="rounded-[8px] border border-dashed border-border p-8 text-center">
-        <p className="text-base font-semibold">ไม่พบนิยายที่ตรงกับตัวกรองนี้</p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          ลองเอาตัวกรองบางอันออก หรือเริ่มใหม่จากเรื่องยอดนิยมด้านล่าง
-        </p>
-        <button
-          type="button"
-          onClick={onClear}
-          className="mt-4 inline-flex h-11 items-center rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white shadow-[var(--sh-brand)]"
-        >
-          ล้างตัวกรอง
-        </button>
+        <p className="font-semibold">ไม่พบนิยายที่ตรงกับตัวกรองนี้</p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">ลองลดจำนวนตัวกรอง หรือกลับไปดูเรื่องยอดนิยมในคลัง</p>
+        <button type="button" onClick={onClear} className="mt-4 inline-flex h-11 items-center rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white">ล้างตัวกรอง</button>
       </div>
-
-      {hasSuggestions ? (
-        <section aria-label="เรื่องยอดนิยม">
-          <h2 className="mb-3 text-base font-semibold">เรื่องยอดนิยมตอนนี้</h2>
-          {suggestions}
-        </section>
-      ) : null}
+      {hasSuggestions ? <section aria-label="เรื่องยอดนิยม"><h2 className="mb-4 font-serif text-xl font-semibold">เรื่องยอดนิยมตอนนี้</h2>{suggestions}</section> : null}
     </div>
   );
 }

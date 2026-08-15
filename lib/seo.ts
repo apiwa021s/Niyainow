@@ -18,7 +18,13 @@ export function pageMetadata(input: {
 }): Metadata {
   const description = truncateDescription(input.description);
   const canonical = absoluteUrl(input.path);
-  const images = input.image ? [{ url: input.image }] : undefined;
+  const imageUrl = absoluteUrl(input.image || "/og.png");
+  const imageAlt = input.image
+    ? `${input.title} — ${siteConfig.name}`
+    : `${siteConfig.name} — ${siteConfig.title}`;
+  const openGraphImage = input.image
+    ? { url: imageUrl, alt: imageAlt }
+    : { url: imageUrl, width: 1200, height: 630, alt: imageAlt };
 
   return {
     title: input.title,
@@ -32,13 +38,13 @@ export function pageMetadata(input: {
       title: input.title,
       description,
       url: canonical,
-      images,
+      images: [openGraphImage],
     },
     twitter: {
-      card: input.image ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: input.title,
       description,
-      images: input.image ? [input.image] : undefined,
+      images: [{ url: imageUrl, alt: imageAlt }],
     },
   };
 }

@@ -1,26 +1,28 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { LibraryView } from "@/components/interactive/library-view";
-import { Button } from "@/components/ui/button";
-import { PageHeader, PageShell } from "@/components/ui/section";
+import { PageShell } from "@/components/ui/section";
 import { requireActiveUser } from "@/lib/auth/dal";
-import { listUserLibrary } from "@/services/user-service";
+import {
+  collectionPageHref,
+  parseCollectionPage,
+  type CollectionSearchParams,
+} from "@/lib/validation/collection-pagination";
+import { listUserLibraryPage } from "@/services/user-service";
 
-export const metadata: Metadata = { title: "คลังของฉัน", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "กำลังอ่าน", robots: { index: false, follow: false } };
 
-export default async function LibraryPage() {
-  const user = await requireActiveUser("/library");
-  const items = await listUserLibrary(user.id, "READING");
-  return (
-    <PageShell className="space-y-5">
-      <PageHeader title="ชั้นหนังสือ" description="เรื่องที่กำลังอ่าน รายการไว้อ่าน และเล่มที่อ่านจบแล้ว" />
-      <div className="flex flex-wrap gap-2">
-        <Link href="/library/reading"><Button>กำลังอ่าน</Button></Link>
-        <Link href="/library/bookmarks"><Button variant="secondary">รายการไว้อ่าน</Button></Link>
-        <Link href="/library/completed"><Button variant="secondary">อ่านจบแล้ว</Button></Link>
-      </div>
-      <LibraryView mode="reading" items={items} />
-    </PageShell>
-  );
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<CollectionSearchParams>;
+}) {
+  const requestedPage = parseCollectionPage((await searchParams).page);
+  const pathname = "/library";
+  const user = await requireActiveUser(collectionPageHref(pathname, requestedPage));
+  const result = await listUserLibraryPage(user.id, "READING", requestedPage);
+  if (result.page !== requestedPage) redirect(collectionPageHref(pathname, result.page));
+
+  return <PageShell><LibraryView mode="reading" items={result.items} pagination={result} /></PageShell>;
 }

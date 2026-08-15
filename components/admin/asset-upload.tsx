@@ -142,7 +142,7 @@ export function AssetUpload({
           />
         ) : (
           <span className="absolute inset-0 grid place-items-center bg-[linear-gradient(135deg,rgba(109,40,255,.10),rgba(255,110,199,.08))]">
-            <span className="grid h-14 w-14 place-items-center rounded-[14px] bg-background/80 text-[var(--brand-primary)] ring-1 ring-border">
+            <span className="grid h-14 w-14 place-items-center rounded-[14px] bg-background/80 text-[var(--brand-emphasis)] ring-1 ring-border">
               <FileImage className="h-6 w-6" />
             </span>
           </span>

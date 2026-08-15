@@ -3,66 +3,72 @@ import Link from "next/link";
 import { ArrowRight, BookOpen, Star } from "lucide-react";
 
 import { formatNumber } from "@/lib/utils";
+import type { PromoBannerItem } from "@/services/novel-service";
 import type { Novel } from "@/types/novel";
 
-export function HomeHero({ novels }: { novels: Novel[] }) {
-  const primary = novels[0];
-
-  if (!primary) {
+export function StorySpotlight({ banner, novel }: { banner?: PromoBannerItem; novel?: Novel }) {
+  if (banner) {
     return (
-      <section className="grid min-h-[420px] place-items-center overflow-hidden rounded-[8px] border border-border bg-card px-6 text-center">
-        <div>
-          <p className="editorial-kicker">AKANE / 物語</p>
-          <h1 className="mt-3 font-serif text-4xl font-semibold">เรื่องต่อไปของคุณ เริ่มที่นี่</h1>
-          <Link href="/novels" className="mt-6 inline-flex h-12 items-center rounded-[8px] bg-[var(--brand-primary)] px-6 font-semibold text-white">สำรวจนิยาย</Link>
-        </div>
-      </section>
+      <SpotlightFrame image={banner.image}>
+        <p className="text-xs font-semibold tracking-[.16em] text-white/85">เรื่องเด่นที่คัดสรร</p>
+        <h2 className="mt-3 line-clamp-2 max-w-2xl text-balance font-serif text-3xl font-semibold leading-tight text-white sm:mt-4 sm:text-5xl">
+          {banner.title}
+        </h2>
+        {banner.subtitle ? <p className="mt-3 line-clamp-2 max-w-xl text-xs leading-6 text-white/90 sm:mt-4 sm:text-base sm:leading-7">{banner.subtitle}</p> : null}
+        <SpotlightLink href={banner.linkUrl || "/novels"} label={banner.linkUrl ? (banner.ctaLabel || "ดูรายละเอียด") : "สำรวจนิยาย"} />
+      </SpotlightFrame>
     );
   }
 
-  const genre = primary.genreNames?.[primary.genres[0]] ?? primary.genres[0];
+  if (novel) {
+    const genre = novel.genreNames?.[novel.genres[0]] ?? novel.genres[0];
+    return (
+      <SpotlightFrame image={novel.backdrop || novel.cover}>
+        <p className="text-xs font-semibold tracking-[.16em] text-white/85">เรื่องเด่นที่คัดสรร</p>
+        <h2 className="mt-3 line-clamp-2 max-w-2xl text-balance font-serif text-3xl font-semibold leading-tight text-white sm:mt-4 sm:text-5xl">{novel.thaiTitle}</h2>
+        {novel.title !== novel.thaiTitle ? <p className="mt-1 truncate text-sm text-white/80">{novel.title}</p> : null}
+        <p className="mt-3 line-clamp-2 max-w-xl text-xs leading-6 text-white/90 sm:mt-4 sm:text-base sm:leading-7">{novel.synopsis}</p>
+        <div className="tabular mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-white/85 sm:mt-4">
+          {genre ? <span>{genre}</span> : null}
+          {(novel.ratingCount ?? 0) > 0 ? (
+            <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-[var(--brand-emphasis)] text-[var(--brand-emphasis)]" />{novel.rating.toFixed(1)}</span>
+          ) : <span>ยังไม่มีคะแนน</span>}
+          <span className="hidden sm:inline">{novel.chapters.toLocaleString("th-TH")} ตอน</span>
+          <span className="hidden sm:inline">{formatNumber(novel.views)} ครั้ง</span>
+        </div>
+        <SpotlightLink href={`/novel/${novel.slug}`} label="เริ่มอ่าน" icon="book" />
+      </SpotlightFrame>
+    );
+  }
 
   return (
-    <section className="relative -mx-4 min-h-[540px] overflow-hidden bg-[#0a0a0a] text-[#f5f3ef] sm:-mx-6 lg:mx-0 lg:min-h-[440px] lg:rounded-[8px] lg:border lg:border-[#292929]">
-      <Image
-        src={primary.backdrop || primary.cover}
-        alt=""
-        fill
-        preload
-        sizes="(max-width: 1024px) 100vw, 1400px"
-        className="object-cover object-center lg:object-[72%_center]"
-      />
-      <span aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,rgba(10,10,10,.98)_0%,rgba(10,10,10,.91)_42%,rgba(10,10,10,.42)_70%,rgba(10,10,10,.12)_100%)]" />
-      <span aria-hidden className="absolute inset-0 bg-[linear-gradient(0deg,rgba(10,10,10,.92)_0%,transparent_52%)] lg:hidden" />
-      <span aria-hidden className="absolute right-5 top-5 hidden border-r border-[#e02028]/70 pr-3 font-serif text-xs leading-[1.8] tracking-[.35em] text-white/55 [writing-mode:vertical-rl] lg:block">静かな物語を、あなたへ</span>
-
-      <div className="relative flex min-h-[540px] max-w-[720px] flex-col justify-end px-5 py-9 sm:px-10 lg:min-h-[440px] lg:justify-center lg:px-14 lg:py-12">
-        <div className="flex items-center gap-3">
-          <span className="border border-[#c91820] bg-[#c91820]/12 px-2.5 py-1 text-[11px] font-semibold text-[#ffb5b8]">เรื่องแนะนำ</span>
-          <span className="editorial-kicker text-white/55">FEATURED STORY · 01</span>
-        </div>
-
-        <h1 className="mt-5 max-w-[620px] font-serif text-[2.25rem] font-semibold leading-[1.25] sm:text-[3rem] lg:text-[3.45rem]">{primary.thaiTitle}</h1>
-        {primary.title !== primary.thaiTitle ? <p className="mt-1 line-clamp-1 text-sm text-white/50">{primary.title}</p> : null}
-        <p className="mt-4 line-clamp-3 max-w-xl text-sm leading-[1.9] text-white/72 sm:text-base">{primary.synopsis}</p>
-
-        <div className="tabular mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-white/62">
-          <span>{genre}</span>
-          <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-[#c91820] text-[#c91820]" />{primary.rating.toFixed(1)}</span>
-          <span>{primary.chapters.toLocaleString("th-TH")} ตอน</span>
-          <span>{formatNumber(primary.views)} ครั้ง</span>
-          <span>{primary.updatedAt}</span>
-        </div>
-
-        <div className="mt-7 flex flex-wrap gap-3">
-          <Link href={`/novel/${primary.slug}`} className="inline-flex h-12 items-center gap-2 rounded-[8px] bg-[#c91820] px-6 font-semibold text-white transition-colors hover:bg-[#e02028]">
-            <BookOpen className="h-4.5 w-4.5" />เริ่มอ่าน
-          </Link>
-          <Link href={`/novel/${primary.slug}`} className="inline-flex h-12 items-center gap-2 rounded-[8px] border border-white/25 px-6 font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/5">
-            รายละเอียด<ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+    <section className="grid min-h-[288px] place-items-center overflow-hidden rounded-[8px] border border-border bg-card px-6 text-center sm:min-h-[360px]">
+      <div>
+        <p className="text-xs font-semibold tracking-[.16em] text-[var(--brand-emphasis)]">พื้นที่สำหรับเรื่องถัดไป</p>
+        <h2 className="mt-3 font-serif text-4xl font-semibold">ค้นพบเรื่องที่อยากอ่านต่อ</h2>
+        <Link href="/novels" className="mt-6 inline-flex h-12 items-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-6 font-semibold text-white">
+          สำรวจนิยาย <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
     </section>
   );
+}
+
+function SpotlightFrame({ image, children }: { image: string; children: React.ReactNode }) {
+  return (
+    <section className="relative -mx-4 min-h-[288px] overflow-hidden bg-[#0E0E10] sm:-mx-6 sm:min-h-[380px] lg:mx-0 lg:min-h-[440px] lg:rounded-[8px] lg:border lg:border-white/10">
+      <Image src={image} alt="" fill preload sizes="(max-width: 1024px) 100vw, 1400px" className="object-cover object-center opacity-45 lg:object-[72%_center] lg:opacity-75" />
+      <span aria-hidden className="absolute inset-0 bg-[#0E0E10]/60 lg:bg-[#0E0E10]/45" />
+      <span aria-hidden className="absolute inset-y-0 left-0 w-full bg-[#0E0E10]/45 lg:w-[62%] lg:bg-[#0E0E10]/80" />
+      <div className="relative flex min-h-[288px] max-w-3xl flex-col justify-end px-5 py-5 sm:min-h-[380px] sm:px-10 sm:py-9 lg:min-h-[440px] lg:justify-center lg:px-14 lg:py-12">{children}</div>
+    </section>
+  );
+}
+
+function SpotlightLink({ href, label, icon }: { href: string; label: string; icon?: "book" }) {
+  const content = <>{icon === "book" ? <BookOpen className="h-4 w-4" /> : null}{label}<ArrowRight className="h-4 w-4" /></>;
+  const className = "mt-4 inline-flex h-11 w-fit items-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-light)] sm:mt-7 sm:h-12 sm:px-6 sm:text-base";
+  return /^https?:\/\//i.test(href)
+    ? <a href={href} target="_blank" rel="noopener noreferrer" className={className}>{content}<span className="sr-only"> (เปิดในแท็บใหม่)</span></a>
+    : <Link href={href} className={className}>{content}</Link>;
 }

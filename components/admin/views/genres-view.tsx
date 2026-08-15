@@ -142,7 +142,7 @@ export function GenresView({ genres }: { genres: AdminGenreRow[] }) {
           <Field label="ชื่อภาษาไทย"><Input name="thaiName" maxLength={160} defaultValue={draft.thaiName} placeholder="แฟนตาซี" /></Field>
           <Field label="คำอธิบาย"><Textarea name="description" maxLength={2_000} defaultValue={draft.description} /></Field>
           <Field label="ลำดับแสดงผล"><Input name="sortOrder" type="number" min="0" step="1" required defaultValue={draft.sortOrder} /></Field>
-          <label className="flex items-center gap-2 rounded-[12px] border border-border p-3 text-sm font-medium"><input name="isActive" type="checkbox" defaultChecked={draft.isActive} className="h-4 w-4 accent-[var(--brand-primary)]" />เปิดใช้งานในหน้าสาธารณะและฟอร์มนิยาย</label>
+          <label className="flex items-center gap-2 rounded-[12px] border border-border p-3 text-sm font-medium"><input name="isActive" type="checkbox" defaultChecked={draft.isActive} className="h-4 w-4 accent-[var(--brand-emphasis)]" />เปิดใช้งานในหน้าสาธารณะและฟอร์มนิยาย</label>
         </form> : null}
       </Modal>
       <ConfirmDialog

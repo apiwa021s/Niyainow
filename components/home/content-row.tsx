@@ -57,7 +57,11 @@ export function ContentRow({
   const scrollBy = (direction: 1 | -1) => {
     const track = trackRef.current;
     if (!track) return;
-    track.scrollBy({ left: direction * Math.round(track.clientWidth * 0.8), behavior: "smooth" });
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    track.scrollBy({
+      left: direction * Math.round(track.clientWidth * 0.8),
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
   };
 
   return (
@@ -66,7 +70,7 @@ export function ContentRow({
         <div className="flex min-w-0 items-start gap-3">
           <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
           <div>
-          <p className="editorial-kicker">CONTINUE / 続き</p>
+          <p className="editorial-kicker">อ่านต่อจากครั้งล่าสุด</p>
           <h2 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
           {description ? <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{description}</p> : null}
           </div>
@@ -76,7 +80,7 @@ export function ContentRow({
           {href ? (
             <Link
               href={href}
-              className="rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
+              className="inline-flex min-h-11 items-center rounded-[8px] px-2 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
             >
               {action} 
             </Link>
@@ -89,7 +93,7 @@ export function ContentRow({
               onClick={() => scrollBy(-1)}
               disabled={!canScrollLeft}
               aria-label={`เลื่อน ${title} ไปทางซ้าย`}
-              className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
+              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -98,7 +102,7 @@ export function ContentRow({
               onClick={() => scrollBy(1)}
               disabled={!canScrollRight}
               aria-label={`เลื่อน ${title} ไปทางขวา`}
-              className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
+              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

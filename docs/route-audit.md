@@ -1,6 +1,6 @@
 # Route and capability audit
 
-ตรวจครั้งแรกจาก commit `1d24440` ก่อนแก้ไฟล์ใด ๆ: ทุก route ใช้ข้อมูล mock, ฟอร์ม authentication เป็น email/password/OTP จำลอง, `/admin` ไม่มี authorization guard และ state ผู้ใช้อยู่ใน `localStorage` การ implementation รอบนี้คงโครงสร้างและ styling เดิม แล้วเปลี่ยน data/security boundary ตามตารางด้านล่าง
+ตรวจครั้งแรกจาก commit `1d24440` ก่อนแก้ไฟล์ใด ๆ: ทุก route ใช้ข้อมูล mock, ฟอร์ม authentication เป็น email/password/OTP จำลอง, `/admin` ไม่มี authorization guard และ state ผู้ใช้อยู่ใน `localStorage` จากนั้น public/reader product ถูกออกแบบโครงสร้าง UX/UI ใหม่เป็นระบบ NiyaiThai Akane editorial ขณะที่ data/security boundary ถูกย้ายสู่ production ตามตารางด้านล่าง
 
 ## Public pages
 
@@ -8,8 +8,8 @@
 | --- | --- | --- | --- |
 | `/` | Server Component; published catalog, updates, rankings, taxonomy และ personalization สำหรับ active user | Dynamic shell + tagged DAL cache; WebSite JSON-LD | Production-backed |
 | `/novels` | URL-driven page, filter, genre, sort และ pagination จาก PostgreSQL | Canonical metadata; bounded cached query | Production-backed |
-| `/search` | PostgreSQL trigram search projection ครอบคลุมชื่อหลัก/ชื่อรอง/ผู้เขียน/แท็ก | Query canonicalization; no client catalog download | Production-backed |
-| `/genre/[slug]`, `/tag/[slug]` | Published novels เท่านั้น พร้อม facet/pagination | Canonical metadata; unknown slug เป็น 404 | Production-backed |
+| `/search` | PostgreSQL search projection ครอบคลุมชื่อหลัก/ชื่อรอง/ผู้เขียน/ผู้แปล/แนว/แท็ก พร้อม weighted relevance | Query canonicalization; no client catalog download | Production-backed |
+| `/genre/[slug]`, `/tag/[slug]` | Published novels เท่านั้น พร้อม editorial shelves, facet และ pagination; genre rising มาจาก engagement จริง 7 วัน | Canonical metadata; unknown slug เป็น 404 | Production-backed |
 | `/genres`, `/tags` | Active taxonomy และจำนวน public usage จาก published novels | Indexable canonical pages | Production-backed |
 | `/updates` | Published chapters; filter genre ทำใน SQL ก่อน `LIMIT` ส่วนอัปเดตเฉพาะเรื่องที่ติดตามอยู่บนหน้าแรกของผู้ใช้ที่ลงชื่อเข้าใช้ | URL state + short tagged cache | Production-backed |
 | `/rankings` | Daily aggregate/novel statistics ตามช่วงเวลา | Tagged cache; ไม่มีคะแนนจำลอง | Production-backed; ต้องมี traffic จริงเพื่อสะสมสถิติ |
@@ -20,7 +20,7 @@
 | `/login` | Google OAuth เท่านั้น | `noindex` | Production-backed |
 | `/register`, `/forgot-password` | Redirect ไป `/login`; ไม่มี password database หรือ reset flow | `noindex` ผ่านปลายทาง | Intentionally removed (Google-only) |
 
-Public shell ใช้ optimized `next/image`, production domain จาก `NEXT_PUBLIC_APP_URL`, `robots.txt`, default generated OG image และ sitemap index แบบแบ่ง partition ที่ `/sitemap.xml`  `/sitemaps/[partition].xml`
+Public shell ใช้ optimized `next/image`, production domain จาก `NEXT_PUBLIC_APP_URL`, `robots.txt`, social preview 1200×630 ของ NiyaiThai และ sitemap index แบบแบ่ง partition ที่ `/sitemap.xml`  `/sitemaps/[partition].xml`
 
 ## Authenticated reader pages
 
@@ -28,8 +28,8 @@ Public shell ใช้ optimized `next/image`, production domain จาก `NEXT
 
 | Route | Backing capability | Status |
 | --- | --- | --- |
-| `/library`, `/library/reading`, `/library/bookmarks`, `/library/completed` | Unique user/novel library row พร้อมสถานะและ filter | Production-backed |
-| `/history` | Compact user/novel history, last chapter/time และ read count | Production-backed |
+| `/library`, `/library/reading`, `/library/bookmarks`, `/library/completed` | Unique user/novel library row พร้อมสถานะ filter และ server pagination | Production-backed |
+| `/history` | Compact user/novel history, last chapter/time, read count และ server pagination | Production-backed |
 | `/profile` | Google identity + database engagement summary | Production-backed |
 | `/settings` | Google identity แบบ read-only; display/reader preferences ที่ไม่ใช่ authority เก็บ local ได้ | Production-backed within stated scope |
 | `/notifications` | แสดง follow state จริง | Delivery worker intentionally unavailable และแจ้งตรงไปตรงมา |

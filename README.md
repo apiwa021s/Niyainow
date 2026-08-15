@@ -1,4 +1,4 @@
-# NiyaiNow
+# NiyaiThai
 
 แพลตฟอร์มอ่านนิยายภาษาไทยแบบ modular monolith บน Next.js App Router, PostgreSQL/Drizzle, Auth.js (Google OAuth เท่านั้น) และ Cloudflare R2 สำหรับไฟล์สื่อ เนื้อหาตอนอยู่ใน PostgreSQL และ render จาก Server Components; PostgreSQL เป็น source of truth ของข้อมูลแอปทั้งหมด
 
@@ -63,7 +63,7 @@ WHERE lower(email) = lower('owner@example.com') AND status = 'ACTIVE';
 - `services/` — server-only data access และ transaction boundaries
 - `db/schema/` — Drizzle schema; `drizzle/` — migration ที่ commit แล้ว
 - `lib/auth/`, `lib/r2/`, `lib/validation/`, `lib/security/` — security boundaries กลาง
-- `components/` — UI เดิมที่เชื่อมกับข้อมูลจริง; reader preferences เท่านั้นที่เก็บใน browser
+- `components/` — ระบบ UI แบบ Akane editorial ที่เชื่อมกับข้อมูลจริง; reader preferences และ progress สำรองของผู้ใช้แบบ guest เท่านั้นที่เก็บใน browser
 - `tests/` และ `lib/**/*.test.ts` — critical domain/security tests
 
 Development seed ใช้ข้อมูลนิยายสมมติเดิมเป็น input เพื่อให้ทดสอบ UI ได้ แต่ production runtime ไม่มี mock fallback และไม่ seed ผู้ใช้
