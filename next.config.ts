@@ -76,9 +76,17 @@ export default function createNextConfig(phase: string): NextConfig {
   ].join("; ");
 
   return {
+    cacheComponents: true,
+    partialPrefetching: true,
     poweredByHeader: false,
     images: {
       formats: ["image/avif", "image/webp"],
+      // Media keys contain UUIDs, so a replaced asset always gets a new URL.
+      // Keep optimized variants warm to avoid repeat transforms and egress.
+      minimumCacheTTL: 2_678_400,
+      deviceSizes: [640, 750, 1080, 1440, 1920],
+      imageSizes: [32, 48, 64, 96, 128, 192, 256, 384],
+      qualities: [75],
       remotePatterns: assetPattern,
     },
     async headers() {

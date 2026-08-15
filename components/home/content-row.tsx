@@ -76,7 +76,6 @@ export function ContentRow({
           {href ? (
             <Link
               href={href}
-              prefetch
               className="rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
             >
               {action} 

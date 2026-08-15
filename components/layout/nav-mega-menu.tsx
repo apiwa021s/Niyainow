@@ -141,7 +141,6 @@ export function NavMegaMenu({ label, data }: { label: string; data: MegaMenuData
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    prefetch
                     className="block rounded-[12px] border-l-2 border-transparent px-3 py-2.5 transition-colors hover:border-[var(--brand-primary)] hover:bg-muted"
                   >
                     <span className="block text-sm font-semibold">{item.label}</span>
@@ -159,7 +158,6 @@ export function NavMegaMenu({ label, data }: { label: string; data: MegaMenuData
                   <li key={genre.slug}>
                     <Link
                       href={`/genre/${genre.slug}`}
-                      prefetch
                       className="flex items-baseline justify-between gap-2 rounded-[8px] px-2 py-1.5 text-sm transition-colors hover:bg-muted"
                     >
                       <span className="truncate">{genre.thaiName}</span>
@@ -177,7 +175,6 @@ export function NavMegaMenu({ label, data }: { label: string; data: MegaMenuData
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      prefetch
                       className="block rounded-[8px] bg-muted px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--brand-primary)]/12"
                     >
                       {item.label}
@@ -191,7 +188,7 @@ export function NavMegaMenu({ label, data }: { label: string; data: MegaMenuData
             {data.promo ? (
               <div className="hidden lg:block">
                 <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">กำลังมาแรง</p>
-                <Link href={`/novel/${data.promo.slug}`} prefetch className="group block">
+                <Link href={`/novel/${data.promo.slug}`} className="group block">
                   <div className="relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted shadow-[var(--sh-1)]">
                     <Image
                       src={data.promo.cover}

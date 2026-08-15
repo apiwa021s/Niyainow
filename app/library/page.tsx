@@ -8,7 +8,6 @@ import { requireActiveUser } from "@/lib/auth/dal";
 import { listUserLibrary } from "@/services/user-service";
 
 export const metadata: Metadata = { title: "คลังของฉัน", robots: { index: false, follow: false } };
-export const dynamic = "force-dynamic";
 
 export default async function LibraryPage() {
   const user = await requireActiveUser("/library");

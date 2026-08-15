@@ -45,7 +45,7 @@ export function UpdateFeed({
             return (
               <li key={`${item.novelSlug}-${item.chapter}-${index}`}>
                 <article className="group">
-                  <Link href={`/novel/${novel.slug}/chapter/${item.chapter}`} prefetch className="block">
+                  <Link href={`/novel/${novel.slug}/chapter/${item.chapter}`} className="block">
                     <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted">
                       <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="(max-width: 640px) 46vw, (max-width: 1024px) 23vw, 190px" className="object-cover transition-transform duration-[var(--dur-base)] group-hover:scale-[1.02]" />
                       <span className="absolute bottom-2 left-2 bg-[#0a0a0a]/82 px-2 py-1 font-mono text-[10px] text-white">CH. {item.chapter}</span>

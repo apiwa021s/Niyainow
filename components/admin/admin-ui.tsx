@@ -32,7 +32,7 @@ export function AdminPageHeader({
               <li key={`${crumb.label}-${index}`} className="flex items-center gap-1">
                 {index > 0 ? <ChevronRight aria-hidden className="h-3 w-3" /> : null}
                 {crumb.href ? (
-                  <Link href={crumb.href} prefetch className="rounded px-0.5 hover:text-foreground hover:underline">
+                  <Link href={crumb.href} className="rounded px-0.5 hover:text-foreground hover:underline">
                     {crumb.label}
                   </Link>
                 ) : (
@@ -169,7 +169,6 @@ export function TaskLink({
   return (
     <Link
       href={href}
-      prefetch
       className="flex items-center gap-3 rounded-[12px] border border-border bg-card px-3 py-3 transition-colors hover:bg-muted"
     >
       <span

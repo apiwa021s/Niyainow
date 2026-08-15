@@ -14,7 +14,6 @@ import {
 } from "@/lib/validation/public-query";
 import { getGenres, getUpdates } from "@/services/novel-service";
 
-export const dynamic = "force-dynamic";
 
 async function resolveUpdatesRequest(raw: RawSearchParams) {
   const genres = await getGenres(200);

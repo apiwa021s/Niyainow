@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cacheLife } from "next/cache";
 import { Logo } from "@/components/layout/logo";
 
 /** 4 คอลัมน์ตามส่วนที่ 6.13 — บนมือถือเป็น accordion ด้วย <details> (ไม่ต้องใช้ JS) */
@@ -38,7 +39,14 @@ const groups = [
   }
 ];
 
-export function Footer() {
+async function getCopyrightYear() {
+  "use cache";
+  cacheLife("days");
+  return new Date().getFullYear();
+}
+
+export async function Footer() {
+  const copyrightYear = await getCopyrightYear();
   return (
     <footer className="mt-20 border-t border-[#292929] bg-[#0a0a0a] pb-24 text-[#f5f3ef] lg:pb-0">
       <div aria-hidden className="mx-auto h-px max-w-[1440px] bg-[linear-gradient(90deg,#c91820_0_64px,#292929_64px)]" />
@@ -111,7 +119,7 @@ export function Footer() {
           </span>
         </p>
 
-        <p className="mt-4 text-xs text-[#77736f]">© {new Date().getFullYear()} NiyaiThai. สงวนลิขสิทธิ์ทุกประการ</p>
+        <p className="mt-4 text-xs text-[#77736f]">© {copyrightYear} NiyaiThai. สงวนลิขสิทธิ์ทุกประการ</p>
       </div>
     </footer>
   );

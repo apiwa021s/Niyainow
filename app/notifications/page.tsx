@@ -6,7 +6,6 @@ import { requireActiveUser } from "@/lib/auth/dal";
 import { getProfileSummary } from "@/services/user-service";
 
 export const metadata: Metadata = { title: "แจ้งเตือน", robots: { index: false, follow: false } };
-export const dynamic = "force-dynamic";
 
 export default async function NotificationsPage() {
   const user = await requireActiveUser("/notifications");

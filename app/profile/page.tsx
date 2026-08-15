@@ -6,7 +6,6 @@ import { requireActiveUser } from "@/lib/auth/dal";
 import { getProfileSummary } from "@/services/user-service";
 
 export const metadata: Metadata = { title: "โปรไฟล์", robots: { index: false, follow: false } };
-export const dynamic = "force-dynamic";
 
 export default async function ProfilePage() {
   const user = await requireActiveUser("/profile");

@@ -10,7 +10,6 @@ import { absoluteUrl } from "@/lib/site-config";
 import { getChapterPage, getNovelBySlug } from "@/services/novel-service";
 import { parsePositivePage } from "@/types/novel-query";
 
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,

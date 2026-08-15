@@ -13,7 +13,6 @@ import { assertSameOrigin } from "@/lib/security/request";
 import { slugSchema } from "@/lib/validation/slug";
 import { recordPublicView } from "@/services/novel-service";
 
-export const dynamic = "force-dynamic";
 
 const eventSchema = z.object({
   slug: slugSchema,

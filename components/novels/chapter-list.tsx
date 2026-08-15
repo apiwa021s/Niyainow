@@ -50,8 +50,8 @@ export function ChapterList({ slug, chapters }: { slug: string; chapters: Chapte
               const href = `/novel/${slug}/chapter/${chapter.number}`;
               return (
                 <tr key={chapter.id ?? chapter.number} className="transition-colors hover:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]">
-                  <td className="px-4 py-3"><Link href={href} className="font-mono text-xs text-[var(--brand-primary)]">CH. {chapter.number}</Link></td>
-                  <td className="px-4 py-3"><Link href={href} className="font-medium hover:text-[var(--brand-primary)]">{chapter.title}</Link></td>
+                  <td className="px-4 py-3"><Link href={href} prefetch={false} className="font-mono text-xs text-[var(--brand-primary)]">CH. {chapter.number}</Link></td>
+                  <td className="px-4 py-3"><Link href={href} prefetch={false} className="font-medium hover:text-[var(--brand-primary)]">{chapter.title}</Link></td>
                   <td className="tabular px-4 py-3 text-xs text-muted-foreground">{chapter.updatedAt}</td>
                   <td className="tabular px-4 py-3 text-right text-xs text-muted-foreground">{chapter.wordCount?.toLocaleString("th-TH") ?? "—"}</td>
                   <td className="px-4 py-3 text-right text-xs font-medium">{chapter.locked ? <span className="inline-flex items-center gap-1 text-muted-foreground"><LockKeyhole className="h-3 w-3" />จำกัด</span> : <span className="text-[var(--brand-primary)]">ฟรี</span>}</td>
@@ -65,7 +65,7 @@ export function ChapterList({ slug, chapters }: { slug: string; chapters: Chapte
       <ul className="divide-y divide-border sm:hidden">
         {filtered.map((chapter) => (
           <li key={chapter.id ?? chapter.number}>
-            <Link href={`/novel/${slug}/chapter/${chapter.number}`} className="block min-h-[76px] px-4 py-3 transition-colors hover:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]">
+            <Link href={`/novel/${slug}/chapter/${chapter.number}`} prefetch={false} className="block min-h-[76px] px-4 py-3 transition-colors hover:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]">
               <div className="flex items-center justify-between gap-3"><span className="font-mono text-xs text-[var(--brand-primary)]">CH. {chapter.number}</span><span className="text-[11px] text-muted-foreground">{chapter.updatedAt}</span></div>
               <p className="mt-1 font-medium leading-[1.6]">{chapter.title}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{chapter.wordCount?.toLocaleString("th-TH") ?? "—"} คำ · {chapter.locked ? "จำกัดการเข้าถึง" : "ฟรี"}</p>

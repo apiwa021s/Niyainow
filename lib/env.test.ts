@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EnvironmentConfigurationError, getRuntimeEnv, requireDatabaseEnv } from "./env";
+import { EnvironmentConfigurationError, getRedisRuntimeEnv, getRuntimeEnv, requireDatabaseEnv } from "./env";
 
 describe("environment helpers", () => {
   it("permits credential-less module evaluation", () => {
@@ -18,5 +18,23 @@ describe("environment helpers", () => {
       requireDatabaseEnv({ NODE_ENV: "test", DATABASE_URL: "postgresql://user:pass@db.example.test/app" })
         .DATABASE_URL,
     ).toContain("postgresql://");
+  });
+
+  it("parses the discrete Redis feature flags without requiring credentials", () => {
+    const redis = getRedisRuntimeEnv({
+      NODE_ENV: "test",
+      CACHE_ENABLED: "true",
+      REDIS_ENABLED: "true",
+      REDIS_HOST: "cache.example.test",
+      REDIS_SSL: "true",
+      REDIS_TIMEOUT_MS: "75",
+    });
+    expect(redis).toMatchObject({
+      CACHE_ENABLED: true,
+      REDIS_ENABLED: true,
+      REDIS_HOST: "cache.example.test",
+      REDIS_SSL: true,
+      REDIS_TIMEOUT_MS: 75,
+    });
   });
 });

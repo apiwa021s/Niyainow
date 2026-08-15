@@ -9,7 +9,6 @@ import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getGenres } from "@/services/novel-service";
 
-export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({
   title: "หมวดหมู่นิยาย",
   description: "เลือกอ่านนิยายตามหมวดหมู่และแนวที่คุณชอบบน NiyaiThai",

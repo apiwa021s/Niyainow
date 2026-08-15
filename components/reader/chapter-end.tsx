@@ -1,5 +1,3 @@
-"use client";
-
 import { Bell, ChevronRight, Lock, Zap } from "lucide-react";
 import Link from "next/link";
 
@@ -42,7 +40,6 @@ export function ChapterEnd({
         ) : (
           <Link
             href={`/novel/${novel.slug}/chapter/${next.number}`}
-            prefetch
             className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-5 text-center text-base font-semibold text-white shadow-[var(--sh-brand)]"
           >
             <span className="line-clamp-2">ตอนถัดไป  ตอนที่ {next.number}: {next.title}</span>

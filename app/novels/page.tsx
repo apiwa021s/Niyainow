@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import { NovelBrowser } from "@/components/interactive/novel-browser";
+import { NovelGrid } from "@/components/novels/novel-grid";
 import { JsonLd } from "@/components/seo/json-ld";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
@@ -18,7 +19,6 @@ import { parseGenreParam, type NovelQuery } from "@/types/novel-query";
 
 type SearchParams = RawSearchParams;
 
-export const dynamic = "force-dynamic";
 
 const getCanonicalNovelPage = cache((queryKey: string) =>
   getNovelPage(JSON.parse(queryKey) as NovelQuery),
@@ -95,7 +95,16 @@ export default async function NovelsPage({ searchParams }: { searchParams: Promi
           })),
         }}
       />
-      <NovelBrowser query={canonicalQuery} result={result} facets={facets} suggestions={suggestions} title={title} />
+      <NovelBrowser
+        query={canonicalQuery}
+        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages }}
+        facets={facets}
+        results={<NovelGrid novels={result.items} />}
+        emptySuggestions={<NovelGrid novels={suggestions} />}
+        hasResults={result.items.length > 0}
+        hasSuggestions={suggestions.length > 0}
+        title={title}
+      />
     </main>
   );
 }

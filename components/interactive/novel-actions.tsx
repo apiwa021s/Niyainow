@@ -203,7 +203,6 @@ export function NovelActionBar({
       <div className="mx-auto flex max-w-md items-center gap-2">
         <Link
           href={startHref}
-          prefetch
           className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[var(--brand-primary)] text-base font-semibold text-white shadow-[var(--sh-brand)] active:translate-y-px"
         >
           <BookOpen className="h-5 w-5" />

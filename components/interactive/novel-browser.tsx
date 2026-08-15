@@ -3,16 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 
 import { FilterPanel } from "@/components/browse/filter-panel";
 import { NovelGridSkeleton } from "@/components/browse/novel-grid-skeleton";
-import { NovelCard } from "@/components/novels/novel-card";
 import { Select } from "@/components/ui/form-controls";
 import { cn } from "@/lib/utils";
 import { novelBrowseHref } from "@/lib/validation/public-query";
 import type { GenreFacet } from "@/services/novel-service";
-import type { Novel, Paginated } from "@/types/novel";
 import { parseGenreParam, type NovelQuery, type NovelSort } from "@/types/novel-query";
 
 const SORT_OPTIONS: { value: NovelSort; label: string }[] = [
@@ -44,15 +42,21 @@ function visiblePageNumbers(current: number, total: number) {
 
 export function NovelBrowser({
   query,
-  result,
+  pagination,
   facets,
-  suggestions,
+  results,
+  emptySuggestions,
+  hasResults,
+  hasSuggestions,
   title = "นิยายทั้งหมด",
 }: {
   query: NovelQuery;
-  result: Paginated<Novel>;
+  pagination: { page: number; total: number; totalPages: number };
   facets: GenreFacet[];
-  suggestions: Novel[];
+  results: ReactNode;
+  emptySuggestions: ReactNode;
+  hasResults: boolean;
+  hasSuggestions: boolean;
   title?: string;
 }) {
   const router = useRouter();
@@ -89,7 +93,7 @@ export function NovelBrowser({
         remove: () => update({ ...query, [key]: undefined, page: undefined }),
       })),
   ];
-  const pages = visiblePageNumbers(result.page, result.totalPages);
+  const pages = visiblePageNumbers(pagination.page, pagination.totalPages);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -113,7 +117,7 @@ export function NovelBrowser({
             <p className="editorial-kicker">DISCOVER / 探す</p>
             <h1 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h1>
             <p className="tabular mt-1 text-sm text-muted-foreground">
-              {result.total.toLocaleString("th-TH")} เรื่อง{hasFilters ? " ที่ตรงกับตัวกรอง" : ""}
+              {pagination.total.toLocaleString("th-TH")} เรื่อง{hasFilters ? " ที่ตรงกับตัวกรอง" : ""}
             </p>
           </div>
 
@@ -156,20 +160,14 @@ export function NovelBrowser({
         <div className="mt-5" aria-busy={isPending} aria-live="polite">
           {isPending ? (
             <NovelGridSkeleton count={12} />
-          ) : result.items.length > 0 ? (
-            <ul className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-6">
-              {result.items.map((novel) => (
-                <li key={novel.slug}>
-                  <NovelCard novel={novel} fluid />
-                </li>
-              ))}
-            </ul>
+          ) : hasResults ? (
+            results
           ) : (
-            <EmptyResults onClear={clearAll} suggestions={suggestions} />
+            <EmptyResults onClear={clearAll} suggestions={emptySuggestions} hasSuggestions={hasSuggestions} />
           )}
         </div>
 
-        {result.totalPages > 1 ? (
+        {pagination.totalPages > 1 ? (
           <nav aria-label="แบ่งหน้า" className="mt-6 flex flex-wrap justify-center gap-1.5">
             {pages.map((pageNumber, index) => {
               const previous = pages[index - 1];
@@ -180,10 +178,10 @@ export function NovelBrowser({
                   ) : null}
                   <Link
                     href={novelBrowseHref({ ...query, page: pageNumber }, activeGenreSlugs)}
-                    aria-current={pageNumber === result.page ? "page" : undefined}
+                    aria-current={pageNumber === pagination.page ? "page" : undefined}
                     className={cn(
                       "tabular grid h-10 min-w-10 place-items-center rounded-[8px] border px-2 text-sm font-medium",
-                      pageNumber === result.page
+                      pageNumber === pagination.page
                         ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/12"
                         : "border-border hover:bg-muted",
                     )}
@@ -235,7 +233,7 @@ export function NovelBrowser({
               onClick={() => setSheetOpen(false)}
               className="mt-6 grid h-12 w-full place-items-center rounded-[8px] bg-[var(--brand-primary)] text-sm font-semibold text-white"
             >
-              ดูผลลัพธ์ {result.total.toLocaleString("th-TH")} เรื่อง
+              ดูผลลัพธ์ {pagination.total.toLocaleString("th-TH")} เรื่อง
             </button>
           </div>
         </div>
@@ -244,7 +242,15 @@ export function NovelBrowser({
   );
 }
 
-function EmptyResults({ onClear, suggestions }: { onClear: () => void; suggestions: Novel[] }) {
+function EmptyResults({
+  onClear,
+  suggestions,
+  hasSuggestions,
+}: {
+  onClear: () => void;
+  suggestions: ReactNode;
+  hasSuggestions: boolean;
+}) {
   return (
     <div className="flex flex-col gap-6">
       <div className="rounded-[8px] border border-dashed border-border p-8 text-center">
@@ -261,16 +267,10 @@ function EmptyResults({ onClear, suggestions }: { onClear: () => void; suggestio
         </button>
       </div>
 
-      {suggestions.length > 0 ? (
+      {hasSuggestions ? (
         <section aria-label="เรื่องยอดนิยม">
           <h2 className="mb-3 text-base font-semibold">เรื่องยอดนิยมตอนนี้</h2>
-          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-6">
-            {suggestions.map((novel) => (
-              <li key={novel.slug}>
-                <NovelCard novel={novel} fluid />
-              </li>
-            ))}
-          </ul>
+          {suggestions}
         </section>
       ) : null}
     </div>

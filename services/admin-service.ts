@@ -38,6 +38,13 @@ import {
   users,
 } from "@/db/schema";
 import { assertAdmin, type CurrentUser } from "@/lib/auth/dal";
+import {
+  invalidateBannerCache,
+  invalidateChapterCache,
+  invalidateEngagementCache,
+  invalidateNovelCache,
+  invalidateTaxonomyCache,
+} from "@/lib/redis/invalidation";
 import { createUniqueSlug, slugSchema } from "@/lib/validation/slug";
 import { objectKeySchema } from "@/lib/validation/upload";
 
@@ -496,12 +503,18 @@ function genreAuditSnapshot(genre: {
   };
 }
 
-function revalidatePublicContent(includeTaxonomy = false) {
+async function revalidatePublicContent(
+  kind: "novel" | "chapter",
+  slug: string,
+  includeTaxonomy = false,
+) {
   const tagsToRevalidate = ["public-novels", "public-chapters", "public-search", "public-rankings", "public-sitemap"];
   if (includeTaxonomy) tagsToRevalidate.push("public-taxonomy");
   // Editorial mutations may remove previously public content. Expire now so an
   // unpublish/archive never serves a stale authorization/publication decision.
   for (const tag of tagsToRevalidate) revalidateTag(tag, { expire: 0 });
+  if (kind === "novel") await invalidateNovelCache(slug, includeTaxonomy);
+  else await invalidateChapterCache(slug);
 }
 
 async function writeAudit(
@@ -975,7 +988,7 @@ export async function createAdminNovel(inputValue: unknown) {
     await writeAudit(tx, actor, "novel.create", "novel", created.id, null, created);
     return { id: created.id, slug: created.slug };
   });
-  revalidatePublicContent(true);
+  await revalidatePublicContent("novel", result.slug, true);
   return result;
 }
 
@@ -1018,7 +1031,7 @@ export async function updateAdminNovel(slugInput: string, inputValue: unknown) {
     await writeAudit(tx, actor, "novel.update", "novel", before.id, before, updated);
     return { id: updated.id, slug: updated.slug };
   });
-  revalidatePublicContent(true);
+  await revalidatePublicContent("novel", result.slug, true);
   return result;
 }
 
@@ -1045,7 +1058,7 @@ export async function deleteAdminNovel(slugInput: string) {
     await writeAudit(tx, actor, "novel.delete", "novel", before.id, before, updated);
     return { id: before.id, slug: before.slug };
   });
-  revalidatePublicContent(true);
+  await revalidatePublicContent("novel", result.slug, true);
   return result;
 }
 
@@ -1266,7 +1279,7 @@ export async function createAdminChapter(inputValue: unknown) {
     );
     return { id: created.id, novelSlug: novel.slug, chapterNumber: created.chapterNumber };
   });
-  revalidatePublicContent();
+  await revalidatePublicContent("chapter", result.novelSlug);
   return result;
 }
 
@@ -1329,7 +1342,7 @@ export async function updateAdminChapter(idInput: string, inputValue: unknown) {
     );
     return { id: before.id, novelSlug: novel.slug, chapterNumber: updated.chapterNumber };
   });
-  revalidatePublicContent();
+  await revalidatePublicContent("chapter", result.novelSlug);
   return result;
 }
 
@@ -1343,7 +1356,13 @@ export async function deleteAdminChapter(idInput: string) {
       .where(and(eq(chapters.id, id), isNull(chapters.deletedAt)))
       .limit(1);
     if (!located) throw new AdminDataError("CHAPTER_NOT_FOUND", "Chapter not found", 404);
-    await tx.select({ id: novels.id }).from(novels).where(eq(novels.id, located.novelId)).for("no key update").limit(1);
+    const [novel] = await tx
+      .select({ id: novels.id, slug: novels.slug })
+      .from(novels)
+      .where(eq(novels.id, located.novelId))
+      .for("no key update")
+      .limit(1);
+    if (!novel) throw new AdminDataError("NOVEL_NOT_FOUND", "Novel not found", 404);
     const [before] = await tx
       .select()
       .from(chapters)
@@ -1367,9 +1386,9 @@ export async function deleteAdminChapter(idInput: string) {
       chapterAuditSnapshot(before),
       chapterAuditSnapshot(updated),
     );
-    return { id: before.id };
+    return { id: before.id, novelSlug: novel.slug };
   });
-  revalidatePublicContent();
+  await revalidatePublicContent("chapter", result.novelSlug);
   return result;
 }
 
@@ -1451,8 +1470,9 @@ export async function moderateAdminReview(idInput: string, inputValue: unknown) 
   const input = adminReviewModerationSchema.parse(inputValue);
   const result = await getDb().transaction(async (tx) => {
     const [located] = await tx
-      .select({ novelId: reviews.novelId })
+      .select({ novelId: reviews.novelId, novelSlug: novels.slug })
       .from(reviews)
+      .innerJoin(novels, eq(novels.id, reviews.novelId))
       .where(and(eq(reviews.id, id), isNull(reviews.deletedAt)))
       .limit(1);
     if (!located) throw new AdminDataError("REVIEW_NOT_FOUND", "Review not found or was removed by its author", 404);
@@ -1502,10 +1522,11 @@ export async function moderateAdminReview(idInput: string, inputValue: unknown) 
       reviewAuditSnapshot(before),
       reviewAuditSnapshot(updated),
     );
-    return { id: updated.id, status: updated.status, novelId: updated.novelId };
+    return { id: updated.id, status: updated.status, novelId: updated.novelId, novelSlug: located.novelSlug };
   });
   revalidateTag("public-reviews", { expire: 0 });
   revalidateTag("public-novels", { expire: 0 });
+  await invalidateEngagementCache(result.novelSlug);
   return result;
 }
 
@@ -1569,10 +1590,11 @@ export async function getRecentActivity(limitInput = 25) {
   return rows.map((row) => ({ ...row, actor: row.actorName || row.actorEmail || "System", createdAt: row.createdAt.toISOString() }));
 }
 
-function revalidateGenreContent() {
+async function revalidateGenreContent() {
   for (const tag of ["public-taxonomy", "public-search", "public-sitemap", "public-novels"]) {
     revalidateTag(tag, { expire: 0 });
   }
+  await invalidateTaxonomyCache();
 }
 
 export async function createAdminGenre(inputValue: unknown) {
@@ -1591,7 +1613,7 @@ export async function createAdminGenre(inputValue: unknown) {
     await writeAudit(tx, actor, "genre.create", "genre", created.id, null, genreAuditSnapshot(created));
     return { ...created, createdAt: created.createdAt.toISOString(), updatedAt: created.updatedAt.toISOString() };
   });
-  revalidateGenreContent();
+  await revalidateGenreContent();
   return result;
 }
 
@@ -1628,7 +1650,7 @@ export async function updateAdminGenre(idInput: string, inputValue: unknown) {
     );
     return { ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() };
   });
-  revalidateGenreContent();
+  await revalidateGenreContent();
   return result;
 }
 
@@ -1665,8 +1687,9 @@ export async function getAdminTaxonomy() {
    Promo banners — editorial artwork for the public home page
    --------------------------------------------------------------------------- */
 
-function revalidateBannerContent() {
+async function revalidateBannerContent() {
   revalidateTag("public-banners", { expire: 0 });
+  await invalidateBannerCache();
 }
 
 function serializeBanner(row: typeof promoBanners.$inferSelect): AdminBannerRow {
@@ -1724,7 +1747,7 @@ export async function createAdminBanner(inputValue: unknown) {
     await writeAudit(tx, actor, "banner.create", "banner", created.id, null, serializeBanner(created));
     return serializeBanner(created);
   });
-  revalidateBannerContent();
+  await revalidateBannerContent();
   return result;
 }
 
@@ -1746,7 +1769,7 @@ export async function updateAdminBanner(idInput: string, inputValue: unknown) {
     await writeAudit(tx, actor, "banner.update", "banner", updated.id, serializeBanner(before), serializeBanner(updated));
     return serializeBanner(updated);
   });
-  revalidateBannerContent();
+  await revalidateBannerContent();
   return result;
 }
 
@@ -1763,6 +1786,6 @@ export async function deleteAdminBanner(idInput: string) {
     await writeAudit(tx, actor, "banner.delete", "banner", before.id, serializeBanner(before), null);
     return { id: before.id };
   });
-  revalidateBannerContent();
+  await revalidateBannerContent();
   return result;
 }

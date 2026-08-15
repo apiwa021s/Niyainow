@@ -7,7 +7,6 @@ import { EmptyState, PageShell, SectionHeader } from "@/components/ui/section";
 import { pageMetadata } from "@/lib/seo";
 import { getTags } from "@/services/novel-service";
 
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ q?: string }> }): Promise<Metadata> {
   const { q = "" } = await searchParams;

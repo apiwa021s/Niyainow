@@ -7,6 +7,29 @@ const httpUrl = z.url().refine((value) => value.startsWith("https://") || value.
 });
 const optionalUrl = z.preprocess(emptyToUndefined, httpUrl.optional());
 const optionalString = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
+const optionalRedisUrl = z.preprocess(
+  emptyToUndefined,
+  z
+    .string()
+    .url()
+    .refine((value) => value.startsWith("redis://") || value.startsWith("rediss://"), {
+      message: "must use the redis:// or rediss:// protocol",
+    })
+    .optional(),
+);
+const booleanEnv = (fallback: boolean) =>
+  z.preprocess(
+    (value) => {
+      if (value === undefined || value === "") return fallback;
+      if (typeof value === "boolean") return value;
+      if (typeof value === "string") {
+        if (value.toLowerCase() === "true") return true;
+        if (value.toLowerCase() === "false") return false;
+      }
+      return value;
+    },
+    z.boolean(),
+  );
 
 const runtimeEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -34,6 +57,19 @@ const runtimeEnvSchema = z.object({
       .optional(),
   ),
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(20).default(5),
+  CACHE_ENABLED: booleanEnv(true),
+  REDIS_ENABLED: booleanEnv(false),
+  REDIS_URL: optionalRedisUrl,
+  REDIS_HOST: optionalString,
+  REDIS_PORT: z.coerce.number().int().min(1).max(65_535).default(6379),
+  REDIS_USERNAME: optionalString,
+  REDIS_PASSWORD: optionalString,
+  REDIS_DATABASE: z.coerce.number().int().min(0).max(15).default(0),
+  REDIS_SSL: booleanEnv(false),
+  REDIS_TIMEOUT_MS: z.coerce.number().int().min(25).max(10_000).default(75),
+  REDIS_DEBUG: booleanEnv(false),
+  REDIS_CACHE_PREFIX: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(64).default("niyainow")),
+  REDIS_MAX_ITEM_BYTES: z.coerce.number().int().min(16_384).max(10_485_760).default(1_048_576),
   AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
   AUTH_GOOGLE_ID: optionalString,
   AUTH_GOOGLE_SECRET: optionalString,
@@ -54,6 +90,22 @@ export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export type RequiredDatabaseEnv = Pick<RuntimeEnv, "DATABASE_URL" | "DATABASE_MAX_CONNECTIONS"> & {
   DATABASE_URL: string;
 };
+export type RedisRuntimeEnv = Pick<
+  RuntimeEnv,
+  | "CACHE_ENABLED"
+  | "REDIS_ENABLED"
+  | "REDIS_URL"
+  | "REDIS_HOST"
+  | "REDIS_PORT"
+  | "REDIS_USERNAME"
+  | "REDIS_PASSWORD"
+  | "REDIS_DATABASE"
+  | "REDIS_SSL"
+  | "REDIS_TIMEOUT_MS"
+  | "REDIS_DEBUG"
+  | "REDIS_CACHE_PREFIX"
+  | "REDIS_MAX_ITEM_BYTES"
+>;
 export type RequiredMongoEnv = Pick<RuntimeEnv, "MONGODB_URL"> & {
   MONGODB_URL: string;
 };
@@ -116,6 +168,26 @@ export function requireDatabaseEnv(source: NodeJS.ProcessEnv = process.env): Req
   const env = getRuntimeEnv(source);
   requireKeys(env, ["DATABASE_URL"], "Database access");
   return env;
+}
+
+/** Redis is an optional acceleration layer. Missing configuration disables it. */
+export function getRedisRuntimeEnv(source: NodeJS.ProcessEnv = process.env): RedisRuntimeEnv {
+  const env = getRuntimeEnv(source);
+  return {
+    CACHE_ENABLED: env.CACHE_ENABLED,
+    REDIS_ENABLED: env.REDIS_ENABLED,
+    REDIS_URL: env.REDIS_URL,
+    REDIS_HOST: env.REDIS_HOST,
+    REDIS_PORT: env.REDIS_PORT,
+    REDIS_USERNAME: env.REDIS_USERNAME,
+    REDIS_PASSWORD: env.REDIS_PASSWORD,
+    REDIS_DATABASE: env.REDIS_DATABASE,
+    REDIS_SSL: env.REDIS_SSL,
+    REDIS_TIMEOUT_MS: env.REDIS_TIMEOUT_MS,
+    REDIS_DEBUG: env.REDIS_DEBUG,
+    REDIS_CACHE_PREFIX: env.REDIS_CACHE_PREFIX,
+    REDIS_MAX_ITEM_BYTES: env.REDIS_MAX_ITEM_BYTES,
+  };
 }
 
 export function requireMongoEnv(source: NodeJS.ProcessEnv = process.env): RequiredMongoEnv {

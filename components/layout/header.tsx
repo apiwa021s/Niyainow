@@ -41,13 +41,13 @@ export type HeaderViewer = {
 
 function IconLink({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
   return (
-    <Link href={href} prefetch aria-label={label} title={label} className="grid h-11 w-11 place-items-center rounded-[8px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+    <Link href={href} aria-label={label} title={label} className="grid h-11 w-11 place-items-center rounded-[8px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
       {children}
     </Link>
   );
 }
 
-export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: HeaderViewer | null }) {
+export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: HeaderViewer | null | undefined }) {
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [open, setOpen] = useState(false);
@@ -121,7 +121,9 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
 
         <div className="hidden items-center gap-1 md:flex">
           <div className="hidden lg:block xl:hidden"><IconLink href="/search" label="ค้นหา"><Search className="h-5 w-5" /></IconLink></div>
-          {viewer ? (
+          {viewer === undefined ? (
+            <span aria-hidden className="h-11 w-32 animate-pulse rounded-[8px] bg-muted" />
+          ) : viewer ? (
             <>
               <IconLink href="/history" label="ประวัติการอ่าน"><Clock3 className="h-5 w-5" /></IconLink>
               <IconLink href="/library" label="ชั้นหนังสือ"><BookMarked className="h-5 w-5" /></IconLink>
@@ -132,7 +134,7 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
 
           <ThemeSwitcher compact />
 
-          <div ref={accountRef} className="relative">
+          {viewer !== undefined ? <div ref={accountRef} className="relative">
             <button type="button" onClick={() => setAccountOpen((value) => !value)} aria-expanded={accountOpen} aria-haspopup="menu" aria-label="เมนูบัญชี" className="flex h-11 items-center gap-1 rounded-[8px] px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
               <span className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-foreground"><UserRound className="h-4 w-4" /></span>
               <ChevronDown className={cn("h-4 w-4 transition-transform", accountOpen && "rotate-180")} aria-hidden />
@@ -147,7 +149,7 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
                       <p className="truncate text-xs text-muted-foreground">{viewer.email}</p>
                     </div>
                     <div className="my-1 h-px bg-border" />
-                    {accountMenu.map(([label, href]) => <Link key={href} href={href} prefetch role="menuitem" className="block rounded-[8px] px-3 py-2.5 text-sm font-medium hover:bg-muted">{label}</Link>)}
+                    {accountMenu.map(([label, href]) => <Link key={href} href={href} role="menuitem" className="block rounded-[8px] px-3 py-2.5 text-sm font-medium hover:bg-muted">{label}</Link>)}
                     {isStaff ? <Link href="/admin" role="menuitem" className="flex items-center gap-2 rounded-[8px] px-3 py-2.5 text-sm font-medium hover:bg-muted"><ShieldCheck className="h-4 w-4" />ระบบจัดการ</Link> : null}
                   </>
                 ) : (
@@ -167,7 +169,7 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
                 ) : null}
               </div>
             ) : null}
-          </div>
+          </div> : <span aria-hidden className="h-11 w-11 animate-pulse rounded-[8px] bg-muted" />}
         </div>
 
         <button type="button" className="ml-auto grid h-11 w-11 place-items-center rounded-[8px] text-muted-foreground hover:bg-muted md:hidden" onClick={() => setOpen(true)} aria-expanded={open} aria-label="เปิดเมนู"><Menu className="h-5 w-5" /></button>
@@ -180,7 +182,9 @@ export function Header({ menuData, viewer }: { menuData: MegaMenuData; viewer: H
           <div className="mb-5 flex items-center justify-between"><Logo /><button type="button" onClick={() => setOpen(false)} aria-label="ปิดเมนู" className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-muted"><X className="h-5 w-5" /></button></div>
           <GlobalSearch mode="mobile" onNavigate={() => setOpen(false)} />
 
-          {viewer ? (
+          {viewer === undefined ? (
+            <div aria-hidden className="mt-4 h-20 animate-pulse rounded-[8px] bg-muted" />
+          ) : viewer ? (
             <div className="mt-4 rounded-[8px] border border-border bg-card p-4">
               <p className="text-xs opacity-80">เข้าสู่ระบบแล้ว</p><p className="truncate font-semibold">{viewer.name || viewer.email}</p>
             </div>
@@ -213,7 +217,7 @@ function MobileLink({ href, label, close }: { href: string; label: string; close
 function NavLink({ href, label, pathname }: { href: string; label: string; pathname: string | null }) {
   const active = href === "/" ? pathname === "/" : Boolean(pathname?.startsWith(href));
   return (
-    <Link href={href} prefetch aria-current={active ? "page" : undefined} className={cn("relative rounded-md px-3 py-2 text-sm transition-colors", active ? "font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground")}>
+    <Link href={href} aria-current={active ? "page" : undefined} className={cn("relative rounded-md px-3 py-2 text-sm transition-colors", active ? "font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground")}>
       {label}{active ? <span aria-hidden className="absolute inset-x-3 -bottom-[14px] h-0.5 bg-[var(--brand-primary)]" /> : null}
     </Link>
   );

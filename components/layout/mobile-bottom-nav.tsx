@@ -34,7 +34,6 @@ export function MobileBottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                prefetch
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex h-full flex-col items-center justify-center gap-0.5 transition-colors",

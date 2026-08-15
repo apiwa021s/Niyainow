@@ -1,7 +1,6 @@
 import { absoluteUrl } from "@/lib/site-config";
 import { getSitemapCounts } from "@/services/novel-service";
 
-export const dynamic = "force-dynamic";
 
 function escapeXml(value: string) {
   return value.replace(/[<>&'"]/gu, (character) => ({

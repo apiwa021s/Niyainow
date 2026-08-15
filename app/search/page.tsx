@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { SearchResults } from "@/components/interactive/search-results";
+import { NovelCardHorizontal } from "@/components/novels/novel-card";
 import { JsonLd } from "@/components/seo/json-ld";
 import { PageShell } from "@/components/ui/section";
 import { pageMetadata } from "@/lib/seo";
@@ -9,7 +10,6 @@ import { absoluteUrl } from "@/lib/site-config";
 import { searchNovels } from "@/services/novel-service";
 import { parsePositivePage } from "@/types/novel-query";
 
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ q?: string }> }): Promise<Metadata> {
   const { q = "" } = await searchParams;
@@ -32,6 +32,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     if (results.page > 1) canonicalParams.set("page", String(results.page));
     redirect(`/search?${canonicalParams.toString()}`);
   }
+  const { novels, ...searchResults } = results;
   return (
     <PageShell>
       {query.length >= 2 && results.novels.length > 0 ? (
@@ -50,7 +51,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           }}
         />
       ) : null}
-      <SearchResults key={`${query}:${results.page}`} initialQ={query} results={results} />
+      <SearchResults
+        key={`${query}:${results.page}`}
+        initialQ={query}
+        results={searchResults}
+        novelItems={novels.map((novel) => (
+          <NovelCardHorizontal key={novel.slug} novel={novel} highlight={query} />
+        ))}
+      />
     </PageShell>
   );
 }

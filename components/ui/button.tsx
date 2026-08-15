@@ -65,7 +65,7 @@ type ButtonLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
 
 export function ButtonLink({ href, children, className, variant = "primary", size = "md", ...props }: ButtonLinkProps) {
   return (
-    <Link href={href} prefetch className={cn(base, variants[variant], sizes[size], className)} {...props}>
+    <Link href={href} className={cn(base, variants[variant], sizes[size], className)} {...props}>
       {children}
     </Link>
   );

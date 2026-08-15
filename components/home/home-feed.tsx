@@ -1,7 +1,6 @@
-"use client";
-
 import Link from "next/link";
 import { ArrowRight, BellRing, BookMarked, LibraryBig, Play } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { GenrePicker } from "@/components/home/genre-picker";
@@ -9,19 +8,16 @@ import { PromoBanners } from "@/components/home/promo-banners";
 import { UpdateFeed } from "@/components/home/update-feed";
 import { NovelCard, NovelHorizontalCard, NovelListItem, NovelRankingItem } from "@/components/novels/novel-card";
 import type { HomePersonalization } from "@/services/user-service";
-import type { PromoBannerItem } from "@/services/novel-service";
+import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { Genre, Novel, UpdateItem } from "@/types/novel";
 
 export type HomeData = {
   newThisWeek: Novel[];
   recommended: Novel[];
   rankings: Novel[];
-  completed: Novel[];
   updates: UpdateItem[];
-  followedUpdates: UpdateItem[];
   genreShowcase: { genre: Genre; covers: string[] }[];
   novelsBySlug: Record<string, Novel>;
-  personalization?: HomePersonalization;
 };
 
 function EditorialHeading({ kicker, title, description, href }: { kicker: string; title: string; description?: string; href?: string }) {
@@ -40,51 +36,23 @@ function EditorialHeading({ kicker, title, description, href }: { kicker: string
   );
 }
 
-export function HomeFeed({ data, banners }: { data: HomeData; banners: PromoBannerItem[] }) {
-  const returning = Boolean(data.personalization);
-  const continueItems = data.personalization?.continueReading.slice(0, 5) ?? [];
-  const followedSlugs = data.personalization?.followedNovelSlugs ?? [];
-
-  const continueReading = continueItems.length ? (
-    <ContentRow title="อ่านต่อ" description="กลับเข้าสู่เรื่องเดิมโดยไม่เสียจังหวะ" href="/library/reading">
-      {continueItems.map((item) => {
-        const chapter = item.chapter?.number ?? 1;
-        const progress = Math.round(item.progressPercent ?? 0);
-        return (
-          <RowItem key={item.novel.slug}>
-            <div className="w-[280px] sm:w-[340px]">
-              <NovelListItem
-                novel={item.novel}
-                href={`/novel/${item.novel.slug}/chapter/${chapter}`}
-                chapterLabel={`ตอนที่ ${chapter}`}
-                meta={`อ่านไป ${progress}%`}
-                progress={progress}
-                action={<span className="inline-flex h-9 items-center gap-1.5 rounded-[6px] bg-[var(--brand-primary)] px-3 text-xs font-semibold text-white"><Play className="h-3.5 w-3.5 fill-current" />อ่านต่อ</span>}
-              />
-            </div>
-          </RowItem>
-        );
-      })}
-    </ContentRow>
-  ) : null;
-
-  const personalizedUpdates = returning ? (
-    <UpdateFeed
-      title="ตอนใหม่จากเรื่องที่ติดตาม"
-      description="อัปเดตเฉพาะชั้นหนังสือของคุณ"
-      href="/updates"
-      items={data.followedUpdates.slice(0, 6)}
-      novelsBySlug={data.novelsBySlug}
-      emptyText={followedSlugs.length ? "เรื่องที่ติดตามยังไม่มีตอนใหม่" : "เมื่อกดติดตาม ตอนใหม่จะปรากฏตรงนี้"}
-    />
-  ) : null;
-
+export function HomeFeed({
+  data,
+  banners,
+  accountSections,
+  signupSlot,
+}: {
+  data: HomeData;
+  banners: PromoBannerItem[];
+  accountSections?: ReactNode;
+  signupSlot?: ReactNode;
+}) {
   const latest = (
     <UpdateFeed title="อัปเดตล่าสุด" description="ตอนใหม่ที่เพิ่งวางบนชั้น" href="/updates" items={data.updates} novelsBySlug={data.novelsBySlug} />
   );
 
   const recommended = (
-    <section>
+    <section className="render-deferred">
       <EditorialHeading kicker="CURATED / 選書" title="เรื่องแนะนำ" description="คัดจากคะแนนและจังหวะการอ่านของชุมชน" href="/novels?sort=rating" />
       <div className="-mx-4 flex snap-x gap-5 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden">
         {data.recommended.slice(0, 8).map((novel) => <div key={novel.slug} className="snap-start"><NovelHorizontalCard novel={novel} /></div>)}
@@ -93,7 +61,7 @@ export function HomeFeed({ data, banners }: { data: HomeData; banners: PromoBann
   );
 
   const ranking = (
-    <section>
+    <section className="render-deferred">
       <EditorialHeading kicker="RANKING / 番付" title="อันดับประจำสัปดาห์" description="ตัวเลขใหญ่ เล่าเรื่องความนิยมโดยไม่ต้องใช้เหรียญรางวัล" href="/rankings" />
       <nav aria-label="ช่วงเวลาอันดับ" className="mb-4 flex gap-1 border-b border-border">
         {[['รายวัน', 'daily'], ['รายสัปดาห์', 'weekly'], ['รายเดือน', 'monthly'], ['ตลอดกาล', 'all-time']].map(([label, value]) => (
@@ -107,41 +75,98 @@ export function HomeFeed({ data, banners }: { data: HomeData; banners: PromoBann
   );
 
   const discovery = (
-    <section>
-      <EditorialHeading kicker={returning ? "ONE MORE STORY" : "NEW THIS WEEK"} title={returning ? "เรื่องต่อไปบนชั้น" : "มาใหม่สัปดาห์นี้"} description="ปกใหม่ เรื่องใหม่ และโลกใบใหม่" href="/novels?sort=new" />
+    <section className="render-deferred">
+      <EditorialHeading kicker="NEW THIS WEEK" title="มาใหม่สัปดาห์นี้" description="ปกใหม่ เรื่องใหม่ และโลกใบใหม่" href="/novels?sort=new" />
       <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4 lg:grid-cols-6 lg:gap-x-5">
-        {(returning ? data.completed : data.newThisWeek).slice(0, 6).map((novel) => <li key={novel.slug}><NovelCard novel={novel} fluid /></li>)}
+        {data.newThisWeek.slice(0, 6).map((novel) => <li key={novel.slug}><NovelCard novel={novel} fluid /></li>)}
       </ul>
     </section>
   );
 
-  const signup = !returning ? (
-    <section className="grid gap-6 rounded-[8px] border border-border bg-card p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
-      <div>
-        <p className="editorial-kicker">YOUR BOOKSHELF</p>
-        <h2 className="mt-1 font-serif text-2xl font-semibold">สมัครฟรี แล้วอ่านต่อได้ทุกเครื่อง</h2>
-        <ul className="mt-5 grid gap-3 sm:grid-cols-3">
-          {[{ icon: BookMarked, title: "บันทึกตำแหน่งอ่าน" }, { icon: BellRing, title: "ติดตามตอนใหม่" }, { icon: LibraryBig, title: "ชั้นหนังสือส่วนตัว" }].map((item) => {
-            const Icon = item.icon;
-            return <li key={item.title} className="flex items-center gap-2 text-sm text-muted-foreground"><Icon className="h-4 w-4 text-[var(--brand-primary)]" />{item.title}</li>;
-          })}
-        </ul>
-      </div>
-      <div className="flex flex-wrap gap-2"><Link href="/login" className="inline-flex h-12 items-center rounded-[8px] bg-[var(--brand-primary)] px-6 font-semibold text-white">เข้าสู่ระบบด้วย Google</Link></div>
-    </section>
-  ) : null;
-
   return (
     <div className="flex flex-col gap-14 lg:gap-20">
       {banners.length ? <PromoBanners banners={banners} /> : null}
-      {continueReading}
-      {personalizedUpdates}
+      {accountSections}
       {latest}
       {recommended}
       {ranking}
       <GenrePicker items={data.genreShowcase} />
       {discovery}
-      {signup}
+      {signupSlot}
     </div>
+  );
+}
+
+export function HomePersonalizedSections({
+  personalization,
+  followedUpdates,
+}: {
+  personalization: HomePersonalization;
+  followedUpdates: NovelUpdate[];
+}) {
+  const continueItems = personalization.continueReading.slice(0, 5);
+  const novelsBySlug = Object.fromEntries([
+    ...continueItems.map((item) => item.novel),
+    ...followedUpdates.map((item) => item.novel),
+  ].map((novel) => [novel.slug, novel]));
+
+  return (
+    <>
+      {continueItems.length ? (
+        <ContentRow title="อ่านต่อ" description="กลับเข้าสู่เรื่องเดิมโดยไม่เสียจังหวะ" href="/library/reading">
+          {continueItems.map((item) => {
+            const chapter = item.chapter?.number ?? 1;
+            const progress = Math.round(item.progressPercent ?? 0);
+            return (
+              <RowItem key={item.novel.slug}>
+                <div className="w-[280px] sm:w-[340px]">
+                  <NovelListItem
+                    novel={item.novel}
+                    href={`/novel/${item.novel.slug}/chapter/${chapter}`}
+                    chapterLabel={`ตอนที่ ${chapter}`}
+                    meta={`อ่านไป ${progress}%`}
+                    progress={progress}
+                    action={<span className="inline-flex h-9 items-center gap-1.5 rounded-[6px] bg-[var(--brand-primary)] px-3 text-xs font-semibold text-white"><Play className="h-3.5 w-3.5 fill-current" />อ่านต่อ</span>}
+                  />
+                </div>
+              </RowItem>
+            );
+          })}
+        </ContentRow>
+      ) : null}
+
+      <UpdateFeed
+        title="ตอนใหม่จากเรื่องที่ติดตาม"
+        description="อัปเดตเฉพาะชั้นหนังสือของคุณ"
+        href="/updates"
+        items={followedUpdates.slice(0, 6)}
+        novelsBySlug={novelsBySlug}
+        emptyText={personalization.followedNovelSlugs.length ? "เรื่องที่ติดตามยังไม่มีตอนใหม่" : "เมื่อกดติดตาม ตอนใหม่จะปรากฏตรงนี้"}
+      />
+    </>
+  );
+}
+
+export function HomeSignup() {
+  return (
+    <section className="render-deferred grid gap-6 rounded-[8px] border border-border bg-card p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+      <div>
+        <p className="editorial-kicker">YOUR BOOKSHELF</p>
+        <h2 className="mt-1 font-serif text-2xl font-semibold">สมัครฟรี แล้วอ่านต่อได้ทุกเครื่อง</h2>
+        <ul className="mt-5 grid gap-3 sm:grid-cols-3">
+          {[
+            { icon: BookMarked, title: "บันทึกตำแหน่งอ่าน" },
+            { icon: BellRing, title: "ติดตามตอนใหม่" },
+            { icon: LibraryBig, title: "ชั้นหนังสือส่วนตัว" },
+          ].map((item) => {
+            const Icon = item.icon;
+            return <li key={item.title} className="flex items-center gap-2 text-sm text-muted-foreground"><Icon className="h-4 w-4 text-[var(--brand-primary)]" />{item.title}</li>;
+          })}
+        </ul>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Link href="/login" className="inline-flex h-12 items-center rounded-[8px] bg-[var(--brand-primary)] px-6 font-semibold text-white">เข้าสู่ระบบด้วย Google</Link>
+      </div>
+    </section>
   );
 }

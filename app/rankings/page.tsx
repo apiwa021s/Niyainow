@@ -10,7 +10,6 @@ import { getRankings, type RankingPeriod } from "@/services/novel-service";
 
 type PeriodParam = "daily" | "weekly" | "monthly" | "all-time";
 
-export const dynamic = "force-dynamic";
 
 const periods: { value: PeriodParam; label: string; db: RankingPeriod }[] = [
   { value: "daily", label: "รายวัน", db: "DAILY" },

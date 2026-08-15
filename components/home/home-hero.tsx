@@ -28,7 +28,7 @@ export function HomeHero({ novels }: { novels: Novel[] }) {
         src={primary.backdrop || primary.cover}
         alt=""
         fill
-        priority
+        preload
         sizes="(max-width: 1024px) 100vw, 1400px"
         className="object-cover object-center lg:object-[72%_center]"
       />
@@ -55,10 +55,10 @@ export function HomeHero({ novels }: { novels: Novel[] }) {
         </div>
 
         <div className="mt-7 flex flex-wrap gap-3">
-          <Link href={`/novel/${primary.slug}`} prefetch className="inline-flex h-12 items-center gap-2 rounded-[8px] bg-[#c91820] px-6 font-semibold text-white transition-colors hover:bg-[#e02028]">
+          <Link href={`/novel/${primary.slug}`} className="inline-flex h-12 items-center gap-2 rounded-[8px] bg-[#c91820] px-6 font-semibold text-white transition-colors hover:bg-[#e02028]">
             <BookOpen className="h-4.5 w-4.5" />เริ่มอ่าน
           </Link>
-          <Link href={`/novel/${primary.slug}`} prefetch className="inline-flex h-12 items-center gap-2 rounded-[8px] border border-white/25 px-6 font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/5">
+          <Link href={`/novel/${primary.slug}`} className="inline-flex h-12 items-center gap-2 rounded-[8px] border border-white/25 px-6 font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/5">
             รายละเอียด<ArrowRight className="h-4 w-4" />
           </Link>
         </div>

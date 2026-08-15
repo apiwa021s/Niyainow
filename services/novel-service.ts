@@ -41,7 +41,12 @@ import {
   users,
 } from "@/db/schema";
 import { assetUrl } from "@/lib/site-config";
+import { toPublicChapterCachePayload } from "@/lib/domain/chapter-cache";
 import { bangkokDateKey } from "@/lib/domain/public-view";
+import { applicationCache } from "@/lib/redis/cache";
+import { cacheDigest, cacheKeys } from "@/lib/redis/keys";
+import { CACHE_TTL_SECONDS } from "@/lib/redis/ttl";
+import type { CacheCategory } from "@/lib/redis/metrics";
 import type { ChapterSummary, Genre, Novel, Paginated, Review, UpdateItem } from "@/types/novel";
 import {
   BROWSE_PAGE_SIZE,
@@ -68,6 +73,23 @@ const SUGGESTION_LIMIT = 8;
 const MAX_LIST_LIMIT = 50;
 const MAX_SEARCH_LENGTH = 100;
 const latestChapters = alias(chapters, "latest_chapters");
+
+async function getOrSetVersioned<T>(input: {
+  versionKeys: string[];
+  key: (versions: number[]) => string;
+  ttlSeconds: number;
+  category: CacheCategory;
+  loader: () => Promise<T>;
+}) {
+  const versions = await Promise.all(input.versionKeys.map((versionKey) => applicationCache.version(versionKey)));
+  if (versions.some((version) => version === undefined)) return input.loader();
+  return applicationCache.getOrSet({
+    key: input.key(versions as number[]),
+    ttlSeconds: input.ttlSeconds,
+    category: input.category,
+    loader: input.loader,
+  });
+}
 
 export type GenreFacet = Genre & { matches: number };
 
@@ -519,18 +541,28 @@ async function getNovelPageUncached(queryInput: NovelQuery = {}) {
   return getNovelPageNormalized(normalizeNovelQuery(queryInput));
 }
 
-const getNovelPageCached = unstable_cache(getNovelPageNormalized, ["public-novel-page-v3"], {
+async function getNovelPageFromRedis(query: NormalizedNovelQuery) {
+  return getOrSetVersioned({
+    versionKeys: [cacheKeys.versions.catalog()],
+    key: ([version]) => cacheKeys.catalogPage(cacheDigest(query), version),
+    ttlSeconds: query.genre ? CACHE_TTL_SECONDS.GENRE_PAGE : CACHE_TTL_SECONDS.HOMEPAGE_CATALOG,
+    category: query.genre ? "genre" : "homepage",
+    loader: () => getNovelPageNormalized(query),
+  });
+}
+
+const getNovelPageCached = unstable_cache(getNovelPageFromRedis, ["public-novel-page-v4"], {
   revalidate: PUBLIC_CACHE_SECONDS,
   tags: ["public-novels"],
 });
 
 export async function getNovelPage(queryInput: NovelQuery = {}) {
   const query = normalizeNovelQuery(queryInput);
-  // Free-text search is attacker-cardinality input and must not create a
-  // persistent incremental-cache entry for every distinct query.
-  return query.q || query.genre || query.tag
-    ? getNovelPageNormalized(query)
-    : getNovelPageCached(query);
+  // Free-text, tag and multi-genre combinations are attacker-cardinality input
+  // and must not create persistent shared-cache entries. A single canonical
+  // genre page is bounded by the editorial genre set and is safe to cache.
+  if (query.q || query.tag || parseGenreParam(query.genre).length > 1) return getNovelPageNormalized(query);
+  return query.genre ? getNovelPageFromRedis(query) : getNovelPageCached(query);
 }
 
 async function getNovelsUncached(queryInput: NovelQuery = {}, requestedLimit = MAX_LIST_LIMIT) {
@@ -542,84 +574,115 @@ async function getNovelsUncached(queryInput: NovelQuery = {}, requestedLimit = M
 
 export const getNovels = cache(getNovelsUncached);
 
-const resolvePublishedNovelId = cache(async (slugInput: string) => {
-  const slug = cleanText(slugInput, 180);
-  if (!slug) return undefined;
-  const [row] = await getDb()
-    .select({ id: novels.id })
-    .from(novels)
-    .where(and(publicNovelCondition(new Date()), eq(novels.slug, slug)))
-    .limit(1);
-  return row?.id;
-});
+async function getNovelBySlugFromRedis(slug: string) {
+  return getOrSetVersioned({
+    versionKeys: [cacheKeys.versions.novel(slug), cacheKeys.versions.taxonomy()],
+    key: ([version, taxonomyVersion]) => cacheKeys.novel(slug, version, taxonomyVersion),
+    ttlSeconds: CACHE_TTL_SECONDS.NOVEL_DETAIL,
+    category: "novel",
+    loader: async () => {
+      const rows = await selectBaseNovels(
+        and(publicNovelCondition(new Date()), eq(novels.slug, slug))!,
+        [desc(sql`${novels.id}`)],
+        1,
+      );
+      return (await hydrateNovels(rows))[0];
+    },
+  });
+}
 
-const getNovelByIdCached = unstable_cache(async (id: string) => {
-  const rows = await selectBaseNovels(
-    and(publicNovelCondition(new Date()), eq(novels.id, id))!,
-    [desc(sql`${novels.id}`)],
-    1,
-  );
-  return (await hydrateNovels(rows))[0];
-}, ["public-novel-by-id-v3"], {
+const getNovelBySlugCached = unstable_cache(getNovelBySlugFromRedis, ["public-novel-by-slug-v4"], {
   revalidate: PUBLIC_CACHE_SECONDS,
   tags: ["public-novels"],
 });
 
 export const getNovelBySlug = cache(async (slugInput: string) => {
-  const id = await resolvePublishedNovelId(slugInput);
-  return id ? getNovelByIdCached(id) : undefined;
+  const slug = cleanText(slugInput, 180);
+  return slug ? getNovelBySlugCached(slug) : undefined;
 });
 
 export const getFeaturedNovels = unstable_cache(
   async (requestedLimit = 6) => {
     const limit = clampLimit(requestedLimit, 6, 12);
-    const rows = await selectBaseNovels(
-      and(publicNovelCondition(new Date()), eq(novels.isFeatured, true))!,
-      orderBy("updated"),
-      limit,
-    );
-    return hydrateNovels(rows);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.homepage()],
+      key: ([version]) => cacheKeys.home("featured", limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_LATEST,
+      category: "homepage",
+      loader: async () => {
+        const rows = await selectBaseNovels(
+          and(publicNovelCondition(new Date()), eq(novels.isFeatured, true))!,
+          orderBy("updated"),
+          limit,
+        );
+        return hydrateNovels(rows);
+      },
+    });
   },
-  ["public-featured-novels-v2"],
+  ["public-featured-novels-v3"],
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-novels"] },
 );
 
 export const getRecommendedNovels = unstable_cache(
   async (requestedLimit = 12) => {
     const limit = clampLimit(requestedLimit, 12, 24);
-    const rows = await selectBaseNovels(publicNovelCondition(new Date())!, orderBy("rating"), limit);
-    return hydrateNovels(rows);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.homepage()],
+      key: ([version]) => cacheKeys.home("recommended", limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_POPULAR,
+      category: "homepage",
+      loader: async () => {
+        const rows = await selectBaseNovels(publicNovelCondition(new Date())!, orderBy("rating"), limit);
+        return hydrateNovels(rows);
+      },
+    });
   },
-  ["public-recommended-novels-v2"],
+  ["public-recommended-novels-v3"],
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-novels"] },
 );
 
 export const getNewThisWeek = unstable_cache(
   async (requestedLimit = 12) => {
     const limit = clampLimit(requestedLimit, 12, 24);
-    const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000);
-    const rows = await selectBaseNovels(
-      and(publicNovelCondition(new Date()), gte(novels.publishedAt, threshold))!,
-      orderBy("new"),
-      limit,
-    );
-    return hydrateNovels(rows);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.homepage()],
+      key: ([version]) => cacheKeys.home("new-this-week", limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_LATEST,
+      category: "homepage",
+      loader: async () => {
+        const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000);
+        const rows = await selectBaseNovels(
+          and(publicNovelCondition(new Date()), gte(novels.publishedAt, threshold))!,
+          orderBy("new"),
+          limit,
+        );
+        return hydrateNovels(rows);
+      },
+    });
   },
-  ["public-new-this-week-v2"],
+  ["public-new-this-week-v3"],
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-novels"] },
 );
 
 export const getCompletedNovels = unstable_cache(
   async (requestedLimit = 12) => {
     const limit = clampLimit(requestedLimit, 12, 24);
-    const rows = await selectBaseNovels(
-      and(publicNovelCondition(new Date()), eq(novels.status, "COMPLETED"))!,
-      orderBy("rating"),
-      limit,
-    );
-    return hydrateNovels(rows);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.homepage()],
+      key: ([version]) => cacheKeys.home("completed", limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_CATALOG,
+      category: "homepage",
+      loader: async () => {
+        const rows = await selectBaseNovels(
+          and(publicNovelCondition(new Date()), eq(novels.status, "COMPLETED"))!,
+          orderBy("rating"),
+          limit,
+        );
+        return hydrateNovels(rows);
+      },
+    });
   },
-  ["public-completed-novels-v2"],
+  ["public-completed-novels-v3"],
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-novels"] },
 );
 
@@ -670,83 +733,98 @@ export type PromoBannerItem = {
  */
 export const getActiveBanners = unstable_cache(
   async (limit = 6): Promise<PromoBannerItem[]> => {
-    const now = new Date();
-    const rows = await getDb()
-      .select()
-      .from(promoBanners)
-      .where(
-        and(
-          eq(promoBanners.isActive, true),
-          or(isNull(promoBanners.startsAt), lte(promoBanners.startsAt, now)),
-          or(isNull(promoBanners.endsAt), gte(promoBanners.endsAt, now)),
-        ),
-      )
-      .orderBy(asc(promoBanners.sortOrder), desc(promoBanners.createdAt))
-      .limit(Math.min(Math.max(limit, 1), MAX_LIST_LIMIT));
-    return rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      subtitle: row.subtitle,
-      image: assetUrl(row.imageKey),
-      linkUrl: row.linkUrl,
-      ctaLabel: row.ctaLabel,
-    }));
+    const normalizedLimit = Math.min(Math.max(limit, 1), MAX_LIST_LIMIT);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.banner()],
+      key: ([version]) => cacheKeys.banner(normalizedLimit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.BANNER,
+      category: "banner",
+      loader: async () => {
+        const now = new Date();
+        const rows = await getDb()
+          .select()
+          .from(promoBanners)
+          .where(
+            and(
+              eq(promoBanners.isActive, true),
+              or(isNull(promoBanners.startsAt), lte(promoBanners.startsAt, now)),
+              or(isNull(promoBanners.endsAt), gte(promoBanners.endsAt, now)),
+            ),
+          )
+          .orderBy(asc(promoBanners.sortOrder), desc(promoBanners.createdAt))
+          .limit(normalizedLimit);
+        return rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          subtitle: row.subtitle,
+          image: assetUrl(row.imageKey),
+          linkUrl: row.linkUrl,
+          ctaLabel: row.ctaLabel,
+        }));
+      },
+    });
   },
-  ["public-banners-v1"],
+  ["public-banners-v2"],
   { revalidate: 60, tags: ["public-banners"] },
 );
 
-export const getGenres = unstable_cache(getGenresUncached, ["public-genres-v2"], {
+export const getGenres = unstable_cache(async (requestedLimit = MAX_LIST_LIMIT) => {
+  const limit = clampLimit(requestedLimit, MAX_LIST_LIMIT, 200);
+  return getOrSetVersioned({
+    versionKeys: [cacheKeys.versions.taxonomy(), cacheKeys.versions.catalog()],
+    key: ([taxonomyVersion, catalogVersion]) =>
+      cacheKeys.taxonomy("genres", `${limit}-c${catalogVersion}`, taxonomyVersion),
+    ttlSeconds: CACHE_TTL_SECONDS.TAXONOMY,
+    category: "taxonomy",
+    loader: () => getGenresUncached(limit),
+  });
+}, ["public-genres-v3"], {
   revalidate: PUBLIC_CACHE_SECONDS,
   tags: ["public-taxonomy", "public-novels"],
 });
 
-const resolveActiveGenreId = cache(async (slugInput: string) => {
-  const slug = cleanText(slugInput, 120);
-  if (!slug) return undefined;
-  const [row] = await getDb()
-    .select({ id: genres.id })
-    .from(genres)
-    .where(and(eq(genres.isActive, true), eq(genres.slug, slug)))
-    .limit(1);
-  return row?.id;
-});
-
-const getGenreByIdCached = unstable_cache(
-  async (id: string) => {
-    const rows = await getDb()
-      .select({
-        slug: genres.slug,
-        name: genres.name,
-        thaiName: genres.thaiName,
-        description: genres.description,
-        count: countDistinct(novels.id),
-      })
-      .from(genres)
-      .leftJoin(novelGenres, eq(novelGenres.genreId, genres.id))
-      .leftJoin(
-        novels,
-        and(eq(novels.id, novelGenres.novelId), publicNovelCondition(new Date())),
-      )
-      .where(and(eq(genres.isActive, true), eq(genres.id, id)))
-      .groupBy(genres.id)
-      .limit(1);
-    const row = rows[0];
-    return row ? {
-      slug: row.slug,
-      name: row.name,
-      thaiName: row.thaiName || row.name,
-      description: row.description || "",
-      count: Number(row.count),
-    } : undefined;
-  },
-  ["public-genre-by-id-v3"],
+const getGenreBySlugCached = unstable_cache(
+  async (slug: string) => getOrSetVersioned({
+    versionKeys: [cacheKeys.versions.taxonomy(), cacheKeys.versions.catalog()],
+    key: ([taxonomyVersion, catalogVersion]) =>
+      cacheKeys.taxonomy("genre", `${slug}-c${catalogVersion}`, taxonomyVersion),
+    ttlSeconds: CACHE_TTL_SECONDS.TAXONOMY,
+    category: "genre",
+    loader: async () => {
+      const rows = await getDb()
+        .select({
+          slug: genres.slug,
+          name: genres.name,
+          thaiName: genres.thaiName,
+          description: genres.description,
+          count: countDistinct(novels.id),
+        })
+        .from(genres)
+        .leftJoin(novelGenres, eq(novelGenres.genreId, genres.id))
+        .leftJoin(
+          novels,
+          and(eq(novels.id, novelGenres.novelId), publicNovelCondition(new Date())),
+        )
+        .where(and(eq(genres.isActive, true), eq(genres.slug, slug)))
+        .groupBy(genres.id)
+        .limit(1);
+      const row = rows[0];
+      return row ? {
+        slug: row.slug,
+        name: row.name,
+        thaiName: row.thaiName || row.name,
+        description: row.description || "",
+        count: Number(row.count),
+      } : undefined;
+    },
+  }),
+  ["public-genre-by-slug-v4"],
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-taxonomy", "public-novels"] },
 );
 
 export const getGenreBySlug = cache(async (slugInput: string) => {
-  const id = await resolveActiveGenreId(slugInput);
-  return id ? getGenreByIdCached(id) : undefined;
+  const slug = cleanText(slugInput, 120);
+  return slug ? getGenreBySlugCached(slug) : undefined;
 });
 
 async function getGenreFacetsNormalized(query: NormalizedNovelQuery): Promise<GenreFacet[]> {
@@ -774,9 +852,16 @@ const getGenreFacetsCached = unstable_cache(
 
 export async function getGenreFacets(queryInput: NovelQuery = {}) {
   const query = normalizeNovelQuery(queryInput);
-  return query.q || query.genre || query.tag
-    ? getGenreFacetsNormalized(query)
-    : getGenreFacetsCached(query);
+  if (query.q || query.tag || parseGenreParam(query.genre).length > 1) return getGenreFacetsNormalized(query);
+  if (!query.genre) return getGenreFacetsCached(query);
+  return getOrSetVersioned({
+    versionKeys: [cacheKeys.versions.taxonomy(), cacheKeys.versions.catalog()],
+    key: ([taxonomyVersion, catalogVersion]) =>
+      cacheKeys.taxonomy("facets", `${cacheDigest(query)}-c${catalogVersion}`, taxonomyVersion),
+    ttlSeconds: CACHE_TTL_SECONDS.GENRE_PAGE,
+    category: "genre",
+    loader: () => getGenreFacetsNormalized(query),
+  });
 }
 
 async function getTagsUncached(searchInput?: string, requestedLimit = MAX_LIST_LIMIT): Promise<TagSummary[]> {
@@ -921,8 +1006,7 @@ export async function getSearchSuggestions(searchInput: string): Promise<SearchS
   ].slice(0, SUGGESTION_LIMIT);
 }
 
-export const getRankings = unstable_cache(
-  async (periodInput: RankingPeriod = "WEEKLY", requestedLimit = MAX_LIST_LIMIT) => {
+async function getRankingsUncached(periodInput: RankingPeriod = "WEEKLY", requestedLimit = MAX_LIST_LIMIT) {
     const period: RankingPeriod = ["DAILY", "WEEKLY", "MONTHLY", "ALL_TIME"].includes(periodInput)
       ? periodInput
       : "WEEKLY";
@@ -1009,47 +1093,72 @@ export const getRankings = unstable_cache(
     }
 
     const allTimeRows = await selectBaseNovels(publicNovelCondition(now)!, orderBy("popular"), limit);
-    return hydrateNovels(allTimeRows);
+  return hydrateNovels(allTimeRows);
+}
+
+export const getRankings = unstable_cache(
+  async (periodInput: RankingPeriod = "WEEKLY", requestedLimit = MAX_LIST_LIMIT) => {
+    const period: RankingPeriod = ["DAILY", "WEEKLY", "MONTHLY", "ALL_TIME"].includes(periodInput)
+      ? periodInput
+      : "WEEKLY";
+    const limit = clampLimit(requestedLimit, MAX_LIST_LIMIT);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.ranking(), cacheKeys.versions.catalog()],
+      key: ([rankingVersion, catalogVersion]) =>
+        cacheKeys.ranking(`${period}-c${catalogVersion}`, limit, rankingVersion),
+      ttlSeconds: CACHE_TTL_SECONDS.RANKING,
+      category: "ranking",
+      loader: () => getRankingsUncached(period, limit),
+    });
   },
-  ["public-rankings-v2"],
+  ["public-rankings-v3"],
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-rankings", "public-novels"] },
 );
 
 export const getGenreShowcase = unstable_cache(
   async (requestedLimit = 8) => {
     const limit = clampLimit(requestedLimit, 8, 12);
-    const publicGenres = await getGenresUncached(limit);
-    if (publicGenres.length === 0) return [];
-    const slugs = publicGenres.map((genre) => genre.slug);
-    const rankedCovers = getDb()
-      .select({
-        genreSlug: genres.slug,
-        genreOrder: genres.sortOrder,
-        coverKey: novels.coverKey,
-        coverRank: sql<number>`row_number() over (
-          partition by ${genres.id}
-          order by coalesce(${novels.latestChapterAt}, ${novels.publishedAt}) desc, ${novels.id}
-        )`.as("cover_rank"),
-      })
-      .from(novelGenres)
-      .innerJoin(genres, eq(genres.id, novelGenres.genreId))
-      .innerJoin(novels, eq(novels.id, novelGenres.novelId))
-      .where(and(inArray(genres.slug, slugs), publicNovelCondition(new Date())))
-      .as("ranked_genre_covers");
-    const rows = await getDb()
-      .select({ genreSlug: rankedCovers.genreSlug, coverKey: rankedCovers.coverKey })
-      .from(rankedCovers)
-      .where(lte(rankedCovers.coverRank, 3))
-      .orderBy(asc(rankedCovers.genreOrder), asc(rankedCovers.coverRank))
-      .limit(limit * 3);
-    const coverMap = new Map<string, string[]>();
-    for (const row of rows) {
-      const current = coverMap.get(row.genreSlug) ?? [];
-      if (current.length < 3) coverMap.set(row.genreSlug, [...current, assetUrl(row.coverKey)]);
-    }
-    return publicGenres.map((genre) => ({ genre, covers: coverMap.get(genre.slug) ?? [] }));
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.homepage(), cacheKeys.versions.taxonomy()],
+      key: ([homepageVersion, taxonomyVersion]) =>
+        cacheKeys.home("genre-showcase", `${limit}-t${taxonomyVersion}`, homepageVersion),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_CATALOG,
+      category: "homepage",
+      loader: async () => {
+        const publicGenres = await getGenresUncached(limit);
+        if (publicGenres.length === 0) return [];
+        const slugs = publicGenres.map((genre) => genre.slug);
+        const rankedCovers = getDb()
+          .select({
+            genreSlug: genres.slug,
+            genreOrder: genres.sortOrder,
+            coverKey: novels.coverKey,
+            coverRank: sql<number>`row_number() over (
+              partition by ${genres.id}
+              order by coalesce(${novels.latestChapterAt}, ${novels.publishedAt}) desc, ${novels.id}
+            )`.as("cover_rank"),
+          })
+          .from(novelGenres)
+          .innerJoin(genres, eq(genres.id, novelGenres.genreId))
+          .innerJoin(novels, eq(novels.id, novelGenres.novelId))
+          .where(and(inArray(genres.slug, slugs), publicNovelCondition(new Date())))
+          .as("ranked_genre_covers");
+        const rows = await getDb()
+          .select({ genreSlug: rankedCovers.genreSlug, coverKey: rankedCovers.coverKey })
+          .from(rankedCovers)
+          .where(lte(rankedCovers.coverRank, 3))
+          .orderBy(asc(rankedCovers.genreOrder), asc(rankedCovers.coverRank))
+          .limit(limit * 3);
+        const coverMap = new Map<string, string[]>();
+        for (const row of rows) {
+          const current = coverMap.get(row.genreSlug) ?? [];
+          if (current.length < 3) coverMap.set(row.genreSlug, [...current, assetUrl(row.coverKey)]);
+        }
+        return publicGenres.map((genre) => ({ genre, covers: coverMap.get(genre.slug) ?? [] }));
+      },
+    });
   },
-  ["public-genre-showcase-v2"],
+  ["public-genre-showcase-v3"],
   { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-taxonomy", "public-novels"] },
 );
 
@@ -1092,8 +1201,7 @@ const chapterSummarySelection = {
   coinPrice: chapters.coinPrice,
 };
 
-export const getChapterPage = cache(
-  async (slugInput: string, pageInput = 1): Promise<Paginated<ChapterSummary>> => {
+async function getChapterPageUncached(slugInput: string, pageInput = 1): Promise<Paginated<ChapterSummary>> {
     const slug = cleanText(slugInput, 180);
     const requestedPage = parsePositivePage(pageInput);
     if (!slug) return { items: [], page: 1, pageSize: CHAPTER_PAGE_SIZE, total: 0, totalPages: 1 };
@@ -1116,13 +1224,48 @@ export const getChapterPage = cache(
       .orderBy(asc(chapters.sortOrder), asc(chapters.id))
       .limit(CHAPTER_PAGE_SIZE)
       .offset((page - 1) * CHAPTER_PAGE_SIZE);
-    return { items: rows.map(chapterSummaryFromRow), page, pageSize: CHAPTER_PAGE_SIZE, total, totalPages };
+  return { items: rows.map(chapterSummaryFromRow), page, pageSize: CHAPTER_PAGE_SIZE, total, totalPages };
+}
+
+export const getChapterPage = cache(
+  async (slugInput: string, pageInput = 1): Promise<Paginated<ChapterSummary>> => {
+    const slug = cleanText(slugInput, 180);
+    const page = parsePositivePage(pageInput);
+    if (!slug || page > 200) return getChapterPageUncached(slugInput, pageInput);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.chapters(slug)],
+      key: ([version]) => cacheKeys.chapterList(slug, page, version),
+      ttlSeconds: CACHE_TTL_SECONDS.CHAPTER_LIST,
+      category: "chapter-list",
+      loader: () => getChapterPageUncached(slug, page),
+    });
   },
 );
 
 export async function getChapters(slug: string, requestedLimit = CHAPTER_PAGE_SIZE) {
+  const normalizedSlug = cleanText(slug, 180);
+  const limit = clampLimit(requestedLimit, CHAPTER_PAGE_SIZE, CHAPTER_PAGE_SIZE);
+  if (normalizedSlug && limit < CHAPTER_PAGE_SIZE) {
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.chapters(normalizedSlug)],
+      key: ([version]) => cacheKeys.firstChapters(normalizedSlug, limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.CHAPTER_LIST,
+      category: "chapter-list",
+      loader: async () => {
+        const now = new Date();
+        const rows = await getDb()
+          .select(chapterSummarySelection)
+          .from(chapters)
+          .innerJoin(novels, eq(novels.id, chapters.novelId))
+          .where(and(eq(novels.slug, normalizedSlug), publicNovelCondition(now), publicChapterCondition(now)))
+          .orderBy(asc(chapters.sortOrder), asc(chapters.id))
+          .limit(limit);
+        return rows.map(chapterSummaryFromRow);
+      },
+    });
+  }
   const page = await getChapterPage(slug, 1);
-  return page.items.slice(0, clampLimit(requestedLimit, CHAPTER_PAGE_SIZE, CHAPTER_PAGE_SIZE));
+  return page.items.slice(0, limit);
 }
 
 export const getLatestChapters = cache(
@@ -1130,15 +1273,23 @@ export const getLatestChapters = cache(
     const slug = cleanText(slugInput, 180);
     if (!slug) return [];
     const limit = clampLimit(requestedLimit, 5, 20);
-    const now = new Date();
-    const rows = await getDb()
-      .select(chapterSummarySelection)
-      .from(chapters)
-      .innerJoin(novels, eq(novels.id, chapters.novelId))
-      .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now)))
-      .orderBy(desc(chapters.sortOrder), desc(chapters.id))
-      .limit(limit);
-    return rows.map(chapterSummaryFromRow);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.chapters(slug)],
+      key: ([version]) => cacheKeys.latestChapters(slug, limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.CHAPTER_LIST,
+      category: "chapter-list",
+      loader: async () => {
+        const now = new Date();
+        const rows = await getDb()
+          .select(chapterSummarySelection)
+          .from(chapters)
+          .innerJoin(novels, eq(novels.id, chapters.novelId))
+          .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now)))
+          .orderBy(desc(chapters.sortOrder), desc(chapters.id))
+          .limit(limit);
+        return rows.map(chapterSummaryFromRow);
+      },
+    });
   },
 );
 
@@ -1176,18 +1327,14 @@ const getPublishedChapterFresh = async (
       .limit(1);
     const row = rows[0];
     if (!row) return undefined;
-    const locked = !row.isFree;
-    return {
+    return toPublicChapterCachePayload({
       chapter: chapterSummaryFromRow(row),
-      content: row.publicContent,
-      locked,
-    };
+      isFree: row.isFree,
+      publicContent: row.publicContent,
+    });
 };
 
-export const getPublishedChapter = cache(getPublishedChapterFresh);
-
-export const getAdjacentChapters = cache(
-  async (slugInput: string, currentInput: string | number) => {
+async function getAdjacentChaptersFresh(slugInput: string, currentInput: string | number) {
     const slug = cleanText(slugInput, 180);
     const current = Number(currentInput);
     if (!slug || !Number.isFinite(current)) return { previous: undefined, next: undefined };
@@ -1225,11 +1372,36 @@ export const getAdjacentChapters = cache(
         .orderBy(asc(chapters.sortOrder))
         .limit(1),
     ]);
-    return {
-      previous: previousRows[0] ? chapterSummaryFromRow(previousRows[0]) : undefined,
-      next: nextRows[0] ? chapterSummaryFromRow(nextRows[0]) : undefined,
-    };
-  },
+  return {
+    previous: previousRows[0] ? chapterSummaryFromRow(previousRows[0]) : undefined,
+    next: nextRows[0] ? chapterSummaryFromRow(nextRows[0]) : undefined,
+  };
+}
+
+const getReaderChapter = cache(async (slugInput: string, chapterNumberInput: string | number) => {
+  const slug = cleanText(slugInput, 180);
+  const chapterNumber = Number(chapterNumberInput);
+  if (!slug || !Number.isFinite(chapterNumber) || chapterNumber < 0) return undefined;
+  return getOrSetVersioned({
+    versionKeys: [cacheKeys.versions.chapters(slug)],
+    key: ([version]) => cacheKeys.chapterReader(slug, chapterNumber, version),
+    ttlSeconds: CACHE_TTL_SECONDS.CHAPTER_READER,
+    category: "chapter",
+    loader: async () => {
+      const published = await getPublishedChapterFresh(slug, chapterNumber);
+      if (!published) return undefined;
+      const adjacent = await getAdjacentChaptersFresh(slug, chapterNumber);
+      return { published, adjacent };
+    },
+  });
+});
+
+export const getPublishedChapter = cache(async (slug: string, chapterNumber: string | number) =>
+  (await getReaderChapter(slug, chapterNumber))?.published,
+);
+
+export const getAdjacentChapters = cache(async (slug: string, chapterNumber: string | number) =>
+  (await getReaderChapter(slug, chapterNumber))?.adjacent ?? { previous: undefined, next: undefined },
 );
 
 export const getSimilarNovels = cache(
@@ -1237,8 +1409,16 @@ export const getSimilarNovels = cache(
     const limit = clampLimit(requestedLimit, 6, 12);
     const source = await getNovelBySlug(slugInput);
     if (!source || source.genres.length === 0) return [];
-    const rows = await getNovelsUncached({ genre: source.genres.join(","), sort: "rating" }, limit + 1);
-    return rows.filter((novel) => novel.slug !== source.slug).slice(0, limit);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.catalog()],
+      key: ([version]) => cacheKeys.novelRelated(source.slug, "similar", limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_CATALOG,
+      category: "novel",
+      loader: async () => {
+        const rows = await getNovelsUncached({ genre: source.genres.join(","), sort: "rating" }, limit + 1);
+        return rows.filter((novel) => novel.slug !== source.slug).slice(0, limit);
+      },
+    });
   },
 );
 
@@ -1309,8 +1489,14 @@ async function getUpdatesUncached(
 
 const getGenericUpdatesCached = unstable_cache(
   (range: "today" | "yesterday" | "week" | "all", limit: number) =>
-    getUpdatesUncached(range, undefined, limit),
-  ["public-updates-v3"],
+    getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.homepage()],
+      key: ([version]) => cacheKeys.home("updates", `${range}-${limit}`, version),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_LATEST,
+      category: "homepage",
+      loader: () => getUpdatesUncached(range, undefined, limit),
+    }),
+  ["public-updates-v4"],
   { revalidate: 60, tags: ["public-chapters", "public-novels"] },
 );
 
@@ -1344,8 +1530,10 @@ export async function getUpdatesForNovels(slugs: string[], requestedLimit = 12) 
   return getUpdatesUncached("all", undefined, clampLimit(requestedLimit, 12), allowed);
 }
 
-export const getPublishedReviews = cache(
-  async (slugInput: string, requestedLimit = 10): Promise<Review[]> => {
+async function getPublishedReviewsUncached(
+  slugInput: string,
+  requestedLimit = 10,
+): Promise<Review[]> {
     const slug = cleanText(slugInput, 180);
     if (!slug) return [];
     const limit = clampLimit(requestedLimit, 10, 20);
@@ -1377,7 +1565,7 @@ export const getPublishedReviews = cache(
       )
       .orderBy(desc(reviews.createdAt), desc(reviews.id))
       .limit(limit);
-    return rows.map((row) => ({
+  return rows.map((row) => ({
       id: row.id,
       authorName: row.authorName || "นักอ่าน NiyaiNow",
       authorImage: row.authorImage || (row.authorAvatarKey ? assetUrl(row.authorAvatarKey) : null),
@@ -1386,7 +1574,21 @@ export const getPublishedReviews = cache(
       content: row.content,
       isSpoiler: row.isSpoiler,
       createdAt: row.createdAt.toISOString(),
-    }));
+  }));
+}
+
+export const getPublishedReviews = cache(
+  async (slugInput: string, requestedLimit = 10): Promise<Review[]> => {
+    const slug = cleanText(slugInput, 180);
+    if (!slug) return [];
+    const limit = clampLimit(requestedLimit, 10, 20);
+    return getOrSetVersioned({
+      versionKeys: [cacheKeys.versions.catalog()],
+      key: ([version]) => cacheKeys.novelRelated(slug, "reviews", limit, version),
+      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_CATALOG,
+      category: "novel",
+      loader: () => getPublishedReviewsUncached(slug, limit),
+    });
   },
 );
 

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, connection } from "next/server";
 
 import { ApiError, apiErrorResponse } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
@@ -23,6 +23,10 @@ export async function handleUserRoute<T>(
   options: RouteOptions,
   handler: (userId: string) => Promise<T>,
 ) {
+  // Authenticated endpoints can never be prerendered. Mark request-time work
+  // before the error boundary so a prerender bailout is not logged as an API
+  // failure by the generic catch below.
+  await connection();
   try {
     if (options.mutation) assertSameOrigin(request);
     const user = await requireApiUser();

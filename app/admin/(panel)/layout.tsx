@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getPendingWork } from "@/services/admin-service";
+import AdminLoading from "./loading";
 
 export const metadata: Metadata = {
   title: {
@@ -12,7 +14,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }
 };
 
-export default async function AdminPanelLayout({ children }: { children: React.ReactNode }) {
+async function AdminPanel({ children }: { children: React.ReactNode }) {
   const [user, pending] = await Promise.all([requireAdmin("/admin"), getPendingWork()]);
 
   return (
@@ -27,5 +29,13 @@ export default async function AdminPanelLayout({ children }: { children: React.R
     >
       {children}
     </AdminShell>
+  );
+}
+
+export default function AdminPanelLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<main className="min-h-screen p-4 sm:p-6"><AdminLoading /></main>}>
+      <AdminPanel>{children}</AdminPanel>
+    </Suspense>
   );
 }

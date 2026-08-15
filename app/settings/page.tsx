@@ -5,7 +5,6 @@ import { PageShell, SectionHeader } from "@/components/ui/section";
 import { requireActiveUser } from "@/lib/auth/dal";
 
 export const metadata: Metadata = { title: "ตั้งค่า", robots: { index: false, follow: false } };
-export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireActiveUser("/settings");

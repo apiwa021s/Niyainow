@@ -86,7 +86,7 @@ export function NovelCard({
         <BookmarkToggle slug={novel.slug} compact />
       </div>
 
-      <Link href={`/novel/${novel.slug}`} prefetch className="block">
+      <Link href={`/novel/${novel.slug}`} className="block">
         {/* aspect 2:3 ตายตัว  CLS 0 (ส่วนที่ 4 ข้อ 7) */}
         <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted transition-[border-color] duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:border-[var(--brand-primary)]/55">
           <Image
@@ -159,7 +159,7 @@ export function RankingCard({ novel, rank }: { novel: Novel; rank: number }) {
       </span>
 
       <div className="min-w-0 flex-1">
-        <Link href={`/novel/${novel.slug}`} prefetch className="block">
+        <Link href={`/novel/${novel.slug}`} className="block">
           <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[6px] border border-border bg-muted transition-colors duration-[var(--dur-base)] group-hover:border-[var(--brand-primary)]/55">
             <Image
               src={novel.cover}
@@ -206,14 +206,14 @@ export function NovelListItem({
 }) {
   return (
     <article className="group flex gap-3 rounded-[8px] border border-border bg-card p-3 transition-colors duration-[var(--dur-base)] hover:border-[var(--brand-primary)]/45">
-      <Link href={href ?? `/novel/${novel.slug}`} prefetch className="shrink-0">
+      <Link href={href ?? `/novel/${novel.slug}`} className="shrink-0">
         <div className="relative aspect-[2/3] w-16 overflow-hidden rounded-[5px] bg-muted">
           <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="64px" className="object-cover" />
         </div>
       </Link>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <Link href={href ?? `/novel/${novel.slug}`} prefetch className="block min-w-0">
+        <Link href={href ?? `/novel/${novel.slug}`} className="block min-w-0">
           <h3 title={novel.thaiTitle} className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-primary)]"><HighlightedTitle text={novel.thaiTitle} query={highlight} /></h3>
         </Link>
 
@@ -242,7 +242,6 @@ export function NovelMiniCard({ novel }: { novel: Novel }) {
   return (
     <Link
       href={`/novel/${novel.slug}`}
-      prefetch
       className="flex min-w-0 items-center gap-3 rounded-[8px] p-2 transition-colors hover:bg-muted"
     >
       <div className="relative h-15 w-10 shrink-0 overflow-hidden rounded-[4px] bg-muted" style={{ aspectRatio: "2 / 3" }}>
@@ -267,7 +266,7 @@ export function NovelCardHorizontal({ novel, href, highlight }: { novel: Novel; 
 export function NovelHorizontalCard({ novel }: { novel: Novel }) {
   return (
     <article className="group w-[310px] shrink-0 border-y border-border bg-card sm:w-[390px]">
-      <Link href={`/novel/${novel.slug}`} prefetch className="grid grid-cols-[84px_1fr] gap-4 py-4 sm:grid-cols-[96px_1fr]">
+      <Link href={`/novel/${novel.slug}`} className="grid grid-cols-[84px_1fr] gap-4 py-4 sm:grid-cols-[96px_1fr]">
         <div className="relative aspect-[2/3] overflow-hidden rounded-[5px] bg-muted">
           <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="96px" className="object-cover transition-transform duration-[var(--dur-base)] group-hover:scale-[1.02]" />
         </div>
@@ -290,7 +289,6 @@ export function NovelRankingItem({ novel, rank }: { novel: Novel; rank: number }
   return (
     <Link
       href={`/novel/${novel.slug}`}
-      prefetch
       className="group grid grid-cols-[48px_44px_1fr] items-center gap-3 border-b border-border bg-card p-3 transition-colors hover:bg-muted/55"
     >
       <span

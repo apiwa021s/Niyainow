@@ -1,7 +1,6 @@
 import { absoluteUrl } from "@/lib/site-config";
 import { getSitemapCounts, getSitemapPartition } from "@/services/novel-service";
 
-export const dynamic = "force-dynamic";
 
 const staticRoutes = [
   { path: "/", changeFrequency: "daily", priority: 1 },

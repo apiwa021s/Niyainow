@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
-import { NovelCardHorizontal } from "@/components/novels/novel-card";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/form-controls";
@@ -19,7 +18,17 @@ function searchHref(q: string, page: number) {
   return `/search?${params.toString()}`;
 }
 
-export function SearchResults({ initialQ, results }: { initialQ: string; results: PublicSearchResult }) {
+type SearchResultsData = Omit<PublicSearchResult, "novels">;
+
+export function SearchResults({
+  initialQ,
+  results,
+  novelItems,
+}: {
+  initialQ: string;
+  results: SearchResultsData;
+  novelItems: ReactNode;
+}) {
   const [q, setQ] = useState(initialQ);
   const [tab, setTab] = useState<Tab>("all");
   const tabs: [Tab, string][] = [
@@ -28,7 +37,7 @@ export function SearchResults({ initialQ, results }: { initialQ: string; results
     ["genres", "หมวดหมู่"],
     ["tags", "แท็ก"],
   ];
-  const hasResults = results.novels.length > 0 || results.genres.length > 0 || results.tags.length > 0;
+  const hasResults = results.total > 0 || results.genres.length > 0 || results.tags.length > 0;
 
   return (
     <section className="space-y-5">
@@ -60,12 +69,10 @@ export function SearchResults({ initialQ, results }: { initialQ: string; results
         <EmptyState title="เริ่มพิมพ์เพื่อค้นหา" description="ค้นหาได้จากชื่อไทย ชื่อต้นฉบับ ชื่ออื่น ผู้แต่ง หมวดหมู่ และแท็ก" />
       ) : null}
 
-      {(tab === "all" || tab === "novels") && results.novels.length > 0 ? (
+      {(tab === "all" || tab === "novels") && results.total > 0 ? (
         <div className="space-y-3">
           {tab === "all" ? <h2 className="font-semibold">นิยาย ({results.total.toLocaleString("th-TH")})</h2> : null}
-          <div className="grid gap-3 md:grid-cols-2">
-            {results.novels.map((novel) => <NovelCardHorizontal key={novel.slug} novel={novel} highlight={initialQ} />)}
-          </div>
+          <div className="grid gap-3 md:grid-cols-2">{novelItems}</div>
           {results.totalPages > 1 ? (
             <nav aria-label="หน้าผลการค้นหา" className="flex items-center justify-center gap-2 pt-2">
               {results.page > 1 ? <ButtonLink variant="secondary" href={searchHref(initialQ, results.page - 1)}>หน้าก่อน</ButtonLink> : null}

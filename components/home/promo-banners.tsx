@@ -216,7 +216,7 @@ function BannerCard({
           src={banner.image}
           alt=""
           fill
-          priority={priority}
+          preload={priority}
           sizes="(max-width: 1024px) 100vw, 1400px"
           className="object-contain object-center transition-transform duration-700 ease-[var(--ease-out)] lg:object-cover lg:object-[70%_center] lg:group-hover/card:scale-[1.015]"
         />
@@ -253,5 +253,5 @@ function BannerLink({ href, label }: { href: string; label: string }) {
     return <a href={href} target="_blank" rel="noopener noreferrer" className={className}>{content}</a>;
   }
 
-  return <Link href={href} prefetch className={className}>{content}</Link>;
+  return <Link href={href} className={className}>{content}</Link>;
 }

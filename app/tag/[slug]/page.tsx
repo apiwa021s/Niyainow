@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { NovelBrowser } from "@/components/interactive/novel-browser";
+import { NovelGrid } from "@/components/novels/novel-grid";
 import { JsonLd } from "@/components/seo/json-ld";
 import { PageShell } from "@/components/ui/section";
 import { pageMetadata } from "@/lib/seo";
@@ -9,7 +10,6 @@ import { absoluteUrl } from "@/lib/site-config";
 import { getGenreFacets, getNovelPage, getRankings, getTagBySlug } from "@/services/novel-service";
 import type { NovelQuery } from "@/types/novel-query";
 
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -67,7 +67,16 @@ export default async function TagDetailPage({
           <p className="mt-2 text-muted-foreground">{tag.description}</p>
         </div>
       ) : null}
-      <NovelBrowser query={query} result={result} facets={facets} suggestions={suggestions} title={title} />
+      <NovelBrowser
+        query={query}
+        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages }}
+        facets={facets}
+        results={<NovelGrid novels={result.items} />}
+        emptySuggestions={<NovelGrid novels={suggestions} />}
+        hasResults={result.items.length > 0}
+        hasSuggestions={suggestions.length > 0}
+        title={title}
+      />
     </PageShell>
   );
 }

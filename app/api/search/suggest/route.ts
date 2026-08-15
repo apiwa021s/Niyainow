@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { rateLimitHeaders, requestRateLimitKey, takeRateLimit } from "@/lib/security/rate-limit";
 import { getSearchSuggestions } from "@/services/novel-service";
 
-export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const limit = takeRateLimit(requestRateLimitKey(request, "public-search-suggest"), {

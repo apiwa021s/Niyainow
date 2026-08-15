@@ -282,9 +282,9 @@ export function ReaderView({
 
       <nav aria-label="เปลี่ยนตอน" className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-bg)]/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-md transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0")}>
         <div className="mx-auto grid h-14 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
-          {previousHref ? <Link href={previousHref} prefetch aria-label="ตอนก่อนหน้า" className="flex h-12 items-center justify-start gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><ChevronLeft className="h-4 w-4" /><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
+          {previousHref ? <Link href={previousHref} aria-label="ตอนก่อนหน้า" className="flex h-12 items-center justify-start gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><ChevronLeft className="h-4 w-4" /><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
           <button type="button" onClick={() => setPrefs({ sidebarOpen: true })} className="flex h-12 items-center justify-center gap-2 rounded-[8px] text-sm font-semibold hover:bg-current/8"><List className="h-4 w-4" />สารบัญ</button>
-          {nextHref ? <Link href={nextHref} prefetch aria-label="ตอนถัดไป" className="flex h-12 items-center justify-end gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><span className="hidden sm:inline">ตอนถัดไป</span><ChevronRight className="h-4 w-4" /></Link> : <span aria-hidden />}
+          {nextHref ? <Link href={nextHref} aria-label="ตอนถัดไป" className="flex h-12 items-center justify-end gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><span className="hidden sm:inline">ตอนถัดไป</span><ChevronRight className="h-4 w-4" /></Link> : <span aria-hidden />}
         </div>
       </nav>
 
@@ -316,7 +316,7 @@ function ReaderSidebar({ novel, current, chapters, open, onClose }: { novel: Nov
         <nav aria-label="รายชื่อตอน" className="min-h-0 flex-1 overflow-y-auto px-2 pb-5">
           {visible.map((item) => {
             const active = item.id ? item.id === current.id : item.number === current.number;
-            return <Link key={item.id ?? item.number} href={`/novel/${novel.slug}/chapter/${item.number}`} onClick={onClose} aria-current={active ? "page" : undefined} className={cn("grid min-h-[58px] grid-cols-[54px_1fr] items-center gap-2 border-b border-current/8 px-3 py-2 text-sm", active ? "border-l-2 border-l-[var(--brand-primary)] bg-[var(--brand-primary)]/8 text-[var(--brand-primary)]" : "hover:bg-current/6")}><span className="font-mono text-[11px]">CH. {item.number}</span><span className="line-clamp-2 font-medium leading-[1.5]">{item.title}</span></Link>;
+            return <Link key={item.id ?? item.number} href={`/novel/${novel.slug}/chapter/${item.number}`} prefetch={false} onClick={onClose} aria-current={active ? "page" : undefined} className={cn("grid min-h-[58px] grid-cols-[54px_1fr] items-center gap-2 border-b border-current/8 px-3 py-2 text-sm", active ? "border-l-2 border-l-[var(--brand-primary)] bg-[var(--brand-primary)]/8 text-[var(--brand-primary)]" : "hover:bg-current/6")}><span className="font-mono text-[11px]">CH. {item.number}</span><span className="line-clamp-2 font-medium leading-[1.5]">{item.title}</span></Link>;
           })}
         </nav>
       </aside>

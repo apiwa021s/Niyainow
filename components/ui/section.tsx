@@ -67,7 +67,6 @@ export function SectionHeader({
       {href && action ? (
         <Link
           href={href}
-          prefetch
           className="shrink-0 rounded-[8px] px-2 py-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
         >
           {action} 

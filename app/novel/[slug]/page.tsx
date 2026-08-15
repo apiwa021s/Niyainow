@@ -25,7 +25,6 @@ import {
 import { getUserNovelState } from "@/services/user-service";
 import type { Novel } from "@/types/novel";
 
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -133,7 +132,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         <div className="relative grid gap-6 p-5 sm:p-7 md:grid-cols-[220px_1fr] md:gap-8 xl:grid-cols-[240px_minmax(0,1fr)_270px] xl:p-9">
           <div className="mx-auto w-[160px] sm:w-[190px] md:mx-0 md:w-full">
             <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted shadow-[var(--sh-2)]">
-              <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="(max-width: 768px) 190px, 240px" className="object-cover" priority />
+              <Image src={novel.cover} alt={`ปกนิยาย ${novel.thaiTitle}`} fill sizes="(max-width: 768px) 190px, 240px" className="object-cover" preload />
             </div>
           </div>
 
@@ -238,7 +237,6 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
                   <li key={chapter.id ?? chapter.number}>
                     <Link
                       href={`/novel/${slug}/chapter/${chapter.number}`}
-                      prefetch
                       className="-mx-2 flex items-center justify-between gap-4 rounded-[10px] px-2 py-3 transition-colors hover:bg-muted"
                     >
                       <span className="min-w-0">
@@ -317,7 +315,6 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
                   <Link
                     key={tag}
                     href={`/tag/${tag}`}
-                    prefetch
                     className="rounded-[6px] border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--brand-primary)] hover:text-foreground"
                   >
                     #{novel.tagNames?.[tag] ?? tag}

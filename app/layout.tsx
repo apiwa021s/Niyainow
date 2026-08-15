@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { fontVariables } from "./fonts";
 import { ThemeProvider } from "@/components/interactive/theme-provider";
 import { CopyrightNotice } from "@/components/layout/copyright-notice";
@@ -12,8 +13,6 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { absoluteUrl, siteConfig } from "@/lib/site-config";
 import { getFeaturedNovels, getGenres } from "@/services/novel-service";
 import "./globals.css";
-
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
@@ -53,15 +52,22 @@ export const viewport: Viewport = {
   ]
 };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [genres, featured, currentUser] = await Promise.all([
-    getGenres(),
-    getFeaturedNovels(),
-    getCurrentUser()
-  ]);
+async function PersonalizedHeader({
+  menuData,
+}: {
+  menuData: { genres: Awaited<ReturnType<typeof getGenres>>; promo: Awaited<ReturnType<typeof getFeaturedNovels>>[number] | undefined };
+}) {
+  const currentUser = await getCurrentUser();
   const viewer = currentUser?.status === "ACTIVE"
     ? { name: currentUser.name, email: currentUser.email, role: currentUser.role }
     : null;
+
+  return <Header menuData={menuData} viewer={viewer} />;
+}
+
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [genres, featured] = await Promise.all([getGenres(), getFeaturedNovels()]);
+  const menuData = { genres, promo: featured[0] };
 
   return (
     <html lang="th" className={fontVariables} suppressHydrationWarning>
@@ -85,15 +91,21 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <a href="#main" className="skip-link">
               ข้ามไปยังเนื้อหาหลัก
             </a>
-            <SiteChrome>
-              <Header menuData={{ genres, promo: featured[0] }} viewer={viewer} />
-            </SiteChrome>
+            <Suspense fallback={null}>
+              <SiteChrome>
+                <Suspense fallback={<Header menuData={menuData} viewer={undefined} />}>
+                  <PersonalizedHeader menuData={menuData} />
+                </Suspense>
+              </SiteChrome>
+            </Suspense>
             {children}
-            <SiteChrome>
-              <Footer />
-              <MobileBottomNav />
-              <CopyrightNotice />
-            </SiteChrome>
+            <Suspense fallback={null}>
+              <SiteChrome>
+                <Footer />
+                <MobileBottomNav />
+                <CopyrightNotice />
+              </SiteChrome>
+            </Suspense>
           </ToastProvider>
         </ThemeProvider>
       </body>
