@@ -17,7 +17,29 @@ export async function parseAdminMutation<T>(request: Request, schema: ZodType<T>
   return parseJson(request, schema);
 }
 
-export function adminApiError(error: unknown) {
+function adminRequestLogContext(request?: Request) {
+  if (!request) return {};
+
+  let route: string | undefined;
+  try {
+    route = new URL(request.url).pathname;
+  } catch {
+    // A malformed URL must not mask the original API failure.
+  }
+
+  return {
+    method: request.method,
+    route,
+    requestId: request.headers.get("x-vercel-id") ?? request.headers.get("x-request-id") ?? undefined,
+  };
+}
+
+function errorStackForLog(error: unknown) {
+  if (!(error instanceof Error) || !error.stack) return undefined;
+  return error.stack.split("\n").slice(0, 16).join("\n");
+}
+
+export function adminApiError(error: unknown, request?: Request) {
   if (error instanceof AuthenticationRequiredError) {
     return NextResponse.json({ error: { code: error.code, message: "Authentication required" } }, { status: 401 });
   }
@@ -41,6 +63,13 @@ export function adminApiError(error: unknown) {
     );
   }
   if (error instanceof ApiError) return apiErrorResponse(error);
-  logger.error("Unhandled admin API error", { error });
+  logger.error("Unhandled admin API error", {
+    ...adminRequestLogContext(request),
+    error,
+    // logger sanitization redacts credentials and caps strings at 4 KB. Error
+    // objects intentionally omit production stacks, so pass a bounded copy to
+    // retain the call site needed to diagnose an otherwise anonymous 500.
+    errorStack: errorStackForLog(error),
+  });
   return apiErrorResponse(error);
 }

@@ -12,6 +12,6 @@ export async function PATCH(request: Request, context: Context) {
     const review = await moderateAdminReview(id, input);
     return NextResponse.json({ review });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

@@ -9,6 +9,6 @@ export async function POST(request: Request) {
     const banner = await createAdminBanner(input);
     return NextResponse.json({ banner }, { status: 201 });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

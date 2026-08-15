@@ -12,6 +12,6 @@ export async function PATCH(request: Request, context: Context) {
     const genre = await updateAdminGenre(id, input);
     return NextResponse.json({ genre });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

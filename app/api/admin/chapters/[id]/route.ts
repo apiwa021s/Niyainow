@@ -18,7 +18,7 @@ export async function PATCH(request: Request, context: Context) {
     const chapter = await updateAdminChapter(id, input);
     return NextResponse.json({ chapter });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }
 export async function DELETE(request: Request, context: Context) {
@@ -29,6 +29,6 @@ export async function DELETE(request: Request, context: Context) {
     const chapter = await deleteAdminChapter(id);
     return NextResponse.json({ chapter });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

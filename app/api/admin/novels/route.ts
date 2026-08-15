@@ -9,6 +9,6 @@ export async function POST(request: Request) {
     const novel = await createAdminNovel(input);
     return NextResponse.json({ novel }, { status: 201 });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

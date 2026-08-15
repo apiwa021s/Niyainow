@@ -18,7 +18,7 @@ export async function PATCH(request: Request, context: Context) {
     const novel = await updateAdminNovel(slug, input);
     return NextResponse.json({ novel });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }
 export async function DELETE(request: Request, context: Context) {
@@ -29,6 +29,6 @@ export async function DELETE(request: Request, context: Context) {
     const novel = await deleteAdminNovel(slug);
     return NextResponse.json({ novel });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

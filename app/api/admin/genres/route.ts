@@ -9,6 +9,6 @@ export async function POST(request: Request) {
     const genre = await createAdminGenre(input);
     return NextResponse.json({ genre }, { status: 201 });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(signed, { status: 201, headers: rateLimitHeaders(rateLimit) });
   } catch (error) {
-    const response = adminApiError(error);
+    const response = adminApiError(error, request);
     if (rateLimit) {
       for (const [name, value] of Object.entries(rateLimitHeaders(rateLimit))) response.headers.set(name, value);
     }

@@ -14,7 +14,7 @@ export async function PATCH(request: Request, context: Context) {
     const banner = await updateAdminBanner(id, input);
     return NextResponse.json({ banner });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }
 
@@ -26,6 +26,6 @@ export async function DELETE(request: Request, context: Context) {
     const banner = await deleteAdminBanner(id);
     return NextResponse.json({ banner });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }

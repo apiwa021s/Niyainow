@@ -19,12 +19,12 @@ const syncRequestSchema = z
   })
   .strict();
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await assertAdmin();
     return NextResponse.json({ status: await getTranslatedNovelImportStatus() });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }
 
@@ -45,6 +45,6 @@ export async function POST(request: Request) {
       status: await getTranslatedNovelImportStatus(),
     });
   } catch (error) {
-    return adminApiError(error);
+    return adminApiError(error, request);
   }
 }
