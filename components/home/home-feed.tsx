@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { TrendingTicker } from "@/components/home/trending-ticker";
 import { UpdateFeed } from "@/components/home/update-feed";
-import { NovelTile, RankingNovelCard } from "@/components/novels/novel-card";
+import { NOVEL_GRID_CLASS, NovelTile, RankingNovelCard } from "@/components/novels/novel-card";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
 import { SectionHeader } from "@/components/ui/section-header";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
@@ -24,8 +24,7 @@ export type HomeData = {
   spotlightNovel?: Novel;
 };
 
-/** Every cover grid on the page uses one column ramp: 3 / 5 / 6 / 8 (brief §5.7). */
-const GRID = "grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-8";
+const GRID = NOVEL_GRID_CLASS;
 
 /**
  * Hero. One real featured novel — its own backdrop, its own synopsis, its own
@@ -37,18 +36,23 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
 
   if (!novel && banner) {
     return (
-      <section className="relative overflow-hidden rounded-(--r-lg) border border-border">
-        <div className="relative aspect-[16/6] w-full">
+      <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
+        <div className="relative aspect-3/2 w-full sm:aspect-16/6">
           <Image src={banner.image} alt="" fill sizes="100vw" priority className="object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-transparent" />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent sm:bg-linear-to-r sm:from-black/85 sm:via-black/55 sm:to-transparent"
+          />
         </div>
-        <div className="absolute inset-y-0 left-0 flex max-w-[min(560px,72%)] flex-col justify-center gap-2 p-4 sm:p-6">
-          <h2 className="text-h1 font-semibold text-white">{banner.title}</h2>
-          {banner.subtitle ? <p className="line-clamp-2 text-body text-white/80">{banner.subtitle}</p> : null}
+        <div className="flex flex-col gap-2 p-3 sm:absolute sm:inset-y-0 sm:left-0 sm:max-w-[min(560px,72%)] sm:justify-center sm:p-6">
+          <h2 className="text-h2 font-semibold sm:text-h1 sm:text-white">{banner.title}</h2>
+          {banner.subtitle ? (
+            <p className="line-clamp-2 text-body text-(--text-secondary) sm:text-white/80">{banner.subtitle}</p>
+          ) : null}
           {banner.linkUrl ? (
             <Link
               href={banner.linkUrl}
-              className="mt-1 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on hover:bg-accent-hover"
+              className="mt-0.5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on hover:bg-accent-hover sm:mt-1 sm:w-fit"
             >
               {banner.ctaLabel ?? "อ่านเลย"}
             </Link>
@@ -60,18 +64,30 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
 
   if (!novel) return null;
 
+  /*
+   * Mobile puts the copy *under* the artwork instead of on top of it. At 360px
+   * an overlay has to fit a two-line Thai title, a meta row and a 44px button
+   * inside roughly 200px of image — it either clips or forces the type below a
+   * readable size. Stacking keeps the cover uncropped and the button full
+   * width. From sm up there is room, so the overlay returns.
+   */
   return (
-    <section className="relative overflow-hidden rounded-(--r-lg) border border-border">
-      <div className="relative aspect-[16/9] w-full sm:aspect-[16/6] lg:aspect-[21/6]">
+    <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
+      <div className="relative aspect-3/2 w-full sm:aspect-16/6 lg:aspect-21/6">
         <Image src={novel.backdrop || novel.cover} alt="" fill sizes="100vw" priority className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/10" />
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent sm:bg-linear-to-r sm:from-black/90 sm:via-black/60 sm:to-black/10"
+        />
       </div>
 
-      <div className="absolute inset-y-0 left-0 flex max-w-[min(600px,76%)] flex-col justify-center gap-2 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col gap-2 p-3 sm:absolute sm:inset-y-0 sm:left-0 sm:max-w-[min(600px,76%)] sm:justify-center sm:p-6 lg:p-8">
         <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
-        <h2 className="line-clamp-2 text-h1 font-semibold text-white lg:text-display">{novel.thaiTitle}</h2>
+        <h2 className="line-clamp-2 text-h2 font-semibold sm:text-h1 sm:text-white lg:text-display">
+          {novel.thaiTitle}
+        </h2>
         <p className="hidden line-clamp-2 text-body text-white/75 sm:block">{novel.synopsis}</p>
-        <p className="tabular flex flex-wrap items-center gap-x-2 text-sm text-white/60">
+        <p className="tabular flex flex-wrap items-center gap-x-2 text-sm text-(--text-secondary) sm:text-white/60">
           <span>{novel.author}</span>
           <span aria-hidden>·</span>
           <span>{novel.chapters.toLocaleString("th-TH")} ตอน</span>
@@ -84,7 +100,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
         </p>
         <Link
           href={`/novel/${novel.slug}`}
-          className="mt-1.5 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on transition-colors hover:bg-accent-hover"
+          className="mt-0.5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on transition-colors hover:bg-accent-hover sm:mt-1.5 sm:w-fit"
         >
           <Play className="h-4 w-4 fill-current" aria-hidden />
           เริ่มอ่าน

@@ -2,9 +2,15 @@ import Link from "next/link";
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Content column for every non-home route. Padding matches the home page so
+ * grids line up across navigations. The old top offset that cleared a fixed
+ * header is gone — the topbar is sticky and sits in flow now, so reserving
+ * 92px here only pushed the first row off a phone screen.
+ */
 export function PageShell({ children, className, ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode }) {
   return (
-    <main id="main" className={cn("mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[92px] sm:px-6 lg:px-8", className)} {...props}>
+    <main id="main" className={cn("mx-auto w-full max-w-(--shell-max) px-3 py-3 sm:px-4 lg:px-5", className)} {...props}>
       {children}
     </main>
   );
@@ -22,13 +28,13 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <header className="mb-8 flex flex-wrap items-end justify-between gap-5 border-b border-border pb-6">
-      <div className="flex min-w-0 gap-4">
-        <span aria-hidden className="mt-1 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
+    <header className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
+      <div className="flex min-w-0 gap-3">
+        <span aria-hidden className="mt-0.5 w-0.5 shrink-0 bg-accent-base" />
         <div className="min-w-0">
-          {eyebrow ? <p className="editorial-kicker mb-1.5">{eyebrow}</p> : null}
-          <h1 className="text-2xl font-semibold sm:text-3xl lg:text-4xl">{title}</h1>
-          {description ? <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">{description}</p> : null}
+          {eyebrow ? <p className="editorial-kicker mb-1">{eyebrow}</p> : null}
+          <h1 className="text-h1 font-semibold lg:text-display">{title}</h1>
+          {description ? <p className="mt-1 max-w-3xl text-body text-(--text-secondary)">{description}</p> : null}
         </div>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}

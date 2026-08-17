@@ -143,7 +143,7 @@ export default async function NovelsPage({ searchParams }: { searchParams: Promi
   const title = selected.length ? `นิยาย${selected.join(" · ")}` : "สำรวจนิยาย";
 
   return (
-    <main id="main" className="mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[88px] sm:px-6 lg:px-8">
+    <main id="main" className="mx-auto w-full max-w-(--shell-max) px-3 py-3 sm:px-4 lg:px-5">
       <JsonLd
         data={{
           "@context": "https://schema.org",

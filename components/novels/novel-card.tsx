@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUp, Coins, Eye, Minus, Play, Sparkles, Star } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Eye, Minus, Play, Sparkles, Star } from "lucide-react";
 
 import { BookmarkToggle } from "@/components/interactive/novel-actions";
 import { cn, formatNumber } from "@/lib/utils";
@@ -57,6 +57,13 @@ function GenreChip({ label }: { label: string }) {
 }
 
 /**
+ * The one column ramp every cover grid uses: 3 / 5 / 6 / 8 (brief §5.7), with
+ * the 12px minimum gutter (§5.2). Exported so home, browse, genre and tag
+ * pages cannot drift apart.
+ */
+export const NOVEL_GRID_CLASS = "grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-8";
+
+/**
  * Dense grid tile — the workhorse of every discovery grid.
  *
  * The cover is the only colour on the page (brief §3.2), so the label sits on
@@ -96,63 +103,6 @@ export function NovelTile({ novel, priority = false }: { novel: Novel; priority?
           </div>
         </div>
       </Link>
-    </article>
-  );
-}
-
-/** Cover-led discovery card for shelves and browse grids. */
-export function DiscoveryNovelCard({
-  novel,
-  fluid = false,
-  className,
-}: {
-  novel: Novel;
-  fluid?: boolean;
-  className?: string;
-}) {
-  return (
-    <article
-      className={cn(
-        "group relative",
-        fluid ? "w-full" : "w-[132px] shrink-0 sm:w-[152px] lg:w-[168px]",
-        className,
-      )}
-    >
-      <div className="absolute right-2 top-2 z-10 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-        <BookmarkToggle slug={novel.slug} />
-      </div>
-      <Link href={`/novel/${novel.slug}`} className="block rounded-[6px]">
-        <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted transition-colors group-hover:border-[var(--brand-emphasis)]/55 group-focus-within:border-[var(--brand-emphasis)]/55">
-          <Image
-            src={novel.cover}
-            alt=""
-            fill
-            sizes="(max-width: 640px) 46vw, (max-width: 1024px) 23vw, 190px"
-            className="object-cover transition-transform duration-[var(--dur-base)] group-hover:scale-[1.02]"
-          />
-          <div className="absolute left-2 top-2 flex flex-col gap-1">
-            <CoverBadge novel={novel} />
-            {novel.hasPaidChapters ? (
-              <span className="flex w-fit items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-1 text-[10px] font-medium text-white">
-                <Coins className="h-3 w-3" /> มีตอนจำกัดการเข้าถึง
-              </span>
-            ) : null}
-          </div>
-        </div>
-        <h3 className="mt-2 line-clamp-2 min-h-[2.8rem] text-sm font-semibold leading-[1.45] transition-colors group-hover:text-[var(--brand-emphasis)]">
-          {novel.thaiTitle}
-        </h3>
-        <p className="tabular mt-1 text-[11px] text-muted-foreground">
-          {novel.latestChapter ? `ตอนล่าสุด ${novel.latestChapter.number.toLocaleString("th-TH")}` : statusLabel[novel.status]}
-        </p>
-      </Link>
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {novel.genres.slice(0, 2).map((slug) => (
-          <Link key={slug} href={`/genre/${slug}`} className="inline-flex min-h-11 items-center">
-            <GenreChip label={genreNameOf(novel, slug)} />
-          </Link>
-        ))}
-      </div>
     </article>
   );
 }

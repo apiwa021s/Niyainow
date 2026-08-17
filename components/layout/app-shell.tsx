@@ -40,34 +40,48 @@ async function PersonalizedTopbar() {
  * max-width gutter on the sides, because empty margin is lost content
  * (brief §5.6). Each chrome piece hides itself on reader and admin routes via
  * SiteChrome, so the reader keeps its own quiet chrome untouched.
+ *
+ * Every chrome piece reads the URL (SiteChrome to decide whether to render at
+ * all, the nav components to mark the active row), and URL data is only known
+ * at request time. Each one therefore sits behind its own Suspense boundary so
+ * the route around it still prerenders — `children` is never held back by the
+ * chrome. Fallbacks are null rather than sized skeletons on purpose: on reader
+ * and admin routes the chrome resolves to nothing, and a placeholder that
+ * reserved space would collapse and shift the page.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh bg-(--bg-base)">
-      <SiteChrome>
-        <AppSidebar />
-      </SiteChrome>
+      <Suspense fallback={null}>
+        <SiteChrome>
+          <AppSidebar />
+        </SiteChrome>
+      </Suspense>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <SiteChrome>
-          <Suspense fallback={<AppTopbar viewer={undefined} />}>
-            <PersonalizedTopbar />
-          </Suspense>
-        </SiteChrome>
+        <Suspense fallback={null}>
+          <SiteChrome>
+            <Suspense fallback={<AppTopbar viewer={undefined} />}>
+              <PersonalizedTopbar />
+            </Suspense>
+          </SiteChrome>
+        </Suspense>
 
         {children}
 
-        <SiteChrome>
-          <Footer />
-          <MobileBottomNav />
-        </SiteChrome>
+        <Suspense fallback={null}>
+          <SiteChrome>
+            <Footer />
+            <MobileBottomNav />
+          </SiteChrome>
+        </Suspense>
       </div>
 
-      <SiteChrome>
-        <Suspense fallback={null}>
+      <Suspense fallback={null}>
+        <SiteChrome>
           <UpdatesRail />
-        </Suspense>
-      </SiteChrome>
+        </SiteChrome>
+      </Suspense>
     </div>
   );
 }
