@@ -33,9 +33,14 @@ export function SectionHeader({
       <div className="flex shrink-0 items-center gap-1">
         {trailing}
         {href ? (
+          /*
+           * `py-3 -my-3` grows the hit area to 44px (§9) while the negative
+           * margin keeps the row itself 32px tall (§5.9). Using min-h-11 here
+           * instead would push the link out of the fixed-height row.
+           */
           <Link
             href={href}
-            className="inline-flex min-h-11 items-center gap-0.5 text-sm font-semibold text-(--text-secondary) transition-colors hover:text-accent-base"
+            className="-my-3 inline-flex items-center gap-0.5 py-3 text-sm font-semibold text-(--text-secondary) transition-colors hover:text-accent-base"
           >
             {hrefLabel}
             <ChevronRight className="h-3.5 w-3.5" />

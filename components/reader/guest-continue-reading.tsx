@@ -48,42 +48,44 @@ export function GuestContinueReading({
   const href = `/novel/${progress.novelSlug}/chapter/${progress.chapterNumber}`;
 
   return (
-    <section className={cn("space-y-3", className)} aria-labelledby="guest-continue-title">
-      <div className="flex items-start gap-3">
-        <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
-        <div>
-          <p className="editorial-kicker">CONTINUE / LOCAL</p>
-          <h2 id="guest-continue-title" className="text-2xl font-semibold sm:text-3xl">{title}</h2>
-        </div>
-      </div>
+    <section className={cn("flex flex-col", className)} aria-labelledby="guest-continue-title">
+      <h2 id="guest-continue-title" className="mb-2.5 flex h-8 items-center text-h2 font-semibold">
+        {title}
+      </h2>
 
+      {/*
+       * The cover column is fixed and the text column is minmax(0,1fr) so a long
+       * Thai title truncates instead of forcing the card wider than the phone.
+       * The CTA is a separate column only from sm up; at 360px the whole card is
+       * the tap target and the arrow would just eat the title's width.
+       */}
       <Link
         href={href}
-        className="group grid min-h-[116px] grid-cols-[68px_minmax(0,1fr)_auto] items-center gap-4 rounded-[8px] border border-border bg-card p-3 transition-colors hover:border-[var(--brand-emphasis)]/55"
+        className="group grid grid-cols-[56px_minmax(0,1fr)] items-center gap-3 rounded-(--r-lg) border border-border bg-surface p-2.5 transition-colors hover:border-accent-base sm:grid-cols-[68px_minmax(0,1fr)_auto] sm:gap-4 sm:p-3"
       >
-        <span className="relative aspect-[2/3] w-[68px] overflow-hidden rounded-[5px] bg-muted">
+        <span className="relative aspect-2/3 w-14 overflow-hidden rounded-(--r-sm) bg-surface-recessed sm:w-17">
           <Image src={progress.cover} alt="" fill sizes="68px" className="object-cover" />
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-base font-semibold">{progress.novelTitle}</span>
-          <span className="mt-1 block truncate text-sm text-muted-foreground">
+          <span className="block truncate text-body font-semibold">{progress.novelTitle}</span>
+          <span className="mt-0.5 block truncate text-sm text-(--text-secondary)">
             ตอนที่ {progress.chapterNumber}: {progress.chapterTitle}
           </span>
-          <span className="mt-3 flex items-center gap-2">
+          <span className="mt-2 flex items-center gap-2">
             <span
               role="progressbar"
               aria-label={`อ่านตอนนี้ไป ${percent}%`}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={percent}
-              className="h-1.5 min-w-0 flex-1 overflow-hidden bg-muted"
+              className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-recessed"
             >
-              <span className="block h-full bg-[var(--brand-primary)]" style={{ width: `${percent}%` }} />
+              <span className="block h-full bg-accent-base" style={{ width: `${percent}%` }} />
             </span>
-            <span className="tabular text-xs text-muted-foreground">{percent}%</span>
+            <span className="tabular shrink-0 text-xs text-(--text-tertiary)">{percent}%</span>
           </span>
         </span>
-        <span className="hidden min-h-11 items-center gap-1 rounded-[8px] bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white sm:inline-flex">
+        <span className="hidden min-h-11 items-center gap-1 rounded-full bg-accent-base px-4 text-sm font-semibold text-accent-on sm:inline-flex">
           อ่านต่อ <ArrowRight className="h-4 w-4" />
         </span>
       </Link>

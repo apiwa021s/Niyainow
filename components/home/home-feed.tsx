@@ -64,47 +64,69 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
 
   if (!novel) return null;
 
+  const meta = (
+    <p className="tabular flex flex-wrap items-center gap-x-2 text-sm text-(--text-secondary) sm:text-white/60">
+      <span className="truncate">{novel.author}</span>
+      <span aria-hidden>·</span>
+      <span className="shrink-0">{novel.chapters.toLocaleString("th-TH")} ตอน</span>
+      {(novel.ratingCount ?? 0) > 0 ? (
+        <>
+          <span aria-hidden>·</span>
+          <span className="shrink-0">{novel.rating.toFixed(1)} คะแนน</span>
+        </>
+      ) : null}
+    </p>
+  );
+
   /*
-   * Mobile puts the copy *under* the artwork instead of on top of it. At 360px
-   * an overlay has to fit a two-line Thai title, a meta row and a 44px button
-   * inside roughly 200px of image — it either clips or forces the type below a
-   * readable size. Stacking keeps the cover uncropped and the button full
-   * width. From sm up there is room, so the overlay returns.
+   * Two different heroes, because the fold budget is completely different.
+   *
+   * Mobile gets a compact 2:3 cover beside the copy — roughly 150px total. A
+   * full-bleed backdrop with the copy under it ate about two thirds of a 760px
+   * screen and left one title above the fold, against the brief's floor of
+   * eight (§6.2). The portrait cover is also the artwork readers recognise.
+   *
+   * From sm up there is width to spare, so the backdrop returns as a wide
+   * banner with the copy overlaid.
    */
   return (
     <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
-      <div className="relative aspect-3/2 w-full sm:aspect-16/6 lg:aspect-21/6">
-        <Image src={novel.backdrop || novel.cover} alt="" fill sizes="100vw" priority className="object-cover" />
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent sm:bg-linear-to-r sm:from-black/90 sm:via-black/60 sm:to-black/10"
-        />
+      <div className="hidden sm:block">
+        <div className="relative aspect-16/6 w-full lg:aspect-21/6">
+          <Image src={novel.backdrop || novel.cover} alt="" fill sizes="100vw" priority className="object-cover" />
+          <div aria-hidden className="absolute inset-0 bg-linear-to-r from-black/90 via-black/60 to-black/10" />
+        </div>
+        <div className="absolute inset-y-0 left-0 flex max-w-[min(600px,76%)] flex-col justify-center gap-2 p-6 lg:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
+          <h2 className="line-clamp-2 text-h1 font-semibold text-white lg:text-display">{novel.thaiTitle}</h2>
+          <p className="line-clamp-2 text-body text-white/75">{novel.synopsis}</p>
+          {meta}
+          <Link
+            href={`/novel/${novel.slug}`}
+            className="mt-1.5 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on transition-colors hover:bg-accent-hover"
+          >
+            <Play className="h-4 w-4 fill-current" aria-hidden />
+            เริ่มอ่าน
+          </Link>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-2 p-3 sm:absolute sm:inset-y-0 sm:left-0 sm:max-w-[min(600px,76%)] sm:justify-center sm:p-6 lg:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
-        <h2 className="line-clamp-2 text-h2 font-semibold sm:text-h1 sm:text-white lg:text-display">
-          {novel.thaiTitle}
-        </h2>
-        <p className="hidden line-clamp-2 text-body text-white/75 sm:block">{novel.synopsis}</p>
-        <p className="tabular flex flex-wrap items-center gap-x-2 text-sm text-(--text-secondary) sm:text-white/60">
-          <span>{novel.author}</span>
-          <span aria-hidden>·</span>
-          <span>{novel.chapters.toLocaleString("th-TH")} ตอน</span>
-          {(novel.ratingCount ?? 0) > 0 ? (
-            <>
-              <span aria-hidden>·</span>
-              <span>{novel.rating.toFixed(1)} คะแนน</span>
-            </>
-          ) : null}
-        </p>
-        <Link
-          href={`/novel/${novel.slug}`}
-          className="mt-0.5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on transition-colors hover:bg-accent-hover sm:mt-1.5 sm:w-fit"
-        >
-          <Play className="h-4 w-4 fill-current" aria-hidden />
-          เริ่มอ่าน
+      <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:hidden">
+        <Link href={`/novel/${novel.slug}`} className="relative aspect-2/3 overflow-hidden rounded-(--r-md) bg-surface-recessed">
+          <Image src={novel.cover} alt="" fill sizes="84px" priority className="object-cover" />
         </Link>
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
+          <h2 className="line-clamp-2 text-h2 font-semibold">{novel.thaiTitle}</h2>
+          {meta}
+          <Link
+            href={`/novel/${novel.slug}`}
+            className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-full bg-accent-base px-4 text-sm font-semibold text-accent-on"
+          >
+            <Play className="h-3.5 w-3.5 fill-current" aria-hidden />
+            เริ่มอ่าน
+          </Link>
+        </div>
       </div>
     </section>
   );

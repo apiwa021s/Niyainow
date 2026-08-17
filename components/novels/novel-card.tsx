@@ -75,7 +75,12 @@ export function NovelTile({ novel, priority = false }: { novel: Novel; priority?
   const genre = genreNameOf(novel, novel.genres[0]);
   return (
     <article className="group relative">
-      <div className="absolute right-1.5 top-1.5 z-20 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+      {/*
+       * The bookmark control is desktop-only. Its 44px tap target covers 40% of
+       * a 104px tile on a phone and hides the artwork the grid exists to show;
+       * on mobile the same action lives on the novel page one tap away.
+       */}
+      <div className="absolute right-1.5 top-1.5 z-20 hidden opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 lg:block">
         <BookmarkToggle slug={novel.slug} />
       </div>
       <Link href={`/novel/${novel.slug}`} className="block">
@@ -95,9 +100,12 @@ export function NovelTile({ novel, priority = false }: { novel: Novel; priority?
             <h3 className="line-clamp-2 text-sm font-semibold leading-[1.4] text-white drop-shadow-sm">
               {novel.thaiTitle}
             </h3>
-            <p className="tabular mt-0.5 flex items-center gap-1.5 truncate text-xs text-white/75">
-              {genre ? <span className="truncate">{genre}</span> : null}
-              {genre ? <span aria-hidden>·</span> : null}
+            {/* A 104px tile has room for one fact. Squeezing the genre in
+                beside it clipped both to three characters, so the genre only
+                appears once the tile is wide enough to render it whole. */}
+            <p className="tabular mt-0.5 flex items-center gap-1.5 text-xs text-white/75">
+              {genre ? <span className="hidden truncate sm:inline">{genre}</span> : null}
+              {genre ? <span aria-hidden className="hidden sm:inline">·</span> : null}
               <span className="shrink-0">{novel.chapters.toLocaleString("th-TH")} ตอน</span>
             </p>
           </div>
