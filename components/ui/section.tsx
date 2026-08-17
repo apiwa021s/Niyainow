@@ -27,7 +27,7 @@ export function PageHeader({
         <span aria-hidden className="mt-1 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
         <div className="min-w-0">
           {eyebrow ? <p className="editorial-kicker mb-1.5">{eyebrow}</p> : null}
-          <h1 className="font-serif text-2xl font-semibold sm:text-3xl lg:text-4xl">{title}</h1>
+          <h1 className="text-2xl font-semibold sm:text-3xl lg:text-4xl">{title}</h1>
           {description ? <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">{description}</p> : null}
         </div>
       </div>
@@ -55,7 +55,7 @@ export function SectionHeader({
         <div className="flex items-center gap-3">
           <span aria-hidden className="h-7 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
           {icon}
-          <h2 className="font-serif text-xl font-semibold sm:text-2xl">{title}</h2>
+          <h2 className="text-xl font-semibold sm:text-2xl">{title}</h2>
         </div>
         {description ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </div>

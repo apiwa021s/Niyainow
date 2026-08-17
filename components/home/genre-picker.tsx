@@ -9,7 +9,7 @@ export function GenrePicker({ items }: { items: { genre: Genre; covers: string[]
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[280px_1fr] lg:gap-10">
         <div>
           <p className="editorial-kicker">เลือกตามแนวเรื่อง</p>
-          <h2 className="mt-1 font-serif text-2xl font-semibold sm:text-3xl">เลือกตามแนว</h2>
+          <h2 className="mt-1 text-2xl font-semibold sm:text-3xl">เลือกตามแนว</h2>
           <p className="mt-2 text-sm leading-[1.8] text-muted-foreground">เริ่มจากบรรยากาศที่คุณอยากอ่าน แล้วค้นพบเรื่องที่อยู่ใกล้เคียง</p>
           <Link href="/genres" className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--brand-emphasis)]">ดูหมวดหมู่ทั้งหมด<ArrowRight className="h-4 w-4" /></Link>
         </div>

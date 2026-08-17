@@ -230,7 +230,7 @@ export function SearchNovelFilters({
             className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[14px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <div><h2 id="search-filter-title" className="font-serif text-xl font-semibold">กรองผลนิยาย</h2><p className="text-xs text-muted-foreground">เลือกตัวกรองให้ครบ แล้วกดใช้ตัวกรองเพื่อดูผลใหม่</p></div>
+              <div><h2 id="search-filter-title" className="text-xl font-semibold">กรองผลนิยาย</h2><p className="text-xs text-muted-foreground">เลือกตัวกรองให้ครบ แล้วกดใช้ตัวกรองเพื่อดูผลใหม่</p></div>
               <button type="button" onClick={discardAndClose} aria-label="ยกเลิกและปิดตัวกรอง" className="grid h-11 w-11 place-items-center rounded-[6px] hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
             <FilterPanel query={draft} genres={genres} onChange={setDraft} />

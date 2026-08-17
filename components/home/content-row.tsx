@@ -71,7 +71,7 @@ export function ContentRow({
           <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
           <div>
           <p className="editorial-kicker">อ่านต่อจากครั้งล่าสุด</p>
-          <h2 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
+          <h2 className="text-2xl font-semibold sm:text-3xl">{title}</h2>
           {description ? <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{description}</p> : null}
           </div>
         </div>

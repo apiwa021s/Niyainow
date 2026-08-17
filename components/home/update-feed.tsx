@@ -28,7 +28,7 @@ export function UpdateFeed({
           <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
           <div>
             <p className="editorial-kicker">ตอนใหม่ล่าสุด</p>
-            <h2 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
+            <h2 className="text-2xl font-semibold sm:text-3xl">{title}</h2>
             {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
           </div>
         </div>
@@ -50,7 +50,7 @@ export function UpdateFeed({
                       <Image src={novel.cover} alt="" fill sizes="(max-width: 640px) 46vw, (max-width: 1024px) 23vw, 190px" className="object-cover transition-transform duration-[var(--dur-base)] group-hover:scale-[1.02]" />
                       <span className="absolute bottom-2 left-2 bg-[#0E0E10]/90 px-2 py-1 font-mono text-[10px] text-white">ตอน {item.chapter}</span>
                     </div>
-                    <h3 className="mt-2 line-clamp-2 font-serif text-sm font-semibold leading-[1.55] transition-colors group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
+                    <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-[1.55] transition-colors group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
                     <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">ตอนที่ {item.chapter} · {item.chapterTitle}</p>
                     <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <span>{novel.status === "completed" ? "จบแล้ว" : "กำลังแปล"}</span>

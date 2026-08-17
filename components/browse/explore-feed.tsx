@@ -42,13 +42,13 @@ export function ExploreFeed({
       <header className="grid gap-6 border-y border-border py-8 sm:py-10 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-end">
         <div className="max-w-3xl">
           <p className="editorial-kicker">DISCOVERY / EXPLORE</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold sm:text-4xl lg:text-5xl">วันนี้อยากอ่านอะไรต่อ</h1>
+          <h1 className="mt-2 text-3xl font-semibold sm:text-4xl lg:text-5xl">วันนี้อยากอ่านอะไรต่อ</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
             เริ่มจากเรื่องที่กำลังถูกอ่าน แนวที่ชอบ หรือจังหวะการอ่านที่ต้องการ แล้วค่อยลงลึกในคลังด้วยตัวกรอง
           </p>
         </div>
         <div className="border-l-2 border-[var(--brand-emphasis)] pl-4">
-          <p className="tabular font-serif text-3xl font-semibold">{total.toLocaleString("th-TH")}</p>
+          <p className="tabular text-3xl font-semibold">{total.toLocaleString("th-TH")}</p>
           <p className="mt-1 text-sm text-muted-foreground">เรื่องที่เปิดอ่านได้ในคลัง</p>
         </div>
       </header>
@@ -65,7 +65,7 @@ export function ExploreFeed({
             <li key={item.href} className="border-b border-border sm:odd:border-r lg:border-r lg:last:border-r-0">
               <Link href={item.href} className="group flex min-h-24 items-center justify-between gap-3 px-4 py-4 transition-colors hover:bg-muted/45">
                 <span>
-                  <span className="block font-serif font-semibold group-hover:text-[var(--brand-emphasis)]">{item.label}</span>
+                  <span className="block font-semibold group-hover:text-[var(--brand-emphasis)]">{item.label}</span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.meta}</span>
                 </span>
                 <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--brand-emphasis)]" />
@@ -112,7 +112,7 @@ export function ExploreFeed({
       <section aria-labelledby="popular-by-genre-title" className="render-deferred">
         <div className="mb-8 border-b border-border pb-5">
           <p className="editorial-kicker">POPULAR BY GENRE</p>
-          <h2 id="popular-by-genre-title" className="mt-1 font-serif text-2xl font-semibold sm:text-3xl">นิยมในแต่ละแนว</h2>
+          <h2 id="popular-by-genre-title" className="mt-1 text-2xl font-semibold sm:text-3xl">นิยมในแต่ละแนว</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">เทียบเรื่องยอดนิยมภายในแนวเดียวกัน เพื่อเลือกได้ตรงอารมณ์มากขึ้น</p>
         </div>
         {popularByGenre.length > 0 ? (
@@ -121,7 +121,7 @@ export function ExploreFeed({
               <article key={genre.slug} aria-labelledby={`popular-${genre.slug}`}>
                 <div className="mb-4 flex items-end justify-between gap-4">
                   <div>
-                    <h3 id={`popular-${genre.slug}`} className="font-serif text-xl font-semibold">{genre.thaiName}</h3>
+                    <h3 id={`popular-${genre.slug}`} className="text-xl font-semibold">{genre.thaiName}</h3>
                     {genre.description ? <p className="mt-1 line-clamp-2 max-w-3xl text-sm leading-6 text-muted-foreground">{genre.description}</p> : null}
                   </div>
                   <Link href={`/genre/${genre.slug}`} className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-[var(--brand-emphasis)]">

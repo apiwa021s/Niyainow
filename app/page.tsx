@@ -72,7 +72,7 @@ export default async function HomePage() {
     .map((item) => item.novel.slug) ?? [];
 
   return (
-    <main id="main" className="mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[84px] sm:px-6 lg:px-8">
+    <main id="main" className="mx-auto w-full max-w-(--shell-max) px-3 py-3 sm:px-4 lg:px-5">
       <h1 className="sr-only">NiyaiThai — อ่านนิยายแปลไทยและค้นหาเรื่องถัดไป</h1>
       <HomeFeed
         data={data}

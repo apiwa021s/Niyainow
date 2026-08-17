@@ -75,7 +75,7 @@ export function LibraryView({
     <section className="space-y-6">
       <header className="border-b border-border pb-5">
         <p className="editorial-kicker">ชั้นหนังสือของฉัน</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">{copy.title}</h1>
+        <h1 className="mt-1 text-3xl font-semibold">{copy.title}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{copy.description}</p>
       </header>
 
@@ -197,7 +197,7 @@ function ReadingRow({ item, mode }: { item: UserNovelListItem; mode: "reading" |
       </div>
       <div className="min-w-0">
         <p className="editorial-kicker">{mode === "history" ? "RECENTLY OPENED" : "CONTINUE READING"}</p>
-        <h2 className="mt-0.5 truncate font-serif text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h2 className="mt-0.5 truncate text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           {item.novel.thaiTitle}
         </h2>
         <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
@@ -235,7 +235,7 @@ function ShelfRow({ item, mode }: { item: UserNovelListItem; mode: "following" |
         <Image src={item.novel.cover} alt="" fill sizes="56px" className="object-cover" />
       </div>
       <div className="min-w-0">
-        <h2 className="truncate font-serif text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h2 className="truncate text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           {item.novel.thaiTitle}
         </h2>
         <p className="mt-1 truncate text-xs text-muted-foreground">{meta}</p>

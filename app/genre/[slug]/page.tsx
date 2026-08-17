@@ -76,7 +76,7 @@ export default async function GenreDetailPage({
 
       <header className="border-y border-border py-8 sm:py-10">
         <p className="editorial-kicker">โลกและอารมณ์ของเรื่อง</p>
-        <h1 className="mt-2 max-w-3xl font-serif text-4xl font-semibold sm:text-5xl">นิยาย{genre.thaiName}</h1>
+        <h1 className="mt-2 max-w-3xl text-4xl font-semibold sm:text-5xl">นิยาย{genre.thaiName}</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
           {genre.description || `สำรวจเรื่องในหมวด${genre.thaiName} ตั้งแต่เรื่องยอดนิยมจนถึงเรื่องที่เพิ่งอัปเดต`}
         </p>
@@ -111,7 +111,7 @@ function EditorialShelf({ kicker, title, novels }: { kicker: string; title: stri
   return (
     <section>
       <p className="editorial-kicker">{kicker}</p>
-      <h2 className="mb-5 mt-1 font-serif text-2xl font-semibold">{title}</h2>
+      <h2 className="mb-5 mt-1 text-2xl font-semibold">{title}</h2>
       <NovelGrid novels={novels} compact />
     </section>
   );

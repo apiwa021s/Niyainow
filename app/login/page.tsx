@@ -23,7 +23,7 @@ export default async function LoginPage({
       />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)] lg:items-start">
         <div className="border-l-2 border-[var(--brand-emphasis)] pl-5">
-          <p className="font-serif text-xl font-semibold">กลับไปยังเรื่องที่อ่านค้างไว้ได้ง่ายขึ้น</p>
+          <p className="text-xl font-semibold">กลับไปยังเรื่องที่อ่านค้างไว้ได้ง่ายขึ้น</p>
           <ul className="mt-4 grid gap-3 text-sm leading-7 text-muted-foreground">
             <li>บันทึกเรื่องโปรดไว้ในชั้นหนังสือ</li>
             <li>ซิงก์ตอนล่าสุดที่อ่านและประวัติการอ่าน</li>

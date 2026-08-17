@@ -75,7 +75,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
 
       <header className="border-b border-border pb-5">
         <p className="editorial-kicker">RANKING / READER SIGNALS</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">อันดับนิยาย</h1>
+        <h1 className="mt-1 text-3xl font-semibold">อันดับนิยาย</h1>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{selected.explanation}</p>
       </header>
 

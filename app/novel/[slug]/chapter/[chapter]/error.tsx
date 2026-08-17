@@ -35,7 +35,7 @@ export default function ChapterError({
     <main id="main" className="grid min-h-[72vh] place-items-center bg-background px-5 py-16 text-foreground">
       <section aria-labelledby="chapter-error-title" className="w-full max-w-xl rounded-[8px] border border-border bg-card p-6 text-center shadow-[var(--sh-1)] sm:p-8">
         <p className="editorial-kicker">READER / RECOVERY</p>
-        <h1 id="chapter-error-title" className="mt-2 font-serif text-3xl font-semibold">เปิดตอนนี้ไม่สำเร็จ</h1>
+        <h1 id="chapter-error-title" className="mt-2 text-3xl font-semibold">เปิดตอนนี้ไม่สำเร็จ</h1>
         <p className="mx-auto mt-3 max-w-md leading-7 text-muted-foreground">
           การเชื่อมต่อหรือข้อมูลตอนอาจมีปัญหาชั่วคราว ลองโหลดอีกครั้ง หรือกลับไปเลือกตอนจากสารบัญ
         </p>

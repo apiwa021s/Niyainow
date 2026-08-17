@@ -39,7 +39,7 @@ function TagIndex({ tags }: { tags: TagSummary[] }) {
             className="group grid min-h-20 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-3 py-3 transition-colors hover:bg-muted/45 sm:px-4"
           >
             <span className="min-w-0">
-              <span className="block truncate font-serif font-semibold group-hover:text-[var(--brand-emphasis)]">#{tag.name}</span>
+              <span className="block truncate font-semibold group-hover:text-[var(--brand-emphasis)]">#{tag.name}</span>
               {tag.description ? <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">{tag.description}</span> : null}
             </span>
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -68,7 +68,7 @@ export default async function TagsPage({ searchParams }: { searchParams: Promise
       <header className="grid gap-5 border-b border-border pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] lg:items-end">
         <div>
           <p className="editorial-kicker">ค้นจากองค์ประกอบของเรื่อง</p>
-          <h1 className="mt-1 font-serif text-3xl font-semibold sm:text-4xl">แท็กนิยาย</h1>
+          <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">แท็กนิยาย</h1>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">เจาะจงเส้นเรื่อง ตัวละคร หรือบรรยากาศที่อยากอ่าน แล้วเปิดดูนิยายที่ใช้แท็กนั้น</p>
         </div>
         <form action="/tags" className="flex gap-2">
@@ -88,7 +88,7 @@ export default async function TagsPage({ searchParams }: { searchParams: Promise
         <section aria-labelledby="popular-tags-title">
           <div className="mb-4">
             <p className="editorial-kicker">POPULAR TAGS</p>
-            <h2 id="popular-tags-title" className="mt-1 font-serif text-2xl font-semibold">แท็กที่พบในนิยายมากที่สุด</h2>
+            <h2 id="popular-tags-title" className="mt-1 text-2xl font-semibold">แท็กที่พบในนิยายมากที่สุด</h2>
             <p className="mt-2 text-sm text-muted-foreground">จัดจากจำนวนนิยายที่เผยแพร่และผูกกับแต่ละแท็กจริง</p>
           </div>
           {featuredTags.length > 0 ? (
@@ -101,7 +101,7 @@ export default async function TagsPage({ searchParams }: { searchParams: Promise
                       <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--brand-emphasis)]" />
                     </span>
                     <span>
-                      <span className="block font-serif text-lg font-semibold group-hover:text-[var(--brand-emphasis)]">#{tag.name}</span>
+                      <span className="block text-lg font-semibold group-hover:text-[var(--brand-emphasis)]">#{tag.name}</span>
                       <span className="tabular mt-1 block text-xs text-muted-foreground">{tagCountLabel(tag)}</span>
                     </span>
                   </Link>
@@ -118,7 +118,7 @@ export default async function TagsPage({ searchParams }: { searchParams: Promise
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="editorial-kicker">{query ? "SEARCH RESULTS" : isTagLimitReached ? "TAG INDEX" : "FULL INDEX"}</p>
-            <h2 id="tag-index-title" className="mt-1 font-serif text-2xl font-semibold">
+            <h2 id="tag-index-title" className="mt-1 text-2xl font-semibold">
               {query ? `ผลการค้นหา “${query}”` : isTagLimitReached ? "ดัชนีแท็กในคลัง" : "ดัชนีแท็กทั้งหมด"}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">

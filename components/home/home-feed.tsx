@@ -1,18 +1,14 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BellRing, BookMarked, LibraryBig } from "lucide-react";
+import { BellRing, BookMarked, LibraryBig, Play } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ContentRow, RowItem } from "@/components/home/content-row";
-import { GenrePicker } from "@/components/home/genre-picker";
-import { StorySpotlight } from "@/components/home/home-hero";
-import { PromoBanners } from "@/components/home/promo-banners";
+import { TrendingTicker } from "@/components/home/trending-ticker";
 import { UpdateFeed } from "@/components/home/update-feed";
-import {
-  DiscoveryNovelCard,
-  EditorialRecommendationCard,
-  RankingNovelCard,
-} from "@/components/novels/novel-card";
+import { NovelTile, RankingNovelCard } from "@/components/novels/novel-card";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
+import { SectionHeader } from "@/components/ui/section-header";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { HomePersonalization } from "@/services/user-service";
 import type { Genre, Novel, UpdateItem } from "@/types/novel";
@@ -28,23 +24,98 @@ export type HomeData = {
   spotlightNovel?: Novel;
 };
 
-function EditorialHeading({ kicker, title, description, href }: { kicker: string; title: string; description?: string; href?: string }) {
-  return (
-    <div className="mb-5 flex items-end justify-between gap-4">
-      <div className="flex min-w-0 items-start gap-3">
-        <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
-        <div>
-          <p className="editorial-kicker">{kicker}</p>
-          <h2 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
-          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+/** Every cover grid on the page uses one column ramp: 3 / 5 / 6 / 8 (brief §5.7). */
+const GRID = "grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-8";
+
+/**
+ * Hero. One real featured novel — its own backdrop, its own synopsis, its own
+ * chapter count — and a single primary action. No carousel: a rotating hero
+ * costs the fold and buys nothing measurable.
+ */
+function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
+  if (!novel && !banner) return null;
+
+  if (!novel && banner) {
+    return (
+      <section className="relative overflow-hidden rounded-(--r-lg) border border-border">
+        <div className="relative aspect-[16/6] w-full">
+          <Image src={banner.image} alt="" fill sizes="100vw" priority className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-transparent" />
         </div>
+        <div className="absolute inset-y-0 left-0 flex max-w-[min(560px,72%)] flex-col justify-center gap-2 p-4 sm:p-6">
+          <h2 className="text-h1 font-semibold text-white">{banner.title}</h2>
+          {banner.subtitle ? <p className="line-clamp-2 text-body text-white/80">{banner.subtitle}</p> : null}
+          {banner.linkUrl ? (
+            <Link
+              href={banner.linkUrl}
+              className="mt-1 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on hover:bg-accent-hover"
+            >
+              {banner.ctaLabel ?? "อ่านเลย"}
+            </Link>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
+  if (!novel) return null;
+
+  return (
+    <section className="relative overflow-hidden rounded-(--r-lg) border border-border">
+      <div className="relative aspect-[16/9] w-full sm:aspect-[16/6] lg:aspect-[21/6]">
+        <Image src={novel.backdrop || novel.cover} alt="" fill sizes="100vw" priority className="object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/10" />
       </div>
-      {href ? (
-        <Link href={href} className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-[var(--brand-emphasis)]">
-          ดูทั้งหมด <ArrowRight className="h-4 w-4" />
+
+      <div className="absolute inset-y-0 left-0 flex max-w-[min(600px,76%)] flex-col justify-center gap-2 p-4 sm:p-6 lg:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
+        <h2 className="line-clamp-2 text-h1 font-semibold text-white lg:text-display">{novel.thaiTitle}</h2>
+        <p className="hidden line-clamp-2 text-body text-white/75 sm:block">{novel.synopsis}</p>
+        <p className="tabular flex flex-wrap items-center gap-x-2 text-sm text-white/60">
+          <span>{novel.author}</span>
+          <span aria-hidden>·</span>
+          <span>{novel.chapters.toLocaleString("th-TH")} ตอน</span>
+          {(novel.ratingCount ?? 0) > 0 ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{novel.rating.toFixed(1)} คะแนน</span>
+            </>
+          ) : null}
+        </p>
+        <Link
+          href={`/novel/${novel.slug}`}
+          className="mt-1.5 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on transition-colors hover:bg-accent-hover"
+        >
+          <Play className="h-4 w-4 fill-current" aria-hidden />
+          เริ่มอ่าน
         </Link>
-      ) : null}
-    </div>
+      </div>
+    </section>
+  );
+}
+
+/** Genre chips, straight from the taxonomy with their real novel counts. */
+function GenreChipRail({ items }: { items: { genre: Genre; covers: string[] }[] }) {
+  if (items.length === 0) return null;
+  return (
+    <nav aria-label="เลือกตามแนวนิยาย" className="rail-scroll -mx-1 flex gap-2 px-1">
+      {items.map(({ genre }) => (
+        <Link
+          key={genre.slug}
+          href={`/genre/${genre.slug}`}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 text-sm font-medium text-(--text-secondary) transition-colors hover:border-accent-base hover:text-accent-base"
+        >
+          {genre.thaiName || genre.name}
+          <span className="tabular text-xs text-(--text-tertiary)">{genre.count.toLocaleString("th-TH")}</span>
+        </Link>
+      ))}
+      <Link
+        href="/genres"
+        className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-semibold text-accent-base"
+      >
+        ทั้งหมด
+      </Link>
+    </nav>
   );
 }
 
@@ -61,37 +132,47 @@ export function HomeFeed({
   guestContinueSlot?: ReactNode;
   signupSlot?: ReactNode;
 }) {
-  const primaryBanner = banners[0];
-  const extraBanners = banners.slice(1);
-
   return (
-    <div className="flex flex-col gap-14 lg:gap-20">
+    <div className="flex flex-col gap-6">
+      <Hero novel={data.spotlightNovel} banner={banners[0]} />
+
+      <TrendingTicker novels={data.rankings.slice(0, 14)} />
+
+      <GenreChipRail items={data.genreShowcase} />
+
       {guestContinueSlot}
       {accountSections}
 
-      <StorySpotlight banner={primaryBanner} novel={data.spotlightNovel} />
-
-      {data.rankings.length ? (
+      {data.recommended.length ? (
         <section className="render-deferred">
-          <EditorialHeading kicker="ความนิยม 7 วัน" title="กำลังได้รับความนิยม" description="อ้างอิงกิจกรรมการอ่านในช่วงสัปดาห์ล่าสุด" href="/rankings" />
-          <div className="grid border-t border-border lg:grid-cols-2 lg:gap-x-8">
-            {data.rankings.slice(0, 10).map((novel, index) => <RankingNovelCard key={novel.slug} novel={novel} rank={index + 1} />)}
+          <SectionHeader title="ผู้อ่านให้คะแนนสูง" count={data.recommended.length} href="/novels?sort=rating" />
+          <div className={GRID}>
+            {data.recommended.slice(0, 8).map((novel, index) => (
+              <NovelTile key={novel.slug} novel={novel} priority={index < 3} />
+            ))}
           </div>
         </section>
       ) : null}
 
-      {data.genreShowcase.length ? <GenrePicker items={data.genreShowcase} /> : null}
-
-      {data.recommended.length ? (
+      {data.newThisWeek.length ? (
         <section className="render-deferred">
-          <EditorialHeading
-            kicker="คัดจากคะแนนผู้อ่าน"
-            title="เรื่องที่ผู้อ่านให้คะแนนสูง"
-            description="เรียงจากคะแนนจริงในคลัง ไม่ใช่คำแนะนำเฉพาะบุคคล"
-            href="/novels?sort=rating"
-          />
-          <div className="-mx-4 flex snap-x gap-5 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden">
-            {data.recommended.slice(0, 8).map((novel) => <div key={novel.slug} className="snap-start"><EditorialRecommendationCard novel={novel} /></div>)}
+          <SectionHeader title="มาใหม่สัปดาห์นี้" count={data.newThisWeek.length} href="/novels?sort=new" />
+          <div className={GRID}>
+            {data.newThisWeek.slice(0, 8).map((novel) => (
+              <NovelTile key={novel.slug} novel={novel} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {data.rankings.length ? (
+        <section className="render-deferred">
+          <SectionHeader title="อันดับความนิยม 7 วัน" href="/rankings" />
+          {/* Ranks read as a list, never a grid — a card hides the ordinal (brief §5.3). */}
+          <div className="grid border-t border-border lg:grid-cols-2 lg:gap-x-6">
+            {data.rankings.slice(0, 10).map((novel, index) => (
+              <RankingNovelCard key={novel.slug} novel={novel} rank={index + 1} />
+            ))}
           </div>
         </section>
       ) : null}
@@ -108,23 +189,19 @@ export function HomeFeed({
 
       {data.completed.length ? (
         <section className="render-deferred">
-          <EditorialHeading kicker="อ่านได้จนจบ" title="เรื่องจบแล้ว" description="เลือกเริ่มเมื่อพร้อม แล้วอ่านต่อได้ครบทุกตอนที่เผยแพร่" href="/novels?status=completed&sort=rating" />
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-6 lg:gap-x-5">
-            {data.completed.slice(0, 6).map((novel) => <li key={novel.slug}><DiscoveryNovelCard novel={novel} fluid /></li>)}
-          </ul>
+          <SectionHeader
+            title="เรื่องจบแล้ว"
+            count={data.completed.length}
+            href="/novels?status=completed&sort=rating"
+          />
+          <div className={GRID}>
+            {data.completed.slice(0, 8).map((novel) => (
+              <NovelTile key={novel.slug} novel={novel} />
+            ))}
+          </div>
         </section>
       ) : null}
 
-      {data.newThisWeek.length ? (
-        <section className="render-deferred">
-          <EditorialHeading kicker="เผยแพร่ใน 7 วันล่าสุด" title="มาใหม่สัปดาห์นี้" description="เรื่องที่เพิ่งเปิดให้อ่านในคลัง" href="/novels?sort=new" />
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-6 lg:gap-x-5">
-            {data.newThisWeek.slice(0, 6).map((novel) => <li key={novel.slug}><DiscoveryNovelCard novel={novel} fluid /></li>)}
-          </ul>
-        </section>
-      ) : null}
-
-      {extraBanners.length ? <PromoBanners banners={extraBanners} /> : null}
       {signupSlot}
     </div>
   );
@@ -140,17 +217,16 @@ export function HomePersonalizedSections({
   const continueItems = personalization.continueReading.slice(0, 5);
   const novelsBySlug = Object.fromEntries(followedUpdates.map((item) => [item.novel.slug, item.novel]));
   if (!continueItems.length && !personalization.followedNovelSlugs.length) return null;
+
   return (
     <>
       {continueItems.length ? (
         <ContentRow title="อ่านต่อ" description="กลับสู่ตอนล่าสุดที่บันทึกไว้ในบัญชี" href="/library">
-          {continueItems.map((item) => {
-            return (
-              <RowItem key={item.novel.slug}>
-                <AccountContinueReadingCard item={item} />
-              </RowItem>
-            );
-          })}
+          {continueItems.map((item) => (
+            <RowItem key={item.novel.slug}>
+              <AccountContinueReadingCard item={item} />
+            </RowItem>
+          ))}
         </ContentRow>
       ) : null}
 
@@ -160,7 +236,11 @@ export function HomePersonalizedSections({
         href="/library/following"
         items={followedUpdates.slice(0, 6)}
         novelsBySlug={novelsBySlug}
-        emptyText={personalization.followedNovelSlugs.length ? "เรื่องที่ติดตามยังไม่มีตอนใหม่" : "กดติดตามนิยาย แล้วตอนใหม่จะปรากฏตรงนี้"}
+        emptyText={
+          personalization.followedNovelSlugs.length
+            ? "เรื่องที่ติดตามยังไม่มีตอนใหม่"
+            : "กดติดตามนิยาย แล้วตอนใหม่จะปรากฏตรงนี้"
+        }
       />
     </>
   );
@@ -168,22 +248,31 @@ export function HomePersonalizedSections({
 
 export function HomeSignup() {
   return (
-    <section className="render-deferred grid gap-6 rounded-[8px] border border-border bg-card p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+    <section className="render-deferred grid gap-4 rounded-(--r-lg) border border-border bg-surface p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-center">
       <div>
-        <p className="editorial-kicker">ชั้นหนังสือส่วนตัว</p>
-        <h2 className="mt-1 font-serif text-2xl font-semibold">เข้าสู่ระบบฟรี แล้วอ่านต่อได้ทุกอุปกรณ์</h2>
-        <ul className="mt-5 grid gap-3 sm:grid-cols-3">
+        <h2 className="text-h2 font-semibold">เข้าสู่ระบบฟรี แล้วอ่านต่อได้ทุกอุปกรณ์</h2>
+        <ul className="mt-3 grid gap-2 sm:grid-cols-3">
           {[
             { icon: BookMarked, title: "บันทึกตำแหน่งอ่าน" },
             { icon: BellRing, title: "ติดตามตอนใหม่" },
             { icon: LibraryBig, title: "จัดชั้นหนังสือส่วนตัว" },
           ].map((item) => {
             const Icon = item.icon;
-            return <li key={item.title} className="flex items-center gap-2 text-sm text-muted-foreground"><Icon className="h-4 w-4 text-[var(--brand-emphasis)]" />{item.title}</li>;
+            return (
+              <li key={item.title} className="flex items-center gap-2 text-body text-(--text-secondary)">
+                <Icon className="h-4 w-4 text-accent-base" />
+                {item.title}
+              </li>
+            );
           })}
         </ul>
       </div>
-      <Link href="/login" className="inline-flex h-12 items-center rounded-[8px] bg-[var(--brand-primary)] px-6 font-semibold text-white">เข้าสู่ระบบด้วย Google</Link>
+      <Link
+        href="/login"
+        className="inline-flex h-11 items-center justify-center rounded-full bg-accent-base px-6 font-semibold text-accent-on hover:bg-accent-hover"
+      >
+        เข้าสู่ระบบด้วย Google
+      </Link>
     </section>
   );
 }

@@ -38,7 +38,7 @@ export function ChapterEnd({
       <BrandDivider />
 
       <div className="text-center">
-        <p className="font-serif text-lg font-semibold">จบตอน {chapter.number}</p>
+        <p className="text-lg font-semibold">จบตอน {chapter.number}</p>
         {chapterPosition !== undefined && totalChapters !== undefined ? (
           <p className="mt-1 text-xs opacity-65">
             ความคืบหน้าในเรื่อง: ลำดับที่ {chapterPosition.toLocaleString("th-TH")} จาก {totalChapters.toLocaleString("th-TH")} ตอน

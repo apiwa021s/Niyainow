@@ -24,7 +24,7 @@ export function UpdateList({ items, limit }: { items: NovelUpdate[]; limit?: num
                   <span className="font-semibold text-[var(--brand-emphasis)]">ตอนใหม่</span>
                   {genre ? <span className="text-muted-foreground">{item.novel.genreNames?.[genre] ?? genre}</span> : null}
                 </div>
-                <h2 className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)] sm:text-base">{item.novel.thaiTitle}</h2>
+                <h2 className="truncate text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)] sm:text-base">{item.novel.thaiTitle}</h2>
                 <p className="truncate text-sm text-muted-foreground">ตอนที่ {item.chapter} · {item.chapterTitle}</p>
                 <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground sm:hidden"><Clock className="h-3 w-3" />{item.time}</p>
               </div>

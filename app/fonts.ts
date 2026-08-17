@@ -6,8 +6,9 @@ import {
 } from "next/font/google";
 
 /**
- * Public UI uses IBM Plex Sans Thai; editorial headings use Noto Serif Thai.
- * Reader alternatives remain available without preloading every family.
+ * The whole UI is IBM Plex Sans Thai — headings included. Serif is a reader
+ * preference only (brief §4.3), so it is loaded on demand like the other
+ * reader alternatives rather than preloaded on every page.
  */
 
 export const plexThai = IBM_Plex_Sans_Thai({
@@ -37,7 +38,7 @@ export const notoSerifThai = Noto_Serif_Thai({
   variable: "--font-noto-serif-thai",
   subsets: ["thai", "latin"],
   display: "swap",
-  preload: true
+  preload: false
 });
 
 export const fontVariables = [

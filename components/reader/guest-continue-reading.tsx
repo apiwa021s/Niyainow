@@ -53,7 +53,7 @@ export function GuestContinueReading({
         <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
         <div>
           <p className="editorial-kicker">CONTINUE / LOCAL</p>
-          <h2 id="guest-continue-title" className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
+          <h2 id="guest-continue-title" className="text-2xl font-semibold sm:text-3xl">{title}</h2>
         </div>
       </div>
 
@@ -65,7 +65,7 @@ export function GuestContinueReading({
           <Image src={progress.cover} alt="" fill sizes="68px" className="object-cover" />
         </span>
         <span className="min-w-0">
-          <span className="block truncate font-serif text-base font-semibold">{progress.novelTitle}</span>
+          <span className="block truncate text-base font-semibold">{progress.novelTitle}</span>
           <span className="mt-1 block truncate text-sm text-muted-foreground">
             ตอนที่ {progress.chapterNumber}: {progress.chapterTitle}
           </span>

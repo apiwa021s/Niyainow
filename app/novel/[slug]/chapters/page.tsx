@@ -109,7 +109,7 @@ export default async function ChaptersPage({
       />
       <div className="border-b border-border pb-5">
         <p className="editorial-kicker">CHAPTER INDEX / สารบัญตอน</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">สารบัญ</h1>
+        <h1 className="mt-1 text-3xl font-semibold">สารบัญ</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {novel.thaiTitle} · {catalog.catalogTotal.toLocaleString("th-TH")} ตอน
           {catalog.total !== catalog.catalogTotal ? ` · พบ ${catalog.total.toLocaleString("th-TH")} ตอน` : ""}

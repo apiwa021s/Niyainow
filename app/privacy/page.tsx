@@ -49,7 +49,7 @@ export default function PrivacyPage() {
             <section key={section.title} className="grid gap-3 border-b border-border py-7 sm:grid-cols-[44px_minmax(0,1fr)]">
               <span className="tabular font-mono text-xs font-semibold text-[var(--brand-light-on-light)]">{String(index + 1).padStart(2, "0")}</span>
               <div>
-                <h2 className="font-serif text-xl font-semibold">{section.title}</h2>
+                <h2 className="text-xl font-semibold">{section.title}</h2>
                 <p className="mt-3 leading-8 text-muted-foreground">{section.body}</p>
               </div>
             </section>

@@ -109,7 +109,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         discoveryTopics={(
           <section aria-labelledby="search-topics-title" className="border-y border-border py-5">
             <p className="editorial-kicker">START WITH A THREAD</p>
-            <h2 id="search-topics-title" className="mt-1 font-serif text-xl font-semibold">เริ่มจากแนวหรือแท็กที่สนใจ</h2>
+            <h2 id="search-topics-title" className="mt-1 text-xl font-semibold">เริ่มจากแนวหรือแท็กที่สนใจ</h2>
             <div className="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2">
               {allGenres.slice(0, 6).map((genre) => (
                 <Link key={genre.slug} href={`/genre/${genre.slug}`} className="group flex min-h-11 items-center justify-between border-b border-border text-sm font-medium">

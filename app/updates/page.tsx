@@ -39,7 +39,7 @@ export default async function UpdatesPage({ searchParams }: { searchParams: Prom
     <PageShell className="space-y-6">
       <header className="border-b border-border pb-5">
         <p className="editorial-kicker">ตามจังหวะการเผยแพร่</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">อัปเดตล่าสุด</h1>
+        <h1 className="mt-1 text-3xl font-semibold">อัปเดตล่าสุด</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">ตอนใหม่จากทุกเรื่อง เรียงตามเวลาที่เผยแพร่จริง</p>
       </header>
 

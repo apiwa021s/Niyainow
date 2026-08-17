@@ -530,7 +530,7 @@ export function ReaderView({
           <div className="mx-auto" style={{ maxWidth: "var(--reader-measure)" }}>
           <p className="font-mono text-xs text-[var(--reader-accent)]">ตอน {chapter.number}</p>
           <p className="mt-2 text-sm opacity-60">{novel.thaiTitle}</p>
-          <h1 className="mt-2 font-serif text-2xl font-semibold leading-[1.45] sm:text-3xl">{chapter.title}</h1>
+          <h1 className="mt-2 text-2xl font-semibold leading-[1.45] sm:text-3xl">{chapter.title}</h1>
           <div aria-hidden className="ink-divider mt-6" />
           <div className="mt-8 text-[length:var(--reader-font-size)] sm:text-[length:calc(var(--reader-font-size)+1px)]" style={{ fontFamily: "var(--reader-family)", lineHeight: "var(--reader-line-height)" }}>
             {children}
@@ -643,7 +643,7 @@ function ReaderSidebar({
       {open ? <button type="button" tabIndex={-1} aria-hidden="true" aria-label="ปิดสารบัญ" onClick={onClose} className="fixed inset-0 z-40 bg-black/40" /> : null}
       <aside ref={panelRef} id="reader-chapter-sidebar" role="dialog" aria-modal={open ? "true" : undefined} aria-label="สารบัญตอน" className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(340px,88vw)] flex-col border-r border-current/10 bg-[var(--reader-paper)] shadow-[var(--sh-3)] transition-transform duration-[var(--dur-base)]", open ? "translate-x-0" : "-translate-x-full")} aria-hidden={!open} inert={!open}>
         <div className="flex h-16 items-center justify-between gap-3 border-b border-current/10 px-4">
-          <div className="min-w-0"><p className="editorial-kicker">TABLE OF CONTENTS</p><p className="truncate font-serif text-sm font-semibold">{novel.thaiTitle}</p></div>
+          <div className="min-w-0"><p className="editorial-kicker">TABLE OF CONTENTS</p><p className="truncate text-sm font-semibold">{novel.thaiTitle}</p></div>
           <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="ปิดสารบัญ" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><X className="h-5 w-5" /></button>
         </div>
         <label className="relative m-4">

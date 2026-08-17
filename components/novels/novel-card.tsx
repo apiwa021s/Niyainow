@@ -56,6 +56,50 @@ function GenreChip({ label }: { label: string }) {
   );
 }
 
+/**
+ * Dense grid tile — the workhorse of every discovery grid.
+ *
+ * The cover is the only colour on the page (brief §3.2), so the label sits on
+ * the artwork behind a gradient rather than stealing a row of neutral space
+ * below it. Four meta slots maximum (brief §5.4): title, genre, one number,
+ * one status badge.
+ */
+export function NovelTile({ novel, priority = false }: { novel: Novel; priority?: boolean }) {
+  const genre = genreNameOf(novel, novel.genres[0]);
+  return (
+    <article className="group relative">
+      <div className="absolute right-1.5 top-1.5 z-20 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+        <BookmarkToggle slug={novel.slug} />
+      </div>
+      <Link href={`/novel/${novel.slug}`} className="block">
+        <div className="cover-tile">
+          <Image
+            src={novel.cover}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 31vw, (max-width: 1024px) 20vw, 15vw"
+            priority={priority}
+            className="object-cover"
+          />
+          <div className="absolute left-1.5 top-1.5 z-20 flex flex-col items-start gap-1">
+            <CoverBadge novel={novel} />
+          </div>
+          <div className="absolute inset-x-0 bottom-0 z-20 p-2">
+            <h3 className="line-clamp-2 text-sm font-semibold leading-[1.4] text-white drop-shadow-sm">
+              {novel.thaiTitle}
+            </h3>
+            <p className="tabular mt-0.5 flex items-center gap-1.5 truncate text-xs text-white/75">
+              {genre ? <span className="truncate">{genre}</span> : null}
+              {genre ? <span aria-hidden>·</span> : null}
+              <span className="shrink-0">{novel.chapters.toLocaleString("th-TH")} ตอน</span>
+            </p>
+          </div>
+        </div>
+      </Link>
+    </article>
+  );
+}
+
 /** Cover-led discovery card for shelves and browse grids. */
 export function DiscoveryNovelCard({
   novel,
@@ -95,7 +139,7 @@ export function DiscoveryNovelCard({
             ) : null}
           </div>
         </div>
-        <h3 className="mt-2 line-clamp-2 min-h-[2.8rem] font-serif text-sm font-semibold leading-[1.45] transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h3 className="mt-2 line-clamp-2 min-h-[2.8rem] text-sm font-semibold leading-[1.45] transition-colors group-hover:text-[var(--brand-emphasis)]">
           {novel.thaiTitle}
         </h3>
         <p className="tabular mt-1 text-[11px] text-muted-foreground">
@@ -137,7 +181,7 @@ export function ContinueReadingCard({
         <Image src={novel.cover} alt="" fill sizes="72px" className="object-cover" />
       </div>
       <div className="flex min-w-0 flex-col justify-center">
-        <p className="line-clamp-2 font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <p className="line-clamp-2 text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           {novel.thaiTitle}
         </p>
         <p className="mt-1 truncate text-xs text-muted-foreground">{chapterLabel}</p>
@@ -176,7 +220,7 @@ export function SearchNovelCard({ novel, highlight }: { novel: Novel; highlight?
             <GenreChip key={slug} label={genreNameOf(novel, slug)} />
           ))}
         </div>
-        <h3 className="mt-1 line-clamp-2 font-serif text-lg font-semibold leading-snug transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h3 className="mt-1 line-clamp-2 text-lg font-semibold leading-snug transition-colors group-hover:text-[var(--brand-emphasis)]">
           <HighlightedTitle text={novel.thaiTitle} query={highlight} />
         </h3>
         {originalTitle ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{originalTitle}</p> : null}
@@ -202,7 +246,7 @@ export function CompactNovelCard({ novel, meta }: { novel: Novel; meta?: string 
         <Image src={novel.cover} alt="" fill sizes="44px" className="object-cover" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-serif text-sm font-semibold group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
+        <p className="truncate text-sm font-semibold group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
         <p className="tabular mt-1 truncate text-xs text-muted-foreground">
           {meta ?? `${genreNameOf(novel, novel.genres[0])} · ${novel.chapters.toLocaleString("th-TH")} ตอน`}
         </p>
@@ -226,7 +270,7 @@ export function RankingNovelCard({ novel, rank, movement }: { novel: Novel; rank
         <Image src={novel.cover} alt="" fill sizes="44px" className="object-cover" />
       </div>
       <div className="min-w-0">
-        <p className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
+        <p className="truncate text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
         <p className="mt-1 truncate text-xs text-muted-foreground">{genreNameOf(novel, novel.genres[0])} · {novel.chapters.toLocaleString("th-TH")} ตอน</p>
         {movement ? <MovementLabel movement={movement} className="mt-1 sm:hidden" /> : null}
       </div>
@@ -263,7 +307,7 @@ export function NovelListItem({
         <Image src={novel.cover} alt="" fill sizes="64px" className="object-cover" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <h3 className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h3 className="truncate text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           <HighlightedTitle text={novel.thaiTitle} query={highlight} />
         </h3>
         <p className="tabular line-clamp-1 text-xs text-muted-foreground">
@@ -293,7 +337,7 @@ export function EditorialRecommendationCard({ novel }: { novel: Novel }) {
       </div>
       <div className="min-w-0 self-center">
         <p className="text-xs font-semibold tracking-[.14em] text-[var(--brand-emphasis)]">คัดจากคะแนนผู้อ่าน</p>
-        <h3 className="mt-1 line-clamp-2 font-serif text-base font-semibold leading-[1.5] group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
+        <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-[1.5] group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
         <p className="mt-2 line-clamp-2 text-xs leading-[1.7] text-muted-foreground">{novel.synopsis}</p>
         <div className="tabular mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
           {(novel.ratingCount ?? 0) > 0 ? <><Star className="h-3 w-3 fill-[var(--brand-emphasis)] text-[var(--brand-emphasis)]" />{novel.rating.toFixed(1)}</> : <span>ยังไม่มีคะแนน</span>}
@@ -314,7 +358,7 @@ export function RankingCard({ novel, rank, movement }: { novel: Novel; rank: num
       <div className="min-w-0 flex-1">
         <Link href={`/novel/${novel.slug}`} className="block">
           <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted"><Image src={novel.cover} alt="" fill sizes="150px" className="object-cover" /></div>
-          <h3 className="mt-2 truncate font-serif text-sm font-semibold">{novel.thaiTitle}</h3>
+          <h3 className="mt-2 truncate text-sm font-semibold">{novel.thaiTitle}</h3>
           <p className="tabular mt-1 truncate text-[11px] text-muted-foreground">{genreNameOf(novel, novel.genres[0])} · {novel.chapters.toLocaleString("th-TH")} ตอน</p>
           {movement ? <MovementLabel movement={movement} className="mt-1" /> : null}
         </Link>

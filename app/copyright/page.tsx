@@ -39,7 +39,7 @@ export default function CopyrightPage() {
       <section aria-labelledby="process-title" className="mt-10">
         <div className="max-w-3xl">
           <p className="editorial-kicker">REPORTING PROCESS</p>
-          <h2 id="process-title" className="mt-2 font-serif text-2xl font-semibold">ข้อมูลที่ช่วยให้ตรวจสอบได้ตรงจุด</h2>
+          <h2 id="process-title" className="mt-2 text-2xl font-semibold">ข้อมูลที่ช่วยให้ตรวจสอบได้ตรงจุด</h2>
           <p className="mt-3 leading-8 text-muted-foreground">การแจ้งที่มี URL รายละเอียดผลงาน และฐานสิทธิ์ครบถ้วนช่วยลดความคลาดเคลื่อนและทำให้ประเมินเนื้อหาได้เร็วขึ้น</p>
         </div>
 
@@ -61,7 +61,7 @@ export default function CopyrightPage() {
       </section>
 
       <section className="mt-10 grid gap-4 border-l-2 border-[var(--brand-emphasis)] bg-[var(--bg-subtle)] p-5 sm:p-6">
-        <h2 className="font-serif text-xl font-semibold">สถานะบริการในขณะนี้</h2>
+        <h2 className="text-xl font-semibold">สถานะบริการในขณะนี้</h2>
         <p className="max-w-3xl leading-7 text-muted-foreground">
           ช่องทางรับคำร้องออนไลน์ที่ยืนยันตัวผู้แจ้งยังไม่เปิดใช้งาน โปรดเก็บหลักฐานไว้และกลับมาตรวจสอบหน้านี้ ซึ่งจะระบุช่องทางอย่างเป็นทางการเมื่อพร้อมใช้งาน เราจะไม่ขอเอกสารส่วนบุคคลผ่านข้อความหรือบัญชีที่ไม่ได้ประกาศบนหน้านี้
         </p>
@@ -72,7 +72,7 @@ export default function CopyrightPage() {
 
       <section lang="en" className="mt-10 border-t border-border pt-7">
         <p className="editorial-kicker">ENGLISH NOTICE</p>
-        <h2 className="mt-2 font-serif text-xl font-semibold">Copyright reporting status</h2>
+        <h2 className="mt-2 text-xl font-semibold">Copyright reporting status</h2>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
           NiyaiThai respects the rights of authors, translators, publishers, and other creators. The verified online reporting channel is not yet available. Please preserve the page URL, work details, screenshots, and evidence of authority, then return to this page for the official channel. Payments, coins, and reporting rewards are not available.
         </p>

@@ -149,7 +149,7 @@ export function NovelBrowser({
         <p className="editorial-kicker">สำรวจคลังนิยาย</p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <Heading className="font-serif text-3xl font-semibold">{title}</Heading>
+            <Heading className="text-3xl font-semibold">{title}</Heading>
             <p className="tabular mt-1 text-sm text-muted-foreground">
               {description ?? `${pagination.total.toLocaleString("th-TH")} เรื่อง${hasFilters ? " ที่ตรงกับตัวกรอง" : " ในคลัง"}`}
             </p>
@@ -212,7 +212,7 @@ export function NovelBrowser({
           <div id="browse-filter-dialog" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="browse-filter-title" className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[12px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border">
             <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border sm:hidden" />
             <div className="mb-4 flex items-center justify-between gap-2">
-              <div><h2 id="browse-filter-title" className="font-serif text-xl font-semibold">ตัวกรอง</h2><p className="text-xs text-muted-foreground">เลือกเท่าที่จำเป็นเพื่อจำกัดผลลัพธ์</p></div>
+              <div><h2 id="browse-filter-title" className="text-xl font-semibold">ตัวกรอง</h2><p className="text-xs text-muted-foreground">เลือกเท่าที่จำเป็นเพื่อจำกัดผลลัพธ์</p></div>
               <button type="button" onClick={() => setSheetOpen(false)} aria-label="ปิดตัวกรอง" className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
             <FilterPanel query={query} genres={facets} hideGenres={Boolean(fixedGenre)} onChange={(next) => update({ ...next, ...(fixedGenre ? { genre: fixedGenre } : {}), ...(fixedTag ? { tag: fixedTag } : {}) })} />
@@ -235,7 +235,7 @@ function EmptyResults({ onClear, suggestions, hasSuggestions }: { onClear: () =>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">ลองลดจำนวนตัวกรอง หรือกลับไปดูเรื่องยอดนิยมในคลัง</p>
         <button type="button" onClick={onClear} className="mt-4 inline-flex h-11 items-center rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white">ล้างตัวกรอง</button>
       </div>
-      {hasSuggestions ? <section aria-label="เรื่องยอดนิยม"><h2 className="mb-4 font-serif text-xl font-semibold">เรื่องยอดนิยมตอนนี้</h2>{suggestions}</section> : null}
+      {hasSuggestions ? <section aria-label="เรื่องยอดนิยม"><h2 className="mb-4 text-xl font-semibold">เรื่องยอดนิยมตอนนี้</h2>{suggestions}</section> : null}
     </div>
   );
 }

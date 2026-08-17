@@ -42,7 +42,7 @@ export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; e
     <Card className="max-w-lg shadow-[var(--sh-1)]">
       <CardHeader>
         <p className="editorial-kicker">READER ACCOUNT</p>
-        <CardTitle className="font-serif text-2xl">ซิงก์พื้นที่อ่านของคุณ</CardTitle>
+        <CardTitle className="text-2xl">ซิงก์พื้นที่อ่านของคุณ</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm leading-relaxed text-muted-foreground">

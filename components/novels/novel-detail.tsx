@@ -79,7 +79,7 @@ export function NovelHero({
           </div>
 
           <p className="editorial-kicker mt-4">NOVEL / เรื่องอ่าน</p>
-          <h1 className="mt-1 text-balance font-serif text-3xl font-semibold leading-[1.25] sm:text-4xl xl:text-5xl">
+          <h1 className="mt-1 text-balance text-3xl font-semibold leading-[1.25] sm:text-4xl xl:text-5xl">
             {novel.thaiTitle}
           </h1>
           {novel.title !== novel.thaiTitle ? (
@@ -116,7 +116,7 @@ export function NovelHero({
 
         <aside className="hidden border-l border-border pl-7 xl:block" aria-label="ข้อมูลฉบับและทางลัด">
           <p className="editorial-kicker">READING INDEX</p>
-          <p className="tabular mt-3 font-serif text-4xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
+          <p className="tabular mt-3 text-4xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
           <p className="mt-1 text-xs text-muted-foreground">ตอนที่เผยแพร่ในคลัง</p>
           <dl className="mt-5 divide-y divide-border text-sm">
             <InfoRow label="สถานะ" value={status.label} />
@@ -138,7 +138,7 @@ export function NovelSignals({ novel }: { novel: Novel }) {
     <section aria-label="ข้อมูลการอ่านของเรื่อง" className="grid gap-5 border-b border-border py-5 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-8">
       <div className="border-l-2 border-[var(--brand-emphasis)] pl-4">
         <p className="text-xs text-muted-foreground">จำนวนตอน</p>
-        <p className="tabular mt-0.5 font-serif text-2xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
+        <p className="tabular mt-0.5 text-2xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
       </div>
       <dl className="flex flex-wrap gap-x-7 gap-y-3 text-sm">
         <Signal label="คะแนนผู้อ่าน" value={(novel.ratingCount ?? 0) > 0 ? `${novel.rating.toFixed(1)} / 5` : "ยังไม่มีคะแนน"} />
@@ -154,7 +154,7 @@ export function NovelSynopsis({ synopsis }: { synopsis: string }) {
   return (
     <section aria-labelledby="novel-synopsis-title" className="border-t border-border pt-7">
       <p className="editorial-kicker">SYNOPSIS / เรื่องย่อ</p>
-      <h2 id="novel-synopsis-title" className="mt-1 font-serif text-2xl font-semibold">เรื่องย่อ</h2>
+      <h2 id="novel-synopsis-title" className="mt-1 text-2xl font-semibold">เรื่องย่อ</h2>
       <details className="group mt-4">
         <summary className="list-none [&::-webkit-details-marker]:hidden">
           <span className="block whitespace-pre-line text-base leading-8 text-muted-foreground group-open:line-clamp-none line-clamp-7">
