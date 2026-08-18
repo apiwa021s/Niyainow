@@ -25,7 +25,7 @@ export function ChapterEnd({
   initialFollowing,
   onNavigateChapter,
 }: {
-  novel: Novel;
+  novel: Pick<Novel, "slug">;
   chapter: ChapterSummary;
   chapterPosition?: number;
   totalChapters?: number;

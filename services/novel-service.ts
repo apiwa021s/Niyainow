@@ -1788,85 +1788,6 @@ export async function getChapters(slug: string, requestedLimit = CHAPTER_PAGE_SI
   return page.items.slice(0, limit);
 }
 
-export const getChapterWindow = cache(
-  async (slugInput: string, currentInput: string | number, requestedRadius = 24): Promise<ChapterWindow> => {
-    const slug = cleanText(slugInput, 180);
-    const currentNumber = Number(currentInput);
-    const radius = Math.min(Math.max(Math.floor(requestedRadius) || 24, 8), 40);
-    if (!slug || !Number.isFinite(currentNumber)) {
-      return { items: [], total: 0, startPosition: 0, endPosition: 0, hasEarlier: false, hasLater: false };
-    }
-
-    return getOrSetVersioned({
-      versionKeys: [cacheKeys.versions.chapters(slug)],
-      key: ([version]) => cacheKeys.chapterReader(slug, `window-${currentNumber}-${radius}`, version),
-      ttlSeconds: CACHE_TTL_SECONDS.CHAPTER_LIST,
-      category: "chapter-list",
-      loader: async () => {
-        const now = new Date();
-        const db = getDb();
-        const [current] = await db
-          .select(chapterSummarySelection)
-          .from(chapters)
-          .innerJoin(novels, eq(novels.id, chapters.novelId))
-          .where(and(
-            eq(novels.slug, slug),
-            eq(chapters.chapterNumber, currentNumber),
-            publicNovelCondition(now),
-            publicChapterCondition(now),
-          ))
-          .limit(1);
-        if (!current) {
-          return { items: [], total: 0, startPosition: 0, endPosition: 0, hasEarlier: false, hasLater: false };
-        }
-
-        const [beforeRows, afterRows, countRows] = await Promise.all([
-          db
-            .select(chapterSummarySelection)
-            .from(chapters)
-            .innerJoin(novels, eq(novels.id, chapters.novelId))
-            .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now), sql`${chapters.sortOrder} < ${current.sortOrder}`))
-            .orderBy(desc(chapters.sortOrder), desc(chapters.id))
-            .limit(radius + 1),
-          db
-            .select(chapterSummarySelection)
-            .from(chapters)
-            .innerJoin(novels, eq(novels.id, chapters.novelId))
-            .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now), sql`${chapters.sortOrder} > ${current.sortOrder}`))
-            .orderBy(asc(chapters.sortOrder), asc(chapters.id))
-            .limit(radius + 1),
-          db
-            .select({
-              total: countDistinct(chapters.id),
-              before: sql<number>`count(*) filter (where ${chapters.sortOrder} < ${current.sortOrder})`,
-            })
-            .from(chapters)
-            .innerJoin(novels, eq(novels.id, chapters.novelId))
-            .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now))),
-        ]);
-        const visibleBeforeRows = beforeRows.slice(0, radius);
-        const visibleAfterRows = afterRows.slice(0, radius);
-        const before = [...visibleBeforeRows].reverse().map(chapterSummaryFromRow);
-        const items = [...before, chapterSummaryFromRow(current), ...visibleAfterRows.map(chapterSummaryFromRow)];
-        const total = Number(countRows[0]?.total ?? items.length);
-        const currentPosition = Number(countRows[0]?.before ?? before.length) + 1;
-        const startPosition = Math.max(1, currentPosition - before.length);
-        const endPosition = startPosition + items.length - 1;
-        return {
-          items,
-          total,
-          startPosition,
-          endPosition,
-          hasEarlier: startPosition > 1,
-          hasLater: endPosition < total,
-          earlierBoundary: beforeRows[radius] ? chapterSummaryFromRow(beforeRows[radius]) : undefined,
-          laterBoundary: afterRows[radius] ? chapterSummaryFromRow(afterRows[radius]) : undefined,
-        };
-      },
-    });
-  },
-);
-
 export const getLatestChapters = cache(
   async (slugInput: string, requestedLimit = 5) => {
     const slug = cleanText(slugInput, 180);
@@ -1892,115 +1813,172 @@ export const getLatestChapters = cache(
   },
 );
 
+type ReaderChapterSnapshot = {
+  published: ReturnType<typeof toPublicChapterCachePayload>;
+  adjacent: { previous?: ChapterSummary; next?: ChapterSummary };
+  chapterWindow: ChapterWindow;
+};
+
+type ReaderChapterWindowRow = Parameters<typeof chapterSummaryFromRow>[0] & {
+  publicContent: string | null;
+  readerPosition: number;
+  readerTotal: number;
+};
+
+function emptyChapterWindow(): ChapterWindow {
+  return { items: [], total: 0, startPosition: 0, endPosition: 0, hasEarlier: false, hasLater: false };
+}
+
 /**
- * Access boundary: deliberately absent from the persistent Next.js data cache.
- * React request memoization only deduplicates metadata/page access within one
- * render, while every new request rechecks publication and free/paid state.
+ * Public reader snapshot selected in one database round trip. The CTE ranks
+ * published chapters inside Postgres, returning only the visible drawer
+ * window plus its two boundary rows. Paid content is replaced by the excerpt
+ * before it can cross the shared-cache boundary.
  */
-const getPublishedChapterFresh = async (
-  slugInput: string,
-  chapterNumberInput: string | number,
-): Promise<{ chapter: ChapterSummary; content: string | null; locked: boolean } | undefined> => {
-    const slug = cleanText(slugInput, 180);
-    const chapterNumber = Number(chapterNumberInput);
-    if (!slug || !Number.isFinite(chapterNumber) || chapterNumber < 0) return undefined;
-    const now = new Date();
-    const rows = await getDb()
+async function getReaderChapterSnapshotFresh(
+  slug: string,
+  chapterNumber: number,
+  radius: number,
+): Promise<ReaderChapterSnapshot | undefined> {
+  const now = new Date();
+  const db = getDb();
+  const orderedChapters = db.$with("reader_ordered_chapters").as(
+    db
       .select({
-        ...chapterSummarySelection,
+        id: chapters.id,
+        novelSlug: sql<string>`${novels.slug}`.as("novel_slug"),
+        chapterNumber: chapters.chapterNumber,
+        sortOrder: chapters.sortOrder,
+        chapterSlug: sql<string>`${chapters.slug}`.as("chapter_slug"),
+        title: chapters.title,
+        publishedAt: chapters.publishedAt,
+        wordCount: chapters.wordCount,
+        isFree: chapters.isFree,
+        coinPrice: chapters.coinPrice,
         publicContent: sql<string | null>`case
-          when ${chapters.isFree} then ${chapters.content}
-          else nullif(left(coalesce(${chapters.excerpt}, ''), 1200), '')
-        end`,
+          when ${chapters.chapterNumber} = ${chapterNumber} then case
+            when ${chapters.isFree} then ${chapters.content}
+            else nullif(left(coalesce(${chapters.excerpt}, ''), 1200), '')
+          end
+          else null
+        end`.as("public_content"),
+        readerPosition: sql<number>`(row_number() over (order by ${chapters.sortOrder}, ${chapters.id}))::integer`
+          .as("reader_position"),
+        readerTotal: sql<number>`(count(*) over ())::integer`.as("reader_total"),
       })
       .from(chapters)
       .innerJoin(novels, eq(novels.id, chapters.novelId))
-      .where(
-        and(
-          eq(novels.slug, slug),
-          eq(chapters.chapterNumber, chapterNumber),
-          publicNovelCondition(now),
-          publicChapterCondition(now),
-        ),
-      )
-      .limit(1);
-    const row = rows[0];
-    if (!row) return undefined;
-    return toPublicChapterCachePayload({
-      chapter: chapterSummaryFromRow(row),
-      isFree: row.isFree,
-      publicContent: row.publicContent,
-    });
-};
+      .where(and(eq(novels.slug, slug), publicNovelCondition(now), publicChapterCondition(now))),
+  );
+  const currentChapter = db.$with("reader_current_chapter").as(
+    db
+      .select({ currentPosition: sql<number>`${orderedChapters.readerPosition}`.as("current_position") })
+      .from(orderedChapters)
+      .where(eq(orderedChapters.chapterNumber, chapterNumber)),
+  );
+  const rows: ReaderChapterWindowRow[] = await db
+    .with(orderedChapters, currentChapter)
+    .select({
+      id: orderedChapters.id,
+      novelSlug: orderedChapters.novelSlug,
+      chapterNumber: orderedChapters.chapterNumber,
+      sortOrder: orderedChapters.sortOrder,
+      slug: orderedChapters.chapterSlug,
+      title: orderedChapters.title,
+      publishedAt: orderedChapters.publishedAt,
+      wordCount: orderedChapters.wordCount,
+      isFree: orderedChapters.isFree,
+      coinPrice: orderedChapters.coinPrice,
+      publicContent: orderedChapters.publicContent,
+      readerPosition: orderedChapters.readerPosition,
+      readerTotal: orderedChapters.readerTotal,
+    })
+    .from(orderedChapters)
+    .innerJoin(
+      currentChapter,
+      sql`${orderedChapters.readerPosition} between ${currentChapter.currentPosition} - ${radius + 1}
+        and ${currentChapter.currentPosition} + ${radius + 1}`,
+    )
+    .orderBy(asc(orderedChapters.readerPosition));
+  const currentIndex = rows.findIndex((row) => row.chapterNumber === chapterNumber);
+  if (currentIndex < 0) return undefined;
 
-async function getAdjacentChaptersFresh(slugInput: string, currentInput: string | number) {
-    const slug = cleanText(slugInput, 180);
-    const current = Number(currentInput);
-    if (!slug || !Number.isFinite(current)) return { previous: undefined, next: undefined };
-    const now = new Date();
-    const db = getDb();
-    const currentRows = await db
-      .select({ sortOrder: chapters.sortOrder, novelId: chapters.novelId })
-      .from(chapters)
-      .innerJoin(novels, eq(novels.id, chapters.novelId))
-      .where(
-        and(
-          eq(novels.slug, slug),
-          eq(chapters.chapterNumber, current),
-          publicNovelCondition(now),
-          publicChapterCondition(now),
-        ),
-      )
-      .limit(1);
-    const currentRow = currentRows[0];
-    if (!currentRow) return { previous: undefined, next: undefined };
-    const common = and(eq(chapters.novelId, currentRow.novelId), publicChapterCondition(now));
-    const [previousRows, nextRows] = await Promise.all([
-      db
-        .select(chapterSummarySelection)
-        .from(chapters)
-        .innerJoin(novels, eq(novels.id, chapters.novelId))
-        .where(and(common, sql`${chapters.sortOrder} < ${currentRow.sortOrder}`))
-        .orderBy(desc(chapters.sortOrder))
-        .limit(1),
-      db
-        .select(chapterSummarySelection)
-        .from(chapters)
-        .innerJoin(novels, eq(novels.id, chapters.novelId))
-        .where(and(common, sql`${chapters.sortOrder} > ${currentRow.sortOrder}`))
-        .orderBy(asc(chapters.sortOrder))
-        .limit(1),
-    ]);
+  const current = rows[currentIndex];
+  const visibleStart = Math.max(0, currentIndex - radius);
+  const visibleEnd = Math.min(rows.length, currentIndex + radius + 1);
+  const visibleRows = rows.slice(visibleStart, visibleEnd);
+  const items = visibleRows.map(chapterSummaryFromRow);
+  const total = Number(current.readerTotal);
+  const startPosition = Number(visibleRows[0]?.readerPosition ?? current.readerPosition);
+  const endPosition = Number(visibleRows.at(-1)?.readerPosition ?? current.readerPosition);
+
   return {
-    previous: previousRows[0] ? chapterSummaryFromRow(previousRows[0]) : undefined,
-    next: nextRows[0] ? chapterSummaryFromRow(nextRows[0]) : undefined,
+    published: toPublicChapterCachePayload({
+      chapter: chapterSummaryFromRow(current),
+      isFree: current.isFree,
+      publicContent: current.publicContent,
+    }),
+    adjacent: {
+      previous: rows[currentIndex - 1] ? chapterSummaryFromRow(rows[currentIndex - 1]) : undefined,
+      next: rows[currentIndex + 1] ? chapterSummaryFromRow(rows[currentIndex + 1]) : undefined,
+    },
+    chapterWindow: {
+      items,
+      total,
+      startPosition,
+      endPosition,
+      hasEarlier: startPosition > 1,
+      hasLater: endPosition < total,
+      earlierBoundary: visibleStart > 0 ? chapterSummaryFromRow(rows[visibleStart - 1]) : undefined,
+      laterBoundary: visibleEnd < rows.length ? chapterSummaryFromRow(rows[visibleEnd]) : undefined,
+    },
   };
 }
 
-const getReaderChapter = cache(async (slugInput: string, chapterNumberInput: string | number) => {
-  const slug = cleanText(slugInput, 180);
-  const chapterNumber = Number(chapterNumberInput);
-  if (!slug || !Number.isFinite(chapterNumber) || chapterNumber < 0) return undefined;
+async function getReaderChapterSnapshotFromSharedCache(slug: string, chapterNumber: number, radius: number) {
   return getOrSetVersioned({
     versionKeys: [cacheKeys.versions.chapters(slug)],
-    key: ([version]) => cacheKeys.chapterReader(slug, chapterNumber, version),
+    key: ([version]) => cacheKeys.chapterReader(slug, `snapshot-v2-${chapterNumber}-${radius}`, version),
     ttlSeconds: CACHE_TTL_SECONDS.CHAPTER_READER,
     category: "chapter",
-    loader: async () => {
-      const published = await getPublishedChapterFresh(slug, chapterNumber);
-      if (!published) return undefined;
-      const adjacent = await getAdjacentChaptersFresh(slug, chapterNumber);
-      return { published, adjacent };
-    },
+    loader: () => getReaderChapterSnapshotFresh(slug, chapterNumber, radius),
   });
+}
+
+const getReaderChapterSnapshotCached = unstable_cache(
+  getReaderChapterSnapshotFromSharedCache,
+  ["public-reader-chapter-snapshot-v2"],
+  { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-chapters", "public-novels"] },
+);
+
+/**
+ * The shared result contains only public chapter metadata, free content, or a
+ * paid excerpt. Full paid content and entitlements stay on uncached user-bound
+ * queries. Editorial mutations expire the public-chapters tag immediately.
+ */
+const getReaderChapterSnapshot = cache(async (
+  slugInput: string,
+  chapterNumberInput: string | number,
+  requestedRadius = 24,
+) => {
+  const slug = cleanText(slugInput, 180);
+  const chapterNumber = Number(chapterNumberInput);
+  const radius = Math.min(Math.max(Math.floor(requestedRadius) || 24, 8), 40);
+  if (!slug || !Number.isFinite(chapterNumber) || chapterNumber < 0) return undefined;
+  return getReaderChapterSnapshotCached(slug, chapterNumber, radius);
 });
 
 export const getPublishedChapter = cache(async (slug: string, chapterNumber: string | number) =>
-  (await getReaderChapter(slug, chapterNumber))?.published,
+  (await getReaderChapterSnapshot(slug, chapterNumber))?.published,
 );
 
 export const getAdjacentChapters = cache(async (slug: string, chapterNumber: string | number) =>
-  (await getReaderChapter(slug, chapterNumber))?.adjacent ?? { previous: undefined, next: undefined },
+  (await getReaderChapterSnapshot(slug, chapterNumber))?.adjacent ?? { previous: undefined, next: undefined },
+);
+
+export const getChapterWindow = cache(
+  async (slug: string, chapterNumber: string | number, requestedRadius = 24): Promise<ChapterWindow> =>
+    (await getReaderChapterSnapshot(slug, chapterNumber, requestedRadius))?.chapterWindow ?? emptyChapterWindow(),
 );
 
 export const getSimilarNovels = cache(

@@ -41,6 +41,7 @@ type ProgressWrite = {
 };
 
 type ReaderLibraryStatus = "READING" | "PLAN_TO_READ" | "COMPLETED" | "DROPPED";
+type ReaderNovel = Pick<Novel, "id" | "slug" | "thaiTitle" | "cover" | "status">;
 
 export type ReaderInitialProgress = {
   chapterId: string;
@@ -115,7 +116,7 @@ export function ReaderView({
   locked = false,
   lockedContent,
 }: {
-  novel: Novel;
+  novel: ReaderNovel;
   chapter: ChapterSummary;
   previous?: ChapterSummary;
   next?: ChapterSummary;
@@ -657,7 +658,7 @@ function ReaderSidebar({
   onNavigateChapter,
   returnFocusRef,
 }: {
-  novel: Novel;
+  novel: ReaderNovel;
   current: ChapterSummary;
   chapterWindow: ChapterWindow;
   open: boolean;

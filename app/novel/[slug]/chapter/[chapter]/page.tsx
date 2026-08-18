@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
+import { connection } from "next/server";
 
 import { ChapterContent } from "@/components/reader/chapter-content";
 import { ChapterUnlockCard } from "@/components/reader/chapter-unlock-card";
@@ -33,6 +34,7 @@ export async function generateMetadata({ params }: ChapterRouteProps): Promise<M
       noIndex: true,
     });
   }
+  await connection();
   const [novel, published] = await Promise.all([
     getNovelBySlug(slug),
     getPublishedChapter(slug, parsed.number),
@@ -61,6 +63,7 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
   const { slug, chapter } = await params;
   const parsed = parseChapterNumberSegment(chapter);
   if (!parsed) notFound();
+  await connection();
 
   const [novel, published, adjacent, chapterWindow, currentUser] = await Promise.all([
     getNovelBySlug(slug),
@@ -81,19 +84,19 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
     ...(chapterSummary.id ? [chapterSummary.id] : []),
     ...chapterWindow.items.flatMap((item) => item.id ? [item.id] : []),
   ])];
-  const [userState, unlockedChapterIds, walletBalance] = await Promise.all([
+  const [userState, unlockedChapterIds, walletBalance, fullPaidContent] = await Promise.all([
     activeUser ? getUserNovelState(activeUser.id, novel.slug) : Promise.resolve(null),
     activeUser && !staffAccess ? getUnlockedChapterIds(activeUser.id, chapterIds) : Promise.resolve([]),
     activeUser && commerciallyLocked && !staffAccess ? getWalletBalance(activeUser.id) : Promise.resolve(0),
+    activeUser && commerciallyLocked && chapterSummary.id
+      ? staffAccess
+        ? getStaffPublishedChapterContent(activeUser, chapterSummary.id)
+        : getUnlockedPublishedChapterContent(activeUser.id, chapterSummary.id)
+      : Promise.resolve(null),
   ]);
   const unlocked = new Set(unlockedChapterIds);
   const hasPaidAccess = staffAccess || Boolean(chapterSummary.id && unlocked.has(chapterSummary.id));
   const locked = commerciallyLocked && !hasPaidAccess;
-  const fullPaidContent = commerciallyLocked && hasPaidAccess && chapterSummary.id
-    ? staffAccess
-      ? await getStaffPublishedChapterContent(activeUser!, chapterSummary.id)
-      : await getUnlockedPublishedChapterContent(activeUser!.id, chapterSummary.id)
-    : null;
   const content = commerciallyLocked && hasPaidAccess ? fullPaidContent : published.content;
   if (commerciallyLocked && hasPaidAccess && content === null) notFound();
 
@@ -152,7 +155,13 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
       />
       <ReaderView
         key={chapterSummary.id ?? chapterSummary.number}
-        novel={novel}
+        novel={{
+          id: novel.id,
+          slug: novel.slug,
+          thaiTitle: novel.thaiTitle,
+          cover: novel.cover,
+          status: novel.status,
+        }}
         chapter={applyAccess(chapterSummary)!}
         previous={applyAccess(adjacent.previous)}
         next={applyAccess(adjacent.next)}
