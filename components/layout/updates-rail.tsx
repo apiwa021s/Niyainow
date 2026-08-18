@@ -39,10 +39,10 @@ export async function UpdatesRail() {
             <Link
               href={`/novel/${item.novelSlug}/chapter/${item.chapter}`}
               prefetch={false}
-              className="group flex gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-subtle"
+              className="group grid grid-cols-[44px_minmax(0,1fr)] items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-subtle"
             >
-              <div className="relative aspect-[2/3] w-10 shrink-0 overflow-hidden rounded-(--r-sm) bg-surface-recessed">
-                <Image src={item.novel.cover} alt="" fill sizes="40px" className="object-cover" />
+              <div className="relative h-[66px] w-11 shrink-0 overflow-hidden rounded-(--r-sm) bg-surface-recessed ring-1 ring-border">
+                <Image src={item.novel.cover} alt="" fill sizes="44px" className="object-contain" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold transition-colors group-hover:text-accent-base">

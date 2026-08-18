@@ -472,6 +472,7 @@ export function ReaderView({
     "--reader-text": theme.fg,
     "--reader-accent": theme.accent,
     "--reader-action": theme.action,
+    "--reader-progress": theme.progress,
     colorScheme: theme.scheme,
   } as CSSProperties;
 
@@ -484,18 +485,18 @@ export function ReaderView({
         {prefs.dim > 0 ? <div aria-hidden className="pointer-events-none fixed inset-0 z-30 bg-black" style={{ opacity: prefs.dim }} /> : null}
 
         <div role="progressbar" aria-label="ความคืบหน้าการอ่าน" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} className="fixed inset-x-0 top-0 z-50 h-0.5 bg-transparent">
-          <div className="h-full bg-[var(--reader-accent)] transition-[width] duration-[var(--dur-fast)] ease-[var(--ease-out)]" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-[var(--reader-progress)] transition-[width] duration-[var(--dur-fast)] ease-[var(--ease-out)]" style={{ width: `${progress}%` }} />
         </div>
 
       <header aria-hidden={!chromeVisible ? true : undefined} inert={!chromeVisible} className={cn("fixed inset-x-0 top-0 z-40 h-[calc(4rem+env(safe-area-inset-top))] border-b border-current/10 bg-[var(--reader-paper)] pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0")}>
         <div className="mx-auto flex h-16 max-w-[calc(var(--reader-measure)+12rem)] items-center gap-1 px-2 sm:px-4">
-          <Link href={`/novel/${novel.slug}`} aria-label="กลับไปหน้าเรื่อง" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><ArrowLeft className="h-5 w-5" /></Link>
+          <Link href={`/novel/${novel.slug}`} aria-label="กลับไปหน้าเรื่อง" className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 hover:bg-current/10"><ArrowLeft className="h-5 w-5" /></Link>
           <div className="min-w-0 flex-1 px-1">
             <span className="block truncate text-xs opacity-65">{novel.thaiTitle}</span>
             <span className="block truncate text-sm font-semibold">ตอนที่ {chapter.number} · {chapter.title}</span>
           </div>
           <span className="tabular hidden min-w-14 rounded-full bg-current/8 px-2 py-1 text-center text-xs font-semibold sm:inline-block">{progress}%</span>
-          <button type="button" onClick={openSettings} aria-label="ตั้งค่าการอ่าน" aria-haspopup="dialog" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-sm font-semibold hover:bg-current/8">Aa</button>
+          <button type="button" onClick={openSettings} aria-label="ตั้งค่าการอ่าน" aria-haspopup="dialog" className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 text-sm font-semibold hover:bg-current/10">Aa</button>
           <div ref={moreMenuRef} className="relative shrink-0">
             <button
               ref={moreButtonRef}
@@ -504,7 +505,7 @@ export function ReaderView({
               aria-label="เมนูเพิ่มเติม"
               aria-controls="reader-more-menu"
               aria-expanded={moreOpen}
-              className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-current/8"
+              className="grid h-11 w-11 place-items-center rounded-[6px] border border-current/12 bg-current/5 hover:bg-current/10"
             >
               <Ellipsis className="h-5 w-5" />
             </button>
@@ -516,7 +517,7 @@ export function ReaderView({
                     <span className="tabular text-xs opacity-70">{progress}%</span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-current/12">
-                    <div className="h-full rounded-full bg-[var(--reader-accent)]" style={{ width: `${progress}%` }} />
+                    <div className="h-full rounded-full bg-[var(--reader-progress)]" style={{ width: `${progress}%` }} />
                   </div>
                 </div>
                 <div className="mt-1 flex min-h-12 items-center justify-between gap-3 px-2 py-2 text-sm">
@@ -570,9 +571,9 @@ export function ReaderView({
 
       <nav aria-label="เปลี่ยนตอน" aria-hidden={!chromeVisible ? true : undefined} inert={!chromeVisible} className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-paper)] pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0")}>
         <div className="mx-auto grid h-16 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
-          {previousHref ? <Link href={previousHref} onClick={() => navigateChapter(previous!.number)} aria-label="ตอนก่อนหน้า" className="flex h-12 items-center justify-start gap-1 rounded-[8px] px-2 text-sm font-semibold hover:bg-current/8 sm:px-3"><ChevronLeft className="h-4 w-4 shrink-0" /><span className="sm:hidden">ก่อน</span><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
-          <button type="button" onClick={openSidebar} aria-controls="reader-chapter-sidebar" aria-expanded={sidebarOpen} className="flex h-12 items-center justify-center gap-2 rounded-[8px] text-sm font-semibold hover:bg-current/8"><List className="h-4 w-4" />สารบัญ</button>
-          {nextHref ? <Link href={nextHref} onClick={() => navigateChapter(next!.number)} aria-label="ตอนถัดไป" className="flex h-12 items-center justify-end gap-1 rounded-[8px] px-2 text-sm font-semibold hover:bg-current/8 sm:px-3"><span className="sm:hidden">ถัดไป</span><span className="hidden sm:inline">ตอนถัดไป</span><ChevronRight className="h-4 w-4 shrink-0" /></Link> : <span aria-hidden />}
+          {previousHref ? <Link href={previousHref} onClick={() => navigateChapter(previous!.number)} aria-label="ตอนก่อนหน้า" className="flex h-12 items-center justify-start gap-1 rounded-[6px] border border-current/12 bg-current/5 px-2 text-sm font-semibold hover:bg-current/10 sm:px-3"><ChevronLeft className="h-4 w-4 shrink-0" /><span className="sm:hidden">ก่อน</span><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
+          <button type="button" onClick={openSidebar} aria-controls="reader-chapter-sidebar" aria-expanded={sidebarOpen} className="flex h-12 items-center justify-center gap-2 rounded-[6px] border border-current/12 bg-current/5 text-sm font-semibold hover:bg-current/10"><List className="h-4 w-4" />สารบัญ</button>
+          {nextHref ? <Link href={nextHref} onClick={() => navigateChapter(next!.number)} aria-label="ตอนถัดไป" className="flex h-12 items-center justify-end gap-1 rounded-[6px] border border-current/12 bg-current/5 px-2 text-sm font-semibold hover:bg-current/10 sm:px-3"><span className="sm:hidden">ถัดไป</span><span className="hidden sm:inline">ตอนถัดไป</span><ChevronRight className="h-4 w-4 shrink-0" /></Link> : <span aria-hidden />}
         </div>
       </nav>
       </div>
@@ -657,7 +658,7 @@ function ReaderSidebar({
       <aside ref={panelRef} id="reader-chapter-sidebar" role="dialog" aria-modal={open ? "true" : undefined} aria-label="สารบัญตอน" className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(360px,90vw)] flex-col border-r border-current/10 bg-[var(--reader-paper)] pt-[env(safe-area-inset-top)] shadow-[var(--sh-3)] transition-transform duration-[var(--dur-base)]", open ? "translate-x-0" : "-translate-x-full")} aria-hidden={!open} inert={!open}>
         <div className="flex h-16 items-center justify-between gap-3 px-4">
           <div className="min-w-0"><p className="editorial-kicker">TABLE OF CONTENTS</p><p className="truncate text-sm font-semibold">{novel.thaiTitle}</p></div>
-          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="ปิดสารบัญ" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><X className="h-5 w-5" /></button>
+          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="ปิดสารบัญ" className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 hover:bg-current/10"><X className="h-5 w-5" /></button>
         </div>
         <label className="relative m-4">
           <span className="sr-only">ค้นหาชื่อตอนใกล้เคียง</span>
@@ -668,7 +669,7 @@ function ReaderSidebar({
           ตอนลำดับ {chapterWindow.startPosition.toLocaleString("th-TH")}–{chapterWindow.endPosition.toLocaleString("th-TH")} จาก {chapterWindow.total.toLocaleString("th-TH")}
         </p>
         <nav aria-label="รายชื่อตอน" className="min-h-0 flex-1 overflow-y-auto px-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-          {chapterWindow.hasEarlier && earlierJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${earlierJump}`} onClick={onClose} className="mb-1 flex min-h-11 items-center justify-center rounded-[8px] border border-current/12 text-xs font-semibold hover:bg-current/6">ดูตอนก่อนหน้านี้ในสารบัญ</Link> : null}
+          {chapterWindow.hasEarlier && earlierJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${earlierJump}`} onClick={onClose} className="mb-1 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนก่อนหน้านี้ในสารบัญ</Link> : null}
           <div className="grid gap-1">
             {visible.map((item) => {
               const active = item.id ? item.id === current.id : item.number === current.number;
@@ -692,7 +693,7 @@ function ReaderSidebar({
             })}
           </div>
           {visible.length === 0 ? <p className="px-3 py-8 text-center text-sm opacity-65">ไม่พบตอนในช่วงใกล้เคียงนี้</p> : null}
-          {chapterWindow.hasLater && laterJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${laterJump}`} onClick={onClose} className="mt-2 flex min-h-11 items-center justify-center rounded-[8px] border border-current/12 text-xs font-semibold hover:bg-current/6">ดูตอนถัดไปในสารบัญ</Link> : null}
+          {chapterWindow.hasLater && laterJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${laterJump}`} onClick={onClose} className="mt-2 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนถัดไปในสารบัญ</Link> : null}
         </nav>
       </aside>
     </>

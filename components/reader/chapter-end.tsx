@@ -48,7 +48,7 @@ export function ChapterEnd({
 
       {next ? (
         next.locked ? (
-          <div className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[8px] border border-current/15 px-5 text-center text-sm font-semibold opacity-75">
+          <div className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[6px] border border-current/15 bg-current/5 px-5 text-center text-sm font-semibold opacity-75">
             <Lock className="h-4 w-4 shrink-0" />
             ตอนที่ {next.number} ยังไม่เปิดให้อ่านบนระบบนี้
           </div>
@@ -56,18 +56,18 @@ export function ChapterEnd({
           <Link
             href={`/novel/${novel.slug}/chapter/${next.number}`}
             onClick={() => onNavigateChapter?.(next.number)}
-            className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--reader-action)] px-5 text-center text-base font-semibold text-white shadow-[var(--sh-brand)]"
+            className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--reader-action)] px-5 text-center text-base font-semibold text-white shadow-[var(--sh-brand)]"
           >
             <span className="line-clamp-2">ตอนถัดไป · {next.title}</span>
             <ChevronRight className="h-5 w-5 shrink-0" />
           </Link>
         )
       ) : (
-        <div className="flex flex-col gap-3 rounded-[8px] bg-current/6 p-4 text-center">
+        <div className="flex flex-col gap-3 rounded-[6px] bg-current/6 p-4 text-center">
           <p className="text-sm font-semibold">คุณอ่านถึงตอนล่าสุดแล้ว</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <FollowButton slug={novel.slug} initialActive={initialFollowing} />
-            <Link href={`/novel/${novel.slug}`} className="inline-flex min-h-11 items-center rounded-[6px] border border-current/15 px-4 text-sm font-semibold hover:bg-current/8">
+            <Link href={`/novel/${novel.slug}`} className="inline-flex min-h-11 items-center rounded-[6px] border border-current/15 bg-current/5 px-4 text-sm font-semibold hover:bg-current/10">
               กลับหน้ารายละเอียด
             </Link>
           </div>
@@ -82,14 +82,14 @@ export function ChapterEnd({
           <Link
             href={`/novel/${novel.slug}/chapter/${previous.number}`}
             onClick={() => onNavigateChapter?.(previous.number)}
-            className="flex min-h-12 items-center justify-center gap-1 rounded-[8px] border border-current/15 px-3 text-sm font-semibold hover:bg-current/8"
+            className="flex min-h-12 items-center justify-center gap-1 rounded-[6px] border border-current/15 bg-current/5 px-3 text-sm font-semibold hover:bg-current/10"
           >
             <ChevronLeft className="h-4 w-4" /> ตอนก่อน
           </Link>
         ) : null}
         <Link
           href={`/novel/${novel.slug}/chapters`}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-current/15 px-3 text-sm font-semibold hover:bg-current/8"
+          className="flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-current/15 bg-current/5 px-3 text-sm font-semibold hover:bg-current/10"
         >
           <List className="h-4 w-4" /> สารบัญ
         </Link>

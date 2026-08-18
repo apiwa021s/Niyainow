@@ -19,14 +19,15 @@ export type ReaderThemeValues = {
   fg: string;
   accent: string;
   action: string;
+  progress: string;
   scheme: "light" | "dark";
 };
 
 export const READER_THEME_VALUES: Record<ReaderTheme, ReaderThemeValues> = {
-  light: { bg: "#FAFAF8", paper: "#FAFAF8", fg: "#242220", accent: "#B51F32", action: "#B51F32", scheme: "light" },
-  sepia: { bg: "#F4EEE2", paper: "#F4EEE2", fg: "#302C28", accent: "#B51F32", action: "#B51F32", scheme: "light" },
-  dark: { bg: "#111113", paper: "#111113", fg: "#E8E5E1", accent: "#E24A5B", action: "#B51F32", scheme: "dark" },
-  amoled: { bg: "#000000", paper: "#090909", fg: "#F0EDE9", accent: "#FF6171", action: "#B51F32", scheme: "dark" },
+  light: { bg: "#FAFAF8", paper: "#FAFAF8", fg: "#242220", accent: "#B51F32", action: "#B51F32", progress: "#C2237F", scheme: "light" },
+  sepia: { bg: "#F4EEE2", paper: "#F4EEE2", fg: "#302C28", accent: "#B51F32", action: "#B51F32", progress: "#9A6A38", scheme: "light" },
+  dark: { bg: "#111113", paper: "#111113", fg: "#E8E5E1", accent: "#E24A5B", action: "#B51F32", progress: "#7AA2FF", scheme: "dark" },
+  amoled: { bg: "#000000", paper: "#090909", fg: "#F0EDE9", accent: "#FF6171", action: "#B51F32", progress: "#FF6EC7", scheme: "dark" },
 };
 
 export const READER_THEME_SWATCH: Record<ReaderTheme, { bg: string; fg: string }> = Object.fromEntries(
