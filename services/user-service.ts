@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, desc, eq, isNull, lte, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
+import { after } from "next/server";
 
 import { getDb } from "@/db";
 import {
@@ -41,14 +42,14 @@ import {
 
 export type LibraryStatus = "READING" | "PLAN_TO_READ" | "COMPLETED" | "DROPPED";
 
-async function revalidateEngagement(
+function revalidateEngagement(
   tags: Array<"public-novels" | "public-rankings">,
   novelSlug: string,
 ) {
   // Aggregate counters can be eventually consistent. SWR avoids turning every
   // reader action into a global cache stampede.
   for (const tag of tags) revalidateTag(tag, "max");
-  await invalidateEngagementCache(novelSlug);
+  after(() => invalidateEngagementCache(novelSlug));
 }
 
 function expirePublishedReviews() {
@@ -413,7 +414,7 @@ export async function setLibraryStatus(userId: string, novelSlug: string, status
     return delta > 0;
   });
 
-  if (membershipAdded) await revalidateEngagement(["public-novels"], novel.slug);
+  if (membershipAdded) revalidateEngagement(["public-novels"], novel.slug);
 
   return { novelSlug: novel.slug, status };
 }
@@ -440,7 +441,7 @@ export async function removeFromLibrary(userId: string, novelSlug: string) {
     return delta < 0;
   });
 
-  if (membershipRemoved) await revalidateEngagement(["public-novels"], novel.slug);
+  if (membershipRemoved) revalidateEngagement(["public-novels"], novel.slug);
 
   return { novelSlug: novel.slug, removed: true };
 }
@@ -567,7 +568,7 @@ export async function setFollow(
     return delta > 0;
   });
 
-  if (followAdded) await revalidateEngagement(["public-novels"], novel.slug);
+  if (followAdded) revalidateEngagement(["public-novels"], novel.slug);
 
   return { novelSlug: novel.slug, followed: true, notificationsEnabled };
 }
@@ -594,7 +595,7 @@ export async function removeFollow(userId: string, novelSlug: string) {
     return delta < 0;
   });
 
-  if (followRemoved) await revalidateEngagement(["public-novels"], novel.slug);
+  if (followRemoved) revalidateEngagement(["public-novels"], novel.slug);
 
   return { novelSlug: novel.slug, followed: false };
 }
@@ -779,7 +780,7 @@ export async function saveReadingProgress(userId: string, input: SaveProgressInp
     return { updated: true, membershipAdded: true };
   });
 
-  if (result.membershipAdded) await revalidateEngagement(["public-novels"], novel.slug);
+  if (result.membershipAdded) revalidateEngagement(["public-novels"], novel.slug);
 
   return {
     updated: result.updated,
@@ -840,14 +841,14 @@ async function updateRatingAggregate(
 export async function setRating(userId: string, novelSlug: string, score: number) {
   const novel = await resolvePublicNovel(novelSlug);
   const changed = await updateRatingAggregate(userId, novel.id, score);
-  if (changed) await revalidateEngagement(["public-novels", "public-rankings"], novel.slug);
+  if (changed) revalidateEngagement(["public-novels", "public-rankings"], novel.slug);
   return { novelSlug: novel.slug, score };
 }
 
 export async function removeRating(userId: string, novelSlug: string) {
   const novel = await resolvePublicNovel(novelSlug);
   const changed = await updateRatingAggregate(userId, novel.id, null);
-  if (changed) await revalidateEngagement(["public-novels", "public-rankings"], novel.slug);
+  if (changed) revalidateEngagement(["public-novels", "public-rankings"], novel.slug);
   return { novelSlug: novel.slug, score: null };
 }
 
@@ -914,7 +915,7 @@ export async function saveReview(userId: string, input: SaveReviewInput) {
 
   if (publicCountDelta !== 0) {
     expirePublishedReviews();
-    await revalidateEngagement(["public-novels"], novel.slug);
+    revalidateEngagement(["public-novels"], novel.slug);
   }
 
   return { id: reviewId, novelSlug: novel.slug, status: "PENDING" as const };
@@ -949,7 +950,7 @@ export async function removeReview(userId: string, novelSlug: string) {
 
   if (publicCountDelta !== 0) {
     expirePublishedReviews();
-    await revalidateEngagement(["public-novels"], novel.slug);
+    revalidateEngagement(["public-novels"], novel.slug);
   }
 
   return { novelSlug: novel.slug, removed: true };

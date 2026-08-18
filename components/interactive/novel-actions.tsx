@@ -136,7 +136,7 @@ function useNovelAction({
         if (!response.ok) throw new Error("pending_mutation_failed");
         if (kind === "follow") setFollowOverride(true);
         else setStatusOverride(status);
-        router.refresh();
+        if (kind !== "follow") router.refresh();
         toast({ tone: "success", message: kind === "follow" ? "ติดตามเรื่องนี้แล้ว" : "เพิ่มนิยายเข้าคลังแล้ว" });
       } catch {
         rememberPendingIntent(intent);
@@ -214,7 +214,7 @@ function useNovelAction({
         }
         if (!response.ok) throw new Error("mutation_failed");
 
-        router.refresh();
+        if (kind !== "follow") router.refresh();
         toast({
           tone: "success",
           message: kind === "follow"
@@ -245,8 +245,15 @@ export function FollowButton({
 }) {
   const action = useNovelAction({ slug, kind: "follow", initialActive });
   return (
-    <Button variant={action.active ? "secondary" : quiet ? "ghost" : "outline"} onClick={action.toggle} disabled={action.pending}>
-      {action.pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : action.active ? <Check className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+    <Button
+      variant={action.active ? "secondary" : quiet ? "ghost" : "outline"}
+      onClick={action.toggle}
+      disabled={action.pending}
+      aria-busy={action.pending}
+      aria-pressed={action.active}
+      className="disabled:cursor-wait disabled:opacity-100"
+    >
+      {action.active ? <Check className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
       {action.active ? "ติดตามแล้ว" : "ติดตามเรื่อง"}
     </Button>
   );
@@ -392,14 +399,15 @@ export function NovelActionBar({
           type="button"
           onClick={follow.toggle}
           disabled={follow.pending}
+          aria-busy={follow.pending}
           aria-pressed={follow.active}
           aria-label={follow.active ? "เลิกติดตามเรื่องนี้" : "ติดตามเรื่องนี้"}
           className={cn(
-            "grid h-12 w-12 shrink-0 place-items-center rounded-[8px] border border-border transition-colors disabled:opacity-60",
+            "grid h-12 w-12 shrink-0 place-items-center rounded-[8px] border border-border transition-colors disabled:cursor-wait disabled:opacity-100",
             follow.active ? "bg-[var(--brand-primary)] text-white" : "bg-card text-muted-foreground",
           )}
         >
-          {follow.pending ? <LoaderCircle className="h-5 w-5 animate-spin" /> : follow.active ? <Check className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+          {follow.active ? <Check className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
         </button>
 
         <button

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, ChevronDown, ListOrdered, Star } from "lucide-react";
+import { BookOpen, ListOrdered, Star } from "lucide-react";
 
 import {
   CompleteButton,
@@ -43,9 +43,17 @@ export function NovelHero({
   const status = statusMeta(novel.status);
 
   return (
-    <header className="relative overflow-hidden rounded-(--r-lg) bg-surface px-3 py-5 sm:px-5 sm:py-7 lg:px-6 lg:py-8">
-      <div aria-hidden className="absolute inset-y-0 right-0 hidden w-[38%] overflow-hidden opacity-[0.08] xl:block">
-        <Image src={novel.backdrop} alt="" fill sizes="560px" className="object-cover object-center" />
+    <header className="relative isolate overflow-hidden rounded-(--r-lg) bg-surface px-3 py-5 sm:px-5 sm:py-7 lg:px-6 lg:py-8">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <Image
+          src={novel.cover}
+          alt=""
+          fill
+          sizes="384px"
+          className="scale-125 object-cover object-center opacity-45 blur-3xl saturate-150 dark:opacity-55"
+        />
+        <div className="absolute inset-0 bg-linear-to-r from-surface/55 via-surface/82 to-surface/95" />
+        <div className="absolute inset-0 bg-linear-to-b from-surface/15 via-transparent to-surface/85" />
       </div>
 
       <div className="relative grid gap-7 md:grid-cols-[200px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[228px_minmax(0,1fr)_248px] xl:gap-10">
@@ -146,27 +154,6 @@ export function NovelSignals({ novel }: { novel: Novel }) {
         <Signal label="อยู่ในคลัง" value={`${formatNumber(novel.bookmarkCount ?? 0)} คน`} />
         <Signal label="การเข้าถึง" value={novel.hasPaidChapters ? "มีตอนจำกัดการเข้าถึง" : "อ่านตอนสาธารณะได้"} />
       </dl>
-    </section>
-  );
-}
-
-export function NovelSynopsis({ synopsis }: { synopsis: string }) {
-  return (
-    <section aria-labelledby="novel-synopsis-title">
-      <p className="editorial-kicker">SYNOPSIS / เรื่องย่อ</p>
-      <h2 id="novel-synopsis-title" className="mt-1 text-2xl font-semibold">เรื่องย่อ</h2>
-      <details className="group mt-4">
-        <summary className="list-none [&::-webkit-details-marker]:hidden">
-          <span className="block whitespace-pre-line text-base leading-8 text-muted-foreground group-open:line-clamp-none line-clamp-7">
-            {synopsis}
-          </span>
-          <span className="mt-2 inline-flex min-h-11 cursor-pointer items-center gap-1 text-sm font-semibold text-[var(--brand-light-on-light)]">
-            <span className="group-open:hidden">อ่านเรื่องย่อทั้งหมด</span>
-            <span className="hidden group-open:inline">ย่อเรื่องย่อ</span>
-            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden />
-          </span>
-        </summary>
-      </details>
     </section>
   );
 }

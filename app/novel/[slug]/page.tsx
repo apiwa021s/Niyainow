@@ -9,7 +9,6 @@ import {
   NovelHero,
   NovelMetaRail,
   NovelSignals,
-  NovelSynopsis,
   SimilarNovels,
 } from "@/components/novels/novel-detail";
 import { NovelResumeMobileBar } from "@/components/reader/novel-resume-actions";
@@ -132,7 +131,6 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-10">
-          <NovelSynopsis synopsis={novel.synopsis} />
           <ChapterPreview slug={novel.slug} chapters={latestChapters} />
           <NovelCommunity novel={novel} userState={userState} reviews={reviews} />
         </div>
