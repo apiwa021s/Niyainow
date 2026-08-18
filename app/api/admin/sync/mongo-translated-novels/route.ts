@@ -1,8 +1,10 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { adminApiError, parseAdminMutation } from "@/app/api/admin/_shared";
 import { assertAdmin } from "@/lib/auth/dal";
+import { invalidateImportedNovelCaches } from "@/lib/redis/invalidation";
 import {
   getTranslatedNovelImportStatus,
   runTranslatedNovelImport,
@@ -40,6 +42,19 @@ export async function POST(request: Request) {
       uploadImages: !input.skipImages,
       now: new Date(),
     });
+    if (input.execute && result.affectedNovelSlugs.length > 0) {
+      for (const tag of [
+        "public-novels",
+        "public-chapters",
+        "public-rankings",
+        "public-taxonomy",
+        "public-search",
+        "public-sitemap",
+      ]) {
+        revalidateTag(tag, { expire: 0 });
+      }
+      await invalidateImportedNovelCaches(result.affectedNovelSlugs);
+    }
     return NextResponse.json({
       result,
       status: await getTranslatedNovelImportStatus(),

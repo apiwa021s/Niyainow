@@ -6,6 +6,7 @@ import { NovelBrowser } from "@/components/interactive/novel-browser";
 import { NovelGrid } from "@/components/novels/novel-grid";
 import { JsonLd } from "@/components/seo/json-ld";
 import { PageShell } from "@/components/ui/section";
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import {
@@ -28,7 +29,7 @@ async function getTagBrowseData(query: NovelQuery) {
 
 async function getCachedTagBrowse(slug: string) {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheLife(PUBLIC_CACHE_LIFE.catalog);
   cacheTag("public-novels", "public-rankings", "public-taxonomy");
 
   const query: NovelQuery = { tag: slug };

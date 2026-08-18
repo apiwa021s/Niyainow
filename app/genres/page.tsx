@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen } from "lucide-react";
 
 import { JsonLd } from "@/components/seo/json-ld";
 import { EmptyState, PageShell } from "@/components/ui/section";
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getGenres } from "@/services/novel-service";
@@ -13,7 +14,7 @@ export const metadata: Metadata = pageMetadata({ title: "หมวดหมู�
 
 export default async function GenresPage() {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheLife(PUBLIC_CACHE_LIFE.taxonomy);
   cacheTag("public-taxonomy", "public-novels");
 
   const genres = await getGenres();

@@ -7,6 +7,7 @@ import { ExploreFeed } from "@/components/browse/explore-feed";
 import { NovelBrowser } from "@/components/interactive/novel-browser";
 import { NovelGrid } from "@/components/novels/novel-grid";
 import { JsonLd } from "@/components/seo/json-ld";
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import {
@@ -61,7 +62,7 @@ function resolvedPageQuery(query: NovelQuery, page: number): NovelQuery {
 
 async function CachedExplorePage() {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheLife(PUBLIC_CACHE_LIFE.discovery);
   cacheTag("public-novels", "public-rankings", "public-taxonomy");
 
   const [result, trending, newThisWeek, completed, genreShowcase] = await Promise.all([

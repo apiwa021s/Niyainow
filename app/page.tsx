@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from "react";
 import { HomeFeed, HomePersonalizedSections, HomeSignup, type HomeData } from "@/components/home/home-feed";
 import { GuestContinueReading } from "@/components/reader/guest-continue-reading";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
 import {
@@ -62,7 +63,7 @@ async function HomeGuestSignup() {
 
 async function CachedHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheLife(PUBLIC_CACHE_LIFE.live);
   cacheTag("public-novels", "public-chapters", "public-rankings", "public-taxonomy", "public-banners");
 
   const [newThisWeek, recommended, completed, rankings, updates, genreShowcase, banners, featured] = await Promise.all([

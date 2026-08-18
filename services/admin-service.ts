@@ -42,8 +42,8 @@ import { assertAdmin, type CurrentUser } from "@/lib/auth/dal";
 import {
   invalidateBannerCache,
   invalidateChapterCache,
-  invalidateEngagementCache,
   invalidateNovelCache,
+  invalidatePublishedReviewsCache,
   invalidateTaxonomyCache,
 } from "@/lib/redis/invalidation";
 import { createUniqueSlug, slugSchema } from "@/lib/validation/slug";
@@ -1534,7 +1534,7 @@ export async function moderateAdminReview(idInput: string, inputValue: unknown) 
   });
   revalidateTag("public-reviews", { expire: 0 });
   revalidateTag("public-novels", { expire: 0 });
-  await invalidateEngagementCache(result.novelSlug);
+  await invalidatePublishedReviewsCache(result.novelSlug);
   return result;
 }
 

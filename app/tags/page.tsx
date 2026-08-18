@@ -6,6 +6,7 @@ import { ArrowRight, Search } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/form-controls";
 import { EmptyState, PageShell } from "@/components/ui/section";
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { getTags, type TagSummary } from "@/services/novel-service";
 
@@ -148,7 +149,7 @@ function TagsContent({ query, tags, limit }: { query: string; tags: TagSummary[]
 
 async function CachedTagIndexPage() {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheLife(PUBLIC_CACHE_LIFE.taxonomy);
   cacheTag("public-taxonomy", "public-novels");
 
   const tags = await getTags(undefined, TAG_INDEX_LIMIT);

@@ -11,6 +11,7 @@ export type MongoSyncSummary = {
   coverCandidates: number;
   uploadedCovers: number;
   skippedCovers: number;
+  affectedNovelSlugs?: string[];
   stoppedForRuntime: boolean;
   backfillComplete: boolean;
   repairComplete: boolean;

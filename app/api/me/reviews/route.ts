@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const novelSlug = (params.get("slug") ?? params.get("novelSlug"))?.trim();
     if (!novelSlug) throw new ApiError(400, "NOVEL_SLUG_REQUIRED", "ต้องระบุรหัสนิยาย");
-    const state = await getUserNovelState(userId, novelSlug);
+    const state = await getUserNovelState(userId, novelSlug, { includeReview: true });
     return { novelSlug, review: state.review };
   });
 }

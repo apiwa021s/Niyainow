@@ -1,13 +1,16 @@
 export const CACHE_TTL_SECONDS = {
-  NOVEL_DETAIL: 15 * 60,
-  CHAPTER_LIST: 10 * 60,
-  CHAPTER_READER: 60 * 60,
-  HOMEPAGE_LATEST: 90,
-  HOMEPAGE_POPULAR: 3 * 60,
-  HOMEPAGE_CATALOG: 5 * 60,
-  GENRE_PAGE: 5 * 60,
-  TAXONOMY: 10 * 60,
-  RANKING: 5 * 60,
+  // Editorial mutations invalidate this key explicitly. The long TTL is a
+  // safety net for missed events and keeps stable detail data out of Postgres.
+  NOVEL_DETAIL: 24 * 60 * 60,
+  CHAPTER_LIST: 30 * 60,
+  CHAPTER_READER: 24 * 60 * 60,
+  HOMEPAGE_LATEST: 5 * 60,
+  HOMEPAGE_POPULAR: 15 * 60,
+  HOMEPAGE_CATALOG: 30 * 60,
+  GENRE_PAGE: 60 * 60,
+  TAXONOMY: 24 * 60 * 60,
+  RANKING: 15 * 60,
+  REVIEWS: 24 * 60 * 60,
   BANNER: 60,
 } as const;
 

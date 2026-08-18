@@ -6,6 +6,7 @@ import { RankingCard, RankingNovelCard } from "@/components/novels/novel-card";
 import { JsonLd } from "@/components/seo/json-ld";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageShell } from "@/components/ui/section";
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getRankingEntries, type RankingPeriod } from "@/services/novel-service";
@@ -54,7 +55,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 
 async function CachedRankingsPage({ view }: { view: RankingView }) {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheLife(PUBLIC_CACHE_LIFE.discovery);
   cacheTag("public-rankings", "public-novels");
 
   const selected = views.find((item) => item.value === view) ?? views[0];

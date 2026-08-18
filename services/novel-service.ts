@@ -41,7 +41,7 @@ import {
   tags,
   users,
 } from "@/db/schema";
-import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
+import { PUBLIC_CACHE_TTL } from "@/lib/cache/public-cache-profiles";
 import { toPublicChapterCachePayload } from "@/lib/domain/chapter-cache";
 import { bangkokDateKey } from "@/lib/domain/public-view";
 import { SEARCH_RELEVANCE_WEIGHTS } from "@/lib/search/relevance";
@@ -49,6 +49,7 @@ import { applicationCache } from "@/lib/redis/cache";
 import { cacheDigest, cacheKeys } from "@/lib/redis/keys";
 import { CACHE_TTL_SECONDS } from "@/lib/redis/ttl";
 import type { CacheCategory } from "@/lib/redis/metrics";
+import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
 import type {
   ChapterCatalogOrder,
   ChapterCatalogPage,
@@ -79,7 +80,8 @@ export type {
 } from "@/types/novel-query";
 export { parseGenreParam } from "@/types/novel-query";
 
-const PUBLIC_CACHE_SECONDS = 300;
+const PUBLIC_CACHE_SECONDS = 15 * 60;
+const STABLE_PUBLIC_CACHE_SECONDS = 6 * 60 * 60;
 const SEARCH_LIMIT = 18;
 const SUGGESTION_LIMIT = 8;
 const MAX_LIST_LIMIT = 50;
@@ -938,7 +940,7 @@ export const getGenres = unstable_cache(async (requestedLimit = MAX_LIST_LIMIT) 
     loader: () => getGenresUncached(limit),
   });
 }, ["public-genres-v3"], {
-  revalidate: PUBLIC_CACHE_SECONDS,
+  revalidate: STABLE_PUBLIC_CACHE_SECONDS,
   tags: ["public-taxonomy", "public-novels"],
 });
 
@@ -978,7 +980,7 @@ const getGenreBySlugCached = unstable_cache(
     },
   }),
   ["public-genre-by-slug-v4"],
-  { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-taxonomy", "public-novels"] },
+  { revalidate: STABLE_PUBLIC_CACHE_SECONDS, tags: ["public-taxonomy", "public-novels"] },
 );
 
 export const getGenreBySlug = cache(async (slugInput: string) => {
@@ -1053,8 +1055,8 @@ const getTagsCached = unstable_cache(
   (limit: number) => getTagsUncached(undefined, limit),
   ["public-tags-v3"],
   {
-  revalidate: PUBLIC_CACHE_SECONDS,
-  tags: ["public-taxonomy"],
+    revalidate: STABLE_PUBLIC_CACHE_SECONDS,
+    tags: ["public-taxonomy", "public-novels"],
   },
 );
 
@@ -1094,7 +1096,7 @@ const getTagByIdCached = unstable_cache(
       : undefined;
   },
   ["public-tag-by-id-v3"],
-  { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-taxonomy"] },
+  { revalidate: STABLE_PUBLIC_CACHE_SECONDS, tags: ["public-taxonomy", "public-novels"] },
 );
 
 export const getTagBySlug = cache(async (slugInput: string) => {
@@ -1400,6 +1402,7 @@ export const getRankingEntries = cache(async (
   if (!latest) {
     return rankedNovels.map((novel, index) => ({ novel, rank: index + 1 }));
   }
+  const rankedSlugs = rankedNovels.map((novel) => novel.slug);
 
   const [currentRows, previousRows] = await Promise.all([
     db
@@ -1414,7 +1417,12 @@ export const getRankingEntries = cache(async (
           .select({ slug: novels.slug, rank: novelRankings.rank })
           .from(novelRankings)
           .innerJoin(novels, eq(novels.id, novelRankings.novelId))
-          .where(and(eq(novelRankings.period, period), eq(novelRankings.periodStart, previous)))
+          .where(and(
+            eq(novelRankings.period, period),
+            eq(novelRankings.periodStart, previous),
+            inArray(novels.slug, rankedSlugs),
+          ))
+          .limit(limit)
       : Promise.resolve([]),
   ]);
   const currentBySlug = new Map(currentRows.map((row) => [row.slug, row.rank]));
@@ -2174,9 +2182,9 @@ export const getPublishedReviews = cache(
     if (!slug) return [];
     const limit = clampLimit(requestedLimit, 10, 20);
     return getOrSetVersioned({
-      versionKeys: [cacheKeys.versions.catalog()],
+      versionKeys: [cacheKeys.versions.reviews(slug)],
       key: ([version]) => cacheKeys.novelRelated(slug, "reviews", limit, version),
-      ttlSeconds: CACHE_TTL_SECONDS.HOMEPAGE_CATALOG,
+      ttlSeconds: CACHE_TTL_SECONDS.REVIEWS,
       category: "novel",
       loader: () => getPublishedReviewsUncached(slug, limit),
     });
@@ -2301,7 +2309,7 @@ async function getSitemapCountsUncached() {
 }
 
 export const getSitemapCounts = unstable_cache(getSitemapCountsUncached, ["public-sitemap-counts-v4"], {
-  revalidate: 3_600,
+  revalidate: PUBLIC_CACHE_TTL.sitemap,
   tags: ["public-sitemap", "public-taxonomy", "public-novels", "public-chapters"],
 });
 
@@ -2324,7 +2332,7 @@ function sitemapSlice(offset: number, start: number, count: number, remaining: n
 export const getSitemapPartition = unstable_cache(
   async (partitionInput: number) => {
     const partition = Number.isSafeInteger(partitionInput) && partitionInput >= 0 ? partitionInput : 0;
-    const counts = await getSitemapCountsUncached();
+    const counts = await getSitemapCounts();
     const offset = partition * SITEMAP_PARTITION_SIZE;
     if (offset >= counts.total) return { genres: [], tags: [], novels: [], chapters: [] };
 
@@ -2404,5 +2412,5 @@ export const getSitemapPartition = unstable_cache(
     };
   },
   ["public-sitemap-partition-v4"],
-  { revalidate: 3_600, tags: ["public-sitemap", "public-taxonomy", "public-novels", "public-chapters"] },
+  { revalidate: PUBLIC_CACHE_TTL.sitemap, tags: ["public-sitemap", "public-taxonomy", "public-novels", "public-chapters"] },
 );

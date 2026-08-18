@@ -162,6 +162,7 @@ describe("mergeMongoSyncSummaries", () => {
     expect(mergeMongoSyncSummaries(null, first)).toEqual(first);
     expect(mergeMongoSyncSummaries(null, first)).not.toBe(first);
   });
+
 });
 
 describe("mongoSyncCursorFingerprint", () => {

@@ -7,6 +7,7 @@ import { cache } from "react";
 import { UpdateList } from "@/components/novels/update-list";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageShell } from "@/components/ui/section";
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { canonicalizeUpdatesSearchParams, rawSearchParamsHref, updatesHref, type RawSearchParams, type UpdateRange } from "@/lib/validation/public-query";
 import { getGenres, getUpdates } from "@/services/novel-service";
@@ -36,7 +37,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 
 async function CachedUpdatesPage({ range, genre }: { range: UpdateRange; genre?: string }) {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheLife(PUBLIC_CACHE_LIFE.live);
   cacheTag("public-chapters", "public-novels", "public-taxonomy");
 
   const [genres, items] = await Promise.all([

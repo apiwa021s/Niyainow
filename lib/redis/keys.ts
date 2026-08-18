@@ -45,6 +45,7 @@ export const cacheKeys = {
     homepage: () => `${namespace()}:version:homepage`,
     ranking: () => `${namespace()}:version:ranking`,
     taxonomy: () => `${namespace()}:version:taxonomy`,
+    reviews: (slug: string) => `${namespace()}:version:reviews:${segment(slug)}`,
     banner: () => `${namespace()}:version:banner`,
   },
 } as const;

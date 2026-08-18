@@ -1136,6 +1136,7 @@ async function processBookChunk(input: {
   if (!input.options.execute) {
     const chunk = sorted.chapters.slice(input.offset, input.offset + input.options.chapterLimit);
     return {
+      novelSlug: sourceBookSlug(input.book),
       result: {
         imported: 0,
         paid: chunk.filter((chapter) => mapImportedChapterAccess(chapter.chapterPrice).coinPrice === 1).length,
@@ -1190,6 +1191,7 @@ async function processBookChunk(input: {
   });
 
   return {
+    novelSlug: slug,
     result,
     uploadedCover,
     skippedCover,
@@ -1211,6 +1213,7 @@ function createSummary(options: ImportOptions, mode: "backfill" | "incremental" 
     coverCandidates: 0,
     uploadedCovers: 0,
     skippedCovers: 0,
+    affectedNovelSlugs: [] as string[],
     stoppedForRuntime: false,
     backfillComplete: false,
     repairComplete: false,
@@ -1268,6 +1271,9 @@ async function runBackfill(input: {
     summary.coverCandidates += output.coverCandidate ? 1 : 0;
     summary.uploadedCovers += output.uploadedCover ? 1 : 0;
     summary.skippedCovers += output.skippedCover ? 1 : 0;
+    if (input.options.execute && !summary.affectedNovelSlugs.includes(output.novelSlug)) {
+      summary.affectedNovelSlugs.push(output.novelSlug);
+    }
 
     if (output.result.complete) {
       processedBooks += 1;
@@ -1367,6 +1373,9 @@ async function runIncremental(input: {
     summary.coverCandidates += output.coverCandidate ? 1 : 0;
     summary.uploadedCovers += output.uploadedCover ? 1 : 0;
     summary.skippedCovers += output.skippedCover ? 1 : 0;
+    if (input.options.execute && !summary.affectedNovelSlugs.includes(output.novelSlug)) {
+      summary.affectedNovelSlugs.push(output.novelSlug);
+    }
 
     if (output.result.complete) {
       processedBooks += 1;
@@ -1448,6 +1457,9 @@ async function runRepair(input: {
     summary.coverCandidates += output.coverCandidate ? 1 : 0;
     summary.uploadedCovers += output.uploadedCover ? 1 : 0;
     summary.skippedCovers += output.skippedCover ? 1 : 0;
+    if (input.options.execute && !summary.affectedNovelSlugs.includes(output.novelSlug)) {
+      summary.affectedNovelSlugs.push(output.novelSlug);
+    }
 
     if (output.result.complete) {
       processedBooks += 1;

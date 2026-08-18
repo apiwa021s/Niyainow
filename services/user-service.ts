@@ -25,7 +25,10 @@ import {
 import { getCurrentUser } from "@/lib/auth/dal";
 import { isActiveUser } from "@/lib/auth/permissions";
 import { ApiError } from "@/lib/http/api-response";
-import { invalidateEngagementCache } from "@/lib/redis/invalidation";
+import {
+  invalidateEngagementCache,
+  invalidatePublishedReviewsCache,
+} from "@/lib/redis/invalidation";
 import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
 import {
   collectionPagination,
@@ -42,20 +45,18 @@ import {
 
 export type LibraryStatus = "READING" | "PLAN_TO_READ" | "COMPLETED" | "DROPPED";
 
-function revalidateEngagement(
-  tags: Array<"public-novels" | "public-rankings">,
-  novelSlug: string,
-) {
-  // Aggregate counters can be eventually consistent. SWR avoids turning every
-  // reader action into a global cache stampede.
-  for (const tag of tags) revalidateTag(tag, "max");
+function revalidateEngagement(novelSlug: string) {
+  // Reader actions only invalidate the affected detail. Global discovery and
+  // ranking caches refresh on their bounded TTL instead of churning on every
+  // follow, library update, or rating.
   after(() => invalidateEngagementCache(novelSlug));
 }
 
-function expirePublishedReviews() {
+function expirePublishedReviews(novelSlug: string) {
   // Review edits/deletes can remove previously public text, so this content
   // boundary must never serve one stale response.
   revalidateTag("public-reviews", { expire: 0 });
+  after(() => invalidatePublishedReviewsCache(novelSlug));
 }
 
 type NovelProjectionRow = {
@@ -414,7 +415,7 @@ export async function setLibraryStatus(userId: string, novelSlug: string, status
     return delta > 0;
   });
 
-  if (membershipAdded) revalidateEngagement(["public-novels"], novel.slug);
+  if (membershipAdded) revalidateEngagement(novel.slug);
 
   return { novelSlug: novel.slug, status };
 }
@@ -441,7 +442,7 @@ export async function removeFromLibrary(userId: string, novelSlug: string) {
     return delta < 0;
   });
 
-  if (membershipRemoved) revalidateEngagement(["public-novels"], novel.slug);
+  if (membershipRemoved) revalidateEngagement(novel.slug);
 
   return { novelSlug: novel.slug, removed: true };
 }
@@ -568,7 +569,7 @@ export async function setFollow(
     return delta > 0;
   });
 
-  if (followAdded) revalidateEngagement(["public-novels"], novel.slug);
+  if (followAdded) revalidateEngagement(novel.slug);
 
   return { novelSlug: novel.slug, followed: true, notificationsEnabled };
 }
@@ -595,7 +596,7 @@ export async function removeFollow(userId: string, novelSlug: string) {
     return delta < 0;
   });
 
-  if (followRemoved) revalidateEngagement(["public-novels"], novel.slug);
+  if (followRemoved) revalidateEngagement(novel.slug);
 
   return { novelSlug: novel.slug, followed: false };
 }
@@ -780,7 +781,7 @@ export async function saveReadingProgress(userId: string, input: SaveProgressInp
     return { updated: true, membershipAdded: true };
   });
 
-  if (result.membershipAdded) revalidateEngagement(["public-novels"], novel.slug);
+  if (result.membershipAdded) revalidateEngagement(novel.slug);
 
   return {
     updated: result.updated,
@@ -841,14 +842,14 @@ async function updateRatingAggregate(
 export async function setRating(userId: string, novelSlug: string, score: number) {
   const novel = await resolvePublicNovel(novelSlug);
   const changed = await updateRatingAggregate(userId, novel.id, score);
-  if (changed) revalidateEngagement(["public-novels", "public-rankings"], novel.slug);
+  if (changed) revalidateEngagement(novel.slug);
   return { novelSlug: novel.slug, score };
 }
 
 export async function removeRating(userId: string, novelSlug: string) {
   const novel = await resolvePublicNovel(novelSlug);
   const changed = await updateRatingAggregate(userId, novel.id, null);
-  if (changed) revalidateEngagement(["public-novels", "public-rankings"], novel.slug);
+  if (changed) revalidateEngagement(novel.slug);
   return { novelSlug: novel.slug, score: null };
 }
 
@@ -914,8 +915,7 @@ export async function saveReview(userId: string, input: SaveReviewInput) {
   });
 
   if (publicCountDelta !== 0) {
-    expirePublishedReviews();
-    revalidateEngagement(["public-novels"], novel.slug);
+    expirePublishedReviews(novel.slug);
   }
 
   return { id: reviewId, novelSlug: novel.slug, status: "PENDING" as const };
@@ -949,8 +949,7 @@ export async function removeReview(userId: string, novelSlug: string) {
   });
 
   if (publicCountDelta !== 0) {
-    expirePublishedReviews();
-    revalidateEngagement(["public-novels"], novel.slug);
+    expirePublishedReviews(novel.slug);
   }
 
   return { novelSlug: novel.slug, removed: true };
@@ -984,73 +983,104 @@ export type UserNovelState = {
   } | null;
 };
 
-export async function getUserNovelState(userId: string, slug: string): Promise<UserNovelState> {
-  const novel = await resolvePublicNovel(slug);
-  const [library, follow, progress, rating, review] = await Promise.all([
-    getDb()
-      .select({ status: userLibrary.status })
-      .from(userLibrary)
-      .where(and(eq(userLibrary.userId, userId), eq(userLibrary.novelId, novel.id)))
-      .limit(1),
-    getDb()
-      .select({ notificationsEnabled: novelFollows.notificationsEnabled })
-      .from(novelFollows)
-      .where(and(eq(novelFollows.userId, userId), eq(novelFollows.novelId, novel.id)))
-      .limit(1),
-    getDb()
-      .select({
-        chapterId: readingProgress.chapterId,
-        chapterNumber: chapters.chapterNumber,
-        chapterSlug: chapters.slug,
-        chapterTitle: chapters.title,
-        chapterSortOrder: chapters.sortOrder,
-        progressPercent: readingProgress.progressPercent,
-        position: readingProgress.position,
-        completed: readingProgress.completed,
-        lastReadAt: readingProgress.lastReadAt,
-      })
-      .from(readingProgress)
-      .innerJoin(
-        chapters,
-        and(
-          eq(chapters.id, readingProgress.chapterId),
-          eq(chapters.novelId, readingProgress.novelId),
-          publicChapterWhere(),
-        ),
-      )
-      .where(and(eq(readingProgress.userId, userId), eq(readingProgress.novelId, novel.id)))
-      .limit(1),
-    getDb()
-      .select({ score: ratings.score })
-      .from(ratings)
-      .where(and(eq(ratings.userId, userId), eq(ratings.novelId, novel.id)))
-      .limit(1),
-    getDb()
-      .select({
-        id: reviews.id,
-        title: reviews.title,
-        body: reviews.body,
-        status: reviews.status,
-        isSpoiler: reviews.isSpoiler,
-        updatedAt: reviews.updatedAt,
-      })
-      .from(reviews)
-      .where(and(eq(reviews.userId, userId), eq(reviews.novelId, novel.id), isNull(reviews.deletedAt)))
-      .limit(1),
-  ]);
+export async function getUserNovelState(
+  userId: string,
+  slug: string,
+  options: { includeReview?: boolean } = {},
+): Promise<UserNovelState> {
+  const [state] = await getDb()
+    .select({
+      novelId: novels.id,
+      novelSlug: novels.slug,
+      libraryStatus: userLibrary.status,
+      followedNovelId: novelFollows.novelId,
+      notificationsEnabled: novelFollows.notificationsEnabled,
+      chapterId: chapters.id,
+      chapterNumber: chapters.chapterNumber,
+      chapterSlug: chapters.slug,
+      chapterTitle: chapters.title,
+      chapterSortOrder: chapters.sortOrder,
+      progressPercent: readingProgress.progressPercent,
+      position: readingProgress.position,
+      completed: readingProgress.completed,
+      lastReadAt: readingProgress.lastReadAt,
+      rating: ratings.score,
+    })
+    .from(novels)
+    .leftJoin(
+      userLibrary,
+      and(eq(userLibrary.userId, userId), eq(userLibrary.novelId, novels.id)),
+    )
+    .leftJoin(
+      novelFollows,
+      and(eq(novelFollows.userId, userId), eq(novelFollows.novelId, novels.id)),
+    )
+    .leftJoin(
+      readingProgress,
+      and(eq(readingProgress.userId, userId), eq(readingProgress.novelId, novels.id)),
+    )
+    .leftJoin(
+      chapters,
+      and(
+        eq(chapters.id, readingProgress.chapterId),
+        eq(chapters.novelId, novels.id),
+        publicChapterWhere(),
+      ),
+    )
+    .leftJoin(
+      ratings,
+      and(eq(ratings.userId, userId), eq(ratings.novelId, novels.id)),
+    )
+    .where(publicNovelWhere(slug))
+    .limit(1);
+  if (!state) throw new ApiError(404, "NOVEL_NOT_FOUND", "ไม่พบนิยายที่เผยแพร่");
+
+  const [review] = options.includeReview
+    ? await getDb()
+        .select({
+          id: reviews.id,
+          title: reviews.title,
+          body: reviews.body,
+          status: reviews.status,
+          isSpoiler: reviews.isSpoiler,
+          updatedAt: reviews.updatedAt,
+        })
+        .from(reviews)
+        .where(and(eq(reviews.userId, userId), eq(reviews.novelId, state.novelId), isNull(reviews.deletedAt)))
+        .limit(1)
+    : [];
+  const hasProgress = state.chapterId !== null
+    && state.chapterNumber !== null
+    && state.chapterSlug !== null
+    && state.chapterTitle !== null
+    && state.chapterSortOrder !== null
+    && state.progressPercent !== null
+    && state.position !== null
+    && state.completed !== null
+    && state.lastReadAt !== null;
 
   return {
-    novelId: novel.id,
-    novelSlug: novel.slug,
-    libraryStatus: library[0]?.status ?? null,
-    followed: Boolean(follow[0]),
-    notificationsEnabled: follow[0]?.notificationsEnabled ?? false,
-    progress: progress[0]
-      ? { ...progress[0], lastReadAt: progress[0].lastReadAt.toISOString() }
+    novelId: state.novelId,
+    novelSlug: state.novelSlug,
+    libraryStatus: state.libraryStatus,
+    followed: state.followedNovelId !== null,
+    notificationsEnabled: state.notificationsEnabled ?? false,
+    progress: hasProgress
+      ? {
+          chapterId: state.chapterId!,
+          chapterNumber: state.chapterNumber!,
+          chapterSlug: state.chapterSlug!,
+          chapterTitle: state.chapterTitle!,
+          chapterSortOrder: state.chapterSortOrder!,
+          progressPercent: state.progressPercent!,
+          position: state.position!,
+          completed: state.completed!,
+          lastReadAt: state.lastReadAt!.toISOString(),
+        }
       : null,
-    rating: rating[0]?.score ?? null,
-    review: review[0]
-      ? { ...review[0], updatedAt: review[0].updatedAt.toISOString() }
+    rating: state.rating,
+    review: review
+      ? { ...review, updatedAt: review.updatedAt.toISOString() }
       : null,
   };
 }

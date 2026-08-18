@@ -1,3 +1,4 @@
+import { PUBLIC_CACHE_TTL } from "@/lib/cache/public-cache-profiles";
 import { absoluteUrl } from "@/lib/site-config";
 import { getSitemapCounts } from "@/services/novel-service";
 
@@ -22,7 +23,7 @@ export async function GET() {
   return new Response(body, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": `public, s-maxage=${PUBLIC_CACHE_TTL.sitemap}, stale-while-revalidate=${PUBLIC_CACHE_TTL.sitemapStale}`,
     },
   });
 }

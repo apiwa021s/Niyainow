@@ -1,7 +1,9 @@
 import { ChevronRight, Rss } from "lucide-react";
+import { cacheLife, cacheTag } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 
+import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { getUpdates } from "@/services/novel-service";
 
 /**
@@ -11,6 +13,10 @@ import { getUpdates } from "@/services/novel-service";
  * empty margin, and it never scrolls the page: it scrolls itself.
  */
 export async function UpdatesRail() {
+  "use cache";
+  cacheLife(PUBLIC_CACHE_LIFE.discovery);
+  cacheTag("public-chapters", "public-novels");
+
   const updates = await getUpdates("all", undefined, 24);
   if (updates.length === 0) return null;
 
