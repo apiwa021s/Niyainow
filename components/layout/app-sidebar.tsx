@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore, type ComponentType } from "react";
+import { BrandMark, BrandWordmark } from "@/components/brand/brand-mark";
 import { ThemeSwitcher } from "@/components/interactive/theme-switcher";
 import { cn } from "@/lib/utils";
 
@@ -144,19 +145,28 @@ export function AppSidebar() {
         expanded ? "w-(--sidebar-expanded)" : "w-(--sidebar-collapsed)",
       )}
     >
-      <button
-        type="button"
-        onClick={sidebarStore.toggle}
-        aria-expanded={expanded}
-        aria-label={expanded ? "ย่อเมนู" : "ขยายเมนู"}
-        className={cn(
-          "flex min-h-11 items-center gap-3 rounded-(--r-md) px-3 text-sm font-medium text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary)",
-          expanded ? "justify-start" : "justify-center px-0",
-        )}
-      >
-        <PanelLeft className="h-4.5 w-4.5 shrink-0" />
-        {expanded ? <span>ย่อเมนู</span> : null}
-      </button>
+      <div className={cn("flex min-h-12 items-center gap-2 border-b border-border pb-2", expanded ? "justify-between px-1" : "justify-center")}>
+        <Link
+          href="/"
+          aria-label="NiyaiThai หน้าแรก"
+          className={cn(
+            "flex min-w-0 items-center gap-2 rounded-(--r-md) text-sm font-semibold",
+            expanded ? "px-2" : "justify-center",
+          )}
+        >
+          <BrandMark className="h-8 w-8 shrink-0" />
+          {expanded ? <BrandWordmark className="truncate" /> : <span className="sr-only">NiyaiThai</span>}
+        </Link>
+        <button
+          type="button"
+          onClick={sidebarStore.toggle}
+          aria-expanded={expanded}
+          aria-label={expanded ? "ย่อเมนู" : "ขยายเมนู"}
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary)"
+        >
+          <PanelLeft className="h-4.5 w-4.5" />
+        </button>
+      </div>
       <nav className="pane-scroll -mr-1 flex min-h-0 flex-1 flex-col gap-1 pr-1">
         {renderGroup(primaryNav)}
         <div aria-hidden className="my-1 h-px bg-border" />

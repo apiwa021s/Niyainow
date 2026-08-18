@@ -95,6 +95,12 @@ export function NovelTile({ novel, priority = false }: { novel: Novel; priority?
           />
           <div className="absolute left-1.5 top-1.5 z-20 flex flex-col items-start gap-1">
             <CoverBadge novel={novel} />
+            {(novel.ratingCount ?? 0) > 0 ? (
+              <span className="tabular inline-flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                <Star className="h-3 w-3 fill-[var(--accent-base)] text-[var(--accent-base)]" aria-hidden />
+                {novel.rating.toFixed(1)}
+              </span>
+            ) : null}
           </div>
           <div className="absolute inset-x-0 bottom-0 z-20 p-2">
             <h3 className="line-clamp-2 text-sm font-semibold leading-[1.4] text-white drop-shadow-sm">

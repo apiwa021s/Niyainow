@@ -1,6 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BellRing, BookMarked, LibraryBig, Play } from "lucide-react";
+import {
+  ArrowRight,
+  BellRing,
+  BookMarked,
+  Clock3,
+  Compass,
+  LibraryBig,
+  Play,
+  Search,
+  Sparkles,
+  Trophy,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ContentRow, RowItem } from "@/components/home/content-row";
@@ -9,6 +20,7 @@ import { UpdateFeed } from "@/components/home/update-feed";
 import { NOVEL_GRID_CLASS, NovelTile, RankingNovelCard } from "@/components/novels/novel-card";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
 import { SectionHeader } from "@/components/ui/section-header";
+import { formatNumber } from "@/lib/utils";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { HomePersonalization } from "@/services/user-service";
 import type { Genre, Novel, UpdateItem } from "@/types/novel";
@@ -132,6 +144,127 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
   );
 }
 
+function ShortcutCard({
+  href,
+  label,
+  description,
+  icon,
+}: {
+  href: string;
+  label: string;
+  description: string;
+  icon: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex min-h-[78px] items-center gap-3 rounded-(--r-md) border border-border bg-card p-3 transition-colors hover:border-accent-base hover:bg-surface-subtle"
+    >
+      <span
+        aria-hidden
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-(--r-md) bg-accent-subtle text-accent-base"
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold transition-colors group-hover:text-accent-base">{label}</span>
+        <span className="mt-0.5 block line-clamp-2 text-xs leading-[1.45] text-(--text-secondary)">{description}</span>
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0 text-(--text-tertiary) transition-colors group-hover:text-accent-base" />
+    </Link>
+  );
+}
+
+function SignalCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-(--r-md) border border-border bg-card p-3">
+      <p className="text-xs text-(--text-secondary)">{label}</p>
+      <p className="tabular mt-1 text-xl font-semibold">{value}</p>
+      <p className="mt-0.5 text-[11px] text-(--text-tertiary)">{hint}</p>
+    </div>
+  );
+}
+
+function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: PromoBannerItem[] }) {
+  const topRanked = data.rankings[0];
+  const latest = data.updates[0];
+  const latestNovel = latest ? data.novelsBySlug[latest.novelSlug] : null;
+
+  return (
+    <section aria-label="ศูนย์เริ่มอ่าน" className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="min-w-0">
+        <Hero novel={data.spotlightNovel} banner={banners[0]} />
+      </div>
+
+      <aside className="grid gap-3 rounded-(--r-lg) border border-border bg-surface p-3">
+        <div>
+          <p className="editorial-kicker">START READING</p>
+          <h2 className="mt-1 text-h2 font-semibold">เลือกทางลัดของวันนี้</h2>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+          <ShortcutCard
+            href="/novels?sort=popular"
+            label="ยอดนิยม"
+            description="เรื่องที่คนอ่านกำลังเปิดมากที่สุด"
+            icon={<Trophy className="h-4 w-4" />}
+          />
+          <ShortcutCard
+            href="/updates"
+            label="ตอนใหม่ล่าสุด"
+            description="กลับมาเช็กจังหวะอัปเดตของคลัง"
+            icon={<Clock3 className="h-4 w-4" />}
+          />
+          <ShortcutCard
+            href="/genres"
+            label="เลือกตามแนว"
+            description="เริ่มจากอารมณ์หรือโลกที่อยากอ่าน"
+            icon={<Compass className="h-4 w-4" />}
+          />
+          <ShortcutCard
+            href="/search"
+            label="ค้นหาแบบตรงใจ"
+            description="ชื่อเรื่อง ผู้แต่ง ผู้แปล แนว หรือแท็ก"
+            icon={<Search className="h-4 w-4" />}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <SignalCard label="มาใหม่" value={formatNumber(data.newThisWeek.length)} hint="เรื่องในชุดนี้" />
+          <SignalCard label="ตอนอัปเดต" value={formatNumber(data.updates.length)} hint="รายการล่าสุด" />
+          <SignalCard label="อันดับ" value={formatNumber(data.rankings.length)} hint="สัปดาห์นี้" />
+          <SignalCard label="อ่านจบได้" value={formatNumber(data.completed.length)} hint="เรื่องจบแล้ว" />
+        </div>
+
+        {topRanked || latestNovel ? (
+          <div className="rounded-(--r-md) border border-border bg-card p-3">
+            <p className="flex items-center gap-2 text-xs font-semibold text-accent-base">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              สัญญาณจากคลัง
+            </p>
+            {topRanked ? (
+              <Link href={`/novel/${topRanked.slug}`} className="mt-2 block">
+                <span className="line-clamp-2 text-sm font-semibold hover:text-accent-base">{topRanked.thaiTitle}</span>
+                <span className="tabular mt-0.5 block text-xs text-(--text-secondary)">
+                  อันดับ 1 · {formatNumber(topRanked.views)} ครั้ง
+                </span>
+              </Link>
+            ) : null}
+            {latest && latestNovel ? (
+              <Link href={`/novel/${latestNovel.slug}/chapter/${latest.chapter}`} className="mt-2 block border-t border-border pt-2">
+                <span className="line-clamp-1 text-sm font-semibold hover:text-accent-base">{latestNovel.thaiTitle}</span>
+                <span className="mt-0.5 block truncate text-xs text-(--text-secondary)">
+                  ตอน {latest.chapter.toLocaleString("th-TH")} · {latest.time}
+                </span>
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </aside>
+    </section>
+  );
+}
+
 /** Genre chips, straight from the taxonomy with their real novel counts. */
 function GenreChipRail({ items }: { items: { genre: Genre; covers: string[] }[] }) {
   if (items.length === 0) return null;
@@ -172,14 +305,24 @@ export function HomeFeed({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <Hero novel={data.spotlightNovel} banner={banners[0]} />
+      <ReaderCommandCenter data={data} banners={banners} />
+
+      {guestContinueSlot}
+      {accountSections}
 
       <TrendingTicker novels={data.rankings.slice(0, 14)} />
 
       <GenreChipRail items={data.genreShowcase} />
 
-      {guestContinueSlot}
-      {accountSections}
+      {data.updates.length ? (
+        <UpdateFeed
+          title="ตอนใหม่ล่าสุด"
+          description="รายการอัปเดตแบบ live feed สำหรับคนที่กลับมาเช็กทุกวัน"
+          href="/updates"
+          items={data.updates}
+          novelsBySlug={data.novelsBySlug}
+        />
+      ) : null}
 
       {data.recommended.length ? (
         <section className="render-deferred">
@@ -213,16 +356,6 @@ export function HomeFeed({
             ))}
           </div>
         </section>
-      ) : null}
-
-      {data.updates.length ? (
-        <UpdateFeed
-          title="อัปเดตล่าสุด"
-          description="ตอนใหม่จากเรื่องที่เพิ่งเผยแพร่"
-          href="/updates"
-          items={data.updates}
-          novelsBySlug={data.novelsBySlug}
-        />
       ) : null}
 
       {data.completed.length ? (
