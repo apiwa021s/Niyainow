@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 
 import { FilterPanel } from "@/components/browse/filter-panel";
 import { NovelGridSkeleton } from "@/components/browse/novel-grid-skeleton";
@@ -43,6 +43,7 @@ export function NovelBrowser({
   emptySuggestions,
   hasResults,
   hasSuggestions,
+  resultCount,
   title = "นิยายทั้งหมด",
   description,
   basePath = "/novels",
@@ -51,12 +52,13 @@ export function NovelBrowser({
   headingLevel = "h1",
 }: {
   query: NovelQuery;
-  pagination: { page: number; total: number; totalPages: number };
+  pagination: { page: number; total: number; totalPages: number; pageSize?: number };
   facets: GenreFacet[];
   results: ReactNode;
   emptySuggestions: ReactNode;
   hasResults: boolean;
   hasSuggestions: boolean;
+  resultCount?: number;
   title?: string;
   description?: string;
   basePath?: string;
@@ -89,6 +91,17 @@ export function NovelBrowser({
 
   function clearAll() {
     update({ ...(fixedGenre ? { genre: fixedGenre } : {}), ...(fixedTag ? { tag: fixedTag } : {}) });
+  }
+
+  function applyFilter(next: NovelQuery) {
+    update({ ...next, ...(fixedGenre ? { genre: fixedGenre } : {}), ...(fixedTag ? { tag: fixedTag } : {}) });
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const nextSearch = String(formData.get("q") ?? "").replace(/\s+/gu, " ").trim();
+    update({ ...query, q: nextSearch || undefined, page: undefined });
   }
 
   useEffect(() => {
@@ -142,19 +155,94 @@ export function NovelBrowser({
   ];
   const pages = visiblePageNumbers(pagination.page, pagination.totalPages);
   const Heading = headingLevel;
+  const currentSort = query.sort ?? "popular";
+  const canGoPrevious = pagination.page > 1;
+  const canGoNext = pagination.page < pagination.totalPages;
+  const pageSize = pagination.pageSize ?? resultCount;
+  const resultStart = typeof resultCount === "number" && resultCount > 0
+    ? (pagination.page - 1) * (pageSize ?? resultCount) + 1
+    : undefined;
+  const resultEnd = typeof resultCount === "number" && resultCount > 0
+    ? Math.min(pagination.total, resultStart! + resultCount - 1)
+    : undefined;
+  const quickFilters = [
+    {
+      key: "today",
+      label: "อัปเดตวันนี้",
+      href: routeHref({ ...query, updated: "today", sort: "updated", page: undefined }),
+      active: query.updated === "today",
+    },
+    {
+      key: "completed",
+      label: "จบแล้ว",
+      href: routeHref({ ...query, status: "completed", sort: "rating", page: undefined }),
+      active: query.status === "completed",
+    },
+    {
+      key: "rating",
+      label: "คะแนนสูง",
+      href: routeHref({ ...query, rating: "4", sort: "rating", page: undefined }),
+      active: query.rating === "4" || query.rating === "4.5",
+    },
+    {
+      key: "long",
+      label: "อ่านยาว",
+      href: routeHref({ ...query, chapters: "200-500", sort: "chapters", page: undefined }),
+      active: query.chapters === "200-500" || query.chapters === "500+",
+    },
+  ];
 
   return (
-    <section className="min-w-0 space-y-6">
-      <div className="border-y border-border py-5 sm:py-6">
-        <p className="editorial-kicker">สำรวจคลังนิยาย</p>
-        <div className="mt-1 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+    <section className="min-w-0 space-y-4">
+      <header className="border-y border-border py-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0">
-            <Heading className="text-h1 font-semibold sm:text-display">{title}</Heading>
+            <p className="editorial-kicker">สำรวจคลังนิยาย</p>
+            <Heading className="mt-1 text-h1 font-semibold sm:text-display">{title}</Heading>
             <p className="tabular mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               {description ?? `${pagination.total.toLocaleString("th-TH")} เรื่อง${hasFilters ? " ที่ตรงกับตัวกรอง" : " ในคลัง"}`}
             </p>
           </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(132px,168px)] gap-2 sm:flex sm:items-center">
+          <div className="hidden min-w-36 border-l-2 border-[var(--brand-emphasis)] pl-4 text-right lg:block">
+            <p className="tabular text-2xl font-semibold">{pagination.total.toLocaleString("th-TH")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{hasFilters ? "ผลลัพธ์" : "เรื่องในคลัง"}</p>
+          </div>
+        </div>
+
+        <form onSubmit={submitSearch} className="mt-4 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(148px,180px)_auto]">
+          <label className="relative block min-w-0">
+            <span className="sr-only">ค้นหานิยาย</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <input
+              key={query.q ?? "empty-search"}
+              name="q"
+              type="search"
+              defaultValue={query.q ?? ""}
+              placeholder="ค้นชื่อเรื่อง ผู้แต่ง หรือผู้แปล"
+              enterKeyHint="search"
+              className="h-11 w-full rounded-[6px] border border-border bg-card pl-9 pr-12 text-sm text-foreground outline-none placeholder:text-muted-foreground hover:border-[var(--brand-emphasis)] focus:border-[var(--brand-emphasis)]"
+            />
+            <button
+              type="submit"
+              aria-label="ค้นหา"
+              className="absolute right-1 top-1 grid h-9 w-9 place-items-center rounded-[6px] text-muted-foreground hover:bg-muted hover:text-[var(--brand-emphasis)]"
+            >
+              <Search className="h-4 w-4" aria-hidden />
+            </button>
+          </label>
+
+          <label className="min-w-0 text-sm">
+            <span className="sr-only">เรียงตาม</span>
+            <Select
+              value={currentSort}
+              onChange={(event) => update({ ...query, sort: event.target.value as NovelSort })}
+              className="h-11 min-w-0"
+            >
+              {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+          </label>
+
+          <div className="grid gap-2 sm:grid-cols-[auto_auto] lg:flex lg:items-center">
             <button
               ref={triggerRef}
               type="button"
@@ -162,22 +250,16 @@ export function NovelBrowser({
               aria-haspopup="dialog"
               aria-expanded={sheetOpen}
               aria-controls="browse-filter-dialog"
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-border bg-card px-3 text-sm font-semibold hover:bg-muted sm:w-auto"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-border bg-card px-3 text-sm font-semibold hover:bg-muted sm:w-auto 2xl:hidden"
             >
               <SlidersHorizontal className="h-4 w-4" /> ตัวกรอง
               {activeChips.length ? <span className="tabular rounded-full bg-[var(--brand-primary)] px-1.5 text-[11px] text-white">{activeChips.length}</span> : null}
             </button>
-            <label className="min-w-0 text-sm sm:flex sm:items-center sm:gap-2">
-              <span className="sr-only sm:not-sr-only sm:text-muted-foreground">เรียงตาม</span>
-              <Select value={query.sort ?? "popular"} onChange={(event) => update({ ...query, sort: event.target.value as NovelSort })} className="h-11 min-w-0">
-                {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </Select>
-            </label>
           </div>
-        </div>
+        </form>
 
         {activeChips.length ? (
-          <div className="rail-scroll -mx-3 mt-4 flex items-center gap-1.5 px-3 sm:mx-0 sm:flex-wrap sm:px-0">
+          <div className="rail-scroll -mx-3 mt-3 flex items-center gap-1.5 px-3 sm:mx-0 sm:flex-wrap sm:px-0">
             {activeChips.map((chip) => (
               <button key={chip.key} type="button" onClick={chip.remove} className="flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-[var(--brand-primary)]/12 px-3 py-1 text-xs font-medium text-[var(--brand-emphasis)] sm:min-h-11">
                 {chip.label}<X className="h-3 w-3" aria-hidden /><span className="sr-only">เอาตัวกรอง {chip.label} ออก</span>
@@ -185,26 +267,102 @@ export function NovelBrowser({
             ))}
             <button type="button" onClick={clearAll} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-muted-foreground hover:underline sm:min-h-11">ล้างทั้งหมด</button>
           </div>
-        ) : null}
-      </div>
+        ) : (
+          <div className="rail-scroll -mx-3 mt-3 flex items-center gap-2 px-3 sm:mx-0 sm:flex-wrap sm:px-0">
+            {quickFilters.map((item) => (
+              <Link
+                key={item.key}
+                href={item.href}
+                className={cn(
+                  "inline-flex min-h-10 shrink-0 items-center rounded-full border px-3 text-xs font-semibold sm:min-h-11",
+                  item.active
+                    ? "border-[var(--brand-emphasis)] bg-[var(--brand-primary)]/12 text-[var(--brand-emphasis)]"
+                    : "border-border bg-card text-muted-foreground hover:border-[var(--brand-emphasis)] hover:text-[var(--brand-emphasis)]",
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </header>
 
-      <div className="scroll-mt-24" aria-busy={isPending} aria-live="polite">
-        {isPending ? <NovelGridSkeleton count={12} /> : hasResults ? results : <EmptyResults onClear={clearAll} suggestions={emptySuggestions} hasSuggestions={hasSuggestions} />}
-      </div>
+      <div className="grid gap-4 2xl:grid-cols-[248px_minmax(0,1fr)] 2xl:items-start">
+        <aside className="hidden 2xl:block">
+          <div className="sticky top-[calc(var(--topbar-h-lg)+12px)] max-h-[calc(100dvh-var(--topbar-h-lg)-24px)] overflow-y-auto rounded-[8px] border border-border bg-card p-3">
+            <div className="mb-3 flex items-start justify-between gap-2 border-b border-border pb-3">
+              <div>
+                <p className="editorial-kicker">FILTERS</p>
+                <h2 className="mt-1 text-base font-semibold">ตัวกรองละเอียด</h2>
+              </div>
+              {hasFilters ? (
+                <button type="button" onClick={clearAll} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-muted-foreground hover:text-[var(--brand-emphasis)]">
+                  ล้าง
+                </button>
+              ) : null}
+            </div>
+            <FilterPanel query={query} genres={facets} hideGenres={Boolean(fixedGenre)} compact onChange={applyFilter} />
+          </div>
+        </aside>
 
-      {pagination.totalPages > 1 ? (
-        <nav aria-label="หน้าผลลัพธ์" className="mt-7 flex flex-wrap justify-center gap-1.5">
-          {pages.map((pageNumber, index) => {
-            const previous = pages[index - 1];
-            return (
-              <span key={pageNumber} className="contents">
-                {previous && pageNumber - previous > 1 ? <span className="grid h-11 min-w-8 place-items-center text-muted-foreground" aria-hidden>…</span> : null}
-                <Link href={routeHref({ ...query, page: pageNumber })} aria-current={pageNumber === pagination.page ? "page" : undefined} className={cn("tabular grid h-11 min-w-11 place-items-center rounded-[8px] border px-2 text-sm font-medium", pageNumber === pagination.page ? "border-[var(--brand-emphasis)] bg-[var(--brand-primary)]/12" : "border-border hover:bg-muted")}>{pageNumber}</Link>
-              </span>
-            );
-          })}
-        </nav>
-      ) : null}
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+            <p className="tabular text-xs text-muted-foreground">
+              {typeof resultStart === "number" && typeof resultEnd === "number"
+                ? `แสดง ${resultStart.toLocaleString("th-TH")}–${resultEnd.toLocaleString("th-TH")} จาก ${pagination.total.toLocaleString("th-TH")} เรื่อง`
+                : `หน้า ${pagination.page.toLocaleString("th-TH")} จาก ${Math.max(pagination.totalPages, 1).toLocaleString("th-TH")}`}
+            </p>
+            <p role="status" className="text-xs font-medium text-muted-foreground">
+              {isPending ? "กำลังโหลดผลลัพธ์ใหม่" : hasFilters ? `${activeChips.length.toLocaleString("th-TH")} ตัวกรองที่ใช้` : "พร้อมสำรวจ"}
+            </p>
+          </div>
+
+          <div className="scroll-mt-24" aria-busy={isPending} aria-live="polite">
+            {isPending ? <NovelGridSkeleton count={12} /> : hasResults ? results : <EmptyResults onClear={clearAll} suggestions={emptySuggestions} hasSuggestions={hasSuggestions} />}
+          </div>
+
+          {pagination.totalPages > 1 ? (
+            <nav aria-label="หน้าผลลัพธ์" className="mt-7 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              {canGoPrevious ? (
+                <Link href={routeHref({ ...query, page: pagination.page - 1 })} className="inline-flex h-11 items-center justify-start gap-1 rounded-[8px] border border-border px-3 text-sm font-semibold hover:bg-muted">
+                  <ChevronLeft className="h-4 w-4" aria-hidden /> ก่อนหน้า
+                </Link>
+              ) : (
+                <span aria-disabled="true" className="inline-flex h-11 items-center justify-start gap-1 rounded-[8px] border border-border px-3 text-sm font-semibold text-muted-foreground/45">
+                  <ChevronLeft className="h-4 w-4" aria-hidden /> ก่อนหน้า
+                </span>
+              )}
+
+              <div className="flex justify-center">
+                <span className="tabular inline-flex h-11 items-center text-xs font-medium text-muted-foreground sm:hidden">
+                  {pagination.page.toLocaleString("th-TH")} / {pagination.totalPages.toLocaleString("th-TH")}
+                </span>
+                <div className="hidden flex-wrap justify-center gap-1.5 sm:flex">
+                  {pages.map((pageNumber, index) => {
+                    const previousPage = pages[index - 1];
+                    return (
+                      <span key={pageNumber} className="contents">
+                        {previousPage && pageNumber - previousPage > 1 ? <span className="grid h-11 min-w-8 place-items-center text-muted-foreground" aria-hidden>…</span> : null}
+                        <Link href={routeHref({ ...query, page: pageNumber })} aria-current={pageNumber === pagination.page ? "page" : undefined} className={cn("tabular grid h-11 min-w-11 place-items-center rounded-[8px] border px-2 text-sm font-medium", pageNumber === pagination.page ? "border-[var(--brand-emphasis)] bg-[var(--brand-primary)]/12" : "border-border hover:bg-muted")}>{pageNumber}</Link>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {canGoNext ? (
+                <Link href={routeHref({ ...query, page: pagination.page + 1 })} className="inline-flex h-11 items-center justify-end gap-1 rounded-[8px] border border-border px-3 text-sm font-semibold hover:bg-muted">
+                  ถัดไป <ChevronRight className="h-4 w-4" aria-hidden />
+                </Link>
+              ) : (
+                <span aria-disabled="true" className="inline-flex h-11 items-center justify-end gap-1 rounded-[8px] border border-border px-3 text-sm font-semibold text-muted-foreground/45">
+                  ถัดไป <ChevronRight className="h-4 w-4" aria-hidden />
+                </span>
+              )}
+            </nav>
+          ) : null}
+        </div>
+      </div>
 
       {sheetOpen ? (
         <div className="fixed inset-0 z-50">
@@ -215,7 +373,7 @@ export function NovelBrowser({
               <div><h2 id="browse-filter-title" className="text-xl font-semibold">ตัวกรอง</h2><p className="text-xs text-muted-foreground">เลือกเท่าที่จำเป็นเพื่อจำกัดผลลัพธ์</p></div>
               <button type="button" onClick={() => setSheetOpen(false)} aria-label="ปิดตัวกรอง" className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
-            <FilterPanel query={query} genres={facets} hideGenres={Boolean(fixedGenre)} onChange={(next) => update({ ...next, ...(fixedGenre ? { genre: fixedGenre } : {}), ...(fixedTag ? { tag: fixedTag } : {}) })} />
+            <FilterPanel query={query} genres={facets} hideGenres={Boolean(fixedGenre)} onChange={applyFilter} />
             <div className="sticky bottom-0 mt-6 flex gap-2 border-t border-border bg-background pt-4">
               {hasFilters ? <button type="button" onClick={clearAll} className="h-12 flex-1 rounded-[8px] border border-border text-sm font-semibold">ล้างทั้งหมด</button> : null}
               <button type="button" onClick={() => setSheetOpen(false)} className="h-12 flex-[2] rounded-[8px] bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white">ดูผลลัพธ์ {pagination.total.toLocaleString("th-TH")} เรื่อง</button>
@@ -230,7 +388,7 @@ export function NovelBrowser({
 function EmptyResults({ onClear, suggestions, hasSuggestions }: { onClear: () => void; suggestions: ReactNode; hasSuggestions: boolean }) {
   return (
     <div className="flex flex-col gap-8">
-      <div className="rounded-[8px] border border-dashed border-border p-8 text-center">
+      <div className="rounded-[8px] border border-dashed border-border bg-card/45 p-7 text-center sm:p-8">
         <p className="font-semibold">ไม่พบนิยายที่ตรงกับตัวกรองนี้</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">ลองลดจำนวนตัวกรอง หรือกลับไปดูเรื่องยอดนิยมในคลัง</p>
         <button type="button" onClick={onClear} className="mt-4 inline-flex h-11 items-center rounded-[8px] bg-[var(--brand-primary)] px-5 text-sm font-semibold text-white">ล้างตัวกรอง</button>

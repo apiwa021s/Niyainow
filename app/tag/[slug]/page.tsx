@@ -55,12 +55,13 @@ export default async function TagDetailPage({ params, searchParams }: { params: 
       </header>
       <NovelBrowser
         query={query}
-        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages }}
+        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages, pageSize: result.pageSize }}
         facets={facets}
         results={<NovelGrid novels={result.items} />}
         emptySuggestions={<NovelGrid novels={suggestions} />}
         hasResults={result.items.length > 0}
         hasSuggestions={suggestions.length > 0}
+        resultCount={result.items.length}
         title="ผลลัพธ์ทั้งหมด"
         basePath={`/tag/${tag.slug}`}
         fixedTag={tag.slug}

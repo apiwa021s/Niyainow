@@ -90,12 +90,13 @@ export default async function GenreDetailPage({
 
       <NovelBrowser
         query={query}
-        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages }}
+        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages, pageSize: result.pageSize }}
         facets={facets}
         results={<NovelGrid novels={result.items} />}
         emptySuggestions={<NovelGrid novels={suggestions} />}
         hasResults={result.items.length > 0}
         hasSuggestions={suggestions.length > 0}
+        resultCount={result.items.length}
         title={`นิยาย${genre.thaiName}ทั้งหมด`}
         description={`${result.total.toLocaleString("th-TH")} เรื่อง ปรับสถานะ คะแนน จำนวนตอน และเวลาอัปเดตได้`}
         basePath={`/genre/${genre.slug}`}
