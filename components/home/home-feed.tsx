@@ -124,58 +124,49 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
   );
 
   /*
-   * Two different heroes, because the fold budget is completely different.
-   *
-   * Mobile gets a compact 2:3 cover beside the copy — roughly 150px total. A
-   * full-bleed backdrop with the copy under it ate about two thirds of a 760px
-   * screen and left one title above the fold, against the brief's floor of
-   * eight (§6.2). The portrait cover is also the artwork readers recognise.
-   *
-   * From sm up there is width to spare, so the backdrop returns as a wide
-   * banner with the copy overlaid.
+   * One responsive composition keeps the fold compact on mobile while giving
+   * the cover room to lead on desktop. The same cover drives both the crisp
+   * foreground artwork and the blurred colour field behind it.
    */
   return (
-    <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
-      <div className="hidden sm:block">
-        <div className="relative h-[clamp(240px,26vw,340px)] w-full">
-          <Image
-            src={novel.backdrop || novel.cover}
-            alt=""
-            fill
-            sizes="(min-width: 1280px) calc(100vw - 364px), 100vw"
-            fetchPriority="high"
-            className="object-cover"
-          />
-          <div aria-hidden className="absolute inset-0 bg-linear-to-r from-black/90 via-black/60 to-black/10" />
-        </div>
-        <div className="absolute inset-y-0 left-0 flex max-w-[min(600px,76%)] flex-col justify-center gap-2 p-5 lg:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
-          <h2 className="line-clamp-2 text-h1 font-semibold text-white lg:text-display">{novel.thaiTitle}</h2>
-          <p className="line-clamp-1 text-body text-white/75 lg:line-clamp-2">{novel.synopsis}</p>
-          {meta}
-          <Link
-            href={`/novel/${novel.slug}`}
-            className="mt-1.5 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on transition-colors hover:bg-accent-hover"
-          >
-            <BookOpen className="h-4 w-4" aria-hidden />
-            เริ่มอ่าน
-          </Link>
-        </div>
+    <section className="relative isolate overflow-hidden rounded-(--r-lg) border border-border bg-surface">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <Image
+          src={novel.cover}
+          alt=""
+          fill
+          sizes="(min-width: 1280px) calc(100vw - 364px), 100vw"
+          fetchPriority="high"
+          className="scale-125 object-cover object-center opacity-45 blur-3xl saturate-150 sm:opacity-65"
+        />
+        <div className="absolute inset-0 bg-linear-to-r from-surface/96 via-surface/92 to-surface/82 sm:from-black/92 sm:via-black/70 sm:to-black/35" />
+        <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-surface/55 sm:to-black/60" />
       </div>
 
-      <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:hidden">
-        <Link href={`/novel/${novel.slug}`} className="relative aspect-2/3 overflow-hidden rounded-(--r-md) bg-surface-recessed">
-          <Image src={novel.cover} alt="" fill sizes="84px" fetchPriority="high" className="object-cover" />
+      <div className="relative grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:h-[clamp(240px,26vw,340px)] sm:grid-cols-[minmax(0,1fr)_clamp(128px,14vw,190px)] sm:items-center sm:gap-6 sm:p-5 lg:gap-8 lg:p-6">
+        <Link
+          href={`/novel/${novel.slug}`}
+          className="relative aspect-2/3 overflow-hidden rounded-(--r-md) bg-surface-recessed shadow-(--sh-2) ring-1 ring-black/10 sm:order-2 sm:w-full sm:ring-white/15"
+        >
+          <Image
+            src={novel.cover}
+            alt={`ปกนิยาย ${novel.thaiTitle}`}
+            fill
+            sizes="(max-width: 639px) 84px, (max-width: 1023px) 150px, 190px"
+            className="object-cover transition-transform duration-300 hover:scale-[1.02]"
+          />
         </Link>
-        <div className="flex min-w-0 flex-col gap-1">
+
+        <div className="flex min-w-0 flex-col gap-1 sm:order-1 sm:max-w-[650px] sm:gap-2">
           <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
-          <h2 className="line-clamp-2 text-h2 font-semibold">{novel.thaiTitle}</h2>
+          <h2 className="line-clamp-2 text-h2 font-semibold sm:text-h1 sm:text-white lg:text-display">{novel.thaiTitle}</h2>
+          <p className="hidden text-body text-white/75 sm:line-clamp-2">{novel.synopsis}</p>
           {meta}
           <Link
             href={`/novel/${novel.slug}`}
-            className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-full bg-accent-base px-4 text-sm font-semibold text-accent-on"
+            className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-full bg-accent-base px-4 text-sm font-semibold text-accent-on transition-colors hover:bg-accent-hover sm:mt-1.5 sm:h-11 sm:w-fit sm:px-5 sm:text-base"
           >
-            <BookOpen className="h-3.5 w-3.5" aria-hidden />
+            <BookOpen className="h-4 w-4" aria-hidden />
             เริ่มอ่าน
           </Link>
         </div>

@@ -27,22 +27,14 @@ export default function Loading() {
       <p role="status" className="sr-only">กำลังเตรียมหน้าแรก</p>
       <div className="flex flex-col gap-4 lg:gap-5">
         <section aria-hidden className="overflow-hidden rounded-(--r-lg) border border-border bg-surface">
-          <div className="hidden h-[clamp(240px,26vw,340px)] p-5 sm:block">
-            <div className="flex h-full max-w-[560px] flex-col justify-center gap-3">
-              <Skeleton className="h-3 w-36" />
-              <Skeleton className="h-9 w-[min(460px,85%)]" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-64" />
-              <Skeleton className="mt-1 h-11 w-28 rounded-full" />
-            </div>
-          </div>
-          <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:hidden">
-            <Skeleton className="aspect-2/3 w-[84px] rounded-(--r-md)" />
-            <div className="flex min-w-0 flex-col gap-2 py-1">
-              <Skeleton className="h-3 w-28" />
-              <Skeleton className="h-6 w-[92%]" />
-              <Skeleton className="h-4 w-[70%]" />
-              <Skeleton className="mt-auto h-10 w-full rounded-full" />
+          <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:h-[clamp(240px,26vw,340px)] sm:grid-cols-[minmax(0,1fr)_clamp(128px,14vw,190px)] sm:items-center sm:gap-6 sm:p-5 lg:gap-8 lg:p-6">
+            <Skeleton className="aspect-2/3 w-[84px] rounded-(--r-md) sm:order-2 sm:w-full" />
+            <div className="flex min-w-0 flex-col gap-2 py-1 sm:order-1 sm:max-w-[650px] sm:justify-center">
+              <Skeleton className="h-3 w-28 sm:w-36" />
+              <Skeleton className="h-6 w-[92%] sm:h-9 sm:w-[min(460px,85%)]" />
+              <Skeleton className="h-4 w-[70%] sm:w-full" />
+              <Skeleton className="hidden h-4 w-64 sm:block" />
+              <Skeleton className="mt-auto h-10 w-full rounded-full sm:mt-1 sm:h-11 sm:w-28" />
             </div>
           </div>
         </section>
