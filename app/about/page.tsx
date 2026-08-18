@@ -25,7 +25,7 @@ export default function AboutPage() {
       <section aria-labelledby="principles-title" className="mt-10 grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div>
           <p className="editorial-kicker">OUR PRINCIPLES</p>
-          <h2 id="principles-title" className="mt-2 font-serif text-2xl font-semibold">หลักที่ใช้ตัดสินใจ</h2>
+          <h2 id="principles-title" className="mt-2 text-2xl font-semibold">หลักที่ใช้ตัดสินใจ</h2>
         </div>
         <ol className="border-t border-border">
           {principles.map(([index, title, body]) => (

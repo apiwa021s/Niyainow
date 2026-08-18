@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { SectionHeader } from "@/components/ui/section-header";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,16 +16,20 @@ import { cn } from "@/lib/utils";
 export function ContentRow({
   title,
   description,
+  count,
   href,
   action = "ดูทั้งหมด",
   children,
+  bleed = true,
   className
 }: {
   title: string;
   description?: string;
+  count?: number;
   href?: string;
   action?: string;
   children: React.ReactNode;
+  bleed?: boolean;
   className?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -65,35 +70,21 @@ export function ContentRow({
   };
 
   return (
-    <section className={cn("flex flex-col gap-3", className)} aria-label={title}>
-      <div className="flex items-end justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
-          <div>
-          <p className="editorial-kicker">อ่านต่อจากครั้งล่าสุด</p>
-          <h2 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
-          {description ? <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{description}</p> : null}
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1">
-          {href ? (
-            <Link
-              href={href}
-              className="inline-flex min-h-11 items-center rounded-[8px] px-2 text-sm font-semibold text-[var(--brand-light-on-light)] hover:bg-muted"
-            >
-              {action} 
-            </Link>
-          ) : null}
-
-          {/* ลูกศรเฉพาะ desktop — mobile ใช้นิ้วปัด */}
+    <section className={cn("flex flex-col gap-2.5", className)} aria-label={title}>
+      <SectionHeader
+        title={title}
+        count={count}
+        href={href}
+        hrefLabel={action}
+        trailing={
+          /* ลูกศรเฉพาะ desktop — mobile ใช้นิ้วปัด */
           <div className="hidden items-center gap-1 lg:flex">
             <button
               type="button"
               onClick={() => scrollBy(-1)}
               disabled={!canScrollLeft}
               aria-label={`เลื่อน ${title} ไปทางซ้าย`}
-              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
+              className="-my-2 grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -102,21 +93,26 @@ export function ContentRow({
               onClick={() => scrollBy(1)}
               disabled={!canScrollRight}
               aria-label={`เลื่อน ${title} ไปทางขวา`}
-              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
+              className="-my-2 grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
+      {description ? <p className="-mt-1 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}
+
+      {/*
+       * The bleed must match the page gutter exactly. It used to pull -16px
+       * against a 12px gutter, which pushed 4px past the viewport on each side
+       * and let the whole page scroll sideways on a phone.
+       */}
       <div
         ref={trackRef}
         className={cn(
-          // ไม่ต้องมี padding-bottom เผื่อ scrollbar — scrollbar ถูกซ่อนอยู่แล้ว
-          "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0",
-          // ซ่อน scrollbar แต่ยังเลื่อนได้
-          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          "rail-scroll flex snap-x snap-mandatory gap-2.5",
+          bleed ? "-mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0" : "mx-0 px-0",
         )}
       >
         {children}
@@ -128,6 +124,6 @@ export function ContentRow({
 }
 
 /** ห่อการ์ดแต่ละใบให้ snap — แยกออกมาเพื่อให้ ContentRow ไม่ต้องรู้จักชนิดการ์ด */
-export function RowItem({ children }: { children: React.ReactNode }) {
-  return <div className="snap-start">{children}</div>;
+export function RowItem({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("snap-start", className)}>{children}</div>;
 }

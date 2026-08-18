@@ -347,7 +347,7 @@ export function RatingReviewForm({
     <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
       <section className="border-y border-border py-5 lg:border-y-0">
         <p className="editorial-kicker">YOUR RATING</p>
-        <h3 className="mt-1 font-serif text-xl font-semibold">ให้คะแนนเรื่องนี้</h3>
+        <h3 className="mt-1 text-xl font-semibold">ให้คะแนนเรื่องนี้</h3>
         <div className="mt-4">
           <div className="flex gap-1" role="group" aria-label="ให้คะแนน 1 ถึง 5 ดาว">
             {[1, 2, 3, 4, 5].map((score) => (
@@ -370,7 +370,7 @@ export function RatingReviewForm({
 
       <section className="border-y border-border py-5 lg:border-y-0 lg:border-l lg:pl-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-serif text-xl font-semibold">
+          <h3 className="text-xl font-semibold">
             <span>{review ? "แก้ไขรีวิวของคุณ" : "เขียนรีวิว"}</span>
           </h3>
           {review ? <span className="text-xs font-medium text-muted-foreground">{statusLabel(review.status)}</span> : null}

@@ -2,9 +2,22 @@ import Link from "next/link";
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Content column for every non-home route. Padding matches the home page so
+ * grids line up across navigations. The old top offset that cleared a fixed
+ * header is gone — the topbar is sticky and sits in flow now, so reserving
+ * 92px here only pushed the first row off a phone screen.
+ */
 export function PageShell({ children, className, ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode }) {
   return (
-    <main id="main" className={cn("mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[92px] sm:px-6 lg:px-8", className)} {...props}>
+    <main
+      id="main"
+      className={cn(
+        "mx-auto w-full max-w-(--shell-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </main>
   );
@@ -22,16 +35,16 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <header className="mb-8 flex flex-wrap items-end justify-between gap-5 border-b border-border pb-6">
-      <div className="flex min-w-0 gap-4">
-        <span aria-hidden className="mt-1 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
+    <header className="mb-5 grid gap-4 border-y border-border py-5 sm:mb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:py-6">
+      <div className="flex min-w-0 gap-3">
+        <span aria-hidden className="mt-0.5 w-0.5 shrink-0 bg-accent-base" />
         <div className="min-w-0">
-          {eyebrow ? <p className="editorial-kicker mb-1.5">{eyebrow}</p> : null}
-          <h1 className="font-serif text-2xl font-semibold sm:text-3xl lg:text-4xl">{title}</h1>
-          {description ? <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">{description}</p> : null}
+          {eyebrow ? <p className="editorial-kicker mb-1">{eyebrow}</p> : null}
+          <h1 className="text-h1 font-semibold sm:text-display">{title}</h1>
+          {description ? <p className="mt-2 max-w-3xl text-body text-(--text-secondary)">{description}</p> : null}
         </div>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="min-w-0 sm:shrink-0">{action}</div> : null}
     </header>
   );
 }
@@ -50,12 +63,12 @@ export function SectionHeader({
   icon?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-end justify-between gap-4">
+    <div className="mb-3 flex items-end justify-between gap-4 border-b border-border pb-3">
       <div className="min-w-0">
         <div className="flex items-center gap-3">
           <span aria-hidden className="h-7 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
           {icon}
-          <h2 className="font-serif text-xl font-semibold sm:text-2xl">{title}</h2>
+          <h2 className="text-h2 font-semibold">{title}</h2>
         </div>
         {description ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </div>
@@ -83,8 +96,8 @@ export function EmptyState({
   icon?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-[10px] border border-dashed border-border px-6 py-10 text-center">
-      <div aria-hidden className="mb-3 grid h-14 w-14 place-items-center border border-[var(--brand-emphasis)]/35 bg-[var(--brand-primary)]/5 text-[var(--brand-emphasis)]">
+    <div className="flex flex-col items-center rounded-[8px] border border-dashed border-border bg-card/45 px-5 py-9 text-center sm:px-6 sm:py-10">
+      <div aria-hidden className="mb-3 grid h-14 w-14 place-items-center rounded-[6px] border border-[var(--brand-emphasis)]/35 bg-[var(--brand-primary)]/5 text-[var(--brand-emphasis)]">
         {icon ?? <BookGlyph />}
       </div>
       <p className="text-base font-semibold">{title}</p>

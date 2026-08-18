@@ -1,21 +1,57 @@
 @import "tailwindcss";
 
-/* NiyaiThai / Akane — quiet editorial foundations. */
+/*
+ * NiyaiThai — token layer.
+ *
+ * Two personalities, one token set (brief §1):
+ *   Discovery = dense, dark-first, cover-led. Accent carries CTA/active only.
+ *   Reader    = quiet. Its own --read-* palette; the accent never touches body text.
+ *
+ * Nothing below may be duplicated inside a component. Components reference
+ * variables or the Tailwind theme keys mapped in @theme inline.
+ */
 :root {
-  --brand-primary: #b51f32;
-  --brand-hover: #c72c41;
-  --brand-active: #981728;
-  --brand-emphasis: #b51f32;
-  --brand-ink: #1d1b1b;
+  /* Accent — CTA / active / badge only, target <=10% of any screen (brief §3.2). */
+  --accent-base: #ff6ec7;
+  --accent-hover: #ff87d1;
+  --accent-pressed: #e2489f;
+  --accent-subtle: color-mix(in srgb, var(--accent-base) 8%, transparent);
+  --accent-on: #1a0d16;
 
-  --bg-base: #fafaf8;
-  --bg-elevated: #ffffff;
-  --bg-subtle: #f5f3f0;
-  --bg-recessed: #efebe7;
-  --border-color: #e4e1dd;
-  --text-primary: #1d1b1b;
-  --text-secondary: #615d59;
-  --text-tertiary: #8b8681;
+  /* Neutral ramp, slightly cool. Whole-site structure comes from here. */
+  --neutral-0: #ffffff;
+  --neutral-50: #f7f8fa;
+  --neutral-100: #eef0f4;
+  --neutral-200: #e1e4ea;
+  --neutral-300: #c7ccd6;
+  --neutral-400: #9aa1ae;
+  --neutral-500: #6f7684;
+  --neutral-600: #515865;
+  --neutral-700: #3a404b;
+  --neutral-800: #262a33;
+  --neutral-900: #181b22;
+  --neutral-950: #0e1015;
+
+  /* Semantic — status badges only. */
+  --success: #2f9e6b;
+  --warning: #d08a1e;
+  --danger: #d64545;
+  --info: #3d82d6;
+
+  --brand-primary: var(--accent-base);
+  --brand-hover: var(--accent-hover);
+  --brand-active: var(--accent-pressed);
+  --brand-emphasis: #c2237f;
+  --brand-ink: var(--neutral-900);
+
+  --bg-base: var(--neutral-50);
+  --bg-elevated: var(--neutral-0);
+  --bg-subtle: var(--neutral-100);
+  --bg-recessed: var(--neutral-200);
+  --border-color: var(--neutral-200);
+  --text-primary: var(--neutral-900);
+  --text-secondary: var(--neutral-600);
+  --text-tertiary: var(--neutral-500);
 
   /* Compatibility aliases used by existing story surfaces. */
   --brand-light: var(--brand-hover);
@@ -80,61 +116,128 @@
   --shadow-card: var(--sh-2);
   --shadow-soft: var(--sh-1);
 
-  --reader-bg: #fafaf8;
-  --reader-paper: #fafaf8;
-  --reader-text: #242220;
-  --reader-accent: #b51f32;
-  --reader-action: #b51f32;
+  /* Density (brief §5): 4px grid, 12px minimum gutter. */
+  --gutter: 12px;
+  --gutter-lg: 20px;
+  --shell-max: 1440px;
+  --sidebar-collapsed: 64px;
+  --sidebar-expanded: 240px;
+  --rail-width: 300px;
+  --topbar-h: 48px;
+  --topbar-h-lg: 56px;
+
+  /* Type scale outside the reader — one step tighter than default, on purpose. */
+  --fs-display: 32px;  --lh-display: 40px;
+  --fs-h1: 26px;       --lh-h1: 34px;
+  --fs-h2: 20px;       --lh-h2: 28px;
+  --fs-h3: 17px;       --lh-h3: 24px;
+  --fs-body: 15px;     --lh-body: 22px;
+  --fs-sm: 13px;       --lh-sm: 18px;
+  --fs-xs: 11px;       --lh-xs: 16px;
+
+  /* Reader defaults; the four themes below own the colours. */
   --reader-font-size: 18px;
-  --reader-line-height: 1.8;
-  --reader-paragraph-gap: 1em;
-  --reader-measure: 720px;
+  --reader-line-height: 1.9;
+  --reader-paragraph-gap: 0.9em;
+  --reader-measure: 640px;
   --reader-dim: 0;
 
   color-scheme: light;
 }
 
+/*
+ * Reader themes (brief §3.1). Body contrast is >= 7:1 (AAA) in every theme;
+ * measured values live in docs alongside the /design-system page.
+ * Dark leans hue ~220 rather than neutral grey; AMOLED stays separate from
+ * Dark because its whole purpose is true black on OLED panels.
+ */
+[data-read-theme="light"] {
+  --read-bg: #fcfcfa;
+  --read-surface: #ffffff;
+  --read-text: #1c1d1f;
+  --read-text-muted: #6b7075;
+  --read-border: #e6e6e3;
+  --read-selection: #ffe9f6;
+  color-scheme: light;
+}
+
+[data-read-theme="sepia"] {
+  --read-bg: #f3e9d8;
+  --read-surface: #efe3ce;
+  --read-text: #4a3a28;
+  --read-text-muted: #8a7458;
+  --read-border: #ddcdb2;
+  --read-selection: #e8d5a8;
+  color-scheme: light;
+}
+
+[data-read-theme="dark"] {
+  --read-bg: #16181c;
+  --read-surface: #1e2126;
+  --read-text: #c6c9cf;
+  --read-text-muted: #8a8f98;
+  --read-border: #2a2e35;
+  --read-selection: #2e3440;
+  color-scheme: dark;
+}
+
+[data-read-theme="amoled"] {
+  --read-bg: #000000;
+  --read-surface: #0a0a0a;
+  --read-text: #b4b8bf;
+  --read-text-muted: #7a7f87;
+  --read-border: #1a1a1a;
+  --read-selection: #1e1e24;
+  color-scheme: dark;
+}
+
+/* Legacy aliases so reader surfaces keep rendering while §7 is rebuilt. */
+:root,
+[data-read-theme] {
+  --reader-bg: var(--read-bg, #fcfcfa);
+  --reader-paper: var(--read-surface, #ffffff);
+  --reader-text: var(--read-text, #1c1d1f);
+  --reader-accent: var(--read-text-muted, #6b7075);
+  --reader-action: var(--accent-base);
+}
+
 .dark,
 [data-theme="dark"] {
-  --brand-primary: #b51f32;
-  --brand-hover: #c72c41;
-  --brand-active: #981728;
-  --brand-emphasis: #e24a5b;
-  --brand-ink: #f0ede9;
+  --brand-emphasis: var(--accent-base);
+  --brand-ink: var(--neutral-50);
 
-  --bg-base: #0e0e10;
-  --bg-elevated: #151517;
-  --bg-subtle: #1b1b1f;
-  --bg-recessed: #232329;
-  --border-color: #2d2d34;
-  --text-primary: #f0ede9;
-  --text-secondary: #b8b4b0;
-  --text-tertiary: #85817e;
+  /* Panels sit a step above the page so cards separate by contrast, not by
+     extra gutter — that is what keeps the grid dense (brief §5.2). */
+  --bg-base: #101216;
+  --bg-elevated: #171a1f;
+  --bg-subtle: #1d2026;
+  --bg-recessed: #24282f;
+  --border-color: #272b33;
+  --text-primary: #eceef2;
+  --text-secondary: #a3a9b5;
+  --text-tertiary: #767d8a;
 
-  --brand-light: var(--brand-emphasis);
-  --brand-pink: var(--brand-primary);
+  --accent-subtle: color-mix(in srgb, var(--accent-base) 14%, transparent);
+  --accent-on: #1a0d16;
+
+  --brand-light: var(--accent-hover);
+  --brand-pink: var(--accent-base);
   --brand-blue: var(--text-secondary);
-  --brand-light-on-light: var(--brand-emphasis);
-  --brand-pink-on-light: var(--brand-emphasis);
+  --brand-light-on-light: var(--accent-base);
+  --brand-pink-on-light: var(--accent-base);
   --brand-blue-on-light: var(--text-secondary);
 
-  --sh-1: 0 1px 2px rgb(0 0 0 / 0.3);
-  --sh-2: 0 8px 24px rgb(0 0 0 / 0.32);
-  --sh-3: 0 18px 48px rgb(0 0 0 / 0.42);
-  --sh-brand: 0 4px 12px rgb(181 31 50 / 0.2);
+  --sh-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --sh-2: 0 8px 24px rgb(0 0 0 / 0.42);
+  --sh-3: 0 18px 48px rgb(0 0 0 / 0.55);
+  --sh-brand: 0 4px 16px color-mix(in srgb, var(--accent-base) 26%, transparent);
 
   --card: var(--bg-elevated);
   --popover: var(--bg-subtle);
   --secondary: var(--bg-subtle);
   --muted: var(--bg-recessed);
-  --destructive: #ff6b7c;
+  --destructive: #ff7a7a;
   --input: var(--border-color);
-
-  --reader-bg: #111113;
-  --reader-paper: #111113;
-  --reader-text: #e8e5e1;
-  --reader-accent: #e24a5b;
-  --reader-action: #b51f32;
 
   color-scheme: dark;
 }
@@ -158,6 +261,34 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-accent-base: var(--accent-base);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-pressed: var(--accent-pressed);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-on: var(--accent-on);
+  --color-surface: var(--bg-elevated);
+  --color-surface-subtle: var(--bg-subtle);
+  --color-surface-recessed: var(--bg-recessed);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  --text-display: var(--fs-display);
+  --text-display--line-height: var(--lh-display);
+  --text-h1: var(--fs-h1);
+  --text-h1--line-height: var(--lh-h1);
+  --text-h2: var(--fs-h2);
+  --text-h2--line-height: var(--lh-h2);
+  --text-h3: var(--fs-h3);
+  --text-h3--line-height: var(--lh-h3);
+  --text-body: var(--fs-body);
+  --text-body--line-height: var(--lh-body);
+  --text-sm: var(--fs-sm);
+  --text-sm--line-height: var(--lh-sm);
+  --text-xs: var(--fs-xs);
+  --text-xs--line-height: var(--lh-xs);
 
   --color-brand-ink: var(--brand-ink);
   --color-brand-primary: var(--brand-primary);
@@ -210,7 +341,7 @@ h4,
 h5,
 h6 {
   line-height: 1.35;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   text-wrap: pretty;
 }
 
@@ -289,6 +420,68 @@ p {
   width: 36px;
   background: var(--brand-primary);
   content: "";
+}
+
+/* Horizontal rails carry their own scrollbar suppression so the markup stays
+   readable instead of repeating six arbitrary Tailwind variants per rail. */
+.rail-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+
+.rail-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.rail-scroll > * {
+  scroll-snap-align: start;
+}
+
+/* Vertical panes (the updates rail) keep a slim visible scrollbar — the user
+   needs to know there is more below. */
+.pane-scroll {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-recessed) transparent;
+}
+
+.pane-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pane-scroll::-webkit-scrollbar-thumb {
+  border-radius: var(--r-full);
+  background: var(--bg-recessed);
+}
+
+/* Cover tiles: the artwork is the hero, so the only decoration on hover is a
+   thin accent ring. No scale-up — it forces layout reflow inside dense grids. */
+.cover-tile {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--r-lg);
+  background: var(--bg-recessed);
+  box-shadow: inset 0 0 0 1px var(--border-color);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.cover-tile::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.72) 0%, rgb(0 0 0 / 0.12) 42%, transparent 68%);
+  content: "";
+}
+
+.group:hover .cover-tile,
+.group:focus-within .cover-tile {
+  box-shadow: inset 0 0 0 2px var(--accent-base);
 }
 
 .render-deferred {

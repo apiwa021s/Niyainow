@@ -116,13 +116,13 @@ export function SearchResults({
 
   return (
     <section className="space-y-6">
-      <header className="border-b border-border pb-5">
+      <header className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">ค้นจากทั้งคลัง</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">ค้นหานิยาย</h1>
+        <h1 className="mt-1 text-h1 font-semibold sm:text-display">ค้นหานิยาย</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">ค้นจากชื่อไทย ชื่อต้นฉบับ ชื่ออื่น ผู้แต่ง ผู้แปล หมวดหมู่ และแท็ก</p>
       </header>
 
-      <form action="/search" onSubmit={onSubmit} className="flex gap-2">
+      <form action="/search" onSubmit={onSubmit} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
         <Input name="q" value={q} onChange={(event) => setQ(event.target.value)} placeholder="ชื่อเรื่อง ผู้แต่ง ผู้แปล หรือหมวดหมู่" aria-label="ค้นหาจากชื่อเรื่อง ชื่ออื่น ผู้แต่ง ผู้แปล หมวดหมู่ หรือแท็ก" className="h-12" maxLength={100} minLength={2} />
         {(["genre", "tag", "status", "rating", "chapters", "updated", "content", "sort"] as const).map((key) => (
           filterQuery[key] ? <input key={key} type="hidden" name={key} value={String(filterQuery[key])} /> : null
@@ -134,13 +134,13 @@ export function SearchResults({
         <div className="space-y-10">
           {recent.length ? (
             <section>
-              <div className="mb-3 flex items-center gap-2"><Clock3 className="h-4 w-4 text-[var(--brand-emphasis)]" /><h2 className="font-serif text-xl font-semibold">ค้นหาล่าสุดบนอุปกรณ์นี้</h2></div>
+              <div className="mb-3 flex items-center gap-2"><Clock3 className="h-4 w-4 text-[var(--brand-emphasis)]" /><h2 className="text-xl font-semibold">ค้นหาล่าสุดบนอุปกรณ์นี้</h2></div>
               <div className="flex flex-wrap gap-2">{recent.map((item) => <Link key={item} href={`/search?q=${encodeURIComponent(item)}`} className="inline-flex min-h-11 items-center rounded-full border border-border px-3 text-sm hover:border-[var(--brand-emphasis)]">{item}</Link>)}</div>
             </section>
           ) : null}
           {discoveryTopics}
           <section>
-            <div className="mb-4 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-[var(--brand-emphasis)]" /><div><h2 className="font-serif text-xl font-semibold">{discoveryTitle}</h2><p className="text-xs text-muted-foreground">{discoveryDescription}</p></div></div>
+            <div className="mb-4 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-[var(--brand-emphasis)]" /><div><h2 className="text-xl font-semibold">{discoveryTitle}</h2><p className="text-xs text-muted-foreground">{discoveryDescription}</p></div></div>
             {discoveryItems}
           </section>
         </div>
@@ -148,7 +148,7 @@ export function SearchResults({
         <>
           {novelFilters}
 
-          <div role="group" className="flex gap-2 overflow-x-auto" aria-label="กรองประเภทผลการค้นหา">
+          <div role="group" className="rail-scroll -mx-3 flex gap-2 px-3 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="กรองประเภทผลการค้นหา">
             {tabs.map(([value, label, count]) => (
               <Button key={value} type="button" aria-pressed={tab === value} variant={tab === value ? "default" : "secondary"} onClick={() => setTab(value)}>
                 {label}<span className="tabular text-xs opacity-70">{count.toLocaleString("th-TH")}</span>
@@ -158,7 +158,7 @@ export function SearchResults({
 
           {(tab === "all" || tab === "novels") && results.total > 0 ? (
             <section>
-              <h2 className="mb-1 font-serif text-xl font-semibold">นิยาย</h2>
+              <h2 className="mb-1 text-xl font-semibold">นิยาย</h2>
               <p className="mb-3 text-xs text-muted-foreground">{results.total.toLocaleString("th-TH")} เรื่องที่ตรงกับ “{initialQ}”</p>
               <div className="grid gap-x-8 lg:grid-cols-2">{novelItems}</div>
               {results.totalPages > 1 ? (
@@ -173,7 +173,7 @@ export function SearchResults({
 
           {(tab === "all" || tab === "authors") && results.authors.length > 0 ? (
             <section>
-              <h2 className="mb-3 font-serif text-xl font-semibold">ผู้แต่ง</h2>
+              <h2 className="mb-3 text-xl font-semibold">ผู้แต่ง</h2>
               <div className="flex flex-wrap gap-2">
                 {results.authors.map((author) => (
                   <Link
@@ -192,7 +192,7 @@ export function SearchResults({
 
           {(tab === "all" || tab === "translators") && results.translators.length > 0 ? (
             <section>
-              <h2 className="mb-3 font-serif text-xl font-semibold">ผู้แปล</h2>
+              <h2 className="mb-3 text-xl font-semibold">ผู้แปล</h2>
               <div className="flex flex-wrap gap-2">
                 {results.translators.map((translator) => (
                   <Link
@@ -210,11 +210,11 @@ export function SearchResults({
           ) : null}
 
           {(tab === "all" || tab === "genres") && results.genres.length > 0 ? (
-            <section><h2 className="mb-3 font-serif text-xl font-semibold">หมวดหมู่</h2><div className="flex flex-wrap gap-2">{results.genres.map((genre) => <Link key={genre.slug} href={`/genre/${genre.slug}`} className="inline-flex min-h-11 items-center"><Badge className="px-3 py-2">{genre.thaiName}{genre.name !== genre.thaiName ? ` · ${genre.name}` : ""}</Badge></Link>)}</div></section>
+            <section><h2 className="mb-3 text-xl font-semibold">หมวดหมู่</h2><div className="flex flex-wrap gap-2">{results.genres.map((genre) => <Link key={genre.slug} href={`/genre/${genre.slug}`} className="inline-flex min-h-11 items-center"><Badge className="px-3 py-2">{genre.thaiName}{genre.name !== genre.thaiName ? ` · ${genre.name}` : ""}</Badge></Link>)}</div></section>
           ) : null}
 
           {(tab === "all" || tab === "tags") && results.tags.length > 0 ? (
-            <section><h2 className="mb-3 font-serif text-xl font-semibold">แท็ก</h2><div className="flex flex-wrap gap-2">{results.tags.map((tag) => <Link key={tag.slug} href={`/tag/${tag.slug}`} className="inline-flex min-h-11 items-center"><Badge className="px-3 py-2">#{tag.name}</Badge></Link>)}</div></section>
+            <section><h2 className="mb-3 text-xl font-semibold">แท็ก</h2><div className="flex flex-wrap gap-2">{results.tags.map((tag) => <Link key={tag.slug} href={`/tag/${tag.slug}`} className="inline-flex min-h-11 items-center"><Badge className="px-3 py-2">#{tag.name}</Badge></Link>)}</div></section>
           ) : null}
 
           {!hasAnyResults ? (

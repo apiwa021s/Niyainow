@@ -39,10 +39,10 @@ export function GoogleSignInButton({
 
 export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; error?: string }) {
   return (
-    <Card className="max-w-lg shadow-[var(--sh-1)]">
+    <Card className="w-full max-w-lg shadow-[var(--sh-1)]">
       <CardHeader>
         <p className="editorial-kicker">READER ACCOUNT</p>
-        <CardTitle className="font-serif text-2xl">ซิงก์พื้นที่อ่านของคุณ</CardTitle>
+        <CardTitle className="text-2xl">ซิงก์พื้นที่อ่านของคุณ</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
@@ -57,7 +57,7 @@ export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; e
 
         <form className="grid gap-4" action={signInWithGoogle}>
           <input type="hidden" name="callbackUrl" value={callbackUrl} />
-          <GoogleSignInButton />
+          <GoogleSignInButton className="w-full" />
         </form>
 
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">

@@ -29,19 +29,19 @@ async function getHomeAccountData() {
 
   const personalization = await getHomePersonalization(currentUser.id);
   const followedUpdates = personalization.followedNovelSlugs.length
-    ? await getUpdatesForNovels(personalization.followedNovelSlugs, 8)
+    ? await getUpdatesForNovels(personalization.followedNovelSlugs, 10)
     : [];
   return { personalization, followedUpdates };
 }
 
 export default async function HomePage() {
   const [newThisWeek, recommended, completed, rankings, updates, genreShowcase, banners, featured, account] = await Promise.all([
-    getNewThisWeek(12),
-    getRecommendedNovels(12),
-    getCompletedNovels(12),
-    getRankings("WEEKLY", 12),
-    getUpdates("all", undefined, 12),
-    getGenreShowcase(8),
+    getNewThisWeek(18),
+    getRecommendedNovels(18),
+    getCompletedNovels(18),
+    getRankings("WEEKLY", 18),
+    getUpdates("all", undefined, 18),
+    getGenreShowcase(10),
     getActiveBanners(),
     getFeaturedNovels(1),
     getHomeAccountData(),
@@ -72,7 +72,7 @@ export default async function HomePage() {
     .map((item) => item.novel.slug) ?? [];
 
   return (
-    <main id="main" className="mx-auto w-full max-w-[1440px] px-4 pb-24 pt-[84px] sm:px-6 lg:px-8">
+    <main id="main" className="mx-auto w-full max-w-(--shell-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6">
       <h1 className="sr-only">NiyaiThai — อ่านนิยายแปลไทยและค้นหาเรื่องถัดไป</h1>
       <HomeFeed
         data={data}

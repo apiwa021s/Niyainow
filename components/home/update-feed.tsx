@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ChevronRight, Clock3 } from "lucide-react";
 
+import { SectionHeader } from "@/components/ui/section-header";
 import type { Novel, UpdateItem } from "@/types/novel";
 
 export function UpdateFeed({
@@ -19,49 +20,49 @@ export function UpdateFeed({
   href?: string;
   emptyText?: string;
 }) {
-  const visibleItems = items.slice(0, 12);
+  const visibleItems = items.slice(0, 15);
 
   return (
     <section aria-label={title}>
-      <div className="mb-5 flex items-end justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <span aria-hidden className="mt-1 h-10 w-0.5 shrink-0 bg-[var(--brand-primary)]" />
-          <div>
-            <p className="editorial-kicker">ตอนใหม่ล่าสุด</p>
-            <h2 className="font-serif text-2xl font-semibold sm:text-3xl">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
-          </div>
-        </div>
-        {href ? <Link href={href} className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-[var(--brand-emphasis)]">ดูทั้งหมด<ArrowRight className="h-4 w-4" /></Link> : null}
-      </div>
+      <SectionHeader title={title} count={visibleItems.length} href={href} />
+      {description ? <p className="-mt-1.5 mb-1.5 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}
 
       {visibleItems.length === 0 ? (
-        <p className="rounded-[8px] border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{emptyText ?? "ยังไม่มีอัปเดต"}</p>
+        <p className="rounded-(--r-lg) border border-dashed border-border p-6 text-center text-sm text-(--text-secondary)">
+          {emptyText ?? "ยังไม่มีอัปเดต"}
+        </p>
       ) : (
-        <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4 lg:grid-cols-6 lg:gap-x-5">
+        <ol className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
           {visibleItems.map((item, index) => {
             const novel = novelsBySlug[item.novelSlug];
             if (!novel) return null;
             return (
               <li key={`${item.novelSlug}-${item.chapter}-${index}`}>
-                <article className="group">
-                  <Link href={`/novel/${novel.slug}/chapter/${item.chapter}`} className="block">
-                    <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted">
-                      <Image src={novel.cover} alt="" fill sizes="(max-width: 640px) 46vw, (max-width: 1024px) 23vw, 190px" className="object-cover transition-transform duration-[var(--dur-base)] group-hover:scale-[1.02]" />
-                      <span className="absolute bottom-2 left-2 bg-[#0E0E10]/90 px-2 py-1 font-mono text-[10px] text-white">ตอน {item.chapter}</span>
-                    </div>
-                    <h3 className="mt-2 line-clamp-2 font-serif text-sm font-semibold leading-[1.55] transition-colors group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
-                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">ตอนที่ {item.chapter} · {item.chapterTitle}</p>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                      <span>{novel.status === "completed" ? "จบแล้ว" : "กำลังแปล"}</span>
-                      <span className="tabular shrink-0 text-[var(--brand-emphasis)]">{item.time}</span>
-                    </div>
-                  </Link>
-                </article>
+                <Link
+                  href={`/novel/${novel.slug}/chapter/${item.chapter}`}
+                  className="group grid min-h-[72px] grid-cols-[42px_minmax(0,1fr)_16px] items-center gap-2.5 rounded-(--r-md) border border-border bg-card p-2 transition-colors hover:border-accent-base hover:bg-surface-subtle"
+                >
+                  <span className="relative aspect-2/3 w-[42px] overflow-hidden rounded-(--r-sm) bg-surface-recessed ring-1 ring-border">
+                    <Image src={novel.cover} alt="" fill sizes="42px" className="object-cover" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold transition-colors group-hover:text-accent-base">
+                      {novel.thaiTitle}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[13px] text-(--text-secondary)">
+                      ตอน {item.chapter.toLocaleString("th-TH")} · {item.chapterTitle}
+                    </span>
+                    <span className="tabular mt-0.5 flex items-center gap-1 text-[11px] text-(--text-tertiary)">
+                      <Clock3 className="h-3 w-3" aria-hidden />
+                      {item.time}
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-(--text-tertiary) transition-colors group-hover:text-accent-base" aria-hidden />
+                </Link>
               </li>
             );
           })}
-        </ul>
+        </ol>
       )}
     </section>
   );

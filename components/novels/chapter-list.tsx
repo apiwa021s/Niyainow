@@ -1,13 +1,13 @@
 "use client";
 
-import { LocateFixed, LockKeyhole, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, LocateFixed, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 
 import { NovelCatalogResume, useNovelResumeProgress } from "@/components/reader/novel-resume-actions";
 import { cn } from "@/lib/utils";
 import { markChapterNavigation } from "@/stores/use-reader-store";
-import type { ChapterCatalogPage, NovelResumeServerProgress } from "@/types/novel";
+import type { ChapterCatalogOrder, ChapterCatalogPage, NovelResumeServerProgress } from "@/types/novel";
 
 type ChapterListProps = {
   slug: string;
@@ -20,6 +20,10 @@ function formatChapterNumber(value: number) {
   return Number.isInteger(value) ? value.toLocaleString("th-TH") : value.toLocaleString("th-TH", { maximumFractionDigits: 3 });
 }
 
+function formatRange(start: number, end: number) {
+  return `${start.toLocaleString("th-TH")}–${end.toLocaleString("th-TH")}`;
+}
+
 export function ChapterList({
   slug,
   catalog,
@@ -30,6 +34,13 @@ export function ChapterList({
   const rangeCount = Math.ceil(catalog.catalogTotal / 100);
   const resume = useNovelResumeProgress(slug, serverProgress);
   const currentChapterNumber = resume?.progress.chapterNumber;
+  const resultStart = catalog.total === 0 ? 0 : (catalog.page - 1) * catalog.pageSize + 1;
+  const resultEnd = Math.min(catalog.page * catalog.pageSize, catalog.total);
+  const selectedRangeEnd = catalog.rangeEnd ?? (catalog.rangeStart !== null ? Math.min(catalog.rangeStart + 99, catalog.catalogTotal) : null);
+  const selectedRangeLabel = catalog.rangeStart !== null && selectedRangeEnd !== null
+    ? `ลำดับ ${formatRange(catalog.rangeStart, selectedRangeEnd)}`
+    : "ทุกตอน";
+  const hasFilters = Boolean(catalog.query) || catalog.rangeStart !== null || catalog.order !== "latest";
 
   useEffect(() => {
     if (!catalog.jumpFound || catalog.jumpChapter === null) return;
@@ -44,20 +55,53 @@ export function ChapterList({
     return () => window.cancelAnimationFrame(frame);
   }, [catalog.jumpChapter, catalog.jumpFound]);
 
-  const pageHref = (page: number) => {
+  const catalogHref = ({
+    page = 1,
+    query = catalog.query,
+    order = catalog.order,
+    rangeStart = catalog.rangeStart,
+    rangeEnd = catalog.rangeEnd,
+  }: {
+    page?: number;
+    query?: string;
+    order?: ChapterCatalogOrder;
+    rangeStart?: number | null;
+    rangeEnd?: number | null;
+  } = {}) => {
     const params = new URLSearchParams();
-    if (catalog.query) params.set("q", catalog.query);
-    if (catalog.order !== "latest") params.set("order", catalog.order);
-    if (catalog.rangeStart !== null) params.set("from", String(catalog.rangeStart));
-    if (catalog.rangeEnd !== null) params.set("to", String(catalog.rangeEnd));
+    const normalizedQuery = (query ?? "").trim();
+    if (normalizedQuery) params.set("q", normalizedQuery);
+    if (order !== "latest") params.set("order", order);
+    if (rangeStart !== null) {
+      params.set("from", String(rangeStart));
+      if (rangeEnd !== null) params.set("to", String(rangeEnd));
+    }
     if (page > 1) params.set("page", String(page));
-    const query = params.toString();
-    return `${action}${query ? `?${query}` : ""}`;
+    const queryString = params.toString();
+    return `${action}${queryString ? `?${queryString}` : ""}`;
   };
+  const pageHref = (page: number) => catalogHref({ page });
 
   return (
-    <section aria-label="รายชื่อตอน" className="overflow-hidden rounded-[8px] border border-border bg-card">
-      <div className="grid gap-3 border-b border-border p-4 lg:grid-cols-[minmax(0,1fr)_180px]">
+    <section aria-label="รายชื่อตอน" className="grid gap-3">
+      <div className="rounded-(--r-lg) bg-card p-3 sm:p-4">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">ค้นหาและจัดช่วงตอน</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {catalog.total === 0
+                ? "ไม่พบตอนที่ตรงกับเงื่อนไข"
+                : `แสดง ${formatRange(resultStart, resultEnd)} จาก ${catalog.total.toLocaleString("th-TH")} ตอน`}
+            </p>
+          </div>
+          {hasFilters ? (
+            <Link href={action} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] px-2 text-xs font-semibold text-[var(--brand-emphasis)] hover:bg-muted">
+              <X className="h-3.5 w-3.5" />
+              ล้างทั้งหมด
+            </Link>
+          ) : null}
+        </div>
+
         <form action={action} method="get" role="search" className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px_96px]">
           <label className="relative">
             <span className="sr-only">ค้นหาตอนจากสารบัญทั้งหมด</span>
@@ -81,132 +125,150 @@ export function ChapterList({
           <button type="submit" className="h-11 rounded-[8px] bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white">ค้นหา</button>
         </form>
 
-        <form action={action} method="get" className="grid grid-cols-[minmax(0,1fr)_48px] gap-2">
-          <label>
-            <span className="sr-only">ข้ามไปยังตอน</span>
-            <input name="jump" inputMode="decimal" placeholder="ไปตอนที่…" className="h-11 w-full rounded-[8px] border border-input bg-background px-3 text-sm" />
-          </label>
-          <input type="hidden" name="order" value={catalog.order} />
-          <button type="submit" aria-label="ไปยังตอน" className="grid h-11 w-12 place-items-center rounded-[8px] border border-border hover:border-[var(--brand-emphasis)] hover:text-[var(--brand-emphasis)]">
-            <LocateFixed className="h-4 w-4" />
-          </button>
-        </form>
-      </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {rangeCount > 1 ? (
+            <form action={action} method="get" className="grid gap-2 rounded-[8px] bg-surface-subtle p-2 sm:grid-cols-[minmax(0,1fr)_108px] sm:items-end">
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold text-muted-foreground">ช่วงตอน</span>
+                <select id="chapter-range" name="from" defaultValue={catalog.rangeStart ?? 0} className="h-11 w-full rounded-[8px] border border-input bg-background px-3 text-sm">
+                  <option value="0">ทุกตอน</option>
+                  {Array.from({ length: rangeCount }, (_, index) => {
+                    const start = index * 100 + 1;
+                    const end = Math.min((index + 1) * 100, catalog.catalogTotal);
+                    return <option key={start} value={start}>ลำดับ {formatRange(start, end)}</option>;
+                  })}
+                </select>
+              </label>
+              <input type="hidden" name="order" value={catalog.order} />
+              {catalog.query ? <input type="hidden" name="q" value={catalog.query} /> : null}
+              <button type="submit" className="h-11 rounded-[8px] border border-border px-4 text-sm font-semibold hover:border-[var(--brand-emphasis)]">แสดง</button>
+            </form>
+          ) : null}
 
-      {rangeCount > 1 ? (
-        <form action={action} method="get" className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-4 py-3">
-          <label htmlFor="chapter-range" className="text-xs font-semibold text-muted-foreground">ช่วงตอน</label>
-          <select id="chapter-range" name="from" defaultValue={catalog.rangeStart ?? 0} className="h-11 min-w-44 rounded-[8px] border border-input bg-background px-3 text-sm">
-            <option value="0">ทุกตอน</option>
-            {Array.from({ length: rangeCount }, (_, index) => {
-              const start = index * 100 + 1;
-              const end = Math.min((index + 1) * 100, catalog.catalogTotal);
-              return <option key={start} value={start}>ลำดับ {start.toLocaleString("th-TH")}–{end.toLocaleString("th-TH")}</option>;
-            })}
-          </select>
-          <input type="hidden" name="order" value={catalog.order} />
-          {catalog.query ? <input type="hidden" name="q" value={catalog.query} /> : null}
-          <button type="submit" className="h-11 rounded-[8px] border border-border px-4 text-sm font-semibold hover:border-[var(--brand-emphasis)]">แสดงช่วง</button>
-          {catalog.rangeStart !== null ? <Link href={pageHref(1).replace(/[?&](from|to)=[^&]*/gu, "").replace("?&", "?").replace(/[?&]$/u, "")} className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-[var(--brand-emphasis)]">ล้างช่วง</Link> : null}
-        </form>
-      ) : null}
+          <form action={action} method="get" className="grid grid-cols-[minmax(0,1fr)_84px] gap-2 rounded-[8px] bg-surface-subtle p-2">
+            <label className="grid gap-1">
+              <span className="text-xs font-semibold text-muted-foreground">ไปตอนที่</span>
+              <input name="jump" inputMode="decimal" placeholder="เช่น 120" className="h-11 w-full rounded-[8px] border border-input bg-background px-3 text-sm" />
+            </label>
+            <input type="hidden" name="order" value={catalog.order} />
+            <button type="submit" className="inline-flex h-11 items-center justify-center gap-1.5 self-end rounded-[8px] border border-border text-sm font-semibold hover:border-[var(--brand-emphasis)] hover:text-[var(--brand-emphasis)]">
+              <LocateFixed className="h-4 w-4" />
+              ไป
+            </button>
+          </form>
+        </div>
+
+        {hasFilters ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {catalog.query ? (
+              <Link href={catalogHref({ page: 1, query: "" })} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[var(--brand-primary)]/12 px-3 text-xs font-medium text-[var(--brand-emphasis)]">
+                ค้นหา: {catalog.query}
+                <X className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
+            {catalog.rangeStart !== null ? (
+              <Link href={catalogHref({ page: 1, rangeStart: null, rangeEnd: null })} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[var(--brand-primary)]/12 px-3 text-xs font-medium text-[var(--brand-emphasis)]">
+                {selectedRangeLabel}
+                <X className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
+            {catalog.order !== "latest" ? (
+              <Link href={catalogHref({ page: 1, order: "latest" })} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[var(--brand-primary)]/12 px-3 text-xs font-medium text-[var(--brand-emphasis)]">
+                ตอนแรกก่อน
+                <X className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <NovelCatalogResume slug={slug} serverProgress={serverProgress} />
 
       {catalog.jumpChapter !== null && catalog.jumpFound ? (
-        <p role="status" className="border-b border-border bg-[color-mix(in_srgb,var(--brand-primary)_7%,transparent)] px-4 py-3 text-sm text-foreground">
+        <p role="status" className="rounded-(--r-md) bg-[color-mix(in_srgb,var(--brand-primary)_7%,transparent)] px-4 py-3 text-sm text-foreground">
           กำลังแสดงตอนที่ {formatChapterNumber(catalog.jumpChapter)}
         </p>
       ) : catalog.jumpChapter !== null ? (
-        <p role="status" className="border-b border-border bg-muted px-4 py-3 text-sm text-foreground">ไม่พบตอนที่ {formatChapterNumber(catalog.jumpChapter)} ในผลลัพธ์นี้</p>
+        <p role="status" className="rounded-(--r-md) bg-muted px-4 py-3 text-sm text-foreground">ไม่พบตอนที่ {formatChapterNumber(catalog.jumpChapter)} ในผลลัพธ์นี้</p>
       ) : null}
 
-      <div className="hidden overflow-x-auto sm:block">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-muted/55 text-xs text-muted-foreground">
-            <tr>
-              <th scope="col" className="w-32 px-4 py-3 font-medium">ตอน</th>
-              <th scope="col" className="px-4 py-3 font-medium">ชื่อตอน</th>
-              <th scope="col" className="w-36 px-4 py-3 font-medium">อัปเดต</th>
-              <th scope="col" className="w-28 px-4 py-3 text-right font-medium">จำนวนคำ</th>
-              <th scope="col" className="w-24 px-4 py-3 text-right font-medium">สถานะ</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {catalog.items.map((chapter) => {
-              const href = `/novel/${slug}/chapter/${chapter.number}`;
-              const isCurrent = chapter.number === currentChapterNumber;
-              const isJumpTarget = catalog.jumpFound && chapter.number === catalog.jumpChapter;
-              const isLatest = chapter.number === latestChapterNumber;
-              return (
-                <tr
-                  key={chapter.id ?? chapter.number}
-                  data-jump-target={isJumpTarget ? "true" : undefined}
-                  className={cn(
-                    "transition-colors",
-                    isJumpTarget
-                      ? "bg-[color-mix(in_srgb,var(--brand-primary)_12%,transparent)] outline outline-1 -outline-offset-1 outline-[var(--brand-emphasis)]"
-                      : isCurrent
-                        ? "bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)]"
-                        : "hover:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]",
-                  )}
+      <div className="overflow-hidden rounded-(--r-lg) bg-card">
+        <div className="flex flex-wrap items-end justify-between gap-2 px-3 py-3 sm:px-4">
+          <div>
+            <p className="text-sm font-semibold">รายชื่อตอน</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{selectedRangeLabel}</p>
+          </div>
+          <span className="tabular rounded-full bg-surface-subtle px-3 py-1 text-xs text-muted-foreground">
+            หน้า {catalog.page.toLocaleString("th-TH")} / {catalog.totalPages.toLocaleString("th-TH")}
+          </span>
+        </div>
+
+        <ol className="grid gap-1.5 px-2 pb-2 sm:grid-cols-2 sm:px-3 sm:pb-3">
+          {catalog.items.map((chapter) => {
+            const isCurrent = chapter.number === currentChapterNumber;
+            const isJumpTarget = catalog.jumpFound && chapter.number === catalog.jumpChapter;
+            const isLatest = chapter.number === latestChapterNumber;
+            return (
+              <li
+                key={chapter.id ?? chapter.number}
+                data-jump-target={isJumpTarget ? "true" : undefined}
+                className={cn(
+                  "rounded-[6px] transition-colors",
+                  isJumpTarget
+                    ? "bg-[color-mix(in_srgb,var(--brand-primary)_12%,transparent)] outline outline-1 -outline-offset-1 outline-[var(--brand-emphasis)]"
+                    : isCurrent
+                      ? "bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)]"
+                      : "hover:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]",
+                )}
+              >
+                <Link
+                  href={`/novel/${slug}/chapter/${chapter.number}`}
+                  prefetch={false}
+                  onClick={() => markChapterNavigation(slug, chapter.number)}
+                  aria-current={isCurrent ? "page" : undefined}
+                  aria-label={`ตอนที่ ${formatChapterNumber(chapter.number)} ${chapter.title}${isCurrent ? " กำลังอ่าน" : ""}${isLatest ? " ตอนล่าสุด" : ""}`}
+                  className="flex min-h-12 items-center px-3 py-2.5 font-medium leading-[1.55] transition-colors hover:text-[var(--brand-emphasis)] sm:px-4"
                 >
-                  <td className="px-4 py-3"><span className="font-mono text-xs text-[var(--brand-emphasis)]">ตอน {formatChapterNumber(chapter.number)}</span></td>
-                  <td className="px-4 py-3">
-                    <Link href={href} prefetch={false} onClick={() => markChapterNavigation(slug, chapter.number)} aria-current={isCurrent ? "page" : undefined} className="inline-flex min-h-11 items-center font-medium hover:text-[var(--brand-emphasis)]">{chapter.title}</Link>
-                    {isJumpTarget ? <span className="ml-2 rounded-full border border-[var(--brand-emphasis)] px-2 py-0.5 text-[10px] font-semibold text-[var(--brand-emphasis)]">ตอนที่ค้นหา</span> : null}
-                    {isCurrent ? <span className="ml-2 rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-white">กำลังอ่าน</span> : null}
-                    {isLatest ? <span className="ml-2 text-[11px] font-semibold text-[var(--brand-emphasis)]">· ตอนล่าสุด</span> : null}
-                  </td>
-                  <td className="tabular px-4 py-3 text-xs text-muted-foreground">{chapter.updatedAt}</td>
-                  <td className="tabular px-4 py-3 text-right text-xs text-muted-foreground">{chapter.wordCount?.toLocaleString("th-TH") ?? "—"}</td>
-                  <td className="px-4 py-3 text-right text-xs font-medium">{chapter.locked ? <span className="inline-flex items-center gap-1 text-muted-foreground"><LockKeyhole className="h-3 w-3" />จำกัด</span> : <span className="text-[var(--brand-emphasis)]">ฟรี</span>}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  <span className="line-clamp-2">{chapter.title}</span>
+                  {isJumpTarget ? <span className="sr-only"> ตอนที่ค้นหา</span> : null}
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
 
-      <ul className="divide-y divide-border sm:hidden">
-        {catalog.items.map((chapter) => {
-          const isCurrent = chapter.number === currentChapterNumber;
-          const isJumpTarget = catalog.jumpFound && chapter.number === catalog.jumpChapter;
-          const isLatest = chapter.number === latestChapterNumber;
-          return (
-            <li
-              key={chapter.id ?? chapter.number}
-              data-jump-target={isJumpTarget ? "true" : undefined}
-              className={cn(
-                isJumpTarget
-                  ? "bg-[color-mix(in_srgb,var(--brand-primary)_12%,transparent)] outline outline-1 -outline-offset-1 outline-[var(--brand-emphasis)]"
-                  : isCurrent && "bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)]",
-              )}
-            >
-              <Link href={`/novel/${slug}/chapter/${chapter.number}`} prefetch={false} onClick={() => markChapterNavigation(slug, chapter.number)} aria-current={isCurrent ? "page" : undefined} className="block min-h-[76px] px-4 py-3 transition-colors hover:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]">
-                <div className="flex items-center justify-between gap-3"><span className="font-mono text-xs text-[var(--brand-emphasis)]">ตอน {formatChapterNumber(chapter.number)}</span><span className="text-[11px] text-muted-foreground">{chapter.updatedAt}</span></div>
-                <p className="mt-1 font-medium leading-[1.6]">{chapter.title}</p>
-                <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                  <span>{chapter.wordCount?.toLocaleString("th-TH") ?? "—"} คำ · {chapter.locked ? "จำกัดการเข้าถึง" : "ฟรี"}</span>
-                  {isJumpTarget ? <span className="font-semibold text-[var(--brand-emphasis)]">· ตอนที่ค้นหา</span> : null}
-                  {isCurrent ? <span className="font-semibold text-[var(--brand-emphasis)]">· กำลังอ่าน</span> : null}
-                  {isLatest ? <span className="font-semibold text-[var(--brand-emphasis)]">· ตอนล่าสุด</span> : null}
-                </p>
+        {catalog.items.length === 0 ? (
+          <div className="px-3 pb-3">
+            <div className="rounded-[8px] bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
+              <p className="font-semibold text-foreground">ไม่พบตอนที่ตรงกับเงื่อนไข</p>
+              <p className="mt-1">ลองล้างคำค้นหรือเลือกช่วงตอนใหม่</p>
+              {hasFilters ? (
+                <Link href={action} className="mt-4 inline-flex min-h-11 items-center rounded-[8px] bg-[var(--brand-primary)] px-4 font-semibold text-white">
+                  ล้างตัวกรอง
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {catalog.totalPages > 1 ? (
+          <nav aria-label="แบ่งหน้าสารบัญ" className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 bg-muted/25 px-3 py-3 sm:px-4">
+            {catalog.page > 1 ? (
+              <Link href={pageHref(catalog.page - 1)} className="inline-flex min-h-11 items-center justify-self-start rounded-[8px] border border-border px-3 text-sm font-semibold hover:border-[var(--brand-emphasis)]">
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                ก่อนหน้า
               </Link>
-            </li>
-          );
-        })}
-      </ul>
-
-      {catalog.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">ไม่พบตอนที่ตรงกับคำค้นหรือช่วงที่เลือก</p> : null}
-
-      {catalog.totalPages > 1 ? (
-        <nav aria-label="แบ่งหน้าสารบัญ" className="flex items-center justify-center gap-3 border-t border-border p-4">
-          {catalog.page > 1 ? <Link href={pageHref(catalog.page - 1)} className="flex min-h-11 items-center rounded-[8px] border border-border px-4 text-sm font-semibold">หน้าก่อน</Link> : null}
-          <span className="tabular text-sm text-muted-foreground">หน้า {catalog.page} / {catalog.totalPages}</span>
-          {catalog.page < catalog.totalPages ? <Link href={pageHref(catalog.page + 1)} className="flex min-h-11 items-center rounded-[8px] border border-border px-4 text-sm font-semibold">หน้าถัดไป</Link> : null}
-        </nav>
-      ) : null}
+            ) : <span />}
+            <span className="tabular text-sm text-muted-foreground">{catalog.page.toLocaleString("th-TH")} / {catalog.totalPages.toLocaleString("th-TH")}</span>
+            {catalog.page < catalog.totalPages ? (
+              <Link href={pageHref(catalog.page + 1)} className="inline-flex min-h-11 items-center justify-self-end rounded-[8px] border border-border px-3 text-sm font-semibold hover:border-[var(--brand-emphasis)]">
+                ถัดไป
+                <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Link>
+            ) : <span />}
+          </nav>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -201,20 +201,20 @@ export function SearchNovelFilters({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="search-filter-dialog"
-        className="flex h-12 w-full items-center justify-between rounded-[8px] border border-border px-4 text-sm font-semibold md:hidden"
+        className="flex h-12 w-full items-center justify-between rounded-[8px] border border-border bg-card px-4 text-sm font-semibold md:hidden"
       >
         <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />กรองนิยาย</span>
         <span className="tabular text-xs text-muted-foreground">{total.toLocaleString("th-TH")} เรื่อง</span>
       </button>
 
       {chips.length ? (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="rail-scroll -mx-3 mt-3 flex items-center gap-1.5 px-3 md:mx-0 md:flex-wrap md:px-0">
           {chips.map((chip) => (
-            <button key={chip.key} type="button" onClick={chip.remove} className="inline-flex min-h-11 items-center gap-1 rounded-[6px] bg-[var(--brand-primary)]/10 px-3 text-xs font-medium text-[var(--brand-emphasis)]">
+            <button key={chip.key} type="button" onClick={chip.remove} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-[var(--brand-primary)]/10 px-3 text-xs font-medium text-[var(--brand-emphasis)] md:min-h-11">
               {chip.label}<X className="h-3.5 w-3.5" /><span className="sr-only">นำตัวกรอง {chip.label} ออก</span>
             </button>
           ))}
-          <button type="button" onClick={clearFilters} className="min-h-11 px-2 text-xs font-semibold text-muted-foreground hover:underline">ล้างตัวกรอง</button>
+          <button type="button" onClick={clearFilters} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-muted-foreground hover:underline md:min-h-11">ล้างตัวกรอง</button>
         </div>
       ) : null}
 
@@ -230,7 +230,7 @@ export function SearchNovelFilters({
             className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[14px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <div><h2 id="search-filter-title" className="font-serif text-xl font-semibold">กรองผลนิยาย</h2><p className="text-xs text-muted-foreground">เลือกตัวกรองให้ครบ แล้วกดใช้ตัวกรองเพื่อดูผลใหม่</p></div>
+              <div><h2 id="search-filter-title" className="text-xl font-semibold">กรองผลนิยาย</h2><p className="text-xs text-muted-foreground">เลือกตัวกรองให้ครบ แล้วกดใช้ตัวกรองเพื่อดูผลใหม่</p></div>
               <button type="button" onClick={discardAndClose} aria-label="ยกเลิกและปิดตัวกรอง" className="grid h-11 w-11 place-items-center rounded-[6px] hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
             <FilterPanel query={draft} genres={genres} onChange={setDraft} />

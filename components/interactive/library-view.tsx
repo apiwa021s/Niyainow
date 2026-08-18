@@ -73,9 +73,9 @@ export function LibraryView({
   const copy = MODE_COPY[mode];
   return (
     <section className="space-y-6">
-      <header className="border-b border-border pb-5">
+      <header className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">ชั้นหนังสือของฉัน</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">{copy.title}</h1>
+        <h1 className="mt-1 text-h1 font-semibold sm:text-display">{copy.title}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{copy.description}</p>
       </header>
 
@@ -146,7 +146,7 @@ function LibraryPagination({
 function LibraryNav({ mode }: { mode: LibraryMode }) {
   return (
     <div>
-      <nav aria-label="ส่วนหลักในชั้นหนังสือ" className="flex max-w-full gap-1 overflow-x-auto border-b border-border">
+      <nav aria-label="ส่วนหลักในชั้นหนังสือ" className="rail-scroll -mx-3 flex max-w-full gap-1 border-b border-border px-3 sm:mx-0 sm:px-0">
         {PRIMARY_NAV_ITEMS.map((item) => (
           <Link
             key={item.mode}
@@ -163,7 +163,7 @@ function LibraryNav({ mode }: { mode: LibraryMode }) {
           </Link>
         ))}
       </nav>
-      <div className="flex justify-end">
+      <div className="flex justify-start sm:justify-end">
         <Link
           href="/library/completed"
           aria-current={mode === "completed" ? "page" : undefined}
@@ -190,14 +190,14 @@ function ReadingRow({ item, mode }: { item: UserNovelListItem; mode: "reading" |
   return (
     <Link
       href={href}
-      className="group grid grid-cols-[64px_minmax(0,1fr)] gap-4 py-4 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center"
+      className="group grid min-h-28 grid-cols-[64px_minmax(0,1fr)] gap-4 py-4 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center"
     >
       <div className="relative aspect-[2/3] w-16 overflow-hidden rounded-[5px] bg-muted sm:w-[72px]">
         <Image src={item.novel.cover} alt="" fill sizes="72px" className="object-cover" />
       </div>
       <div className="min-w-0">
         <p className="editorial-kicker">{mode === "history" ? "RECENTLY OPENED" : "CONTINUE READING"}</p>
-        <h2 className="mt-0.5 truncate font-serif text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h2 className="mt-0.5 truncate text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           {item.novel.thaiTitle}
         </h2>
         <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
@@ -229,13 +229,13 @@ function ShelfRow({ item, mode }: { item: UserNovelListItem; mode: "following" |
   return (
     <Link
       href={`/novel/${item.novel.slug}`}
-      className="group grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4 py-4"
+      className="group grid min-h-24 grid-cols-[56px_minmax(0,1fr)] items-center gap-4 py-4 sm:grid-cols-[56px_minmax(0,1fr)_auto]"
     >
       <div className="relative aspect-[2/3] w-14 overflow-hidden rounded-[5px] bg-muted">
         <Image src={item.novel.cover} alt="" fill sizes="56px" className="object-cover" />
       </div>
       <div className="min-w-0">
-        <h2 className="truncate font-serif text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h2 className="truncate text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           {item.novel.thaiTitle}
         </h2>
         <p className="mt-1 truncate text-xs text-muted-foreground">{meta}</p>
@@ -243,7 +243,7 @@ function ShelfRow({ item, mode }: { item: UserNovelListItem; mode: "following" |
           {item.novel.latestChapter ? `ล่าสุด ตอนที่ ${item.novel.latestChapter.number.toLocaleString("th-TH")}` : `${item.novel.chapters.toLocaleString("th-TH")} ตอน`}
         </p>
       </div>
-      <span className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-[var(--brand-emphasis)]">
+      <span className="col-start-2 inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-[var(--brand-emphasis)] sm:col-start-auto">
         เปิดเรื่อง <ArrowRight className="h-4 w-4" />
       </span>
     </Link>

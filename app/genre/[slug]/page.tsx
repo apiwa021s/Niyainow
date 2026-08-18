@@ -74,9 +74,9 @@ export default async function GenreDetailPage({
         },
       }} />
 
-      <header className="border-y border-border py-8 sm:py-10">
+      <header className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">โลกและอารมณ์ของเรื่อง</p>
-        <h1 className="mt-2 max-w-3xl font-serif text-4xl font-semibold sm:text-5xl">นิยาย{genre.thaiName}</h1>
+        <h1 className="mt-1 max-w-3xl text-h1 font-semibold sm:text-display">นิยาย{genre.thaiName}</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
           {genre.description || `สำรวจเรื่องในหมวด${genre.thaiName} ตั้งแต่เรื่องยอดนิยมจนถึงเรื่องที่เพิ่งอัปเดต`}
         </p>
@@ -90,12 +90,13 @@ export default async function GenreDetailPage({
 
       <NovelBrowser
         query={query}
-        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages }}
+        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages, pageSize: result.pageSize }}
         facets={facets}
         results={<NovelGrid novels={result.items} />}
         emptySuggestions={<NovelGrid novels={suggestions} />}
         hasResults={result.items.length > 0}
         hasSuggestions={suggestions.length > 0}
+        resultCount={result.items.length}
         title={`นิยาย${genre.thaiName}ทั้งหมด`}
         description={`${result.total.toLocaleString("th-TH")} เรื่อง ปรับสถานะ คะแนน จำนวนตอน และเวลาอัปเดตได้`}
         basePath={`/genre/${genre.slug}`}
@@ -111,7 +112,7 @@ function EditorialShelf({ kicker, title, novels }: { kicker: string; title: stri
   return (
     <section>
       <p className="editorial-kicker">{kicker}</p>
-      <h2 className="mb-5 mt-1 font-serif text-2xl font-semibold">{title}</h2>
+      <h2 className="mb-5 mt-1 text-2xl font-semibold">{title}</h2>
       <NovelGrid novels={novels} compact />
     </section>
   );

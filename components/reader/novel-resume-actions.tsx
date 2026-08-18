@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ListOrdered, Play } from "lucide-react";
+import { BookOpen, ListOrdered } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useSyncExternalStore } from "react";
 
@@ -96,7 +96,7 @@ export function NovelResumeActions({
     <div className="mt-6">
       <div className="hidden flex-wrap gap-2.5 lg:flex">
         <ButtonLink href={href} size="lg">
-          <Play className="h-4 w-4 fill-current" />
+          <BookOpen className="h-4 w-4" />
           {label}
         </ButtonLink>
         {progressed ? (
@@ -185,19 +185,24 @@ export function NovelCatalogResume({
   const percent = Math.max(0, Math.min(100, Math.round(selection.progress.progressPercent)));
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-[color-mix(in_srgb,var(--brand-primary)_5%,transparent)] px-4 py-3 text-sm"
+      className="rounded-(--r-lg) bg-[color-mix(in_srgb,var(--brand-primary)_7%,transparent)] px-4 py-3 text-sm"
       data-resume-source={selection.source}
     >
-      <div>
-        <p className="font-semibold">อ่านค้างไว้ที่ตอน {chapterLabel(selection.progress.chapterNumber)}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">ความคืบหน้า {percent}%</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold">อ่านค้างไว้ที่ตอน {chapterLabel(selection.progress.chapterNumber)}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">ความคืบหน้า {percent}%</p>
+        </div>
+        <Link
+          href={progressHref(slug, selection)}
+          className="inline-flex min-h-11 items-center rounded-[8px] bg-[var(--brand-primary)] px-4 font-semibold text-white shadow-[var(--sh-brand)]"
+        >
+          อ่านต่อ
+        </Link>
       </div>
-      <Link
-        href={progressHref(slug, selection)}
-        className="inline-flex min-h-11 items-center px-2 font-semibold text-[var(--brand-emphasis)]"
-      >
-        อ่านต่อ
-      </Link>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background/70">
+        <div className="h-full rounded-full bg-[var(--brand-primary)]" style={{ width: `${percent}%` }} />
+      </div>
     </div>
   );
 }

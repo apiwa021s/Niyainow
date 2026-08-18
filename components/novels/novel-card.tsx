@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUp, Coins, Eye, Minus, Play, Sparkles, Star } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, BookOpen, Eye, Minus, Sparkles, Star } from "lucide-react";
 
 import { BookmarkToggle } from "@/components/interactive/novel-actions";
 import { cn, formatNumber } from "@/lib/utils";
@@ -56,59 +56,67 @@ function GenreChip({ label }: { label: string }) {
   );
 }
 
-/** Cover-led discovery card for shelves and browse grids. */
-export function DiscoveryNovelCard({
-  novel,
-  fluid = false,
-  className,
-}: {
-  novel: Novel;
-  fluid?: boolean;
-  className?: string;
-}) {
+/**
+ * The one column ramp every cover grid uses: 3 / 5 / 6 / 8 (brief §5.7), with
+ * the 12px minimum gutter (§5.2). Exported so home, browse, genre and tag
+ * pages cannot drift apart.
+ */
+export const NOVEL_GRID_CLASS = "grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-8";
+
+/**
+ * Dense grid tile — the workhorse of every discovery grid.
+ *
+ * The cover is the only colour on the page (brief §3.2), so the label sits on
+ * the artwork behind a gradient rather than stealing a row of neutral space
+ * below it. Four meta slots maximum (brief §5.4): title, genre, one number,
+ * one status badge.
+ */
+export function NovelTile({ novel, priority = false }: { novel: Novel; priority?: boolean }) {
+  const genre = genreNameOf(novel, novel.genres[0]);
   return (
-    <article
-      className={cn(
-        "group relative",
-        fluid ? "w-full" : "w-[132px] shrink-0 sm:w-[152px] lg:w-[168px]",
-        className,
-      )}
-    >
-      <div className="absolute right-2 top-2 z-10 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+    <article className="group relative">
+      {/*
+       * The bookmark control is desktop-only. Its 44px tap target covers 40% of
+       * a 104px tile on a phone and hides the artwork the grid exists to show;
+       * on mobile the same action lives on the novel page one tap away.
+       */}
+      <div className="absolute right-1.5 top-1.5 z-20 hidden opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 lg:block">
         <BookmarkToggle slug={novel.slug} />
       </div>
-      <Link href={`/novel/${novel.slug}`} className="block rounded-[6px]">
-        <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted transition-colors group-hover:border-[var(--brand-emphasis)]/55 group-focus-within:border-[var(--brand-emphasis)]/55">
+      <Link href={`/novel/${novel.slug}`} className="block">
+        <div className="cover-tile">
           <Image
             src={novel.cover}
             alt=""
             fill
-            sizes="(max-width: 640px) 46vw, (max-width: 1024px) 23vw, 190px"
-            className="object-cover transition-transform duration-[var(--dur-base)] group-hover:scale-[1.02]"
+            sizes="(max-width: 640px) 31vw, (max-width: 1024px) 20vw, 15vw"
+            priority={priority}
+            className="object-cover"
           />
-          <div className="absolute left-2 top-2 flex flex-col gap-1">
+          <div className="absolute left-1.5 top-1.5 z-20 flex flex-col items-start gap-1">
             <CoverBadge novel={novel} />
-            {novel.hasPaidChapters ? (
-              <span className="flex w-fit items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-1 text-[10px] font-medium text-white">
-                <Coins className="h-3 w-3" /> มีตอนจำกัดการเข้าถึง
+            {(novel.ratingCount ?? 0) > 0 ? (
+              <span className="tabular inline-flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                <Star className="h-3 w-3 fill-[var(--accent-base)] text-[var(--accent-base)]" aria-hidden />
+                {novel.rating.toFixed(1)}
               </span>
             ) : null}
           </div>
+          <div className="absolute inset-x-0 bottom-0 z-20 p-2">
+            <h3 className="line-clamp-2 text-sm font-semibold leading-[1.4] text-white drop-shadow-sm">
+              {novel.thaiTitle}
+            </h3>
+            {/* A 104px tile has room for one fact. Squeezing the genre in
+                beside it clipped both to three characters, so the genre only
+                appears once the tile is wide enough to render it whole. */}
+            <p className="tabular mt-0.5 flex items-center gap-1.5 text-xs text-white/75">
+              {genre ? <span className="hidden truncate sm:inline">{genre}</span> : null}
+              {genre ? <span aria-hidden className="hidden sm:inline">·</span> : null}
+              <span className="shrink-0">{novel.chapters.toLocaleString("th-TH")} ตอน</span>
+            </p>
+          </div>
         </div>
-        <h3 className="mt-2 line-clamp-2 min-h-[2.8rem] font-serif text-sm font-semibold leading-[1.45] transition-colors group-hover:text-[var(--brand-emphasis)]">
-          {novel.thaiTitle}
-        </h3>
-        <p className="tabular mt-1 text-[11px] text-muted-foreground">
-          {novel.latestChapter ? `ตอนล่าสุด ${novel.latestChapter.number.toLocaleString("th-TH")}` : statusLabel[novel.status]}
-        </p>
       </Link>
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {novel.genres.slice(0, 2).map((slug) => (
-          <Link key={slug} href={`/genre/${slug}`} className="inline-flex min-h-11 items-center">
-            <GenreChip label={genreNameOf(novel, slug)} />
-          </Link>
-        ))}
-      </div>
     </article>
   );
 }
@@ -137,7 +145,7 @@ export function ContinueReadingCard({
         <Image src={novel.cover} alt="" fill sizes="72px" className="object-cover" />
       </div>
       <div className="flex min-w-0 flex-col justify-center">
-        <p className="line-clamp-2 font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <p className="line-clamp-2 text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           {novel.thaiTitle}
         </p>
         <p className="mt-1 truncate text-xs text-muted-foreground">{chapterLabel}</p>
@@ -150,7 +158,7 @@ export function ContinueReadingCard({
         <div className="mt-2 flex items-center justify-between gap-2">
           {meta ? <span className="truncate text-[11px] text-muted-foreground">{meta}</span> : <span />}
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-emphasis)]">
-            <Play className="h-3.5 w-3.5 fill-current" /> อ่านต่อ
+            <BookOpen className="h-3.5 w-3.5" /> อ่านต่อ
           </span>
         </div>
       </div>
@@ -176,7 +184,7 @@ export function SearchNovelCard({ novel, highlight }: { novel: Novel; highlight?
             <GenreChip key={slug} label={genreNameOf(novel, slug)} />
           ))}
         </div>
-        <h3 className="mt-1 line-clamp-2 font-serif text-lg font-semibold leading-snug transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h3 className="mt-1 line-clamp-2 text-lg font-semibold leading-snug transition-colors group-hover:text-[var(--brand-emphasis)]">
           <HighlightedTitle text={novel.thaiTitle} query={highlight} />
         </h3>
         {originalTitle ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{originalTitle}</p> : null}
@@ -202,7 +210,7 @@ export function CompactNovelCard({ novel, meta }: { novel: Novel; meta?: string 
         <Image src={novel.cover} alt="" fill sizes="44px" className="object-cover" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-serif text-sm font-semibold group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
+        <p className="truncate text-sm font-semibold group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
         <p className="tabular mt-1 truncate text-xs text-muted-foreground">
           {meta ?? `${genreNameOf(novel, novel.genres[0])} · ${novel.chapters.toLocaleString("th-TH")} ตอน`}
         </p>
@@ -226,7 +234,7 @@ export function RankingNovelCard({ novel, rank, movement }: { novel: Novel; rank
         <Image src={novel.cover} alt="" fill sizes="44px" className="object-cover" />
       </div>
       <div className="min-w-0">
-        <p className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
+        <p className="truncate text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</p>
         <p className="mt-1 truncate text-xs text-muted-foreground">{genreNameOf(novel, novel.genres[0])} · {novel.chapters.toLocaleString("th-TH")} ตอน</p>
         {movement ? <MovementLabel movement={movement} className="mt-1 sm:hidden" /> : null}
       </div>
@@ -263,7 +271,7 @@ export function NovelListItem({
         <Image src={novel.cover} alt="" fill sizes="64px" className="object-cover" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <h3 className="truncate font-serif text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+        <h3 className="truncate text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           <HighlightedTitle text={novel.thaiTitle} query={highlight} />
         </h3>
         <p className="tabular line-clamp-1 text-xs text-muted-foreground">
@@ -293,7 +301,7 @@ export function EditorialRecommendationCard({ novel }: { novel: Novel }) {
       </div>
       <div className="min-w-0 self-center">
         <p className="text-xs font-semibold tracking-[.14em] text-[var(--brand-emphasis)]">คัดจากคะแนนผู้อ่าน</p>
-        <h3 className="mt-1 line-clamp-2 font-serif text-base font-semibold leading-[1.5] group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
+        <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-[1.5] group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
         <p className="mt-2 line-clamp-2 text-xs leading-[1.7] text-muted-foreground">{novel.synopsis}</p>
         <div className="tabular mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
           {(novel.ratingCount ?? 0) > 0 ? <><Star className="h-3 w-3 fill-[var(--brand-emphasis)] text-[var(--brand-emphasis)]" />{novel.rating.toFixed(1)}</> : <span>ยังไม่มีคะแนน</span>}
@@ -314,7 +322,7 @@ export function RankingCard({ novel, rank, movement }: { novel: Novel; rank: num
       <div className="min-w-0 flex-1">
         <Link href={`/novel/${novel.slug}`} className="block">
           <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted"><Image src={novel.cover} alt="" fill sizes="150px" className="object-cover" /></div>
-          <h3 className="mt-2 truncate font-serif text-sm font-semibold">{novel.thaiTitle}</h3>
+          <h3 className="mt-2 truncate text-sm font-semibold">{novel.thaiTitle}</h3>
           <p className="tabular mt-1 truncate text-[11px] text-muted-foreground">{genreNameOf(novel, novel.genres[0])} · {novel.chapters.toLocaleString("th-TH")} ตอน</p>
           {movement ? <MovementLabel movement={movement} className="mt-1" /> : null}
         </Link>

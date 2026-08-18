@@ -59,7 +59,7 @@ export function RouteRecovery({
       <section aria-labelledby="route-recovery-title" aria-live="polite" className="w-full max-w-2xl border-y border-border py-10 text-center">
         {!isOnline ? <WifiOff className="mx-auto mb-4 h-7 w-7 text-[var(--brand-emphasis)]" aria-hidden /> : null}
         <p className="editorial-kicker">{isOnline ? kicker : "OFFLINE / RECOVERY"}</p>
-        <h1 id="route-recovery-title" className="mt-2 font-serif text-3xl font-semibold sm:text-4xl">{resolvedTitle}</h1>
+        <h1 id="route-recovery-title" className="mt-2 text-3xl font-semibold sm:text-4xl">{resolvedTitle}</h1>
         <p className="mx-auto mt-3 max-w-lg leading-7 text-muted-foreground">{resolvedDescription}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button type="button" onClick={retry}><RotateCcw className="h-4 w-4" />ลองอีกครั้ง</Button>

@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { BookOpen, ChevronLeft } from "lucide-react";
 
 import { ChapterList } from "@/components/novels/chapter-list";
 import { JsonLd } from "@/components/seo/json-ld";
+import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageShell } from "@/components/ui/section";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { pageMetadata } from "@/lib/seo";
@@ -107,14 +110,36 @@ export default async function ChaptersPage({
           })),
         }}
       />
-      <div className="border-b border-border pb-5">
-        <p className="editorial-kicker">CHAPTER INDEX / สารบัญตอน</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold">สารบัญ</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {novel.thaiTitle} · {catalog.catalogTotal.toLocaleString("th-TH")} ตอน
-          {catalog.total !== catalog.catalogTotal ? ` · พบ ${catalog.total.toLocaleString("th-TH")} ตอน` : ""}
-        </p>
-      </div>
+      <header className="rounded-(--r-lg) bg-surface px-3 py-4 sm:px-5 sm:py-5">
+        <Link
+          href={`/novel/${novel.slug}`}
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] pr-2 text-sm font-semibold text-muted-foreground hover:text-[var(--brand-emphasis)]"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          กลับหน้ารายละเอียด
+        </Link>
+        <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="min-w-0">
+            <p className="editorial-kicker">CHAPTER INDEX / สารบัญตอน</p>
+            <h1 className="mt-1 text-h1 font-semibold sm:text-display">สารบัญตอน</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {novel.thaiTitle} · {catalog.catalogTotal.toLocaleString("th-TH")} ตอน
+              {catalog.total !== catalog.catalogTotal ? ` · พบ ${catalog.total.toLocaleString("th-TH")} ตอน` : ""}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+            <ButtonLink href={`/novel/${novel.slug}`} variant="outline" className="w-full sm:w-auto">
+              รายละเอียด
+            </ButtonLink>
+            {novel.latestChapter ? (
+              <ButtonLink href={`/novel/${novel.slug}/chapter/${novel.latestChapter.number}`} className="w-full sm:w-auto">
+                <BookOpen className="h-4 w-4" />
+                ตอนล่าสุด
+              </ButtonLink>
+            ) : null}
+          </div>
+        </div>
+      </header>
       {catalog.catalogTotal > 0 ? (
         <ChapterList
           slug={novel.slug}

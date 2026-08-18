@@ -47,20 +47,21 @@ export default async function TagDetailPage({ params, searchParams }: { params: 
         url: absoluteUrl(`/tag/${tag.slug}`),
         mainEntity: { "@type": "ItemList", numberOfItems: result.total, itemListElement: result.items.map((novel, index) => ({ "@type": "ListItem", position: (result.page - 1) * result.pageSize + index + 1, name: novel.thaiTitle, url: absoluteUrl(`/novel/${novel.slug}`) })) },
       }} />
-      <header className="border-y border-border py-8">
+      <header className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">เส้นเรื่องและองค์ประกอบ</p>
-        <h1 className="mt-2 font-serif text-4xl font-semibold">#{tag.name}</h1>
+        <h1 className="mt-1 text-h1 font-semibold sm:text-display">#{tag.name}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">{tag.description || `เรื่องทั้งหมดที่จัดอยู่ในแท็ก ${tag.name}`}</p>
         <p className="tabular mt-4 text-xs font-medium text-[var(--brand-emphasis)]">{tag.count.toLocaleString("th-TH")} เรื่อง</p>
       </header>
       <NovelBrowser
         query={query}
-        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages }}
+        pagination={{ page: result.page, total: result.total, totalPages: result.totalPages, pageSize: result.pageSize }}
         facets={facets}
         results={<NovelGrid novels={result.items} />}
         emptySuggestions={<NovelGrid novels={suggestions} />}
         hasResults={result.items.length > 0}
         hasSuggestions={suggestions.length > 0}
+        resultCount={result.items.length}
         title="ผลลัพธ์ทั้งหมด"
         basePath={`/tag/${tag.slug}`}
         fixedTag={tag.slug}

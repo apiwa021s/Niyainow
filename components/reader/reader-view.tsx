@@ -28,6 +28,7 @@ const FONT_CLASS = {
   anuphan: "reader-font-anuphan",
   serif: "reader-font-serif",
 } as const;
+const PROTECTED_READER_SELECTOR = "[data-reader-protected='true']";
 
 type ProgressWrite = {
   chapterId: string;
@@ -59,6 +60,29 @@ function currentParagraphAnchor() {
     }
   }
   return undefined;
+}
+
+function isInsideProtectedContent(node: Node | null) {
+  if (!node) return false;
+  const element = node.nodeType === Node.ELEMENT_NODE
+    ? node as Element
+    : node.parentElement;
+  return Boolean(element?.closest(PROTECTED_READER_SELECTOR));
+}
+
+function eventTouchesProtectedContent(event: Event) {
+  return event.target instanceof Node && isInsideProtectedContent(event.target);
+}
+
+function selectionTouchesProtectedContent() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+  if (isInsideProtectedContent(selection.anchorNode) || isInsideProtectedContent(selection.focusNode)) return true;
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    if (isInsideProtectedContent(selection.getRangeAt(index).commonAncestorContainer)) return true;
+  }
+  return false;
 }
 
 // Keep a single writer for the browser module so App Router chapter
@@ -393,6 +417,36 @@ export function ReaderView({
     };
   }, [prefs.keepScreenAwake]);
 
+  useEffect(() => {
+    const preventCopy = (event: Event) => {
+      if (!eventTouchesProtectedContent(event) && !selectionTouchesProtectedContent()) return;
+      event.preventDefault();
+      window.getSelection()?.removeAllRanges();
+    };
+
+    const preventCopyShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if ((key === "c" || key === "x") && selectionTouchesProtectedContent()) {
+        event.preventDefault();
+        window.getSelection()?.removeAllRanges();
+      }
+    };
+
+    document.addEventListener("copy", preventCopy, true);
+    document.addEventListener("cut", preventCopy, true);
+    document.addEventListener("contextmenu", preventCopy, true);
+    document.addEventListener("dragstart", preventCopy, true);
+    window.addEventListener("keydown", preventCopyShortcut, true);
+    return () => {
+      document.removeEventListener("copy", preventCopy, true);
+      document.removeEventListener("cut", preventCopy, true);
+      document.removeEventListener("contextmenu", preventCopy, true);
+      document.removeEventListener("dragstart", preventCopy, true);
+      window.removeEventListener("keydown", preventCopyShortcut, true);
+    };
+  }, []);
+
   const modalOpen = settingsOpen || sidebarOpen;
 
   useEffect(() => {
@@ -472,6 +526,7 @@ export function ReaderView({
     "--reader-text": theme.fg,
     "--reader-accent": theme.accent,
     "--reader-action": theme.action,
+    "--reader-progress": theme.progress,
     colorScheme: theme.scheme,
   } as CSSProperties;
 
@@ -484,17 +539,18 @@ export function ReaderView({
         {prefs.dim > 0 ? <div aria-hidden className="pointer-events-none fixed inset-0 z-30 bg-black" style={{ opacity: prefs.dim }} /> : null}
 
         <div role="progressbar" aria-label="ความคืบหน้าการอ่าน" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} className="fixed inset-x-0 top-0 z-50 h-0.5 bg-transparent">
-          <div className="h-full bg-[var(--reader-accent)] transition-[width] duration-[var(--dur-fast)] ease-[var(--ease-out)]" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-[var(--reader-progress)] transition-[width] duration-[var(--dur-fast)] ease-[var(--ease-out)]" style={{ width: `${progress}%` }} />
         </div>
 
-      <header aria-hidden={!chromeVisible ? true : undefined} inert={!chromeVisible} className={cn("fixed inset-x-0 top-0 z-40 h-16 border-b border-current/10 bg-[var(--reader-paper)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0")}>
-        <div className="mx-auto flex h-full max-w-[calc(var(--reader-measure)+12rem)] items-center gap-1 px-2 sm:px-4">
-          <Link href={`/novel/${novel.slug}`} aria-label="กลับไปหน้าเรื่อง" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><ArrowLeft className="h-5 w-5" /></Link>
+      <header aria-hidden={!chromeVisible ? true : undefined} inert={!chromeVisible} className={cn("fixed inset-x-0 top-0 z-40 h-[calc(4rem+env(safe-area-inset-top))] border-b border-current/10 bg-[var(--reader-paper)] pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0")}>
+        <div className="mx-auto flex h-16 max-w-[calc(var(--reader-measure)+12rem)] items-center gap-1 px-2 sm:px-4">
+          <Link href={`/novel/${novel.slug}`} aria-label="กลับไปหน้าเรื่อง" className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 hover:bg-current/10"><ArrowLeft className="h-5 w-5" /></Link>
           <div className="min-w-0 flex-1 px-1">
             <span className="block truncate text-xs opacity-65">{novel.thaiTitle}</span>
             <span className="block truncate text-sm font-semibold">ตอนที่ {chapter.number} · {chapter.title}</span>
           </div>
-          <button type="button" onClick={openSettings} aria-label="ตั้งค่าการอ่าน" aria-haspopup="dialog" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-sm font-semibold hover:bg-current/8">Aa</button>
+          <span className="tabular hidden min-w-14 rounded-full bg-current/8 px-2 py-1 text-center text-xs font-semibold sm:inline-block">{progress}%</span>
+          <button type="button" onClick={openSettings} aria-label="ตั้งค่าการอ่าน" aria-haspopup="dialog" className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 text-sm font-semibold hover:bg-current/10">Aa</button>
           <div ref={moreMenuRef} className="relative shrink-0">
             <button
               ref={moreButtonRef}
@@ -503,13 +559,22 @@ export function ReaderView({
               aria-label="เมนูเพิ่มเติม"
               aria-controls="reader-more-menu"
               aria-expanded={moreOpen}
-              className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-current/8"
+              className="grid h-11 w-11 place-items-center rounded-[6px] border border-current/12 bg-current/5 hover:bg-current/10"
             >
               <Ellipsis className="h-5 w-5" />
             </button>
             {moreOpen ? (
               <div id="reader-more-menu" role="group" aria-label="ตัวเลือกเพิ่มเติมสำหรับการอ่าน" className="absolute right-0 top-12 w-60 rounded-[8px] border border-current/12 bg-[var(--reader-paper)] p-2 shadow-[var(--sh-2)]">
-                <div className="flex min-h-12 items-center justify-between gap-3 border-b border-current/10 px-2 pb-2 text-sm">
+                <div className="rounded-[6px] bg-current/6 px-2 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium">ความคืบหน้า</span>
+                    <span className="tabular text-xs opacity-70">{progress}%</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-current/12">
+                    <div className="h-full rounded-full bg-[var(--reader-progress)]" style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
+                <div className="mt-1 flex min-h-12 items-center justify-between gap-3 px-2 py-2 text-sm">
                   <span className="font-medium">จัดการคลัง</span>
                   <BookmarkButton
                     slug={novel.slug}
@@ -517,27 +582,32 @@ export function ReaderView({
                     initialStatus={novelState ? novelState.libraryStatus : initialLibraryStatus}
                   />
                 </div>
-                <Link href={`/novel/${novel.slug}`} className="mt-1 flex min-h-11 items-center rounded-[6px] px-3 text-sm hover:bg-current/8">รายละเอียดเรื่อง</Link>
-                <Link href={chaptersHref} className="flex min-h-11 items-center rounded-[6px] px-3 text-sm hover:bg-current/8">สารบัญทั้งหมด</Link>
+                <Link href={`/novel/${novel.slug}`} onClick={() => setMoreOpen(false)} className="flex min-h-11 items-center rounded-[6px] px-3 text-sm hover:bg-current/8">รายละเอียดเรื่อง</Link>
+                <Link href={chaptersHref} onClick={() => setMoreOpen(false)} className="flex min-h-11 items-center rounded-[6px] px-3 text-sm hover:bg-current/8">สารบัญทั้งหมด</Link>
               </div>
             ) : null}
           </div>
         </div>
       </header>
 
-      <main id="main" onClick={handleContentClick} className="mx-auto w-full px-[18px] pb-28 pt-20 sm:px-8 sm:pt-24" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
+      <main id="main" onClick={handleContentClick} className="mx-auto w-full px-[18px] pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:px-8 sm:pt-[calc(6rem+env(safe-area-inset-top))]" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
         <article className="mx-auto sm:rounded-[8px] sm:border sm:border-current/10 sm:bg-[var(--reader-paper)] sm:px-10 sm:py-12 lg:px-14" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
           <div className="mx-auto" style={{ maxWidth: "var(--reader-measure)" }}>
-          <p className="font-mono text-xs text-[var(--reader-accent)]">ตอน {chapter.number}</p>
-          <p className="mt-2 text-sm opacity-60">{novel.thaiTitle}</p>
-          <h1 className="mt-2 font-serif text-2xl font-semibold leading-[1.45] sm:text-3xl">{chapter.title}</h1>
-          <div aria-hidden className="ink-divider mt-6" />
-          <div className="mt-8 text-[length:var(--reader-font-size)] sm:text-[length:calc(var(--reader-font-size)+1px)]" style={{ fontFamily: "var(--reader-family)", lineHeight: "var(--reader-line-height)" }}>
+          <header className="pb-7">
+            <p className="font-mono text-xs text-[var(--reader-accent)]">ตอน {chapter.number}</p>
+            <p className="mt-2 text-sm opacity-60">{novel.thaiTitle}</p>
+            <h1 className="mt-2 text-2xl font-semibold leading-[1.45] sm:text-3xl">{chapter.title}</h1>
+          </header>
+          <div
+            data-reader-protected="true"
+            className="select-none text-[length:var(--reader-font-size)] sm:text-[length:calc(var(--reader-font-size)+1px)]"
+            style={{ fontFamily: "var(--reader-family)", lineHeight: "var(--reader-line-height)" }}
+          >
             {children}
           </div>
 
           {locked ? (
-            <div className="mt-10 border-y border-current/15 px-5 py-6 text-center">
+            <div className="mt-10 rounded-[8px] bg-current/6 px-5 py-6 text-center">
               <p className="font-semibold">ตอนนี้ยังไม่เปิดให้อ่าน</p>
               <p className="mt-2 text-sm opacity-70">ระบบไม่ได้เปิดการซื้อหรือปลดล็อกตอน จึงไม่ส่งเนื้อหาที่ถูกจำกัดมายังเบราว์เซอร์</p>
             </div>
@@ -557,11 +627,11 @@ export function ReaderView({
         </article>
       </main>
 
-      <nav aria-label="เปลี่ยนตอน" aria-hidden={!chromeVisible ? true : undefined} inert={!chromeVisible} className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-bg)] pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0")}>
-        <div className="mx-auto grid h-14 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
-          {previousHref ? <Link href={previousHref} onClick={() => navigateChapter(previous!.number)} aria-label="ตอนก่อนหน้า" className="flex h-12 items-center justify-start gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><ChevronLeft className="h-4 w-4" /><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
-          <button type="button" onClick={openSidebar} aria-controls="reader-chapter-sidebar" aria-expanded={sidebarOpen} className="flex h-12 items-center justify-center gap-2 rounded-[8px] text-sm font-semibold hover:bg-current/8"><List className="h-4 w-4" />สารบัญ</button>
-          {nextHref ? <Link href={nextHref} onClick={() => navigateChapter(next!.number)} aria-label="ตอนถัดไป" className="flex h-12 items-center justify-end gap-1 rounded-[8px] px-3 text-sm font-semibold hover:bg-current/8"><span className="hidden sm:inline">ตอนถัดไป</span><ChevronRight className="h-4 w-4" /></Link> : <span aria-hidden />}
+      <nav aria-label="เปลี่ยนตอน" aria-hidden={!chromeVisible ? true : undefined} inert={!chromeVisible} className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-paper)] pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0")}>
+        <div className="mx-auto grid h-16 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
+          {previousHref ? <Link href={previousHref} onClick={() => navigateChapter(previous!.number)} aria-label="ตอนก่อนหน้า" className="flex h-12 items-center justify-start gap-1 rounded-[6px] border border-current/12 bg-current/5 px-2 text-sm font-semibold hover:bg-current/10 sm:px-3"><ChevronLeft className="h-4 w-4 shrink-0" /><span className="sm:hidden">ก่อน</span><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
+          <button type="button" onClick={openSidebar} aria-controls="reader-chapter-sidebar" aria-expanded={sidebarOpen} className="flex h-12 items-center justify-center gap-2 rounded-[6px] border border-current/12 bg-current/5 text-sm font-semibold hover:bg-current/10"><List className="h-4 w-4" />สารบัญ</button>
+          {nextHref ? <Link href={nextHref} onClick={() => navigateChapter(next!.number)} aria-label="ตอนถัดไป" className="flex h-12 items-center justify-end gap-1 rounded-[6px] border border-current/12 bg-current/5 px-2 text-sm font-semibold hover:bg-current/10 sm:px-3"><span className="sm:hidden">ถัดไป</span><span className="hidden sm:inline">ตอนถัดไป</span><ChevronRight className="h-4 w-4 shrink-0" /></Link> : <span aria-hidden />}
         </div>
       </nav>
       </div>
@@ -600,9 +670,11 @@ function ReaderSidebar({
     ?? (firstVisibleChapter?.number !== current.number ? firstVisibleChapter?.number : undefined);
   const laterJump = chapterWindow.laterBoundary?.number
     ?? (lastVisibleChapter?.number !== current.number ? lastVisibleChapter?.number : undefined);
+  const normalizedQuery = query.trim().toLocaleLowerCase("th");
   const visible = chapterWindow.items.filter((chapter) => {
-    const needle = query.trim().toLocaleLowerCase("th");
-    return !needle || chapter.title.toLocaleLowerCase("th").includes(needle) || String(chapter.number).includes(needle);
+    return !normalizedQuery
+      || chapter.title.toLocaleLowerCase("th").includes(normalizedQuery)
+      || String(chapter.number).includes(normalizedQuery);
   });
 
   useEffect(() => {
@@ -641,27 +713,45 @@ function ReaderSidebar({
   return (
     <>
       {open ? <button type="button" tabIndex={-1} aria-hidden="true" aria-label="ปิดสารบัญ" onClick={onClose} className="fixed inset-0 z-40 bg-black/40" /> : null}
-      <aside ref={panelRef} id="reader-chapter-sidebar" role="dialog" aria-modal={open ? "true" : undefined} aria-label="สารบัญตอน" className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(340px,88vw)] flex-col border-r border-current/10 bg-[var(--reader-paper)] shadow-[var(--sh-3)] transition-transform duration-[var(--dur-base)]", open ? "translate-x-0" : "-translate-x-full")} aria-hidden={!open} inert={!open}>
-        <div className="flex h-16 items-center justify-between gap-3 border-b border-current/10 px-4">
-          <div className="min-w-0"><p className="editorial-kicker">TABLE OF CONTENTS</p><p className="truncate font-serif text-sm font-semibold">{novel.thaiTitle}</p></div>
-          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="ปิดสารบัญ" className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] hover:bg-current/8"><X className="h-5 w-5" /></button>
+      <aside ref={panelRef} id="reader-chapter-sidebar" role="dialog" aria-modal={open ? "true" : undefined} aria-label="สารบัญตอน" className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(360px,90vw)] flex-col border-r border-current/10 bg-[var(--reader-paper)] pt-[env(safe-area-inset-top)] shadow-[var(--sh-3)] transition-transform duration-[var(--dur-base)]", open ? "translate-x-0" : "-translate-x-full")} aria-hidden={!open} inert={!open}>
+        <div className="flex h-16 items-center justify-between gap-3 px-4">
+          <div className="min-w-0"><p className="editorial-kicker">TABLE OF CONTENTS</p><p className="truncate text-sm font-semibold">{novel.thaiTitle}</p></div>
+          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="ปิดสารบัญ" className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 hover:bg-current/10"><X className="h-5 w-5" /></button>
         </div>
         <label className="relative m-4">
-          <span className="sr-only">ค้นหาในรายการตอนใกล้เคียง</span>
+          <span className="sr-only">ค้นหาชื่อตอนใกล้เคียง</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-55" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาในตอนใกล้เคียง" className="h-11 w-full rounded-[8px] border border-current/15 bg-transparent pl-9 pr-3 text-sm outline-none focus:border-[var(--reader-accent)]" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อตอน" className="h-11 w-full rounded-[8px] border border-current/15 bg-transparent pl-9 pr-3 text-sm outline-none focus:border-[var(--reader-accent)]" />
         </label>
         <p className="px-4 pb-2 text-xs opacity-60">
           ตอนลำดับ {chapterWindow.startPosition.toLocaleString("th-TH")}–{chapterWindow.endPosition.toLocaleString("th-TH")} จาก {chapterWindow.total.toLocaleString("th-TH")}
         </p>
-        <nav aria-label="รายชื่อตอน" className="min-h-0 flex-1 overflow-y-auto px-2 pb-5">
-          {chapterWindow.hasEarlier && earlierJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${earlierJump}`} onClick={onClose} className="mb-1 flex min-h-11 items-center justify-center rounded-[8px] border border-current/12 text-xs font-semibold hover:bg-current/6">ดูตอนก่อนหน้านี้ในสารบัญ</Link> : null}
-          {visible.map((item) => {
-            const active = item.id ? item.id === current.id : item.number === current.number;
-            return <Link key={item.id ?? item.number} href={`/novel/${novel.slug}/chapter/${item.number}`} prefetch={false} onClick={() => { onNavigateChapter(item.number); onClose(); }} aria-current={active ? "page" : undefined} className={cn("grid min-h-[58px] grid-cols-[54px_1fr] items-center gap-2 border-b border-current/8 px-3 py-2 text-sm", active ? "border-l-2 border-l-[var(--reader-accent)] bg-current/8 text-[var(--reader-accent)]" : "hover:bg-current/6")}><span className="font-mono text-[11px]">ตอน {item.number}</span><span className="line-clamp-2 font-medium leading-[1.5]">{item.title}</span></Link>;
-          })}
+        <nav aria-label="รายชื่อตอน" className="min-h-0 flex-1 overflow-y-auto px-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          {chapterWindow.hasEarlier && earlierJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${earlierJump}`} onClick={onClose} className="mb-1 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนก่อนหน้านี้ในสารบัญ</Link> : null}
+          <div className="grid gap-1">
+            {visible.map((item) => {
+              const active = item.id ? item.id === current.id : item.number === current.number;
+              return (
+                <Link
+                  key={item.id ?? item.number}
+                  href={`/novel/${novel.slug}/chapter/${item.number}`}
+                  prefetch={false}
+                  onClick={() => { onNavigateChapter(item.number); onClose(); }}
+                  aria-current={active ? "page" : undefined}
+                  aria-label={`ตอนที่ ${item.number} ${item.title}${active ? " กำลังอ่าน" : ""}`}
+                  className={cn(
+                    "flex min-h-[52px] items-center rounded-[8px] px-3 py-2 text-sm transition-colors",
+                    active ? "bg-current/8 text-[var(--reader-accent)]" : "hover:bg-current/6",
+                  )}
+                >
+                  <span className="line-clamp-2 font-medium leading-[1.5]">{item.title}</span>
+                  {active ? <span className="sr-only"> กำลังอ่าน</span> : null}
+                </Link>
+              );
+            })}
+          </div>
           {visible.length === 0 ? <p className="px-3 py-8 text-center text-sm opacity-65">ไม่พบตอนในช่วงใกล้เคียงนี้</p> : null}
-          {chapterWindow.hasLater && laterJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${laterJump}`} onClick={onClose} className="mt-2 flex min-h-11 items-center justify-center rounded-[8px] border border-current/12 text-xs font-semibold hover:bg-current/6">ดูตอนถัดไปในสารบัญ</Link> : null}
+          {chapterWindow.hasLater && laterJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${laterJump}`} onClick={onClose} className="mt-2 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนถัดไปในสารบัญ</Link> : null}
         </nav>
       </aside>
     </>

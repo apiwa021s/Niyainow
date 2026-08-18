@@ -59,7 +59,7 @@ function SegmentedControl<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex w-full gap-1 rounded-[8px] border border-current/15 p-1">
+    <div role="radiogroup" aria-label={label} className="inline-flex w-full gap-1 rounded-[6px] border border-current/15 bg-current/5 p-1">
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -70,8 +70,8 @@ function SegmentedControl<T extends string>({
             aria-checked={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              "h-11 flex-1 rounded-[6px] text-sm font-semibold transition-colors",
-              active ? "bg-[var(--reader-action)] text-white" : "hover:bg-current/8"
+              "h-11 flex-1 rounded-[5px] text-sm font-semibold transition-colors",
+              active ? "bg-[var(--reader-action)] text-white shadow-[var(--sh-brand)]" : "hover:bg-current/10"
             )}
           >
             {option.label}
@@ -89,7 +89,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (nex
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex min-h-11 w-full items-center justify-between gap-3 text-sm"
+      className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[6px] px-2 text-sm hover:bg-current/8"
     >
       <span>{label}</span>
       <span
@@ -187,7 +187,7 @@ export function ReaderSettings({
         className={cn(
           "fixed z-50 flex flex-col gap-5 overflow-y-auto bg-[var(--reader-bg)] text-[var(--reader-text)] shadow-[var(--sh-3)]",
           // mobile: bottom sheet
-          "inset-x-0 bottom-0 max-h-[85vh] rounded-t-[12px] px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3",
+          "inset-x-0 bottom-0 max-h-[85vh] rounded-t-[10px] px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3",
           // desktop: popover มุมขวาบน
           "sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[80vh] sm:w-[380px] sm:rounded-[8px] sm:p-5"
         )}
@@ -201,7 +201,7 @@ export function ReaderSettings({
             type="button"
             onClick={onClose}
             aria-label="ปิดตั้งค่าการอ่าน"
-            className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-current/8"
+            className="grid h-11 w-11 place-items-center rounded-[6px] border border-current/12 bg-current/5 hover:bg-current/10"
           >
             <X className="h-5 w-5" />
           </button>
@@ -222,8 +222,8 @@ export function ReaderSettings({
                   title={READER_THEME_LABELS[theme]}
                   onClick={() => setPrefs({ theme })}
                   className={cn(
-                    "flex min-h-12 items-center justify-center gap-1.5 rounded-[8px] border-2 px-2 text-xs font-semibold transition-transform duration-[var(--dur-fast)]",
-                    active ? "border-[var(--reader-accent)] scale-105" : "border-current/20"
+                    "flex min-h-12 items-center justify-center gap-1.5 rounded-[6px] border px-2 text-xs font-semibold transition-colors duration-[var(--dur-fast)]",
+                    active ? "border-[var(--reader-accent)] bg-current/8" : "border-current/20 hover:bg-current/6"
                   )}
                   style={{ background: swatch.bg, color: swatch.fg }}
                 >
@@ -242,7 +242,7 @@ export function ReaderSettings({
               aria-label="ลดขนาดอักษร"
               disabled={prefs.fontSize <= FONT_SIZE_MIN}
               onClick={() => setPrefs({ fontSize: Math.max(FONT_SIZE_MIN, prefs.fontSize - FONT_SIZE_STEP) })}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] border border-current/20 disabled:opacity-40"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/15 bg-current/5 hover:bg-current/10 disabled:opacity-40"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -252,7 +252,7 @@ export function ReaderSettings({
               aria-label="เพิ่มขนาดอักษร"
               disabled={prefs.fontSize >= FONT_SIZE_MAX}
               onClick={() => setPrefs({ fontSize: Math.min(FONT_SIZE_MAX, prefs.fontSize + FONT_SIZE_STEP) })}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] border border-current/20 disabled:opacity-40"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/15 bg-current/5 hover:bg-current/10 disabled:opacity-40"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -271,8 +271,8 @@ export function ReaderSettings({
                   aria-checked={active}
                   onClick={() => setPrefs({ font })}
                   className={cn(
-                    "flex min-h-14 flex-col items-start justify-center gap-0.5 rounded-[8px] border px-3 py-2 text-left transition-colors",
-                    active ? "border-[var(--reader-accent)] bg-current/6" : "border-current/15 hover:bg-current/6"
+                    "flex min-h-14 flex-col items-start justify-center gap-0.5 rounded-[6px] border px-3 py-2 text-left transition-colors",
+                    active ? "border-[var(--reader-accent)] bg-current/8" : "border-current/15 bg-current/5 hover:bg-current/10"
                   )}
                 >
                   <span className="text-xs font-semibold">{READER_FONT_LABELS[font]}</span>
@@ -283,8 +283,8 @@ export function ReaderSettings({
           </div>
         </Row>
 
-        <details className="group rounded-[8px] border border-current/15">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        <details className="group rounded-[6px] border border-current/15 bg-current/5">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold hover:bg-current/6 [&::-webkit-details-marker]:hidden">
             <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />การตั้งค่าขั้นสูง</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </summary>
@@ -339,7 +339,7 @@ export function ReaderSettings({
         <button
           type="button"
           onClick={resetPrefs}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-[8px] border border-current/20 text-sm font-semibold hover:bg-current/8"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-current/15 bg-current/5 text-sm font-semibold hover:bg-current/10"
         >
           <RotateCcw className="h-4 w-4" />
           รีเซ็ตค่าเริ่มต้น
