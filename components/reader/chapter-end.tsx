@@ -7,7 +7,7 @@ import type { ChapterSummary, Novel } from "@/types/novel";
 function BrandDivider() {
   return (
     <div aria-hidden className="flex justify-center">
-      <span className="grid h-8 w-8 place-items-center rounded-full bg-current/6 text-[var(--reader-accent)]">
+      <span className="grid h-8 w-8 place-items-center text-[var(--reader-accent)]">
         <Zap className="h-3.5 w-3.5" />
       </span>
     </div>
@@ -82,14 +82,14 @@ export function ChapterEnd({
           <Link
             href={`/novel/${novel.slug}/chapter/${previous.number}`}
             onClick={() => onNavigateChapter?.(previous.number)}
-            className="flex min-h-12 items-center justify-center gap-1 rounded-[6px] border border-current/15 bg-current/5 px-3 text-sm font-semibold hover:bg-current/10"
+            className="flex min-h-12 items-center justify-center gap-1 px-3 text-sm font-semibold opacity-75 transition-[color,opacity] hover:text-[var(--reader-action)] hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--reader-action)]"
           >
             <ChevronLeft className="h-4 w-4" /> ตอนก่อน
           </Link>
         ) : null}
         <Link
           href={`/novel/${novel.slug}/chapters`}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-current/15 bg-current/5 px-3 text-sm font-semibold hover:bg-current/10"
+          className="flex min-h-12 items-center justify-center gap-2 px-3 text-sm font-semibold opacity-75 transition-[color,opacity] hover:text-[var(--reader-action)] hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--reader-action)]"
         >
           <List className="h-4 w-4" /> สารบัญ
         </Link>

@@ -23,7 +23,7 @@ function ReaderSkeleton({ className }: { className?: string }) {
 
 function IconGhost({ children }: { children: ReactNode }) {
   return (
-    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 text-current/55">
+    <span className="grid h-11 w-11 shrink-0 place-items-center text-current/45">
       {children}
     </span>
   );
@@ -61,7 +61,7 @@ export function ReaderLoadingShell() {
             <ReaderSkeleton className="h-4 w-52 max-w-[78%]" />
           </div>
           <ReaderSkeleton className="hidden h-7 w-14 rounded-full sm:block" />
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/12 bg-current/5 text-sm font-semibold text-current/55">Aa</span>
+          <span className="grid h-11 w-11 shrink-0 place-items-center text-sm font-semibold text-current/45">Aa</span>
           <IconGhost><List className="h-5 w-5" /></IconGhost>
         </div>
       </div>
@@ -91,9 +91,9 @@ export function ReaderLoadingShell() {
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-paper)] pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid h-16 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
-          <ReaderSkeleton className="h-11 w-20" />
-          <ReaderSkeleton className="mx-auto h-11 w-24" />
-          <ReaderSkeleton className="ml-auto h-11 w-20" />
+          <ReaderSkeleton className="h-4 w-16" />
+          <ReaderSkeleton className="mx-auto h-4 w-20" />
+          <ReaderSkeleton className="ml-auto h-4 w-16" />
         </div>
       </div>
     </main>
