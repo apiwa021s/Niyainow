@@ -27,7 +27,7 @@ export function PageHeader({
   title,
   description,
   action,
-  eyebrow = "NIYAITHAI / EDITORIAL"
+  eyebrow = "NOVELNOW / EDITORIAL"
 }: {
   title: string;
   description?: string;

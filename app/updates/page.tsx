@@ -43,7 +43,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const heading = `${updatesHeading(query.range)}${genre ? ` แนว${genre.thaiName}` : ""}`;
   return pageMetadata({
     title: heading,
-    description: `${heading}บน NiyaiThai ดูตอนใหม่เรียงตามเวลาที่เผยแพร่จริงและเปิดอ่านต่อได้ทันที`,
+    description: `${heading}บน NovelNow ดูตอนใหม่เรียงตามเวลาที่เผยแพร่จริงและเปิดอ่านต่อได้ทันที`,
     path: href,
     noIndex: Boolean(query.genre),
   });

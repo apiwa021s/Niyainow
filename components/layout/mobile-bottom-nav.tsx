@@ -40,7 +40,7 @@ export function MobileBottomNav() {
       <ContinueReadingBar />
       <nav
         aria-label="เมนูหลักบนมือถือ"
-        className="border-t border-border bg-[var(--bg-base)] pb-[env(safe-area-inset-bottom)]"
+        className="bg-[var(--bg-base)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(0,0,0,0.08)]"
       >
         <ul className="grid h-16 grid-cols-5">
           {nav.map((item) => {

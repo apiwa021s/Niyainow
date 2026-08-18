@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "นโยบายความเป็นส่วนตัว",
-  description: "นโยบายการเก็บ ใช้ และรักษาข้อมูลบัญชีและข้อมูลการอ่านของผู้ใช้ NiyaiThai",
+  description: "นโยบายการเก็บ ใช้ และรักษาข้อมูลบัญชีและข้อมูลการอ่านของผู้ใช้ NovelNow",
   path: "/privacy"
 });
 

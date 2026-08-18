@@ -32,7 +32,7 @@ export default function GlobalError({
         `}</style>
         <main id="main">
           <section aria-labelledby="global-error-title">
-            <p className="kicker">NIYAITHAI / RECOVERY</p>
+            <p className="kicker">NOVELNOW / RECOVERY</p>
             <h1 id="global-error-title">ระบบเปิดหน้านี้ไม่สำเร็จ</h1>
             <p>ลองโหลดส่วนประกอบหลักอีกครั้ง หรือกลับหน้าแรกเพื่อเลือกนิยายโดยไม่เสี่ยงเสียข้อมูลที่บันทึกไว้</p>
             <div className="actions">

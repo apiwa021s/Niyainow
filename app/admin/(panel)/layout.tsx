@@ -8,7 +8,7 @@ import AdminLoading from "./loading";
 export const metadata: Metadata = {
   title: {
     default: "ระบบหลังบ้าน",
-    template: "%s | หลังบ้าน NiyaiThai"
+    template: "%s | หลังบ้าน NovelNow"
   },
   // หน้าหลังบ้านไม่ควรถูกเก็บเข้า index ของ search engine
   robots: { index: false, follow: false }

@@ -1,6 +1,6 @@
 # Route and capability audit
 
-ตรวจครั้งแรกจาก commit `1d24440` ก่อนแก้ไฟล์ใด ๆ: ทุก route ใช้ข้อมูล mock, ฟอร์ม authentication เป็น email/password/OTP จำลอง, `/admin` ไม่มี authorization guard และ state ผู้ใช้อยู่ใน `localStorage` จากนั้น public/reader product ถูกออกแบบโครงสร้าง UX/UI ใหม่เป็นระบบ NiyaiThai Akane editorial ขณะที่ data/security boundary ถูกย้ายสู่ production ตามตารางด้านล่าง
+ตรวจครั้งแรกจาก commit `1d24440` ก่อนแก้ไฟล์ใด ๆ: ทุก route ใช้ข้อมูล mock, ฟอร์ม authentication เป็น email/password/OTP จำลอง, `/admin` ไม่มี authorization guard และ state ผู้ใช้อยู่ใน `localStorage` จากนั้น public/reader product ถูกออกแบบโครงสร้าง UX/UI ใหม่เป็นระบบ NovelNow Akane editorial ขณะที่ data/security boundary ถูกย้ายสู่ production ตามตารางด้านล่าง
 
 ## Public pages
 
@@ -20,7 +20,7 @@
 | `/login` | Google OAuth เท่านั้น | `noindex` | Production-backed |
 | `/register`, `/forgot-password` | Redirect ไป `/login`; ไม่มี password database หรือ reset flow | `noindex` ผ่านปลายทาง | Intentionally removed (Google-only) |
 
-Public shell ใช้ optimized `next/image`, production domain จาก `NEXT_PUBLIC_APP_URL`, `robots.txt`, social preview 1200×630 ของ NiyaiThai และ sitemap index แบบแบ่ง partition ที่ `/sitemap.xml`  `/sitemaps/[partition].xml`
+Public shell ใช้ optimized `next/image`, production domain จาก `NEXT_PUBLIC_APP_URL`, `robots.txt`, social preview 1200×630 ของ NovelNow และ sitemap index แบบแบ่ง partition ที่ `/sitemap.xml`  `/sitemaps/[partition].xml`
 
 ## Authenticated reader pages
 

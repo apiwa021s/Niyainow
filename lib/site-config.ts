@@ -1,7 +1,7 @@
 const DEFAULT_APP_URL = "http://localhost:3000";
 
 export const publicAssetFallbacks = {
-  icon: "/icon.svg",
+  icon: "/icon.png",
   novelCover: "/fallback-cover.svg",
   novelBackdrop: "/fallback-backdrop.svg",
 } as const;
@@ -15,7 +15,7 @@ function normalizedBaseUrl(value: string | undefined, fallback = DEFAULT_APP_URL
   }
 }
 export const siteConfig = {
-  name: "NiyaiThai",
+  name: "NovelNow",
   title: "อ่านนิยายออนไลน์ นิยายแปลไทย อัปเดตทุกวัน",
   description: "อ่านนิยายออนไลน์และนิยายแปลไทยได้ฟรี ค้นหานิยายจีน แฟนตาซี โรแมนติก วาย นิยายจบแล้ว และตอนอัปเดตล่าสุดได้ในที่เดียว",
   url: normalizedBaseUrl(process.env.NEXT_PUBLIC_APP_URL),

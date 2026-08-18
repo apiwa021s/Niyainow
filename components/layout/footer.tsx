@@ -5,7 +5,7 @@ import { Logo } from "@/components/layout/logo";
 
 const groups = [
   {
-    title: "NiyaiThai",
+    title: "NovelNow",
     links: [
       ["เกี่ยวกับเรา", "/about"],
       ["อ่านนิยายออนไลน์ทั้งหมด", "/novels"],
@@ -48,7 +48,7 @@ export async function Footer() {
   const copyrightYear = await getCopyrightYear();
 
   return (
-    <footer className="mt-10 border-t border-border bg-surface text-(--text-primary)">
+    <footer className="mt-10 bg-surface text-(--text-primary)">
       <div className="mx-auto max-w-(--shell-max) px-3 py-6 sm:px-4 sm:py-8 lg:px-5">
         <div className="hidden gap-8 md:grid md:grid-cols-4">
           {groups.map((group) => (
@@ -60,7 +60,7 @@ export async function Footer() {
             page content a full screen further from the reader's thumb. */}
         <div className="md:hidden">
           {groups.map((group) => (
-            <details key={group.title} className="border-b border-border">
+            <details key={group.title}>
               <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
                 {group.title}
                 <span aria-hidden className="text-(--text-tertiary)">+</span>
@@ -81,7 +81,7 @@ export async function Footer() {
           ))}
         </div>
 
-        <div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-[minmax(0,1fr)_minmax(260px,420px)] sm:items-end">
+        <div className="mt-8 grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(260px,420px)] sm:items-end">
           <div>
             <Logo />
             <p className="mt-2 max-w-md text-sm leading-6 text-(--text-secondary)">
@@ -96,7 +96,7 @@ export async function Footer() {
           </p>
         </div>
 
-        <p className="mt-5 text-xs text-(--text-tertiary)">© {copyrightYear} NiyaiThai. สงวนลิขสิทธิ์ทุกประการ</p>
+        <p className="mt-5 text-xs text-(--text-tertiary)">© {copyrightYear} NovelNow. สงวนลิขสิทธิ์ทุกประการ</p>
       </div>
     </footer>
   );

@@ -37,7 +37,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     title: query ? `ค้นหา “${query}”` : "ค้นหา",
     description: query
       ? `ผลการค้นหานิยาย ผู้แต่ง ผู้แปล หมวดหมู่ และแท็กสำหรับ “${query}”`
-      : "ค้นหานิยายออนไลน์จากชื่อเรื่อง ผู้แต่ง ผู้แปล หมวดหมู่ และแท็กบน NiyaiThai",
+      : "ค้นหานิยายออนไลน์จากชื่อเรื่อง ผู้แต่ง ผู้แปล หมวดหมู่ และแท็กบน NovelNow",
     path: query ? `/search?q=${encodeURIComponent(query)}` : "/search",
     canonicalPath: "/search",
     noIndex: true,

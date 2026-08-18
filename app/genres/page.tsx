@@ -12,7 +12,7 @@ import { getGenres } from "@/services/novel-service";
 
 export const metadata: Metadata = pageMetadata({
   title: "หมวดหมู่นิยายออนไลน์ทุกแนว",
-  description: "เลือกอ่านนิยายออนไลน์ตามแนวที่ชอบ ทั้งแฟนตาซี โรแมนติก วาย จีนย้อนยุค กำลังภายใน และหมวดอื่นในคลัง NiyaiThai",
+  description: "เลือกอ่านนิยายออนไลน์ตามแนวที่ชอบ ทั้งแฟนตาซี โรแมนติก วาย จีนย้อนยุค กำลังภายใน และหมวดอื่นในคลัง NovelNow",
   path: "/genres",
 });
 

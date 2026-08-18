@@ -42,7 +42,7 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
         <div className="flex min-w-0 items-center gap-4">
           <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-muted text-[var(--brand-emphasis)]"><UserRound className="h-8 w-8" /></div>
           <div className="min-w-0">
-            <h2 className="truncate text-xl font-semibold">{user.name || "นักอ่าน NiyaiThai"}</h2>
+            <h2 className="truncate text-xl font-semibold">{user.name || "นักอ่าน NovelNow"}</h2>
             <p className="truncate text-sm text-muted-foreground">{user.email}</p>
             <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />บัญชี Google · {user.role === "READER" ? "นักอ่าน" : user.role}</p>
           </div>
@@ -87,7 +87,7 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
     <div className="divide-y divide-border">
       <SettingsSection title="บัญชี" description="ข้อมูลนี้มาจากบัญชี Google และแก้ไขบนเว็บไซต์ไม่ได้">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2"><Label htmlFor="profile-display-name">ชื่อที่แสดง</Label><Input id="profile-display-name" value={user.name || "นักอ่าน NiyaiThai"} readOnly disabled /></div>
+          <div className="grid gap-2"><Label htmlFor="profile-display-name">ชื่อที่แสดง</Label><Input id="profile-display-name" value={user.name || "นักอ่าน NovelNow"} readOnly disabled /></div>
           <div className="grid gap-2"><Label htmlFor="profile-email">อีเมล</Label><Input id="profile-email" value={user.email || ""} readOnly disabled /></div>
         </div>
       </SettingsSection>

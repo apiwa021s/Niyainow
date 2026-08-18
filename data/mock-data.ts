@@ -437,7 +437,7 @@ const rawNovels: Novel[] = [
 
 const translators = [
   "ทีมแปลจันทร์เสี้ยว",
-  "NiyaiThai Translation",
+  "NovelNow Translation",
   "ห้องแปลดาวเหนือ",
   "กลุ่มอักษรม่วง",
   "ทีมแปลสายฟ้า",

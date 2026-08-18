@@ -152,7 +152,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 
   return pageMetadata({
     title,
-    description: `${heading}บน NiyaiThai พบ ${result.total.toLocaleString("th-TH")} เรื่อง เลือกอ่านตามแนว สถานะ คะแนน จำนวนตอน และเวลาอัปเดต`,
+    description: `${heading}บน NovelNow พบ ${result.total.toLocaleString("th-TH")} เรื่อง เลือกอ่านตามแนว สถานะ คะแนน จำนวนตอน และเวลาอัปเดต`,
     path: novelBrowseHref(canonicalQuery, allGenres.map((genre) => genre.slug)),
     noIndex: !isIndexableBrowse(canonicalQuery),
   });

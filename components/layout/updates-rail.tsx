@@ -23,9 +23,9 @@ export async function UpdatesRail() {
   return (
     <aside
       aria-label="ตอนใหม่ล่าสุด"
-      className="sticky top-0 hidden h-dvh w-[var(--rail-width)] shrink-0 flex-col border-l border-border bg-surface xl:flex"
+      className="sticky top-0 hidden h-dvh w-[var(--rail-width)] shrink-0 flex-col bg-surface xl:flex"
     >
-      <div className="flex h-[var(--topbar-h-lg)] shrink-0 items-center justify-between gap-2 border-b border-border px-3">
+      <div className="flex h-[var(--topbar-h-lg)] shrink-0 items-center justify-between gap-2 px-3">
         <span className="flex items-center gap-2 text-h3 font-semibold">
           <Rss className="h-4 w-4 text-accent-base" />
           ตอนใหม่ล่าสุด
@@ -39,13 +39,13 @@ export async function UpdatesRail() {
         </Link>
       </div>
 
-      <ol className="pane-scroll min-h-0 flex-1 divide-y divide-border">
+      <ol className="pane-scroll flex min-h-0 flex-1 flex-col gap-1 p-1.5">
         {updates.map((item) => (
           <li key={`${item.novelSlug}-${item.chapter}`}>
             <Link
               href={`/novel/${item.novelSlug}/chapter/${item.chapter}`}
               prefetch={false}
-              className="group grid grid-cols-[44px_minmax(0,1fr)] items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-subtle"
+              className="group grid grid-cols-[44px_minmax(0,1fr)] items-center gap-2.5 rounded-(--r-md) px-2 py-2 transition-colors hover:bg-surface-subtle"
             >
               <div className="relative h-[66px] w-11 shrink-0 overflow-hidden rounded-(--r-sm) bg-surface-recessed ring-1 ring-border">
                 <Image src={item.novel.cover} alt="" fill sizes="44px" className="object-contain" />

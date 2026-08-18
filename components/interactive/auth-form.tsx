@@ -69,7 +69,7 @@ export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; e
           <Link href="/privacy" className="font-medium text-foreground hover:underline">
             นโยบายความเป็นส่วนตัว
           </Link>
-          ของ NiyaiThai
+          ของ NovelNow
         </p>
 
         <Link href={callbackUrl} className="mt-4 flex min-h-11 items-center justify-center rounded-[6px] text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground">

@@ -2166,7 +2166,7 @@ async function getPublishedReviewsUncached(
       .limit(limit);
   return rows.map((row) => ({
       id: row.id,
-      authorName: row.authorName || "นักอ่าน NiyaiThai",
+      authorName: row.authorName || "นักอ่าน NovelNow",
       authorImage: row.authorImage || (row.authorAvatarKey ? assetUrl(row.authorAvatarKey) : null),
       rating: row.score,
       title: row.title,

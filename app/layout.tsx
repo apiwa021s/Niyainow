@@ -39,9 +39,15 @@ export const metadata: Metadata = {
     images: [absoluteUrl("/og.png")]
   },
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg"
+    icon: [
+      { url: "/icon.png", type: "image/png", sizes: "512x512", media: "(prefers-color-scheme: light)" },
+      { url: "/icon-dark.png", type: "image/png", sizes: "512x512", media: "(prefers-color-scheme: dark)" }
+    ],
+    shortcut: [
+      { url: "/icon.png", type: "image/png", media: "(prefers-color-scheme: light)" },
+      { url: "/icon-dark.png", type: "image/png", media: "(prefers-color-scheme: dark)" }
+    ],
+    apple: [{ url: "/icon.png", type: "image/png", sizes: "512x512" }]
   }
 };
 

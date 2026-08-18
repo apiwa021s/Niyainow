@@ -2,8 +2,8 @@ import { PageHeader, PageShell } from "@/components/ui/section";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
-  title: "เกี่ยวกับ NiyaiThai",
-  description: "รู้จักแนวคิดและหลักการออกแบบประสบการณ์อ่านนิยายภาษาไทยของ NiyaiThai",
+  title: "เกี่ยวกับ NovelNow",
+  description: "รู้จักแนวคิดและหลักการออกแบบประสบการณ์อ่านนิยายภาษาไทยของ NovelNow",
   path: "/about"
 });
 
@@ -17,9 +17,9 @@ export default function AboutPage() {
   return (
     <PageShell className="max-w-6xl">
       <PageHeader
-        eyebrow="ABOUT / NIYAITHAI"
+        eyebrow="ABOUT / NOVELNOW"
         title="พื้นที่อ่านที่สงบ ชัด และกลับมาอ่านต่อได้ง่าย"
-        description="NiyaiThai คือแพลตฟอร์มอ่านนิยายภาษาไทยที่วางเนื้อหาไว้เหนือสิ่งรบกวน ออกแบบสำหรับการค้นพบเรื่องใหม่และการอ่านต่อเนื่องบนทุกขนาดหน้าจอ"
+        description="NovelNow คือแพลตฟอร์มอ่านนิยายภาษาไทยที่วางเนื้อหาไว้เหนือสิ่งรบกวน ออกแบบสำหรับการค้นพบเรื่องใหม่และการอ่านต่อเนื่องบนทุกขนาดหน้าจอ"
       />
 
       <section aria-labelledby="principles-title" className="mt-10 grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">

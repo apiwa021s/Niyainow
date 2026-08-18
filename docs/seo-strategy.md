@@ -25,7 +25,7 @@ Kawebook, TofuNovel, NovelStore และ Novel.in.th ใช้ภาษาท�
 - https://novelstore.co/
 - https://novel.in.th/
 
-## Keyword map ของ NiyaiThai
+## Keyword map ของ NovelNow
 
 | หน้า | Primary intent | Secondary intent | การ index |
 | --- | --- | --- | --- |

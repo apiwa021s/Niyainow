@@ -295,7 +295,7 @@ export async function seedDevelopmentData() {
     await tx
       .insert(siteSettings)
       .values([
-        { key: "site.name", value: "NiyaiThai", description: "Public brand name", isPublic: true },
+        { key: "site.name", value: "NovelNow", description: "Public brand name", isPublic: true },
         { key: "site.default_locale", value: "th", description: "Default content locale", isPublic: true },
       ])
       .onConflictDoNothing();

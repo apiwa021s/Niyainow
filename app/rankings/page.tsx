@@ -48,7 +48,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const selected = views.find((view) => view.value === rawView) ?? views[0];
   return pageMetadata({
     title: `อันดับนิยาย${selected.label} เรื่องน่าอ่าน`,
-    description: `จัดอันดับนิยาย${selected.label}บน NiyaiThai จากกิจกรรมการอ่านจริง — ${selected.explanation}`,
+    description: `จัดอันดับนิยาย${selected.label}บน NovelNow จากกิจกรรมการอ่านจริง — ${selected.explanation}`,
     path: selected.value === "trending" ? "/rankings" : `/rankings?view=${selected.value}`,
   });
 }

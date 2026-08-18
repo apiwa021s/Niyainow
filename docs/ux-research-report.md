@@ -1,4 +1,4 @@
-# NiyaiThai UX Research Notes
+# NovelNow UX Research Notes
 
 วันที่สำรวจ: 2026-08-18
 
@@ -23,7 +23,7 @@
 
 ## Product Direction For This Repo
 
-NiyaiThai should keep its current dense editorial base, but reshape the public experience around four production lanes:
+NovelNow should keep its current dense editorial base, but reshape the public experience around four production lanes:
 
 - Read now: continue-reading and the main featured story.
 - Discover: genre chips, search, recommendations, new this week.

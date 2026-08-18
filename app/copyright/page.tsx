@@ -5,7 +5,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด",
-  description: "นโยบายลิขสิทธิ์ ข้อมูลที่ต้องเตรียม และสถานะช่องทางรับแจ้งเนื้อหาของ NiyaiThai",
+  description: "นโยบายลิขสิทธิ์ ข้อมูลที่ต้องเตรียม และสถานะช่องทางรับแจ้งเนื้อหาของ NovelNow",
   path: "/copyright"
 });
 
@@ -33,7 +33,7 @@ export default function CopyrightPage() {
       <PageHeader
         eyebrow="LEGAL / COPYRIGHT"
         title="ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด"
-        description="NiyaiThai มีนโยบายเคารพสิทธิ์ของผู้เขียน ผู้แปล สำนักพิมพ์ และผู้สร้างสรรค์ทุกฝ่าย"
+        description="NovelNow มีนโยบายเคารพสิทธิ์ของผู้เขียน ผู้แปล สำนักพิมพ์ และผู้สร้างสรรค์ทุกฝ่าย"
       />
 
       <section aria-labelledby="process-title" className="mt-10">
@@ -74,7 +74,7 @@ export default function CopyrightPage() {
         <p className="editorial-kicker">ENGLISH NOTICE</p>
         <h2 className="mt-2 text-xl font-semibold">Copyright reporting status</h2>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-          NiyaiThai respects the rights of authors, translators, publishers, and other creators. The verified online reporting channel is not yet available. Please preserve the page URL, work details, screenshots, and evidence of authority, then return to this page for the official channel. Payments, coins, and reporting rewards are not available.
+          NovelNow respects the rights of authors, translators, publishers, and other creators. The verified online reporting channel is not yet available. Please preserve the page URL, work details, screenshots, and evidence of authority, then return to this page for the official channel. Payments, coins, and reporting rewards are not available.
         </p>
       </section>
     </PageShell>

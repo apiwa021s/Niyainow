@@ -52,7 +52,7 @@ export async function generateMetadata({
   return pageMetadata({
     title: `นิยาย${genre.thaiName} อ่านออนไลน์${page > 1 ? ` หน้า ${page}` : ""}`,
     description: genre.description
-      ? `อ่านนิยาย${genre.thaiName}ออนไลน์ ${genre.description} รวม ${genre.count.toLocaleString("th-TH")} เรื่องบน NiyaiThai`
+      ? `อ่านนิยาย${genre.thaiName}ออนไลน์ ${genre.description} รวม ${genre.count.toLocaleString("th-TH")} เรื่องบน NovelNow`
       : `รวมนิยาย${genre.thaiName}อ่านออนไลน์ ${genre.count.toLocaleString("th-TH")} เรื่อง ทั้งเรื่องยอดนิยม อัปเดตล่าสุด และเรื่องจบแล้ว`,
     path,
     noIndex: hasFilters,
