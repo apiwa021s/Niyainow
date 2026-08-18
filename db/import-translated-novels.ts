@@ -1,6 +1,7 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { and, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { MongoClient, type Collection, type Filter } from "mongodb";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +40,8 @@ const MAX_RUNTIME_SECONDS = 1_500;
 const RUNTIME_STOP_BUFFER_MS = 30_000;
 const MAX_CHAPTER_UTF8_BYTES = 4 * 1024 * 1024;
 const TEXT_BUILDER_CHUNK_CHARACTERS = 8 * 1024;
+const TAG_SLUG_MAX_LENGTH = 120;
+const MAX_TAG_SLUG_ATTEMPTS = 10_000;
 const MONGO_DATABASE = "my-novel";
 const INCREMENTAL_INTERVAL_MS = 2 * 24 * 60 * 60_000;
 const INCREMENTAL_SAFETY_WINDOW_MS = 6 * 60 * 60_000;
@@ -440,7 +443,44 @@ function sourceGenreSlug(value: string) {
 }
 
 function sourceTagSlug(value: string) {
-  return slugify(value, "tag");
+  return slugify(value, "tag").slice(0, TAG_SLUG_MAX_LENGTH).replace(/-+$/gu, "");
+}
+
+function tagNameKey(value: string) {
+  return value.toLocaleLowerCase("th-TH");
+}
+
+function tagSlugWithSuffix(base: string, suffix: string) {
+  const tail = `-${suffix}`;
+  const prefix = base.slice(0, TAG_SLUG_MAX_LENGTH - tail.length).replace(/-+$/gu, "");
+  return `${prefix || "tag"}${tail}`;
+}
+
+function sourceTagCollisionSlug(value: string, collisionAttempt: number) {
+  const base = sourceTagSlug(value);
+  if (collisionAttempt === 0) return base;
+
+  const fingerprint = createHash("sha256")
+    .update(value.normalize("NFKC").trim().toLocaleLowerCase("th-TH"))
+    .digest("hex")
+    .slice(0, 12);
+  const hashedSlug = tagSlugWithSuffix(base, fingerprint);
+  return collisionAttempt === 1 ? hashedSlug : tagSlugWithSuffix(hashedSlug, String(collisionAttempt));
+}
+
+function allocateImportedTagSlug(name: string, reservedSlugs: Set<string>) {
+  for (let collisionAttempt = 0; collisionAttempt < MAX_TAG_SLUG_ATTEMPTS; collisionAttempt += 1) {
+    const candidate = sourceTagCollisionSlug(name, collisionAttempt);
+    if (reservedSlugs.has(candidate)) continue;
+    reservedSlugs.add(candidate);
+    return candidate;
+  }
+  throw new Error(`Unable to allocate a unique imported tag slug for ${name}`);
+}
+
+export function mapImportedTagSlugs(tagNames: readonly string[]) {
+  const reservedSlugs = new Set<string>();
+  return tagNames.map((name) => ({ name, slug: allocateImportedTagSlug(name, reservedSlugs) }));
 }
 
 function sourceAuthorSlug(value: string) {
@@ -582,14 +622,44 @@ async function ensureGenres(tx: Tx, bookTypes: readonly string[], mongoGenreMap:
 
 async function ensureTags(tx: Tx, tagNames: readonly string[], now: Date) {
   if (tagNames.length === 0) return [];
-  return tx
-    .insert(tags)
-    .values(tagNames.map((name) => ({ slug: sourceTagSlug(name), name, createdAt: now, updatedAt: now })))
-    .onConflictDoUpdate({
-      target: tags.slug,
-      set: { name: sql`excluded.name`, isActive: true, updatedAt: now },
-    })
-    .returning({ id: tags.id, slug: tags.slug, name: tags.name });
+
+  const requestedNames = [...new Map(tagNames.map((name) => [tagNameKey(name), name])).values()];
+  const rowsByName = new Map<string, { id: string; slug: string; name: string }>();
+  const reservedSlugs = new Set<string>();
+  let unresolvedNames = requestedNames;
+
+  for (let round = 0; unresolvedNames.length > 0; round += 1) {
+    if (round >= MAX_TAG_SLUG_ATTEMPTS) {
+      throw new Error(`Unable to persist imported tags after ${MAX_TAG_SLUG_ATTEMPTS} attempts`);
+    }
+
+    const candidates = unresolvedNames.map((name) => ({
+      slug: allocateImportedTagSlug(name, reservedSlugs),
+      name,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    // DO NOTHING can safely accept duplicate/conflicting proposed rows. Reading
+    // back by the case-insensitive name constraint distinguishes an existing
+    // tag from an unrelated tag that merely owns the same generated slug.
+    await tx.insert(tags).values(candidates).onConflictDoNothing();
+
+    const persistedRows = await tx
+      .select({ id: tags.id, slug: tags.slug, name: tags.name })
+      .from(tags)
+      .where(inArray(sql<string>`lower(${tags.name})`, unresolvedNames.map(tagNameKey)));
+    for (const row of persistedRows) rowsByName.set(tagNameKey(row.name), row);
+
+    unresolvedNames = unresolvedNames.filter((name) => !rowsByName.has(tagNameKey(name)));
+  }
+
+  const rows = requestedNames.map((name) => rowsByName.get(tagNameKey(name))!);
+  await tx
+    .update(tags)
+    .set({ isActive: true, updatedAt: now })
+    .where(inArray(tags.id, rows.map((row) => row.id)));
+  return rows;
 }
 
 async function ensureAuthor(tx: Tx, name: string, now: Date) {
