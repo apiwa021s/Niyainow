@@ -21,7 +21,7 @@ export function SectionHeader({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mb-2.5 flex h-8 items-center justify-between gap-3">
+    <div className="mb-2.5 flex min-h-8 items-center justify-between gap-3">
       <h2 className="flex min-w-0 items-start gap-1 text-h2 font-semibold">
         <span className="truncate">{title}</span>
         {typeof count === "number" && count > 0 ? (
@@ -40,7 +40,7 @@ export function SectionHeader({
            */
           <Link
             href={href}
-            className="-my-3 inline-flex items-center gap-0.5 py-3 text-sm font-semibold text-(--text-secondary) transition-colors hover:text-accent-base"
+            className="-my-3 inline-flex min-h-11 items-center gap-0.5 py-3 text-sm font-semibold text-(--text-secondary) transition-colors hover:text-accent-base"
           >
             {hrefLabel}
             <ChevronRight className="h-3.5 w-3.5" />

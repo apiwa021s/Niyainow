@@ -38,7 +38,7 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
   ];
   return (
     <div className="space-y-8">
-      <section className="grid gap-6 border-y border-border py-6 lg:grid-cols-[1fr_auto] lg:items-center">
+      <section className="grid gap-6 border-y border-border py-5 sm:py-6 lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="flex min-w-0 items-center gap-4">
           <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-muted text-[var(--brand-emphasis)]"><UserRound className="h-8 w-8" /></div>
           <div className="min-w-0">
@@ -47,9 +47,9 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
             <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />บัญชี Google · {user.role === "READER" ? "นักอ่าน" : user.role}</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <ButtonLink href="/settings" variant="secondary"><Settings className="h-4 w-4" />ตั้งค่า</ButtonLink>
-          <form action={signOutUser}><input type="hidden" name="callbackUrl" value="/" /><Button type="submit" variant="outline"><LogOut className="h-4 w-4" />ออกจากระบบ</Button></form>
+        <div className="grid gap-2 sm:flex sm:flex-wrap">
+          <ButtonLink href="/settings" variant="secondary" className="w-full sm:w-auto"><Settings className="h-4 w-4" />ตั้งค่า</ButtonLink>
+          <form action={signOutUser} className="sm:w-auto"><input type="hidden" name="callbackUrl" value="/" /><Button type="submit" variant="outline" className="w-full sm:w-auto"><LogOut className="h-4 w-4" />ออกจากระบบ</Button></form>
         </div>
       </section>
 
@@ -65,7 +65,7 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
               <li key={item.label} className={cn("min-w-0", index < 2 && "sm:border-b sm:border-border", index % 2 === 0 && "sm:border-r sm:border-border")}>
                 <ButtonLink href={item.href} variant="ghost" className="h-auto min-h-16 w-full justify-start rounded-none px-3 py-3 text-left">
                   <Icon className="h-5 w-5 shrink-0 text-[var(--brand-emphasis)]" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+                  <span className="min-w-0 flex-1 whitespace-normal font-medium">{item.label}</span>
                   <span className="tabular shrink-0 text-sm font-semibold text-muted-foreground">{item.value.toLocaleString("th-TH")} เรื่อง</span>
                 </ButtonLink>
               </li>
@@ -143,12 +143,12 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
 }
 
 function SettingsSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-  return <section className="grid gap-5 py-6 lg:grid-cols-[240px_1fr]"><div><h2 className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p></div><div>{children}</div></section>;
+  return <section className="grid gap-5 py-5 sm:py-6 lg:grid-cols-[240px_1fr]"><div><h2 className="text-h2 font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p></div><div>{children}</div></section>;
 }
 
 export function NotificationsPanel({ followingCount }: { followingCount: number }) {
   return (
-    <section className="flex gap-4 border-y border-border py-6">
+    <section className="flex gap-4 border-y border-border py-5 sm:py-6">
       <BellOff className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
       <div>
         <h2 className="text-xl font-semibold">ยังไม่เปิดส่งการแจ้งเตือน</h2>

@@ -116,13 +116,13 @@ export function SearchResults({
 
   return (
     <section className="space-y-6">
-      <header className="border-b border-border pb-5">
+      <header className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">ค้นจากทั้งคลัง</p>
-        <h1 className="mt-1 text-3xl font-semibold">ค้นหานิยาย</h1>
+        <h1 className="mt-1 text-h1 font-semibold sm:text-display">ค้นหานิยาย</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">ค้นจากชื่อไทย ชื่อต้นฉบับ ชื่ออื่น ผู้แต่ง ผู้แปล หมวดหมู่ และแท็ก</p>
       </header>
 
-      <form action="/search" onSubmit={onSubmit} className="flex gap-2">
+      <form action="/search" onSubmit={onSubmit} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
         <Input name="q" value={q} onChange={(event) => setQ(event.target.value)} placeholder="ชื่อเรื่อง ผู้แต่ง ผู้แปล หรือหมวดหมู่" aria-label="ค้นหาจากชื่อเรื่อง ชื่ออื่น ผู้แต่ง ผู้แปล หมวดหมู่ หรือแท็ก" className="h-12" maxLength={100} minLength={2} />
         {(["genre", "tag", "status", "rating", "chapters", "updated", "content", "sort"] as const).map((key) => (
           filterQuery[key] ? <input key={key} type="hidden" name={key} value={String(filterQuery[key])} /> : null
@@ -148,7 +148,7 @@ export function SearchResults({
         <>
           {novelFilters}
 
-          <div role="group" className="flex gap-2 overflow-x-auto" aria-label="กรองประเภทผลการค้นหา">
+          <div role="group" className="rail-scroll -mx-3 flex gap-2 px-3 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="กรองประเภทผลการค้นหา">
             {tabs.map(([value, label, count]) => (
               <Button key={value} type="button" aria-pressed={tab === value} variant={tab === value ? "default" : "secondary"} onClick={() => setTab(value)}>
                 {label}<span className="tabular text-xs opacity-70">{count.toLocaleString("th-TH")}</span>

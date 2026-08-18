@@ -42,7 +42,7 @@ export function MobileBottomNav() {
         aria-label="เมนูหลักบนมือถือ"
         className="border-t border-border bg-[var(--bg-base)] pb-[env(safe-area-inset-bottom)]"
       >
-        <ul className="grid h-14 grid-cols-5">
+        <ul className="grid h-16 grid-cols-5">
           {nav.map((item) => {
             const active = item.match(pathname);
             const Icon = item.icon;
@@ -52,12 +52,12 @@ export function MobileBottomNav() {
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex h-full flex-col items-center justify-center gap-0.5 transition-colors",
+                    "relative flex h-full min-w-0 flex-col items-center justify-center gap-1 px-1 transition-colors",
                     active ? "text-accent-base" : "text-(--text-tertiary) hover:text-(--text-primary)",
                   )}
                 >
-                  <Icon aria-hidden className="h-[19px] w-[19px]" strokeWidth={active ? 2.3 : 1.8} />
-                  <span className={cn("text-xs leading-none", active && "font-semibold")}>{item.label}</span>
+                  <Icon aria-hidden className="h-5 w-5 shrink-0" strokeWidth={active ? 2.3 : 1.8} />
+                  <span className={cn("max-w-full truncate text-[11px] leading-none", active && "font-semibold")}>{item.label}</span>
                 </Link>
               </li>
             );

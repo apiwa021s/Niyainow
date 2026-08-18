@@ -74,9 +74,9 @@ export default async function GenreDetailPage({
         },
       }} />
 
-      <header className="border-y border-border py-8 sm:py-10">
+      <header className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">โลกและอารมณ์ของเรื่อง</p>
-        <h1 className="mt-2 max-w-3xl text-4xl font-semibold sm:text-5xl">นิยาย{genre.thaiName}</h1>
+        <h1 className="mt-1 max-w-3xl text-h1 font-semibold sm:text-display">นิยาย{genre.thaiName}</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
           {genre.description || `สำรวจเรื่องในหมวด${genre.thaiName} ตั้งแต่เรื่องยอดนิยมจนถึงเรื่องที่เพิ่งอัปเดต`}
         </p>

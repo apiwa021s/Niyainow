@@ -43,7 +43,7 @@ export function NovelHero({
   const status = statusMeta(novel.status);
 
   return (
-    <header className="relative overflow-hidden border-y border-border py-6 sm:py-8 lg:py-10">
+    <header className="relative overflow-hidden border-y border-border py-5 sm:py-8 lg:py-10">
       <div aria-hidden className="absolute inset-y-0 right-0 hidden w-[38%] overflow-hidden opacity-[0.08] xl:block">
         <Image src={novel.backdrop} alt="" fill sizes="560px" className="object-cover object-center" />
       </div>
@@ -79,7 +79,7 @@ export function NovelHero({
           </div>
 
           <p className="editorial-kicker mt-4">NOVEL / เรื่องอ่าน</p>
-          <h1 className="mt-1 text-balance text-3xl font-semibold leading-[1.25] sm:text-4xl xl:text-5xl">
+          <h1 className="mt-1 text-balance text-h1 font-semibold leading-[1.25] sm:text-4xl xl:text-5xl">
             {novel.thaiTitle}
           </h1>
           {novel.title !== novel.thaiTitle ? (
@@ -140,7 +140,7 @@ export function NovelSignals({ novel }: { novel: Novel }) {
         <p className="text-xs text-muted-foreground">จำนวนตอน</p>
         <p className="tabular mt-0.5 text-2xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
       </div>
-      <dl className="flex flex-wrap gap-x-7 gap-y-3 text-sm">
+      <dl className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm sm:flex sm:flex-wrap sm:gap-x-7">
         <Signal label="คะแนนผู้อ่าน" value={(novel.ratingCount ?? 0) > 0 ? `${novel.rating.toFixed(1)} / 5` : "ยังไม่มีคะแนน"} />
         <Signal label="ยอดอ่าน" value={`${formatNumber(novel.views)} ครั้ง`} />
         <Signal label="อยู่ในคลัง" value={`${formatNumber(novel.bookmarkCount ?? 0)} คน`} />

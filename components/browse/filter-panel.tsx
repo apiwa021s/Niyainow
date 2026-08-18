@@ -51,7 +51,7 @@ const CONTENT_OPTIONS: { value: ContentFilter; label: string }[] = [
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <fieldset className="border-0 p-0">
-      <legend className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">{label}</legend>
+      <legend className="mb-2 text-xs font-semibold text-muted-foreground">{label}</legend>
       {children}
     </fieldset>
   );
@@ -75,14 +75,14 @@ function OptionChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex min-h-11 items-center gap-1.5 rounded-[6px] border px-3 py-2 text-xs font-medium transition-colors",
+        "flex min-h-10 items-center gap-1.5 rounded-full border px-3 py-2 text-left text-xs font-medium transition-colors sm:min-h-11",
         active
           ? "border-[var(--brand-emphasis)] bg-[var(--brand-primary)]/12 text-[var(--brand-light-on-light)]"
           : "border-border bg-card hover:bg-muted"
       )}
     >
       {children}
-      {typeof count === "number" ? <span className="tabular text-[10px] opacity-60">({count})</span> : null}
+      {typeof count === "number" ? <span className="tabular shrink-0 text-[10px] opacity-60">({count})</span> : null}
     </button>
   );
 }

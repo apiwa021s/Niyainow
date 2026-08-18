@@ -144,17 +144,17 @@ export function NovelBrowser({
   const Heading = headingLevel;
 
   return (
-    <section className="min-w-0">
-      <div className="border-b border-border pb-5">
+    <section className="min-w-0 space-y-6">
+      <div className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">สำรวจคลังนิยาย</p>
-        <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <Heading className="text-3xl font-semibold">{title}</Heading>
-            <p className="tabular mt-1 text-sm text-muted-foreground">
+        <div className="mt-1 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="min-w-0">
+            <Heading className="text-h1 font-semibold sm:text-display">{title}</Heading>
+            <p className="tabular mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               {description ?? `${pagination.total.toLocaleString("th-TH")} เรื่อง${hasFilters ? " ที่ตรงกับตัวกรอง" : " ในคลัง"}`}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(132px,168px)] gap-2 sm:flex sm:items-center">
             <button
               ref={triggerRef}
               type="button"
@@ -162,14 +162,14 @@ export function NovelBrowser({
               aria-haspopup="dialog"
               aria-expanded={sheetOpen}
               aria-controls="browse-filter-dialog"
-              className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-border bg-card px-3 text-sm font-semibold hover:bg-muted"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-border bg-card px-3 text-sm font-semibold hover:bg-muted sm:w-auto"
             >
               <SlidersHorizontal className="h-4 w-4" /> ตัวกรอง
               {activeChips.length ? <span className="tabular rounded-full bg-[var(--brand-primary)] px-1.5 text-[11px] text-white">{activeChips.length}</span> : null}
             </button>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="min-w-0 text-sm sm:flex sm:items-center sm:gap-2">
               <span className="sr-only sm:not-sr-only sm:text-muted-foreground">เรียงตาม</span>
-              <Select value={query.sort ?? "popular"} onChange={(event) => update({ ...query, sort: event.target.value as NovelSort })} className="h-11">
+              <Select value={query.sort ?? "popular"} onChange={(event) => update({ ...query, sort: event.target.value as NovelSort })} className="h-11 min-w-0">
                 {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </Select>
             </label>
@@ -177,18 +177,18 @@ export function NovelBrowser({
         </div>
 
         {activeChips.length ? (
-          <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          <div className="rail-scroll -mx-3 mt-4 flex items-center gap-1.5 px-3 sm:mx-0 sm:flex-wrap sm:px-0">
             {activeChips.map((chip) => (
-              <button key={chip.key} type="button" onClick={chip.remove} className="flex min-h-11 items-center gap-1 rounded-[8px] bg-[var(--brand-primary)]/12 px-3 py-1 text-xs font-medium text-[var(--brand-emphasis)]">
+              <button key={chip.key} type="button" onClick={chip.remove} className="flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-[var(--brand-primary)]/12 px-3 py-1 text-xs font-medium text-[var(--brand-emphasis)] sm:min-h-11">
                 {chip.label}<X className="h-3 w-3" aria-hidden /><span className="sr-only">เอาตัวกรอง {chip.label} ออก</span>
               </button>
             ))}
-            <button type="button" onClick={clearAll} className="ml-1 min-h-11 px-2 text-xs font-semibold text-muted-foreground hover:underline">ล้างทั้งหมด</button>
+            <button type="button" onClick={clearAll} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-muted-foreground hover:underline sm:min-h-11">ล้างทั้งหมด</button>
           </div>
         ) : null}
       </div>
 
-      <div className="mt-6" aria-busy={isPending} aria-live="polite">
+      <div className="scroll-mt-24" aria-busy={isPending} aria-live="polite">
         {isPending ? <NovelGridSkeleton count={12} /> : hasResults ? results : <EmptyResults onClear={clearAll} suggestions={emptySuggestions} hasSuggestions={hasSuggestions} />}
       </div>
 
@@ -209,7 +209,7 @@ export function NovelBrowser({
       {sheetOpen ? (
         <div className="fixed inset-0 z-50">
           <button type="button" className="absolute inset-0 h-full w-full bg-black/50" onClick={() => setSheetOpen(false)} aria-label="ปิดตัวกรอง" />
-          <div id="browse-filter-dialog" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="browse-filter-title" className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[12px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border">
+          <div id="browse-filter-dialog" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="browse-filter-title" className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[14px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border">
             <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border sm:hidden" />
             <div className="mb-4 flex items-center justify-between gap-2">
               <div><h2 id="browse-filter-title" className="text-xl font-semibold">ตัวกรอง</h2><p className="text-xs text-muted-foreground">เลือกเท่าที่จำเป็นเพื่อจำกัดผลลัพธ์</p></div>

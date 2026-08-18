@@ -65,13 +65,13 @@ export default async function TagsPage({ searchParams }: { searchParams: Promise
 
   return (
     <PageShell className="space-y-10 lg:space-y-14">
-      <header className="grid gap-5 border-b border-border pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] lg:items-end">
+      <header className="grid gap-5 border-y border-border py-5 sm:py-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] lg:items-end">
         <div>
           <p className="editorial-kicker">ค้นจากองค์ประกอบของเรื่อง</p>
-          <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">แท็กนิยาย</h1>
+          <h1 className="mt-1 text-h1 font-semibold sm:text-display">แท็กนิยาย</h1>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">เจาะจงเส้นเรื่อง ตัวละคร หรือบรรยากาศที่อยากอ่าน แล้วเปิดดูนิยายที่ใช้แท็กนั้น</p>
         </div>
-        <form action="/tags" className="flex gap-2">
+        <form action="/tags" className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
           <Input
             name="q"
             defaultValue={query}

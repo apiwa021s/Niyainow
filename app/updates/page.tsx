@@ -37,14 +37,14 @@ export default async function UpdatesPage({ searchParams }: { searchParams: Prom
 
   return (
     <PageShell className="space-y-6">
-      <header className="border-b border-border pb-5">
+      <header className="border-y border-border py-5 sm:py-6">
         <p className="editorial-kicker">ตามจังหวะการเผยแพร่</p>
-        <h1 className="mt-1 text-3xl font-semibold">อัปเดตล่าสุด</h1>
+        <h1 className="mt-1 text-h1 font-semibold sm:text-display">อัปเดตล่าสุด</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">ตอนใหม่จากทุกเรื่อง เรียงตามเวลาที่เผยแพร่จริง</p>
       </header>
 
       <div className="flex flex-wrap items-start gap-2">
-        <nav aria-label="ช่วงเวลาอัปเดต" className="flex max-w-full gap-2 overflow-x-auto">
+        <nav aria-label="ช่วงเวลาอัปเดต" className="rail-scroll -mx-3 flex max-w-full gap-2 px-3 sm:mx-0 sm:px-0">
           {ranges.map((option) => <ButtonLink key={option.value} href={updatesHref({ range: option.value, genre }, activeGenreSlugs)} variant={range === option.value ? "default" : "outline"}>{option.label}</ButtonLink>)}
         </nav>
         <details className="group relative">

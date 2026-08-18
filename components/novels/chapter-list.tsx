@@ -57,7 +57,7 @@ export function ChapterList({
 
   return (
     <section aria-label="รายชื่อตอน" className="overflow-hidden rounded-[8px] border border-border bg-card">
-      <div className="grid gap-3 border-b border-border p-4 lg:grid-cols-[minmax(0,1fr)_180px]">
+      <div className="grid gap-3 border-b border-border p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_180px]">
         <form action={action} method="get" role="search" className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px_96px]">
           <label className="relative">
             <span className="sr-only">ค้นหาตอนจากสารบัญทั้งหมด</span>
@@ -94,7 +94,7 @@ export function ChapterList({
       </div>
 
       {rangeCount > 1 ? (
-        <form action={action} method="get" className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-4 py-3">
+        <form action={action} method="get" className="grid gap-2 border-b border-border bg-muted/30 px-3 py-3 sm:flex sm:flex-wrap sm:items-center sm:px-4">
           <label htmlFor="chapter-range" className="text-xs font-semibold text-muted-foreground">ช่วงตอน</label>
           <select id="chapter-range" name="from" defaultValue={catalog.rangeStart ?? 0} className="h-11 min-w-44 rounded-[8px] border border-input bg-background px-3 text-sm">
             <option value="0">ทุกตอน</option>

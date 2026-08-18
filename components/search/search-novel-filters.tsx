@@ -201,20 +201,20 @@ export function SearchNovelFilters({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="search-filter-dialog"
-        className="flex h-12 w-full items-center justify-between rounded-[8px] border border-border px-4 text-sm font-semibold md:hidden"
+        className="flex h-12 w-full items-center justify-between rounded-[8px] border border-border bg-card px-4 text-sm font-semibold md:hidden"
       >
         <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />กรองนิยาย</span>
         <span className="tabular text-xs text-muted-foreground">{total.toLocaleString("th-TH")} เรื่อง</span>
       </button>
 
       {chips.length ? (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="rail-scroll -mx-3 mt-3 flex items-center gap-1.5 px-3 md:mx-0 md:flex-wrap md:px-0">
           {chips.map((chip) => (
-            <button key={chip.key} type="button" onClick={chip.remove} className="inline-flex min-h-11 items-center gap-1 rounded-[6px] bg-[var(--brand-primary)]/10 px-3 text-xs font-medium text-[var(--brand-emphasis)]">
+            <button key={chip.key} type="button" onClick={chip.remove} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-[var(--brand-primary)]/10 px-3 text-xs font-medium text-[var(--brand-emphasis)] md:min-h-11">
               {chip.label}<X className="h-3.5 w-3.5" /><span className="sr-only">นำตัวกรอง {chip.label} ออก</span>
             </button>
           ))}
-          <button type="button" onClick={clearFilters} className="min-h-11 px-2 text-xs font-semibold text-muted-foreground hover:underline">ล้างตัวกรอง</button>
+          <button type="button" onClick={clearFilters} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-muted-foreground hover:underline md:min-h-11">ล้างตัวกรอง</button>
         </div>
       ) : null}
 

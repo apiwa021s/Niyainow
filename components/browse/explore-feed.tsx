@@ -39,10 +39,10 @@ export function ExploreFeed({
 
   return (
     <PageShell className="space-y-14 lg:space-y-20">
-      <header className="grid gap-6 border-y border-border py-8 sm:py-10 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-end">
+      <header className="grid gap-6 border-y border-border py-5 sm:py-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-end">
         <div className="max-w-3xl">
           <p className="editorial-kicker">DISCOVERY / EXPLORE</p>
-          <h1 className="mt-2 text-3xl font-semibold sm:text-4xl lg:text-5xl">วันนี้อยากอ่านอะไรต่อ</h1>
+          <h1 className="mt-1 text-h1 font-semibold sm:text-display">วันนี้อยากอ่านอะไรต่อ</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
             เริ่มจากเรื่องที่กำลังถูกอ่าน แนวที่ชอบ หรือจังหวะการอ่านที่ต้องการ แล้วค่อยลงลึกในคลังด้วยตัวกรอง
           </p>
