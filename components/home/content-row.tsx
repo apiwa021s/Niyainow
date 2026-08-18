@@ -66,7 +66,7 @@ export function ContentRow({
   };
 
   return (
-    <section className={cn("flex flex-col gap-3", className)} aria-label={title}>
+    <section className={cn("flex flex-col gap-2.5", className)} aria-label={title}>
       <SectionHeader
         title={title}
         href={href}
@@ -96,14 +96,14 @@ export function ContentRow({
         }
       />
 
-      {description ? <p className="-mt-1 line-clamp-1 text-sm text-(--text-secondary)">{description}</p> : null}
+      {description ? <p className="-mt-1 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}
 
       {/*
        * The bleed must match the page gutter exactly. It used to pull -16px
        * against a 12px gutter, which pushed 4px past the viewport on each side
        * and let the whole page scroll sideways on a phone.
        */}
-      <div ref={trackRef} className="rail-scroll -mx-3 flex snap-x snap-mandatory gap-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0">
+      <div ref={trackRef} className="rail-scroll -mx-3 flex snap-x snap-mandatory gap-2.5 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0">
         {children}
         {/* ตัวเว้นท้ายแถว ให้การ์ดสุดท้ายไม่ชิดขอบจอ */}
         <span aria-hidden className="w-1 shrink-0" />

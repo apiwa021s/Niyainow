@@ -15,8 +15,8 @@ export function TrendingTicker({ novels }: { novels: Novel[] }) {
   if (novels.length === 0) return null;
 
   return (
-    <section aria-label="เรื่องที่มีผู้อ่านมากที่สุดสัปดาห์นี้" className="rounded-(--r-lg) border border-border bg-surface p-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
+    <section aria-label="เรื่องที่มีผู้อ่านมากที่สุดสัปดาห์นี้" className="rounded-(--r-lg) border border-border bg-surface p-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-3">
         <p className="flex min-w-0 items-center gap-2 text-sm font-semibold">
           <Trophy className="h-4 w-4 shrink-0 text-accent-base" aria-hidden />
           <span className="truncate">กำลังมาแรงสัปดาห์นี้</span>
@@ -39,22 +39,22 @@ export function TrendingTicker({ novels }: { novels: Novel[] }) {
             <Link
               href={`/novel/${novel.slug}`}
               aria-label={`อันดับ ${index + 1} ${novel.thaiTitle} — ${formatNumber(novel.views)} ครั้ง`}
-              className="group grid w-[184px] grid-cols-[44px_minmax(0,1fr)] gap-2 rounded-(--r-md) border border-border bg-card p-2 transition-colors hover:border-accent-base hover:bg-surface-subtle"
+              className="group grid w-[154px] grid-cols-[38px_minmax(0,1fr)] gap-2 rounded-(--r-md) border border-border bg-card p-1.5 transition-colors hover:border-accent-base hover:bg-surface-subtle"
             >
-              <span className="relative aspect-2/3 w-11 overflow-hidden rounded-(--r-sm) bg-surface-recessed ring-1 ring-border">
-                <Image src={novel.cover} alt="" fill sizes="56px" className="object-cover" />
+              <span className="relative aspect-2/3 w-[38px] overflow-hidden rounded-(--r-sm) bg-surface-recessed ring-1 ring-border">
+                <Image src={novel.cover} alt="" fill sizes="38px" className="object-cover" />
                 <span
                   aria-hidden
-                  className="tabular absolute left-0 top-0 rounded-br-(--r-sm) bg-black/70 px-1 text-xs font-semibold leading-[1.4] text-white"
+                  className="tabular absolute left-0 top-0 rounded-br-(--r-sm) bg-black/70 px-1 text-[10px] font-semibold leading-[1.35] text-white"
                 >
                   {index + 1}
                 </span>
               </span>
               <span aria-hidden className="min-w-0 self-center">
-                <span className="block truncate text-sm font-semibold transition-colors group-hover:text-accent-base">
+                <span className="block truncate text-xs font-semibold transition-colors group-hover:text-accent-base">
                   {novel.thaiTitle}
                 </span>
-                <span className="tabular mt-0.5 block text-xs text-(--text-secondary)">
+                <span className="tabular mt-0.5 block text-[11px] text-(--text-secondary)">
                   {formatNumber(novel.views)} ครั้ง
                 </span>
               </span>

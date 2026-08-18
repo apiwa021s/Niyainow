@@ -29,19 +29,19 @@ async function getHomeAccountData() {
 
   const personalization = await getHomePersonalization(currentUser.id);
   const followedUpdates = personalization.followedNovelSlugs.length
-    ? await getUpdatesForNovels(personalization.followedNovelSlugs, 8)
+    ? await getUpdatesForNovels(personalization.followedNovelSlugs, 10)
     : [];
   return { personalization, followedUpdates };
 }
 
 export default async function HomePage() {
   const [newThisWeek, recommended, completed, rankings, updates, genreShowcase, banners, featured, account] = await Promise.all([
-    getNewThisWeek(12),
-    getRecommendedNovels(12),
-    getCompletedNovels(12),
-    getRankings("WEEKLY", 12),
-    getUpdates("all", undefined, 12),
-    getGenreShowcase(8),
+    getNewThisWeek(18),
+    getRecommendedNovels(18),
+    getCompletedNovels(18),
+    getRankings("WEEKLY", 18),
+    getUpdates("all", undefined, 18),
+    getGenreShowcase(10),
     getActiveBanners(),
     getFeaturedNovels(1),
     getHomeAccountData(),
