@@ -8,19 +8,28 @@ export default function ChaptersLoading() {
         <Skeleton className="h-9 w-48" />
         <Skeleton className="h-4 w-64" />
       </div>
-      <div className="grid gap-3 border-y border-border py-4 sm:grid-cols-[minmax(0,1fr)_170px_96px]">
-        <Skeleton className="h-11 w-full" />
-        <Skeleton className="h-11 w-full" />
-        <Skeleton className="h-11 w-full" />
+      <div className="flex gap-2">
+        <Skeleton className="h-11 min-w-0 flex-1" />
+        <Skeleton className="h-11 w-11 shrink-0" />
       </div>
-      <div className="divide-y divide-border border-y border-border">
-        {[1, 2, 3, 4, 5, 6].map((item) => (
-          <div key={item} className="grid min-h-16 grid-cols-[72px_1fr] items-center gap-4 py-3 sm:grid-cols-[112px_1fr_120px]">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-5 w-[min(100%,32rem)]" />
-            <Skeleton className="hidden h-4 w-20 sm:block" />
+      <div className="overflow-hidden rounded-(--r-lg) border border-border">
+        {[1, 2, 3].map((item) => (
+          <div key={item} className="flex min-h-15 items-center justify-between border-b border-border bg-surface-subtle px-4 last:border-b-0 sm:px-5">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-5 w-5" />
           </div>
         ))}
+        <div className="divide-y divide-border border-t border-border">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="flex min-h-24 items-start justify-between gap-4 px-4 py-4 sm:px-5">
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-5 w-[min(100%,32rem)]" />
+                <Skeleton className="mt-3 h-4 w-36" />
+              </div>
+              <Skeleton className="h-5 w-12" />
+            </div>
+          ))}
+        </div>
       </div>
     </PageShell>
   );

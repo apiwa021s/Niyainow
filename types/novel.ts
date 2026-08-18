@@ -57,6 +57,7 @@ export type Chapter = {
   title: string;
   body: string[];
   updatedAt: string;
+  publishedAt?: string;
   wordCount?: number;
   /** ตอนที่ยังไม่เปิดเนื้อหาเต็มแก่สาธารณะ */
   locked?: boolean;

@@ -1568,6 +1568,7 @@ function chapterSummaryFromRow(row: {
     sortOrder: row.sortOrder,
     title: row.title,
     updatedAt: formatThaiDate(row.publishedAt),
+    publishedAt: row.publishedAt?.toISOString(),
     wordCount: row.wordCount,
     locked: !row.isFree,
     coinPrice: row.coinPrice,
@@ -1656,7 +1657,7 @@ export async function getChapterCatalogPage(
   const rangeEnd = rangeStart !== null
     ? Number.isSafeInteger(options.rangeEnd) && Number(options.rangeEnd) >= rangeStart
       ? Math.min(Number(options.rangeEnd), 100_000_000)
-      : Math.min(rangeStart + 99, 100_000_000)
+      : Math.min(rangeStart + CHAPTER_PAGE_SIZE - 1, 100_000_000)
     : null;
   const jumpChapter = typeof options.jumpChapter === "number" && Number.isFinite(options.jumpChapter) && options.jumpChapter >= 0
     ? options.jumpChapter
