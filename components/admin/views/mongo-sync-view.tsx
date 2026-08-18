@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Coins, Database, Play, RefreshCw, Search, Square, Timer } from "lucide-react";
+import { AlertCircle, CheckCircle2, Coins, Database, Play, RefreshCw, Search, Square, Timer, Wrench } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminPageHeader, DetailRow, Panel, StatCard } from "@/components/admin/admin-ui";
@@ -36,6 +36,13 @@ type SyncStatus = {
     chapterOffset: number;
     sweepUntil: string | null;
   };
+  repair: {
+    active: boolean;
+    completedAt: string | null;
+    afterBookId: string | null;
+    currentBookId: string | null;
+    chapterOffset: number;
+  };
   postgres: {
     novels: number;
     publishedNovels: number;
@@ -48,6 +55,7 @@ type SyncStatus = {
         configured: true;
         targetBooks: number;
         backfillProcessedBooks: number | null;
+        repairProcessedBooks: number | null;
         nextBackfillBook: {
           bookId: string;
           bookName: string;
@@ -107,6 +115,14 @@ const commandConfig = {
     maxRuntimeSeconds: 240,
     skipImages: false,
   },
+  repair: {
+    execute: true,
+    mode: "repair",
+    limit: 1,
+    chapterLimit: 100,
+    maxRuntimeSeconds: 240,
+    skipImages: true,
+  },
 } as const;
 
 function formatNumber(value: number | null | undefined) {
@@ -129,6 +145,11 @@ function summaryValue(summary: Partial<SyncSummary> | null | undefined, key: key
 function successMessage(result: SyncSummary | undefined) {
   if (!result) return "คำสั่ง sync จบแล้ว";
   if (result.dryRun) return "Dry run เสร็จแล้ว ยังไม่ได้บันทึกข้อมูลจริง";
+  if (result.repairComplete) {
+    return result.skippedChapters > 0
+      ? `Repair sweep ครบแล้ว แต่ยังมี ${formatNumber(result.skippedChapters)} ตอนที่เนื้อหาว่างหรือเกินขีดจำกัด`
+      : `Repair ตอนที่ขาดครบแล้ว นำเข้าเพิ่ม ${formatNumber(result.importedChapters)} ตอน`;
+  }
   if (result.backfillComplete) return "Sync ทั้งหมดครบแล้ว";
   if (result.mode === "incremental" && !result.incrementalDue && result.selectedBooks === 0) {
     return "ข้อมูลเป็นปัจจุบันแล้ว ยังไม่มี incremental sync ที่ถึงกำหนด";
@@ -263,7 +284,7 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
     }
   };
 
-  const executeContinuous = async (command: "auto" | "incremental") => {
+  const executeContinuous = async (command: "auto" | "incremental" | "repair") => {
     if (operationRef.current) return;
     operationRef.current = command;
     stopRequestedRef.current = false;
@@ -272,7 +293,9 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
     setMessage(
       command === "auto"
         ? "กำลังเริ่ม Auto sync — กรุณาเปิดหน้านี้ไว้ ระบบจะทำต่อทีละ batch"
-        : "กำลัง sync ตอนใหม่ — ระบบจะทำต่อทีละ batch จน sweep นี้ครบ",
+        : command === "repair"
+          ? "กำลังตรวจและเติมตอนที่ขาด — ระบบจะสแกนทุกเรื่องต่อทีละ batch โดยไม่เขียนทับตอนที่มีอยู่แล้ว"
+          : "กำลัง sync ตอนใหม่ — ระบบจะทำต่อทีละ batch จน sweep นี้ครบ",
     );
 
     const controller = new AbortController();
@@ -362,6 +385,7 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
 
   const backfillTone = status.backfill.completed ? "success" : status.backfill.currentBookId ? "warning" : "info";
   const incrementalTone = status.incremental.active ? "warning" : status.incremental.dueNow ? "brand" : "neutral";
+  const repairTone = status.repair.active ? "warning" : status.repair.completedAt ? "success" : "neutral";
 
   return (
     <>
@@ -378,6 +402,23 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
               <Search className="h-4 w-4" />
               Dry run
             </Button>
+            {busy === "repair" ? (
+              <Button type="button" variant="outline" onClick={stopContinuous}>
+                <Square className="h-4 w-4" />
+                หยุด repair หลัง batch นี้
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => executeContinuous("repair")}
+                disabled={busy !== null || !status.backfill.completed}
+                title={!status.backfill.completed ? "ทำ initial sync ให้ครบก่อน" : "สแกนทุกเรื่องและเติมเฉพาะเลขตอนที่ขาด"}
+              >
+                <Wrench className="h-4 w-4" />
+                Repair missing chapters
+              </Button>
+            )}
             {busy === "auto" ? (
               <Button type="button" onClick={stopContinuous}>
                 <Square className="h-4 w-4" />
@@ -450,6 +491,10 @@ export function MongoSyncView({ initialStatus }: { initialStatus: SyncStatus }) 
             <DetailRow label="Worker"><StatusPill label={status.job?.running ? "Running" : "Idle"} tone={status.job?.running ? "warning" : "neutral"} /></DetailRow>
             <DetailRow label="Incremental"><StatusPill label={status.incremental.active ? "Active" : status.incremental.dueNow ? "Due now" : "Idle"} tone={incrementalTone} /></DetailRow>
             <DetailRow label="Last sweep">{formatDate(status.incremental.lastSweepCompletedAt)}</DetailRow>
+            <DetailRow label="Repair"><StatusPill label={status.repair.active ? "Active" : status.repair.completedAt ? "Complete" : "Idle"} tone={repairTone} /></DetailRow>
+            <DetailRow label="Repair progress">{status.mongo.configured ? `${formatNumber(status.mongo.repairProcessedBooks)} / ${formatNumber(status.mongo.targetBooks)}` : "Mongo unavailable"}</DetailRow>
+            <DetailRow label="Repair current book">{status.repair.currentBookId ?? "-"}</DetailRow>
+            <DetailRow label="Repair chapter offset">{formatNumber(status.repair.chapterOffset)}</DetailRow>
           </dl>
         </Panel>
 

@@ -38,7 +38,10 @@ const MAX_CHAPTER_LIMIT = 1_000;
 const DEFAULT_MAX_RUNTIME_SECONDS = 600;
 const MAX_RUNTIME_SECONDS = 1_500;
 const RUNTIME_STOP_BUFFER_MS = 30_000;
-const MAX_CHAPTER_UTF8_BYTES = 4 * 1024 * 1024;
+// Mongo stores each chapter in a regular BSON document, whose hard limit is
+// 16 MiB. PostgreSQL `text` can store the normalized result, so accepting up to
+// the source document limit avoids dropping valid large chapters.
+const MAX_CHAPTER_UTF8_BYTES = 16 * 1024 * 1024;
 const TEXT_BUILDER_CHUNK_CHARACTERS = 8 * 1024;
 const TAG_SLUG_MAX_LENGTH = 120;
 const MAX_TAG_SLUG_ATTEMPTS = 10_000;
@@ -97,7 +100,7 @@ type MongoTag = {
   isActive?: boolean;
 };
 
-type ImportMode = "auto" | "backfill" | "incremental";
+type ImportMode = "auto" | "backfill" | "incremental" | "repair";
 
 type ImportOptions = {
   execute: boolean;
@@ -119,6 +122,14 @@ type IncrementalCursorState = {
   chapterOffset?: number;
 };
 
+type RepairCursorState = {
+  active: boolean;
+  completedAt?: string;
+  afterBookId?: string;
+  currentBookId?: string;
+  chapterOffset?: number;
+};
+
 type LastRunState = {
   at: string;
   mode: string;
@@ -132,6 +143,7 @@ type ImportCursorState = {
   chapterOffset?: number;
   backfillCompletedAt?: string;
   incremental?: IncrementalCursorState;
+  repair?: RepairCursorState;
   lastRun?: LastRunState;
 };
 
@@ -187,8 +199,8 @@ function stringArgument(name: string) {
 
 function parseMode(value: string | undefined): ImportMode {
   if (!value) return "auto";
-  if (value === "auto" || value === "backfill" || value === "incremental") return value;
-  throw new RangeError("mode must be auto, backfill, or incremental");
+  if (value === "auto" || value === "backfill" || value === "incremental" || value === "repair") return value;
+  throw new RangeError("mode must be auto, backfill, incremental, or repair");
 }
 
 function parseOptions(): ImportOptions {
@@ -229,6 +241,18 @@ function normalizeCursorState(value: unknown): ImportCursorState {
         : {}),
     };
   }
+  if (source.repair && typeof source.repair === "object") {
+    const repair = source.repair as Record<string, unknown>;
+    state.repair = {
+      active: repair.active === true,
+      ...(typeof repair.completedAt === "string" ? { completedAt: repair.completedAt } : {}),
+      ...(typeof repair.afterBookId === "string" ? { afterBookId: repair.afterBookId } : {}),
+      ...(typeof repair.currentBookId === "string" ? { currentBookId: repair.currentBookId } : {}),
+      ...(Number.isSafeInteger(repair.chapterOffset) && Number(repair.chapterOffset) >= 0
+        ? { chapterOffset: Number(repair.chapterOffset) }
+        : {}),
+    };
+  }
   if (source.lastRun && typeof source.lastRun === "object") {
     const lastRun = source.lastRun as Record<string, unknown>;
     if (typeof lastRun.at === "string" && typeof lastRun.mode === "string" && typeof lastRun.summary === "object") {
@@ -250,6 +274,7 @@ function normalizedStateValue(state: ImportCursorState) {
     ...(state.chapterOffset ? { chapterOffset: state.chapterOffset } : {}),
     ...(state.backfillCompletedAt ? { backfillCompletedAt: state.backfillCompletedAt } : {}),
     ...(state.incremental ? { incremental: state.incremental } : {}),
+    ...(state.repair ? { repair: state.repair } : {}),
     ...(state.lastRun ? { lastRun: state.lastRun } : {}),
   };
 }
@@ -536,6 +561,17 @@ async function loadIncrementalBook(
     ],
   };
   return collection.find(query).sort({ lastChapterUpdatedAt: 1, bookId: 1 }).limit(1).next();
+}
+
+async function loadRepairBook(collection: Collection<MongoBook>, repair: RepairCursorState) {
+  if (repair.currentBookId) {
+    const currentBook = await collection.findOne({ ...TRANSLATED_NOVEL_QUERY, bookId: repair.currentBookId });
+    if (currentBook) return currentBook;
+  }
+  const query: Filter<MongoBook> = repair.afterBookId
+    ? { ...TRANSLATED_NOVEL_QUERY, bookId: { $gt: repair.afterBookId } }
+    : TRANSLATED_NOVEL_QUERY;
+  return collection.find(query).sort({ bookId: 1 }).limit(1).next();
 }
 
 async function putCoverToR2(input: {
@@ -860,14 +896,24 @@ function orderMap(orderDoc: MongoChapterOrder | null) {
   return result;
 }
 
-export function normalizeImportedChapterContent(value: unknown):
+export function normalizeImportedChapterContent(value: unknown, maximumOutputBytes = MAX_CHAPTER_UTF8_BYTES):
   | { content: string; reason: null }
   | { content: null; reason: "empty" | "too_large" } {
   if (typeof value !== "string") return { content: null, reason: "empty" };
-  const normalized = htmlToText(value, MAX_CHAPTER_UTF8_BYTES);
+  const normalized = htmlToText(value, maximumOutputBytes);
   if (normalized.exceededLimit) return { content: null, reason: "too_large" };
   if (!normalized.text) return { content: null, reason: "empty" };
   return { content: normalized.text, reason: null };
+}
+
+export function missingImportedChapterNumbers(
+  chapterOffset: number,
+  sourceChapterCount: number,
+  existingChapterNumbers: readonly number[],
+) {
+  const existing = new Set(existingChapterNumbers);
+  return Array.from({ length: sourceChapterCount }, (_, index) => chapterOffset + index + 1)
+    .filter((chapterNumber) => !existing.has(chapterNumber));
 }
 
 async function loadSortedChapters(input: {
@@ -883,7 +929,7 @@ async function loadSortedChapters(input: {
       publishStatus: "published",
       isDelete: false,
       isVerified: true,
-    })
+    }, { projection: { chapterContent: 0 } })
     .toArray();
   return {
     ordered,
@@ -934,28 +980,68 @@ async function importChapterChunk(input: {
   novelId: string;
   book: MongoBook;
   sortedChapters: readonly MongoChapter[];
+  chaptersCollection: Collection<MongoChapter>;
   ordered: Map<string, { sortOrder: number; addedAt?: Date }>;
   chapterOffset: number;
   chapterLimit: number;
+  onlyMissing?: boolean;
   now: Date;
 }): Promise<ChapterImportResult> {
   const chunk = input.sortedChapters.slice(input.chapterOffset, input.chapterOffset + input.chapterLimit);
+  const entries = chunk.map((chapter, chunkIndex) => ({
+    chapter,
+    chapterNumber: input.chapterOffset + chunkIndex + 1,
+  }));
+  const existingRows = input.onlyMissing && entries.length > 0
+    ? await getDb()
+      .select({ chapterNumber: chapters.chapterNumber })
+      .from(chapters)
+      .where(and(
+        eq(chapters.novelId, input.novelId),
+        inArray(chapters.chapterNumber, entries.map((entry) => entry.chapterNumber)),
+      ))
+    : [];
+  const missingNumbers = input.onlyMissing
+    ? new Set(missingImportedChapterNumbers(
+      input.chapterOffset,
+      chunk.length,
+      existingRows.map((row) => row.chapterNumber),
+    ))
+    : null;
+  const pendingEntries = missingNumbers
+    ? entries.filter((entry) => missingNumbers.has(entry.chapterNumber))
+    : entries;
+  const contentRows = pendingEntries.length > 0
+    ? await input.chaptersCollection
+      .find(
+        {
+          bookId: input.book.bookId,
+          chapterId: { $in: pendingEntries.map((entry) => entry.chapter.chapterId) },
+          publishStatus: "published",
+          isDelete: false,
+          isVerified: true,
+        },
+        { projection: { chapterId: 1, chapterContent: 1 } },
+      )
+      .toArray()
+    : [];
+  const contentByChapterId = new Map(contentRows.map((chapter) => [chapter.chapterId, chapter.chapterContent]));
   let imported = 0;
   let paid = 0;
   let skipped = 0;
   let loggedOversizedChapter = false;
 
   await getDb().transaction(async (tx) => {
-    for (const [chunkIndex, chapter] of chunk.entries()) {
-      const sourceIndex = input.chapterOffset + chunkIndex;
-      const normalizedContent = normalizeImportedChapterContent(chapter.chapterContent);
+    for (const { chapter, chapterNumber } of pendingEntries) {
+      const chapterContent = contentByChapterId.get(chapter.chapterId);
+      const normalizedContent = normalizeImportedChapterContent(chapterContent);
       if (!normalizedContent.content) {
         if (normalizedContent.reason === "too_large" && !loggedOversizedChapter) {
           loggedOversizedChapter = true;
           logger.warn("Skipping oversized Mongo chapter during translated novel import", {
             sourceBookId: input.book.bookId,
             sourceChapterId: chapter.chapterId,
-            sourceCharacters: typeof chapter.chapterContent === "string" ? chapter.chapterContent.length : 0,
+            sourceCharacters: typeof chapterContent === "string" ? chapterContent.length : 0,
             maximumOutputBytes: MAX_CHAPTER_UTF8_BYTES,
           });
         }
@@ -963,7 +1049,6 @@ async function importChapterChunk(input: {
         continue;
       }
       const content = normalizedContent.content;
-      const chapterNumber = sourceIndex + 1;
       const access = mapImportedChapterAccess(chapter.chapterPrice);
       if (!access.isFree) paid += 1;
       const publishedAt = chapter.publishedAt ?? input.ordered.get(chapter.chapterId)?.addedAt ?? chapter.createdAt ?? input.now;
@@ -1037,6 +1122,7 @@ async function processBookChunk(input: {
   book: MongoBook;
   offset: number;
   options: ImportOptions;
+  repairOnlyMissing?: boolean;
   mongoGenreMap: Map<string, MongoTag>;
   chaptersCollection: Collection<MongoChapter>;
   orderCollection: Collection<MongoChapterOrder>;
@@ -1095,9 +1181,11 @@ async function processBookChunk(input: {
     novelId: novel.id,
     book: input.book,
     sortedChapters: sorted.chapters,
+    chaptersCollection: input.chaptersCollection,
     ordered: sorted.ordered,
     chapterOffset: input.offset,
     chapterLimit: input.options.chapterLimit,
+    onlyMissing: input.repairOnlyMissing,
     now: input.options.now,
   });
 
@@ -1109,7 +1197,7 @@ async function processBookChunk(input: {
   };
 }
 
-function createSummary(options: ImportOptions, mode: "backfill" | "incremental" | "idle") {
+function createSummary(options: ImportOptions, mode: "backfill" | "incremental" | "repair" | "idle") {
   return {
     dryRun: !options.execute,
     mode,
@@ -1125,6 +1213,7 @@ function createSummary(options: ImportOptions, mode: "backfill" | "incremental" 
     skippedCovers: 0,
     stoppedForRuntime: false,
     backfillComplete: false,
+    repairComplete: false,
     incrementalDue: false,
     nextAfterBookId: null as string | null,
     currentBookId: null as string | null,
@@ -1301,6 +1390,87 @@ async function runIncremental(input: {
   return summary;
 }
 
+function startRepairState(state: ImportCursorState) {
+  state.repair = { active: true };
+  return state.repair;
+}
+
+async function runRepair(input: {
+  state: ImportCursorState;
+  options: ImportOptions;
+  startedAt: number;
+  booksCollection: Collection<MongoBook>;
+  chaptersCollection: Collection<MongoChapter>;
+  orderCollection: Collection<MongoChapterOrder>;
+  mongoGenreMap: Map<string, MongoTag>;
+}) {
+  const summary = createSummary(input.options, "repair");
+  const repair = input.state.repair?.active
+    ? input.state.repair
+    : startRepairState(input.state);
+  let processedBooks = 0;
+
+  while (processedBooks < input.options.bookLimit) {
+    if (!hasRuntimeBudget(input.startedAt, input.options)) {
+      summary.stoppedForRuntime = true;
+      break;
+    }
+
+    const book = await loadRepairBook(input.booksCollection, repair);
+    if (!book) {
+      summary.repairComplete = true;
+      if (input.options.execute) {
+        repair.active = false;
+        repair.completedAt = input.options.now.toISOString();
+        delete repair.currentBookId;
+        delete repair.chapterOffset;
+        await saveCursorState(input.state, input.options.now);
+      }
+      break;
+    }
+
+    const offset = repair.currentBookId === book.bookId ? repair.chapterOffset ?? 0 : 0;
+    const output = await processBookChunk({
+      book,
+      offset,
+      options: input.options,
+      repairOnlyMissing: true,
+      mongoGenreMap: input.mongoGenreMap,
+      chaptersCollection: input.chaptersCollection,
+      orderCollection: input.orderCollection,
+    });
+
+    summary.selectedBooks += 1;
+    summary.importedChapters += output.result.imported;
+    summary.paidChapters += output.result.paid;
+    summary.skippedChapters += output.result.skipped;
+    summary.processedSourceChapters += output.result.processedSourceChapters;
+    summary.coverCandidates += output.coverCandidate ? 1 : 0;
+    summary.uploadedCovers += output.uploadedCover ? 1 : 0;
+    summary.skippedCovers += output.skippedCover ? 1 : 0;
+
+    if (output.result.complete) {
+      processedBooks += 1;
+      summary.completedBooks += 1;
+      summary.nextAfterBookId = book.bookId;
+      repair.afterBookId = book.bookId;
+      delete repair.currentBookId;
+      delete repair.chapterOffset;
+    } else {
+      summary.partialBooks += 1;
+      summary.currentBookId = book.bookId;
+      summary.currentChapterOffset = output.result.nextOffset;
+      repair.currentBookId = book.bookId;
+      repair.chapterOffset = output.result.nextOffset;
+    }
+
+    if (input.options.execute) await saveCursorState(input.state, input.options.now);
+    if (!output.result.complete) break;
+  }
+
+  return summary;
+}
+
 function assertImageConfiguration(options: ImportOptions) {
   if (!options.execute || !options.uploadImages) return;
   requireR2Env();
@@ -1325,6 +1495,7 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
         configured: true;
         targetBooks: number;
         backfillProcessedBooks: number | null;
+        repairProcessedBooks: number | null;
         nextBackfillBook: {
           bookId: string;
           bookName: string;
@@ -1343,6 +1514,9 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
       const backfillProcessedBooks = state.afterBookId
         ? await booksCollection.countDocuments({ ...TRANSLATED_NOVEL_QUERY, bookId: { $lte: state.afterBookId } })
         : 0;
+      const repairProcessedBooks = state.repair?.afterBookId
+        ? await booksCollection.countDocuments({ ...TRANSLATED_NOVEL_QUERY, bookId: { $lte: state.repair.afterBookId } })
+        : 0;
       const nextBackfillBook = state.backfillCompletedAt
         ? null
         : await loadNextBackfillBook(booksCollection, state);
@@ -1350,6 +1524,7 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
         configured: true,
         targetBooks,
         backfillProcessedBooks,
+        repairProcessedBooks,
         nextBackfillBook: nextBackfillBook
           ? {
               bookId: nextBackfillBook.bookId,
@@ -1391,6 +1566,13 @@ export async function getTranslatedNovelImportStatus(now = new Date()) {
       chapterOffset: state.incremental?.chapterOffset ?? 0,
       sweepUntil: state.incremental?.sweepUntil ?? null,
     },
+    repair: {
+      active: state.repair?.active ?? false,
+      completedAt: state.repair?.completedAt ?? null,
+      afterBookId: state.repair?.afterBookId ?? null,
+      currentBookId: state.repair?.currentBookId ?? null,
+      chapterOffset: state.repair?.chapterOffset ?? 0,
+    },
     postgres: postgresCounts ?? { novels: 0, publishedNovels: 0, chapters: 0, paidChapters: 0, covers: 0 },
     mongo,
     lastRun: state.lastRun ?? null,
@@ -1413,7 +1595,17 @@ export async function runTranslatedNovelImport(options = parseOptions()) {
     const state = await loadCursorState();
 
     let result: ReturnType<typeof createSummary>;
-    if (options.mode === "backfill" || (options.mode === "auto" && !state.backfillCompletedAt)) {
+    if (options.mode === "repair") {
+      result = await runRepair({
+        state,
+        options,
+        startedAt,
+        booksCollection,
+        chaptersCollection,
+        orderCollection,
+        mongoGenreMap,
+      });
+    } else if (options.mode === "backfill" || (options.mode === "auto" && !state.backfillCompletedAt)) {
       result = await runBackfill({
         state,
         options,

@@ -13,6 +13,7 @@ export type MongoSyncSummary = {
   skippedCovers: number;
   stoppedForRuntime: boolean;
   backfillComplete: boolean;
+  repairComplete: boolean;
   incrementalDue: boolean;
   nextAfterBookId: string | null;
   currentBookId: string | null;
@@ -33,6 +34,12 @@ export type MongoSyncLoopStatus = {
     currentBookId: string | null;
     chapterOffset: number;
     sweepUntil: string | null;
+  };
+  repair: {
+    active: boolean;
+    afterBookId: string | null;
+    currentBookId: string | null;
+    chapterOffset: number;
   };
 };
 
@@ -71,6 +78,7 @@ export function shouldContinueMongoAutoSync(
   status: MongoSyncLoopStatus,
   result: MongoSyncSummary | null | undefined,
 ) {
+  if (result?.mode === "repair") return status.repair.active;
   if (!status.backfill.completed) return true;
   return result?.mode === "incremental" && status.incremental.active;
 }
@@ -88,6 +96,10 @@ export function mongoSyncCursorFingerprint(status: MongoSyncLoopStatus) {
     status.incremental.currentBookId,
     status.incremental.chapterOffset,
     status.incremental.sweepUntil,
+    status.repair.active,
+    status.repair.afterBookId,
+    status.repair.currentBookId,
+    status.repair.chapterOffset,
   ]);
 }
 

@@ -25,6 +25,7 @@ function summary(overrides: Partial<MongoSyncSummary> = {}): MongoSyncSummary {
     skippedCovers: 0,
     stoppedForRuntime: false,
     backfillComplete: false,
+    repairComplete: false,
     incrementalDue: false,
     nextAfterBookId: null,
     currentBookId: null,
@@ -36,6 +37,7 @@ function summary(overrides: Partial<MongoSyncSummary> = {}): MongoSyncSummary {
 function loopStatus(overrides: {
   backfill?: Partial<MongoSyncLoopStatus["backfill"]>;
   incremental?: Partial<MongoSyncLoopStatus["incremental"]>;
+  repair?: Partial<MongoSyncLoopStatus["repair"]>;
 } = {}): MongoSyncLoopStatus {
   return {
     backfill: {
@@ -53,6 +55,13 @@ function loopStatus(overrides: {
       chapterOffset: 0,
       sweepUntil: null,
       ...overrides.incremental,
+    },
+    repair: {
+      active: false,
+      afterBookId: null,
+      currentBookId: null,
+      chapterOffset: 0,
+      ...overrides.repair,
     },
   };
 }
@@ -89,6 +98,17 @@ describe("shouldContinueMongoAutoSync", () => {
         summary({ mode: "incremental" }),
       ),
     ).toBe(false);
+  });
+
+  it("continues a repair sweep only while its dedicated cursor is active", () => {
+    const active = loopStatus({
+      backfill: { completed: true },
+      repair: { active: true, currentBookId: "book-20", chapterOffset: 100 },
+    });
+    const complete = loopStatus({ backfill: { completed: true } });
+
+    expect(shouldContinueMongoAutoSync(active, summary({ mode: "repair" }))).toBe(true);
+    expect(shouldContinueMongoAutoSync(complete, summary({ mode: "repair", repairComplete: true }))).toBe(false);
   });
 });
 
@@ -162,6 +182,13 @@ describe("mongoSyncCursorFingerprint", () => {
     expect(mongoSyncCursorFingerprint(initial)).toBe(mongoSyncCursorFingerprint(same));
     expect(mongoSyncCursorFingerprint(nextBackfillChunk)).not.toBe(mongoSyncCursorFingerprint(initial));
     expect(mongoSyncCursorFingerprint(incremental)).not.toBe(mongoSyncCursorFingerprint(initial));
+  });
+
+  it("changes as the repair cursor advances", () => {
+    const first = loopStatus({ repair: { active: true, currentBookId: "book-1", chapterOffset: 100 } });
+    const second = loopStatus({ repair: { active: true, currentBookId: "book-1", chapterOffset: 200 } });
+
+    expect(mongoSyncCursorFingerprint(second)).not.toBe(mongoSyncCursorFingerprint(first));
   });
 
   it("changes after each completed incremental book even when no book is partial", () => {

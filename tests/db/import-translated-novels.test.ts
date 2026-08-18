@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  missingImportedChapterNumbers,
   mapImportedTagSlugs,
   mapImportedChapterAccess,
   normalizeImportedChapterContent,
@@ -57,9 +58,21 @@ describe("translated novel import", () => {
     expect(result).toEqual({ content: "Hello & world\nLine\n\n<end>", reason: null });
   });
 
-  it("rejects normalized chapter output above the four MiB budget", () => {
+  it("accepts chapter output above the old four MiB budget", () => {
     const result = normalizeImportedChapterContent("x".repeat(4 * 1024 * 1024 + 1));
 
+    expect(result.reason).toBeNull();
+    expect(result.content).toHaveLength(4 * 1024 * 1024 + 1);
+  });
+
+  it("still reports content that exceeds the configured safety budget", () => {
+    const result = normalizeImportedChapterContent("1234", 3);
+
     expect(result).toEqual({ content: null, reason: "too_large" });
+  });
+
+  it("finds chapter-number holes even when later chapters already exist", () => {
+    expect(missingImportedChapterNumbers(0, 6, [1, 3, 4, 6])).toEqual([2, 5]);
+    expect(missingImportedChapterNumbers(100, 3, [101, 103])).toEqual([102]);
   });
 });

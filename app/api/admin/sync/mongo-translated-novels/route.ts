@@ -11,7 +11,7 @@ import {
 const syncRequestSchema = z
   .object({
     execute: z.boolean().default(true),
-    mode: z.enum(["auto", "backfill", "incremental"]).default("auto"),
+    mode: z.enum(["auto", "backfill", "incremental", "repair"]).default("auto"),
     limit: z.number().int().min(1).max(5).default(1),
     chapterLimit: z.number().int().min(1).max(250).default(100),
     maxRuntimeSeconds: z.number().int().min(30).max(600).default(240),
