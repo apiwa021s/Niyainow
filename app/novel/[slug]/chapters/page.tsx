@@ -107,7 +107,7 @@ export default async function ChaptersPage({
           })),
         }}
       />
-      <div className="border-y border-border py-5 sm:py-6">
+      <div className="rounded-(--r-lg) bg-surface px-3 py-4 sm:px-5 sm:py-5">
         <p className="editorial-kicker">CHAPTER INDEX / สารบัญตอน</p>
         <h1 className="mt-1 text-h1 font-semibold sm:text-display">สารบัญ</h1>
         <p className="mt-2 text-sm text-muted-foreground">

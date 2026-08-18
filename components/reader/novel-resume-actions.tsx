@@ -185,7 +185,7 @@ export function NovelCatalogResume({
   const percent = Math.max(0, Math.min(100, Math.round(selection.progress.progressPercent)));
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-[color-mix(in_srgb,var(--brand-primary)_5%,transparent)] px-4 py-3 text-sm"
+      className="flex flex-wrap items-center justify-between gap-3 bg-[color-mix(in_srgb,var(--brand-primary)_5%,transparent)] px-4 py-3 text-sm"
       data-resume-source={selection.source}
     >
       <div>

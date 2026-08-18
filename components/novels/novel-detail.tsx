@@ -9,7 +9,7 @@ import { RatingReviewForm } from "@/components/interactive/rating-review-form";
 import { SimilarNovelCard } from "@/components/novels/novel-card";
 import { NovelResumeActions } from "@/components/reader/novel-resume-actions";
 import { ButtonLink } from "@/components/ui/button";
-import { EmptyState, SectionHeader } from "@/components/ui/section";
+import { EmptyState } from "@/components/ui/section";
 import { formatNumber } from "@/lib/utils";
 import type { UserNovelState } from "@/services/user-service";
 import type { ChapterSummary, Novel, Review } from "@/types/novel";
@@ -43,7 +43,7 @@ export function NovelHero({
   const status = statusMeta(novel.status);
 
   return (
-    <header className="relative overflow-hidden border-y border-border py-5 sm:py-8 lg:py-10">
+    <header className="relative overflow-hidden rounded-(--r-lg) bg-surface px-3 py-5 sm:px-5 sm:py-7 lg:px-6 lg:py-8">
       <div aria-hidden className="absolute inset-y-0 right-0 hidden w-[38%] overflow-hidden opacity-[0.08] xl:block">
         <Image src={novel.backdrop} alt="" fill sizes="560px" className="object-cover object-center" />
       </div>
@@ -114,11 +114,11 @@ export function NovelHero({
           />
         </div>
 
-        <aside className="hidden border-l border-border pl-7 xl:block" aria-label="ข้อมูลฉบับและทางลัด">
+        <aside className="hidden rounded-(--r-md) bg-surface-subtle p-4 xl:block" aria-label="ข้อมูลฉบับและทางลัด">
           <p className="editorial-kicker">READING INDEX</p>
           <p className="tabular mt-3 text-4xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
           <p className="mt-1 text-xs text-muted-foreground">ตอนที่เผยแพร่ในคลัง</p>
-          <dl className="mt-5 divide-y divide-border text-sm">
+          <dl className="mt-5 grid gap-1 text-sm">
             <InfoRow label="สถานะ" value={status.label} />
             <InfoRow label="อัปเดต" value={novel.updatedAt} />
             <InfoRow label="ตอนล่าสุด" value={novel.latestChapter ? `ตอนที่ ${novel.latestChapter.number}` : "—"} />
@@ -135,8 +135,8 @@ export function NovelHero({
 
 export function NovelSignals({ novel }: { novel: Novel }) {
   return (
-    <section aria-label="ข้อมูลการอ่านของเรื่อง" className="grid gap-5 border-b border-border py-5 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-8">
-      <div className="border-l-2 border-[var(--brand-emphasis)] pl-4">
+    <section aria-label="ข้อมูลการอ่านของเรื่อง" className="grid gap-4 rounded-(--r-md) bg-surface-subtle px-3 py-3 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-7 sm:px-4">
+      <div>
         <p className="text-xs text-muted-foreground">จำนวนตอน</p>
         <p className="tabular mt-0.5 text-2xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
       </div>
@@ -152,7 +152,7 @@ export function NovelSignals({ novel }: { novel: Novel }) {
 
 export function NovelSynopsis({ synopsis }: { synopsis: string }) {
   return (
-    <section aria-labelledby="novel-synopsis-title" className="border-t border-border pt-7">
+    <section aria-labelledby="novel-synopsis-title">
       <p className="editorial-kicker">SYNOPSIS / เรื่องย่อ</p>
       <h2 id="novel-synopsis-title" className="mt-1 text-2xl font-semibold">เรื่องย่อ</h2>
       <details className="group mt-4">
@@ -173,26 +173,28 @@ export function NovelSynopsis({ synopsis }: { synopsis: string }) {
 
 export function ChapterPreview({ slug, chapters }: { slug: string; chapters: ChapterSummary[] }) {
   return (
-    <section aria-labelledby="latest-chapters-title" className="border-t border-border pt-7">
-      <SectionHeader
-        title="ตอนล่าสุด"
-        href={`/novel/${slug}/chapters`}
-        action="ดูสารบัญทั้งหมด"
-        icon={<ListOrdered className="h-5 w-5 text-[var(--brand-light-on-light)]" />}
-      />
+    <section aria-labelledby="latest-chapters-title">
+      <div className="mb-3 flex min-h-8 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <ListOrdered className="h-4 w-4 shrink-0 text-[var(--brand-light-on-light)]" aria-hidden />
+          <h2 id="latest-chapters-title" className="truncate text-h2 font-semibold">ตอนล่าสุด</h2>
+        </div>
+        <Link href={`/novel/${slug}/chapters`} className="-my-3 inline-flex min-h-11 shrink-0 items-center py-3 text-sm font-semibold text-(--text-secondary) hover:text-[var(--brand-emphasis)]">
+          ดูสารบัญทั้งหมด
+        </Link>
+      </div>
       {chapters.length ? (
-        <ol className="divide-y divide-border border-y border-border">
+        <ol className="grid gap-1">
           {chapters.map((chapter) => (
             <li key={chapter.id ?? chapter.number}>
               <Link
                 href={`/novel/${slug}/chapter/${chapter.number}`}
-                className="group grid min-h-16 grid-cols-[76px_minmax(0,1fr)] items-center gap-3 py-3 sm:grid-cols-[92px_minmax(0,1fr)_auto]"
+                className="group block rounded-[6px] px-3 py-3 transition-colors hover:bg-surface-subtle"
+                aria-label={`ตอนที่ ${chapter.number} ${chapter.title}`}
               >
-                <span className="tabular font-mono text-xs font-semibold text-[var(--brand-emphasis)]">
-                  ตอน {String(chapter.number).padStart(4, "0")}
+                <span className="line-clamp-1 font-medium transition-colors group-hover:text-[var(--brand-emphasis)]">
+                  {chapter.title}
                 </span>
-                <span className="min-w-0 font-medium transition-colors group-hover:text-[var(--brand-emphasis)]">{chapter.title}</span>
-                <time className="tabular col-start-2 text-xs text-muted-foreground sm:col-start-auto">{chapter.updatedAt}</time>
               </Link>
             </li>
           ))}
@@ -215,7 +217,7 @@ export function NovelCommunity({
 }) {
   return (
     <>
-      <section aria-labelledby="rate-review-title" className="border-t border-border pt-7">
+      <section aria-labelledby="rate-review-title">
         <h2 id="rate-review-title" className="sr-only">ให้คะแนนและเขียนรีวิว</h2>
         <RatingReviewForm
           slug={novel.slug}
@@ -231,12 +233,12 @@ export function NovelCommunity({
       </section>
 
       {reviews.length ? (
-        <section aria-labelledby="reader-reviews-title" className="border-t border-border pt-7">
-          <SectionHeader
-            title="รีวิวจากนักอ่าน"
-            description={`${formatNumber(novel.reviewCount ?? reviews.length)} รีวิวจากข้อมูลที่เผยแพร่จริง`}
-          />
-          <div className="divide-y divide-border border-y border-border">
+        <section aria-labelledby="reader-reviews-title">
+          <div className="mb-3">
+            <h2 id="reader-reviews-title" className="text-h2 font-semibold">รีวิวจากนักอ่าน</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{formatNumber(novel.reviewCount ?? reviews.length)} รีวิวจากข้อมูลที่เผยแพร่จริง</p>
+          </div>
+          <div className="grid gap-3">
             {reviews.map((review) => (
               <ReaderReview key={review.id} review={review} />
             ))}
@@ -250,9 +252,9 @@ export function NovelCommunity({
 export function NovelMetaRail({ novel, userState }: { novel: Novel; userState?: UserNovelState }) {
   const status = statusMeta(novel.status);
   return (
-    <aside className="border-t border-border lg:border-l lg:border-t-0 lg:pl-7" aria-label="ข้อมูลเพิ่มเติมของนิยาย">
+    <aside className="space-y-6 lg:pl-7" aria-label="ข้อมูลเพิ่มเติมของนิยาย">
       {novel.tags.length ? (
-        <section className="py-6 lg:pt-0">
+        <section>
           <p className="editorial-kicker">STORY THREADS</p>
           <h2 className="mt-1 text-sm font-semibold">แท็กของเรื่อง</h2>
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
@@ -269,10 +271,10 @@ export function NovelMetaRail({ novel, userState }: { novel: Novel; userState?: 
         </section>
       ) : null}
 
-      <section className="border-t border-border py-6">
+      <section>
         <p className="editorial-kicker">EDITION NOTE</p>
         <h2 className="mt-1 text-sm font-semibold">ข้อมูลฉบับ</h2>
-        <dl className="mt-3 divide-y divide-border">
+        <dl className="mt-3 grid gap-1">
           <InfoRow label="ผู้เขียน" value={novel.author} />
           {novel.translator ? <InfoRow label="ผู้แปล" value={novel.translator} /> : null}
           <InfoRow label="สถานะ" value={status.label} />
@@ -297,8 +299,11 @@ export function NovelMetaRail({ novel, userState }: { novel: Novel; userState?: 
 export function SimilarNovels({ novels }: { novels: Novel[] }) {
   if (!novels.length) return null;
   return (
-    <section className="border-t border-border pt-8">
-      <SectionHeader title="เรื่องใกล้เคียง" description="เชื่อมโยงจากแนวหรือแท็กที่อยู่ใกล้กันในคลัง" />
+    <section>
+      <div className="mb-3">
+        <h2 className="text-h2 font-semibold">เรื่องใกล้เคียง</h2>
+        <p className="mt-1 text-sm text-muted-foreground">เชื่อมโยงจากแนวหรือแท็กที่อยู่ใกล้กันในคลัง</p>
+      </div>
       <div className="grid gap-3 md:grid-cols-2">
         {novels.map((novel) => <SimilarNovelCard key={novel.slug} novel={novel} />)}
       </div>
