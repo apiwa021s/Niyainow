@@ -10,6 +10,7 @@ import { SimilarNovelCard } from "@/components/novels/novel-card";
 import { NovelResumeActions } from "@/components/reader/novel-resume-actions";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/section";
+import { displayTagName } from "@/lib/domain/tag";
 import { formatNumber } from "@/lib/utils";
 import type { UserNovelState } from "@/services/user-service";
 import type { ChapterSummary, Novel, Review } from "@/types/novel";
@@ -245,7 +246,7 @@ export function NovelMetaRail({ novel, userState }: { novel: Novel; userState?: 
                 href={`/tag/${tag}`}
                 className="inline-flex min-h-11 items-center text-xs font-medium text-muted-foreground underline-offset-4 hover:text-[var(--brand-emphasis)] hover:underline"
               >
-                #{novel.tagNames?.[tag] ?? tag}
+                #{displayTagName(novel.tagNames?.[tag] ?? tag)}
               </Link>
             ))}
           </div>

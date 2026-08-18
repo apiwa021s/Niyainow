@@ -8,7 +8,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin", "/api/", "/profile", "/settings", "/history", "/library", "/notifications", "/wallet"],
+        // Private HTML routes expose their own noindex directive. They must stay
+        // crawlable for search engines to read it; only non-public surfaces are blocked here.
+        disallow: ["/admin", "/api/"],
       },
     ],
     sitemap: absoluteUrl("/sitemap.xml"),

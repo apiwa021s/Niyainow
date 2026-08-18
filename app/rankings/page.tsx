@@ -47,8 +47,8 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const { view: rawView } = await searchParams;
   const selected = views.find((view) => view.value === rawView) ?? views[0];
   return pageMetadata({
-    title: `อันดับนิยาย${selected.label}`,
-    description: `${selected.label}บน NiyaiThai — ${selected.explanation}`,
+    title: `อันดับนิยาย${selected.label} เรื่องน่าอ่าน`,
+    description: `จัดอันดับนิยาย${selected.label}บน NiyaiThai จากกิจกรรมการอ่านจริง — ${selected.explanation}`,
     path: selected.value === "trending" ? "/rankings" : `/rankings?view=${selected.value}`,
   });
 }
@@ -64,22 +64,36 @@ async function CachedRankingsPage({ view }: { view: RankingView }) {
   return (
     <PageShell className="space-y-7">
       {entries.length ? (
-        <JsonLd data={{
-          "@context": "https://schema.org",
-          "@type": "ItemList",
-          name: `อันดับนิยาย${selected.label}`,
-          itemListElement: entries.map((entry) => ({
-            "@type": "ListItem",
-            position: entry.rank,
-            name: entry.novel.thaiTitle,
-            url: absoluteUrl(`/novel/${entry.novel.slug}`),
-          })),
-        }} />
+        <JsonLd data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            name: `อันดับนิยาย${selected.label}`,
+            url: absoluteUrl(selected.value === "trending" ? "/rankings" : `/rankings?view=${selected.value}`),
+            mainEntity: {
+              "@type": "ItemList",
+              itemListElement: entries.map((entry) => ({
+                "@type": "ListItem",
+                position: entry.rank,
+                name: entry.novel.thaiTitle,
+                url: absoluteUrl(`/novel/${entry.novel.slug}`),
+              })),
+            },
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "หน้าแรก", item: absoluteUrl("/") },
+              { "@type": "ListItem", position: 2, name: `อันดับนิยาย${selected.label}`, item: absoluteUrl("/rankings") },
+            ],
+          },
+        ]} />
       ) : null}
 
       <header className="py-2 sm:py-3">
         <p className="editorial-kicker">RANKING / READER SIGNALS</p>
-        <h1 className="mt-1 text-h1 font-semibold sm:text-display">อันดับนิยาย</h1>
+        <h1 className="mt-1 text-h1 font-semibold sm:text-display">อันดับนิยาย{selected.label}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{selected.explanation}</p>
       </header>
 

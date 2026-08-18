@@ -73,13 +73,23 @@ export async function GET(_request: Request, context: { params: Promise<{ partit
       changeFrequency: "weekly",
       priority: 0.6,
     })),
-    ...entries.novels.map((novel) => urlEntry({
-      url: absoluteUrl(`/novel/${novel.slug}`),
-      lastModified: novel.updatedAt,
-      changeFrequency: "weekly",
-      priority: 0.8,
-      image: novel.cover ? absoluteUrl(novel.cover) : undefined,
-    })),
+    // A novel emits both its detail page and its chapter index. Even in a
+    // novel-only partition this remains below the protocol limit of 50k URLs.
+    ...entries.novels.flatMap((novel) => [
+      urlEntry({
+        url: absoluteUrl(`/novel/${novel.slug}`),
+        lastModified: novel.updatedAt,
+        changeFrequency: "weekly",
+        priority: 0.8,
+        image: novel.cover ? absoluteUrl(novel.cover) : undefined,
+      }),
+      urlEntry({
+        url: absoluteUrl(`/novel/${novel.slug}/chapters`),
+        lastModified: novel.updatedAt,
+        changeFrequency: "weekly",
+        priority: 0.7,
+      }),
+    ]),
     ...entries.chapters.map((chapter) => urlEntry({
       url: absoluteUrl(`/novel/${chapter.novelSlug}/chapter/${chapter.chapterNumber}`),
       lastModified: chapter.updatedAt,

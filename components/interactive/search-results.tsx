@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/form-controls";
 import { EmptyState } from "@/components/ui/section";
+import { displayTagName } from "@/lib/domain/tag";
 import type { PublicSearchResult } from "@/services/novel-service";
 import type { NovelQuery } from "@/types/novel-query";
 
@@ -214,7 +215,7 @@ export function SearchResults({
           ) : null}
 
           {(tab === "all" || tab === "tags") && results.tags.length > 0 ? (
-            <section><h2 className="mb-3 text-xl font-semibold">แท็ก</h2><div className="flex flex-wrap gap-2">{results.tags.map((tag) => <Link key={tag.slug} href={`/tag/${tag.slug}`} className="inline-flex min-h-11 items-center"><Badge className="px-3 py-2">#{tag.name}</Badge></Link>)}</div></section>
+            <section><h2 className="mb-3 text-xl font-semibold">แท็ก</h2><div className="flex flex-wrap gap-2">{results.tags.map((tag) => <Link key={tag.slug} href={`/tag/${tag.slug}`} className="inline-flex min-h-11 items-center"><Badge className="px-3 py-2">#{displayTagName(tag.name)}</Badge></Link>)}</div></section>
           ) : null}
 
           {!hasAnyResults ? (

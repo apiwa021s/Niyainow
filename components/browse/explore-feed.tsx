@@ -74,9 +74,9 @@ export function ExploreFeed({
       <header className="grid gap-4 py-2 sm:py-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
         <div className="max-w-3xl">
           <p className="editorial-kicker">DISCOVERY / EXPLORE</p>
-          <h1 className="mt-1 text-h1 font-semibold sm:text-display">วันนี้อยากอ่านอะไรต่อ</h1>
+          <h1 className="mt-1 text-h1 font-semibold sm:text-display">เลือกอ่านนิยายออนไลน์เรื่องถัดไป</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-            เริ่มจากเรื่องที่กำลังถูกอ่าน แนวที่ชอบ หรือจังหวะการอ่านที่ต้องการ แล้วค่อยลงลึกในคลังด้วยตัวกรอง
+            ค้นหานิยายแปลไทยจากเรื่องที่กำลังนิยม แนวที่ชอบ หรือสถานะการเผยแพร่ แล้วค่อยลงลึกด้วยตัวกรอง
           </p>
           <form action="/novels" className="mt-4 grid max-w-2xl gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <label className="relative block min-w-0">
@@ -177,7 +177,7 @@ export function ExploreFeed({
       <NovelCarouselShelf
         title="จบแล้วอ่านยาว"
         description="เรื่องที่เผยแพร่ครบแล้ว เรียงจากคะแนนผู้อ่าน"
-        href="/novels?status=completed&sort=rating"
+        href="/novels?status=completed"
         action="ดูเรื่องจบทั้งหมด"
         novels={completed}
         emptyDescription="ยังไม่มีเรื่องที่เผยแพร่ครบในคลัง"

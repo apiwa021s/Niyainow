@@ -96,7 +96,7 @@ async function CachedHomeFeed({ children, signupSlot }: { children: ReactNode; s
 export default function HomePage() {
   return (
     <main id="main" className="mx-auto w-full max-w-(--home-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6 2xl:px-6">
-      <h1 className="sr-only">NiyaiThai — อ่านนิยายแปลไทยและค้นหาเรื่องถัดไป</h1>
+      <h1 className="sr-only">อ่านนิยายออนไลน์และนิยายแปลไทย อัปเดตตอนใหม่ทุกวัน</h1>
       <CachedHomeFeed
         signupSlot={
           <Suspense fallback={null}>

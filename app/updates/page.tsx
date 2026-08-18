@@ -19,6 +19,13 @@ const ranges: { value: UpdateRange; label: string }[] = [
   { value: "week", label: "สัปดาห์นี้" },
 ];
 
+function updatesHeading(range: UpdateRange) {
+  if (range === "today") return "นิยายอัปเดตวันนี้";
+  if (range === "yesterday") return "ตอนนิยายที่อัปเดตเมื่อวาน";
+  if (range === "week") return "นิยายอัปเดตสัปดาห์นี้";
+  return "นิยายอัปเดตล่าสุด";
+}
+
 async function resolveUpdatesRequest(raw: RawSearchParams) {
   const genres = await getGenres(200);
   const normalized = canonicalizeUpdatesSearchParams(raw, genres.map((genre) => genre.slug));
@@ -31,8 +38,15 @@ const getCanonicalUpdatesRequest = cache((rawKey: string) =>
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<RawSearchParams> }): Promise<Metadata> {
   const raw = await searchParams;
-  const { href } = await getCanonicalUpdatesRequest(JSON.stringify(raw));
-  return pageMetadata({ title: "อัปเดตนิยายล่าสุด", description: "ติดตามตอนใหม่จากนิยายที่เพิ่งเผยแพร่บน NiyaiThai", path: href });
+  const { href, query, genres } = await getCanonicalUpdatesRequest(JSON.stringify(raw));
+  const genre = genres.find((item) => item.slug === query.genre);
+  const heading = `${updatesHeading(query.range)}${genre ? ` แนว${genre.thaiName}` : ""}`;
+  return pageMetadata({
+    title: heading,
+    description: `${heading}บน NiyaiThai ดูตอนใหม่เรียงตามเวลาที่เผยแพร่จริงและเปิดอ่านต่อได้ทันที`,
+    path: href,
+    noIndex: Boolean(query.genre),
+  });
 }
 
 async function CachedUpdatesPage({ range, genre }: { range: UpdateRange; genre?: string }) {
@@ -51,8 +65,8 @@ async function CachedUpdatesPage({ range, genre }: { range: UpdateRange; genre?:
     <PageShell className="space-y-6">
       <header className="py-2 sm:py-3">
         <p className="editorial-kicker">ตามจังหวะการเผยแพร่</p>
-        <h1 className="mt-1 text-h1 font-semibold sm:text-display">อัปเดตล่าสุด</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">ตอนใหม่จากทุกเรื่อง เรียงตามเวลาที่เผยแพร่จริง</p>
+        <h1 className="mt-1 text-h1 font-semibold sm:text-display">{updatesHeading(range)}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">ตอนใหม่จากนิยายออนไลน์ทุกเรื่อง เรียงตามเวลาที่เผยแพร่จริง</p>
       </header>
 
       <div className="flex flex-wrap items-start gap-2">

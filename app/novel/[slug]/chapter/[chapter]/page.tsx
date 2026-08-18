@@ -39,11 +39,13 @@ export async function generateMetadata({ params }: ChapterRouteProps): Promise<M
   }
 
   return pageMetadata({
-    title: `${novel.thaiTitle} ตอนที่ ${published.chapter.number}: ${published.chapter.title}`,
-    description: `อ่าน ${novel.thaiTitle} ตอนที่ ${published.chapter.number} ภาษาไทย`,
+    title: `${novel.thaiTitle} ตอนที่ ${published.chapter.number}: ${published.chapter.title} อ่านออนไลน์`,
+    description: `อ่าน ${novel.thaiTitle} ตอนที่ ${published.chapter.number} ${published.chapter.title} ภาษาไทยออนไลน์ เปิดอ่านตอนก่อนหน้า ตอนถัดไป และสารบัญทุกตอน`,
     path: `/novel/${slug}/chapter/${published.chapter.number}`,
     image: novel.cover,
     type: "article",
+    publishedTime: published.chapter.publishedAt ?? published.chapter.updatedAt,
+    modifiedTime: published.chapter.updatedAt,
   });
 }
 
@@ -73,14 +75,44 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
     <>
       <PublicViewTracker slug={novel.slug} chapterNumber={chapterSummary.number} />
       <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "Article",
-          headline: `${novel.thaiTitle} ตอนที่ ${chapterSummary.number}: ${chapterSummary.title}`,
-          isPartOf: { "@type": "Book", name: novel.thaiTitle, url: absoluteUrl(`/novel/${novel.slug}`) },
-          mainEntityOfPage: absoluteUrl(`/novel/${novel.slug}/chapter/${chapterSummary.number}`),
-          inLanguage: "th",
-        }}
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            "@id": `${absoluteUrl(`/novel/${novel.slug}/chapter/${chapterSummary.number}`)}#article`,
+            headline: `${novel.thaiTitle} ตอนที่ ${chapterSummary.number}: ${chapterSummary.title}`,
+            name: `ตอนที่ ${chapterSummary.number}: ${chapterSummary.title}`,
+            position: chapterSummary.sortOrder ?? chapterSummary.number,
+            isPartOf: {
+              "@type": "Book",
+              "@id": `${absoluteUrl(`/novel/${novel.slug}`)}#book`,
+              name: novel.thaiTitle,
+              url: absoluteUrl(`/novel/${novel.slug}`),
+            },
+            mainEntityOfPage: absoluteUrl(`/novel/${novel.slug}/chapter/${chapterSummary.number}`),
+            url: absoluteUrl(`/novel/${novel.slug}/chapter/${chapterSummary.number}`),
+            image: absoluteUrl(novel.cover),
+            author: { "@type": "Person", name: novel.author },
+            translator: novel.translator
+              ? { "@type": "Organization", name: novel.translator }
+              : undefined,
+            publisher: { "@id": `${absoluteUrl("/")}#organization` },
+            datePublished: chapterSummary.publishedAt ?? chapterSummary.updatedAt,
+            dateModified: chapterSummary.updatedAt,
+            isAccessibleForFree: !locked,
+            inLanguage: "th-TH",
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "หน้าแรก", item: absoluteUrl("/") },
+              { "@type": "ListItem", position: 2, name: "นิยาย", item: absoluteUrl("/novels") },
+              { "@type": "ListItem", position: 3, name: novel.thaiTitle, item: absoluteUrl(`/novel/${novel.slug}`) },
+              { "@type": "ListItem", position: 4, name: `ตอนที่ ${chapterSummary.number}`, item: absoluteUrl(`/novel/${novel.slug}/chapter/${chapterSummary.number}`) },
+            ],
+          },
+        ]}
       />
       <ReaderView
         key={chapterSummary.id ?? chapterSummary.number}

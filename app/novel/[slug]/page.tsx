@@ -15,6 +15,7 @@ import { NovelResumeMobileBar } from "@/components/reader/novel-resume-actions";
 import { JsonLd } from "@/components/seo/json-ld";
 import { PageShell } from "@/components/ui/section";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { displayTagName } from "@/lib/domain/tag";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import {
@@ -37,12 +38,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       noIndex: true,
     });
   }
+  const status = novel.status === "completed" ? "จบแล้ว" : novel.status === "hiatus" ? "พักการอัปเดต" : "กำลังอัปเดต";
+  const credit = novel.translator ? `แปลโดย ${novel.translator}` : `ผู้เขียน ${novel.author}`;
   return pageMetadata({
-    title: novel.thaiTitle,
-    description: novel.synopsis,
+    title: `${novel.thaiTitle} อ่านออนไลน์`,
+    description: `อ่าน ${novel.thaiTitle} ออนไลน์ ${credit} ${novel.chapters.toLocaleString("th-TH")} ตอน สถานะ${status} — ${novel.synopsis}`,
     path: `/novel/${novel.slug}`,
     image: novel.cover,
     type: "article",
+    publishedTime: novel.publishedAt,
+    modifiedTime: novel.updatedAt,
   });
 }
 
@@ -75,13 +80,23 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
           {
             "@context": "https://schema.org",
             "@type": "Book",
+            "@id": `${absoluteUrl(`/novel/${novel.slug}`)}#book`,
             name: novel.thaiTitle,
             alternateName: novel.title !== novel.thaiTitle ? novel.title : undefined,
             description: novel.synopsis,
-            image: novel.cover,
+            image: absoluteUrl(novel.cover),
             url: absoluteUrl(`/novel/${novel.slug}`),
+            mainEntityOfPage: absoluteUrl(`/novel/${novel.slug}`),
             author: { "@type": "Person", name: novel.author },
-            inLanguage: "th",
+            translator: novel.translator
+              ? { "@type": "Organization", name: novel.translator }
+              : undefined,
+            publisher: { "@id": `${absoluteUrl("/")}#organization` },
+            inLanguage: "th-TH",
+            bookFormat: "https://schema.org/EBook",
+            datePublished: novel.publishedAt,
+            dateModified: novel.updatedAt,
+            isAccessibleForFree: !novel.hasPaidChapters,
             aggregateRating: novel.rating > 0 && novel.ratingCount
               ? {
                   "@type": "AggregateRating",
@@ -91,6 +106,11 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
                 }
               : undefined,
             genre: novel.genres.map((genre) => novel.genreNames?.[genre] ?? genre),
+            keywords: novel.tags.map((tag) => displayTagName(novel.tagNames?.[tag] ?? tag)),
+            potentialAction: {
+              "@type": "ReadAction",
+              target: absoluteUrl(startHref),
+            },
           },
           {
             "@context": "https://schema.org",

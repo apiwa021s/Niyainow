@@ -35,5 +35,27 @@ describe("SEO helpers", () => {
         alt: `${siteConfig.name} — ${siteConfig.title}`,
       }],
     });
+    expect(metadata.robots).toMatchObject({
+      index: true,
+      follow: true,
+      googleBot: {
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
+    });
+  });
+
+  it("keeps filtered pages out of the index while consolidating their canonical URL", () => {
+    const metadata = pageMetadata({
+      title: "ผลการค้นหา",
+      description: "ผลการค้นหานิยาย",
+      path: "/search?q=ทดสอบ",
+      canonicalPath: "/search",
+      noIndex: true,
+    });
+
+    expect(metadata.alternates).toEqual({ canonical: absoluteUrl("/search") });
+    expect(metadata.robots).toEqual({ index: false, follow: true });
   });
 });

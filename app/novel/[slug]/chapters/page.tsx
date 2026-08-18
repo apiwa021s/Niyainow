@@ -58,11 +58,14 @@ export async function generateMetadata({
   const novel = await getNovelBySlug(slug);
   const pageNumber = parsePositivePage(filters.page);
   if (!novel) return pageMetadata({ title: "สารบัญ", description: "ไม่พบนิยายเรื่องนี้", path: `/novel/${slug}/chapters`, noIndex: true });
+  const filtered = Boolean(filters.q || filters.jump || filters.from || filters.to || filters.order === "oldest");
+  const canonicalPath = catalogUrl(novel.slug, { resolvedPage: pageNumber });
   return pageMetadata({
-    title: `สารบัญ ${novel.thaiTitle}${pageNumber > 1 ? ` หน้า ${pageNumber}` : ""}`,
-    description: `รายชื่อตอนที่เผยแพร่ของ ${novel.thaiTitle}`,
+    title: `สารบัญนิยาย ${novel.thaiTitle} ทุกตอน${pageNumber > 1 ? ` หน้า ${pageNumber}` : ""}`,
+    description: `สารบัญ ${novel.thaiTitle} รวม ${novel.chapters.toLocaleString("th-TH")} ตอน เลือกค้นหาชื่อตอน ช่วงตอน และเปิดอ่านออนไลน์ได้ทันที`,
     path: catalogUrl(novel.slug, { ...filters, resolvedPage: pageNumber }),
-    noIndex: Boolean(filters.q || filters.jump || filters.from || filters.to || filters.order === "oldest"),
+    canonicalPath: filtered ? canonicalPath : undefined,
+    noIndex: filtered,
   });
 }
 
@@ -97,18 +100,38 @@ export default async function ChaptersPage({
   return (
     <PageShell className="space-y-5">
       <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "ItemList",
-          name: `สารบัญ ${novel.thaiTitle}`,
-          numberOfItems: catalog.total,
-          itemListElement: catalog.items.map((chapter, index) => ({
-            "@type": "ListItem",
-            position: (catalog.page - 1) * catalog.pageSize + index + 1,
-            name: `ตอนที่ ${chapter.number}: ${chapter.title}`,
-            url: absoluteUrl(`/novel/${novel.slug}/chapter/${chapter.number}`),
-          })),
-        }}
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            name: `สารบัญนิยาย ${novel.thaiTitle}`,
+            url: absoluteUrl(catalogUrl(novel.slug, { ...filters, resolvedPage: catalog.page })),
+            isPartOf: { "@id": `${absoluteUrl(`/novel/${novel.slug}`)}#book` },
+            mainEntity: {
+              "@type": "ItemList",
+              numberOfItems: catalog.total,
+              itemListOrder: catalog.order === "latest"
+                ? "https://schema.org/ItemListOrderDescending"
+                : "https://schema.org/ItemListOrderAscending",
+              itemListElement: catalog.items.map((chapter, index) => ({
+                "@type": "ListItem",
+                position: (catalog.page - 1) * catalog.pageSize + index + 1,
+                name: `ตอนที่ ${chapter.number}: ${chapter.title}`,
+                url: absoluteUrl(`/novel/${novel.slug}/chapter/${chapter.number}`),
+              })),
+            },
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "หน้าแรก", item: absoluteUrl("/") },
+              { "@type": "ListItem", position: 2, name: "นิยาย", item: absoluteUrl("/novels") },
+              { "@type": "ListItem", position: 3, name: novel.thaiTitle, item: absoluteUrl(`/novel/${novel.slug}`) },
+              { "@type": "ListItem", position: 4, name: "สารบัญตอน", item: absoluteUrl(`/novel/${novel.slug}/chapters`) },
+            ],
+          },
+        ]}
       />
       <header className="rounded-(--r-lg) bg-surface px-3 py-4 sm:px-5 sm:py-5">
         <Link
@@ -121,7 +144,7 @@ export default async function ChaptersPage({
         <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <div className="min-w-0">
             <p className="editorial-kicker">CHAPTER INDEX / สารบัญตอน</p>
-            <h1 className="mt-1 text-h1 font-semibold sm:text-display">สารบัญตอน</h1>
+            <h1 className="mt-1 text-h1 font-semibold sm:text-display">สารบัญ {novel.thaiTitle}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               {novel.thaiTitle} · {catalog.catalogTotal.toLocaleString("th-TH")} ตอน
               {catalog.total !== catalog.catalogTotal ? ` · พบ ${catalog.total.toLocaleString("th-TH")} ตอน` : ""}

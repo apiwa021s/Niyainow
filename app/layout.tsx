@@ -16,6 +16,14 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.name,
+  authors: [{ name: siteConfig.name, url: siteConfig.url }],
+  creator: siteConfig.name,
+  publisher: siteConfig.name,
+  category: "entertainment",
+  referrer: "origin-when-cross-origin",
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
   openGraph: {
     type: "website",
     locale: "th_TH",
@@ -55,15 +63,31 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <JsonLd
               data={{
                 "@context": "https://schema.org",
-                "@type": "WebSite",
-                name: siteConfig.name,
-                url: absoluteUrl("/"),
-                inLanguage: "th",
-                potentialAction: {
-                  "@type": "SearchAction",
-                  target: `${absoluteUrl("/search")}?q={search_term_string}`,
-                  "query-input": "required name=search_term_string"
-                }
+                "@graph": [
+                  {
+                    "@type": "Organization",
+                    "@id": `${absoluteUrl("/")}#organization`,
+                    name: siteConfig.name,
+                    url: absoluteUrl("/"),
+                    logo: {
+                      "@type": "ImageObject",
+                      url: absoluteUrl("/icon.png"),
+                    },
+                  },
+                  {
+                    "@type": "WebSite",
+                    "@id": `${absoluteUrl("/")}#website`,
+                    name: siteConfig.name,
+                    url: absoluteUrl("/"),
+                    inLanguage: "th-TH",
+                    publisher: { "@id": `${absoluteUrl("/")}#organization` },
+                    potentialAction: {
+                      "@type": "SearchAction",
+                      target: `${absoluteUrl("/search")}?q={search_term_string}`,
+                      "query-input": "required name=search_term_string",
+                    },
+                  },
+                ],
               }}
             />
             <a href="#main" className="skip-link">

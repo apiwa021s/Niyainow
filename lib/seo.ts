@@ -12,12 +12,15 @@ export function pageMetadata(input: {
   title: string;
   description: string;
   path: string;
+  canonicalPath?: string;
   image?: string | null;
   type?: "website" | "article";
   noIndex?: boolean;
+  publishedTime?: string;
+  modifiedTime?: string;
 }): Metadata {
   const description = truncateDescription(input.description);
-  const canonical = absoluteUrl(input.path);
+  const canonical = absoluteUrl(input.canonicalPath ?? input.path);
   const imageUrl = absoluteUrl(input.image || "/og.png");
   const imageAlt = input.image
     ? `${input.title} — ${siteConfig.name}`
@@ -30,7 +33,19 @@ export function pageMetadata(input: {
     title: input.title,
     description,
     alternates: { canonical },
-    robots: input.noIndex ? { index: false, follow: false } : undefined,
+    robots: input.noIndex
+      ? { index: false, follow: true }
+      : {
+          index: true,
+          follow: true,
+          googleBot: {
+            index: true,
+            follow: true,
+            "max-image-preview": "large",
+            "max-snippet": -1,
+            "max-video-preview": -1,
+          },
+        },
     openGraph: {
       type: input.type ?? "website",
       locale: "th_TH",
@@ -39,6 +54,12 @@ export function pageMetadata(input: {
       description,
       url: canonical,
       images: [openGraphImage],
+      ...(input.type === "article" && input.publishedTime
+        ? { publishedTime: input.publishedTime }
+        : {}),
+      ...(input.type === "article" && input.modifiedTime
+        ? { modifiedTime: input.modifiedTime }
+        : {}),
     },
     twitter: {
       card: "summary_large_image",

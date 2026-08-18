@@ -7,6 +7,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/form-controls";
 import { EmptyState, PageShell } from "@/components/ui/section";
 import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
+import { displayTagName } from "@/lib/domain/tag";
 import { pageMetadata } from "@/lib/seo";
 import { getTags, type TagSummary } from "@/services/novel-service";
 
@@ -22,9 +23,10 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const { q } = await searchParams;
   const query = normalizedTagQuery(q);
   return pageMetadata({
-    title: query ? `ค้นหาแท็ก “${query}”` : "แท็กยอดนิยม",
-    description: "สำรวจแท็กนิยายและค้นหาองค์ประกอบของเรื่องที่สนใจ",
+    title: query ? `ค้นหาแท็ก “${query}”` : "แท็กนิยายยอดนิยมและพล็อตที่น่าอ่าน",
+    description: "รวมแท็กนิยายยอดนิยม ค้นหาพล็อตและองค์ประกอบที่อยากอ่าน เช่น ทะลุมิติ เกิดใหม่ ระบบ คลั่งรัก และครอบครัว",
     path: query ? `/tags?q=${encodeURIComponent(query)}` : "/tags",
+    canonicalPath: "/tags",
     noIndex: Boolean(query),
   });
 }
@@ -43,7 +45,7 @@ function TagIndex({ tags }: { tags: TagSummary[] }) {
             className="group grid min-h-20 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[8px] bg-card/70 px-3 py-3 transition-colors hover:bg-muted/55 sm:px-4"
           >
             <span className="min-w-0">
-              <span className="block truncate font-semibold group-hover:text-[var(--brand-emphasis)]">#{tag.name}</span>
+              <span className="block truncate font-semibold group-hover:text-[var(--brand-emphasis)]">#{displayTagName(tag.name)}</span>
               {tag.description ? <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">{tag.description}</span> : null}
             </span>
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -69,7 +71,7 @@ function TagsContent({ query, tags, limit }: { query: string; tags: TagSummary[]
       <header className="grid gap-5 py-2 sm:py-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] lg:items-end">
         <div>
           <p className="editorial-kicker">ค้นจากองค์ประกอบของเรื่อง</p>
-          <h1 className="mt-1 text-h1 font-semibold sm:text-display">แท็กนิยาย</h1>
+          <h1 className="mt-1 text-h1 font-semibold sm:text-display">แท็กนิยายยอดนิยม</h1>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">เจาะจงเส้นเรื่อง ตัวละคร หรือบรรยากาศที่อยากอ่าน แล้วเปิดดูนิยายที่ใช้แท็กนั้น</p>
         </div>
         <form action="/tags" className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -102,7 +104,7 @@ function TagsContent({ query, tags, limit }: { query: string; tags: TagSummary[]
                       <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--brand-emphasis)]" />
                     </span>
                     <span>
-                      <span className="block text-lg font-semibold group-hover:text-[var(--brand-emphasis)]">#{tag.name}</span>
+                      <span className="block text-lg font-semibold group-hover:text-[var(--brand-emphasis)]">#{displayTagName(tag.name)}</span>
                       <span className="tabular mt-1 block text-xs text-muted-foreground">{tagCountLabel(tag)}</span>
                     </span>
                   </Link>

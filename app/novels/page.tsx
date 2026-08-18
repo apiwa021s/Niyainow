@@ -8,6 +8,7 @@ import { NovelBrowser } from "@/components/interactive/novel-browser";
 import { NovelGrid } from "@/components/novels/novel-grid";
 import { JsonLd } from "@/components/seo/json-ld";
 import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
+import { displayTagName } from "@/lib/domain/tag";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import {
@@ -46,7 +47,7 @@ async function resolveBrowseRequest(raw: SearchParams) {
     activeGenreSlugs: allGenres.map((genre) => genre.slug),
     activeTagSlug: activeTag?.slug,
   });
-  return { ...normalized, allGenres };
+  return { ...normalized, allGenres, activeTag };
 }
 
 const getCanonicalBrowseRequest = cache((rawKey: string) =>
@@ -58,6 +59,27 @@ function resolvedPageQuery(query: NovelQuery, page: number): NovelQuery {
   if (page > 1) resolved.page = page;
   else delete resolved.page;
   return resolved;
+}
+
+function browseHeading(
+  query: NovelQuery,
+  selectedGenres: string[],
+  tagName?: string,
+) {
+  if (selectedGenres.length) return `นิยาย${selectedGenres.join(" · ")}`;
+  if (tagName) return `นิยายแท็ก ${displayTagName(tagName)}`;
+  if (query.status === "completed") return "นิยายจบแล้ว";
+  if (query.sort === "new") return "นิยายมาใหม่";
+  if (query.content === "free") return "นิยายอ่านฟรี";
+  return "คลังนิยายออนไลน์";
+}
+
+/** Only stable, high-intent landing pages should compete in Search. */
+function isIndexableBrowse(query: NovelQuery) {
+  const filterKeys = Object.keys(query).filter((key) => key !== "page");
+  if (filterKeys.length === 0) return true;
+  if (filterKeys.length !== 1) return false;
+  return query.status === "completed" || query.sort === "new" || query.content === "free";
 }
 
 async function CachedExplorePage() {
@@ -83,15 +105,19 @@ async function CachedExplorePage() {
       <JsonLd
         data={{
           "@context": "https://schema.org",
-          "@type": "ItemList",
-          name: "สำรวจนิยาย",
-          numberOfItems: result.total,
-          itemListElement: visibleNovels.map((novel, index) => ({
-            "@type": "ListItem",
-            position: index + 1,
-            name: novel.thaiTitle,
-            url: absoluteUrl(`/novel/${novel.slug}`),
-          })),
+          "@type": "CollectionPage",
+          name: "อ่านนิยายออนไลน์และนิยายแปลไทย",
+          url: absoluteUrl("/novels"),
+          mainEntity: {
+            "@type": "ItemList",
+            numberOfItems: result.total,
+            itemListElement: visibleNovels.map((novel, index) => ({
+              "@type": "ListItem",
+              position: index + 1,
+              name: novel.thaiTitle,
+              url: absoluteUrl(`/novel/${novel.slug}`),
+            })),
+          },
         }}
       />
       <ExploreFeed
@@ -108,11 +134,11 @@ async function CachedExplorePage() {
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
   const raw = await searchParams;
-  const { query, allGenres } = await getCanonicalBrowseRequest(JSON.stringify(raw));
+  const { query, allGenres, activeTag } = await getCanonicalBrowseRequest(JSON.stringify(raw));
   if (Object.keys(query).length === 0) {
     return pageMetadata({
-      title: "สำรวจนิยาย",
-      description: "สำรวจนิยายบน NiyaiThai เลือกตามแนว สถานะ คะแนน และช่วงเวลาอัปเดต",
+      title: "อ่านนิยายออนไลน์และนิยายแปลไทย",
+      description: "สำรวจคลังนิยายออนไลน์และนิยายแปลไทย เลือกอ่านตามแนว สถานะ คะแนน จำนวนตอน และเวลาที่อัปเดต",
       path: "/novels",
     });
   }
@@ -121,19 +147,20 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const selected = parseGenreParam(query.genre)
     .map((slug) => allGenres.find((genre) => genre.slug === slug)?.thaiName)
     .filter((value): value is string => Boolean(value));
-  const title = selected.length ? `นิยาย${selected.join(" · ")}` : "สำรวจนิยาย";
+  const heading = browseHeading(query, selected, activeTag?.name);
+  const title = `${heading}${result.page > 1 ? ` หน้า ${result.page}` : ""}`;
 
   return pageMetadata({
     title,
-    description: `${title} บน NiyaiThai พบ ${result.total.toLocaleString("th-TH")} เรื่อง เลือกตามแนว สถานะ คะแนน และช่วงเวลาอัปเดต`,
+    description: `${heading}บน NiyaiThai พบ ${result.total.toLocaleString("th-TH")} เรื่อง เลือกอ่านตามแนว สถานะ คะแนน จำนวนตอน และเวลาอัปเดต`,
     path: novelBrowseHref(canonicalQuery, allGenres.map((genre) => genre.slug)),
-    noIndex: Boolean(query.q),
+    noIndex: !isIndexableBrowse(canonicalQuery),
   });
 }
 
 export default async function NovelsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const raw = await searchParams;
-  const { query, allGenres } = await getCanonicalBrowseRequest(JSON.stringify(raw));
+  const { query, allGenres, activeTag } = await getCanonicalBrowseRequest(JSON.stringify(raw));
   const activeGenreSlugs = allGenres.map((genre) => genre.slug);
   const normalizedHref = novelBrowseHref(query, activeGenreSlugs);
   if (Object.keys(query).length === 0) {
@@ -152,7 +179,7 @@ export default async function NovelsPage({ searchParams }: { searchParams: Promi
   const selected = parseGenreParam(canonicalQuery.genre)
     .map((slug) => allGenres.find((genre) => genre.slug === slug)?.thaiName)
     .filter((value): value is string => Boolean(value));
-  const title = selected.length ? `นิยาย${selected.join(" · ")}` : "สำรวจนิยาย";
+  const title = browseHeading(canonicalQuery, selected, activeTag?.name);
 
   return (
     <main id="main" className="mx-auto w-full max-w-(--shell-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6">

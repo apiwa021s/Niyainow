@@ -10,7 +10,11 @@ import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getGenres } from "@/services/novel-service";
 
-export const metadata: Metadata = pageMetadata({ title: "หมวดหมู่นิยาย", description: "เลือกอ่านนิยายตามโลก อารมณ์ และแนวเรื่องบน NiyaiThai", path: "/genres" });
+export const metadata: Metadata = pageMetadata({
+  title: "หมวดหมู่นิยายออนไลน์ทุกแนว",
+  description: "เลือกอ่านนิยายออนไลน์ตามแนวที่ชอบ ทั้งแฟนตาซี โรแมนติก วาย จีนย้อนยุค กำลังภายใน และหมวดอื่นในคลัง NiyaiThai",
+  path: "/genres",
+});
 
 export default async function GenresPage() {
   "use cache";
@@ -20,8 +24,17 @@ export default async function GenresPage() {
   const genres = await getGenres();
   return (
     <PageShell className="space-y-7">
-      <JsonLd data={{ "@context": "https://schema.org", "@type": "ItemList", name: "หมวดหมู่นิยาย", itemListElement: genres.map((genre, index) => ({ "@type": "ListItem", position: index + 1, name: genre.thaiName, url: absoluteUrl(`/genre/${genre.slug}`) })) }} />
-      <header className="py-2 sm:py-3"><p className="editorial-kicker">เลือกโลกที่อยากเข้าไปอ่าน</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">หมวดหมู่ทั้งหมด</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">เริ่มจากอารมณ์และแนวเรื่อง แต่ละหมวดมีชั้นเรื่องเด่น อัปเดตล่าสุด และเรื่องจบแล้ว</p></header>
+      <JsonLd data={{
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        name: "หมวดหมู่นิยายออนไลน์ทุกแนว",
+        url: absoluteUrl("/genres"),
+        mainEntity: {
+          "@type": "ItemList",
+          itemListElement: genres.map((genre, index) => ({ "@type": "ListItem", position: index + 1, name: genre.thaiName, url: absoluteUrl(`/genre/${genre.slug}`) })),
+        },
+      }} />
+      <header className="py-2 sm:py-3"><p className="editorial-kicker">เลือกโลกที่อยากเข้าไปอ่าน</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">หมวดหมู่นิยายออนไลน์</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">เลือกอ่านตามอารมณ์และแนวเรื่อง แต่ละหมวดรวมทั้งเรื่องยอดนิยม ตอนอัปเดตล่าสุด และนิยายจบแล้ว</p></header>
       {genres.length ? (
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {genres.map((genre) => (

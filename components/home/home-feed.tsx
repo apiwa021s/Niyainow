@@ -344,7 +344,7 @@ export function HomeFeed({
       <HomeNovelCarousel
         title="เรื่องจบแล้ว"
         novels={data.completed}
-        href="/novels?status=completed&sort=rating"
+        href="/novels?status=completed"
       />
 
       {signupSlot}

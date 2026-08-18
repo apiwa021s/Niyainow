@@ -7,10 +7,9 @@ import { SearchResults } from "@/components/interactive/search-results";
 import { NovelGrid } from "@/components/novels/novel-grid";
 import { SearchNovelCard } from "@/components/novels/novel-card";
 import { SearchNovelFilters } from "@/components/search/search-novel-filters";
-import { JsonLd } from "@/components/seo/json-ld";
 import { PageShell } from "@/components/ui/section";
+import { displayTagName } from "@/lib/domain/tag";
 import { pageMetadata } from "@/lib/seo";
-import { absoluteUrl } from "@/lib/site-config";
 import {
   canonicalizeNovelSearchParams,
   novelBrowseHref,
@@ -38,8 +37,9 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     title: query ? `ค้นหา “${query}”` : "ค้นหา",
     description: query
       ? `ผลการค้นหานิยาย ผู้แต่ง ผู้แปล หมวดหมู่ และแท็กสำหรับ “${query}”`
-      : "ค้นหานิยายบน NiyaiThai",
+      : "ค้นหานิยายออนไลน์จากชื่อเรื่อง ผู้แต่ง ผู้แปล หมวดหมู่ และแท็กบน NiyaiThai",
     path: query ? `/search?q=${encodeURIComponent(query)}` : "/search",
+    canonicalPath: "/search",
     noIndex: true,
   });
 }
@@ -78,22 +78,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const { novels, ...searchResults } = results;
   return (
     <PageShell>
-      {query.length >= 2 && novels.length ? (
-        <JsonLd
-          data={{
-            "@context": "https://schema.org",
-            "@type": "ItemList",
-            name: `ผลการค้นหา ${query}`,
-            numberOfItems: results.total,
-            itemListElement: novels.map((novel, index) => ({
-              "@type": "ListItem",
-              position: (results.page - 1) * 18 + index + 1,
-              name: novel.thaiTitle,
-              url: absoluteUrl(`/novel/${novel.slug}`),
-            })),
-          }}
-        />
-      ) : null}
       <SearchResults
         key={canonicalHref}
         initialQ={query}
@@ -118,7 +102,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               ))}
               {popularTags.slice(0, 6).map((tag) => (
                 <Link key={tag.slug} href={`/tag/${tag.slug}`} className="group flex min-h-11 items-center justify-between border-b border-border text-sm font-medium">
-                  <span>#{tag.name}</span><span className="tabular text-xs text-muted-foreground">{tag.count.toLocaleString("th-TH")}</span>
+                  <span>#{displayTagName(tag.name)}</span><span className="tabular text-xs text-muted-foreground">{tag.count.toLocaleString("th-TH")}</span>
                 </Link>
               ))}
             </div>

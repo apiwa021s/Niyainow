@@ -17,7 +17,7 @@ import {
 } from "@/lib/validation/public-query";
 import { getGenreBySlug, getGenreFacets, getGenreRising, getNovelPage, getNovels, getRankings } from "@/services/novel-service";
 import type { Novel } from "@/types/novel";
-import type { NovelQuery } from "@/types/novel-query";
+import { parsePositivePage, type NovelQuery } from "@/types/novel-query";
 
 async function getCachedGenreEditorial(slug: string) {
   "use cache";
@@ -33,14 +33,29 @@ async function getCachedGenreEditorial(slug: string) {
   return { top, rising, recent, completed };
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<RawSearchParams>;
+}): Promise<Metadata> {
+  const [{ slug }, raw] = await Promise.all([params, searchParams]);
   const genre = await getGenreBySlug(slug);
   if (!genre) return pageMetadata({ title: "ไม่พบหมวดหมู่", description: "ไม่พบหมวดหมู่นี้", path: `/genre/${slug}`, noIndex: true });
+  const query = canonicalizeNovelSearchParams(raw, { activeGenreSlugs: [] }).query;
+  const page = parsePositivePage(query.page);
+  const canonicalQuery: NovelQuery = { ...query, page: page > 1 ? page : undefined };
+  const browseHref = novelBrowseHref(canonicalQuery, []);
+  const path = `/genre/${genre.slug}${browseHref.slice("/novels".length)}`;
+  const hasFilters = Object.keys(query).some((key) => key !== "page");
   return pageMetadata({
-    title: `นิยาย${genre.thaiName}`,
-    description: genre.description || `รวมนิยาย${genre.thaiName} ${genre.count.toLocaleString("th-TH")} เรื่อง`,
-    path: `/genre/${genre.slug}`,
+    title: `นิยาย${genre.thaiName} อ่านออนไลน์${page > 1 ? ` หน้า ${page}` : ""}`,
+    description: genre.description
+      ? `อ่านนิยาย${genre.thaiName}ออนไลน์ ${genre.description} รวม ${genre.count.toLocaleString("th-TH")} เรื่องบน NiyaiThai`
+      : `รวมนิยาย${genre.thaiName}อ่านออนไลน์ ${genre.count.toLocaleString("th-TH")} เรื่อง ทั้งเรื่องยอดนิยม อัปเดตล่าสุด และเรื่องจบแล้ว`,
+    path,
+    noIndex: hasFilters,
   });
 }
 
@@ -70,23 +85,34 @@ export default async function GenreDetailPage({
 
   return (
     <PageShell className="space-y-14">
-      <JsonLd data={{
-        "@context": "https://schema.org",
-        "@type": "CollectionPage",
-        name: `นิยาย${genre.thaiName}`,
-        description: genre.description,
-        url: absoluteUrl(`/genre/${genre.slug}`),
-        mainEntity: {
-          "@type": "ItemList",
-          numberOfItems: result.total,
-          itemListElement: result.items.map((novel, index) => ({
-            "@type": "ListItem",
-            position: (result.page - 1) * result.pageSize + index + 1,
-            name: novel.thaiTitle,
-            url: absoluteUrl(`/novel/${novel.slug}`),
-          })),
+      <JsonLd data={[
+        {
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: `นิยาย${genre.thaiName} อ่านออนไลน์`,
+          description: genre.description,
+          url: absoluteUrl(canonicalHref),
+          mainEntity: {
+            "@type": "ItemList",
+            numberOfItems: result.total,
+            itemListElement: result.items.map((novel, index) => ({
+              "@type": "ListItem",
+              position: (result.page - 1) * result.pageSize + index + 1,
+              name: novel.thaiTitle,
+              url: absoluteUrl(`/novel/${novel.slug}`),
+            })),
+          },
         },
-      }} />
+        {
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "หน้าแรก", item: absoluteUrl("/") },
+            { "@type": "ListItem", position: 2, name: "หมวดหมู่นิยาย", item: absoluteUrl("/genres") },
+            { "@type": "ListItem", position: 3, name: genre.thaiName, item: absoluteUrl(`/genre/${genre.slug}`) },
+          ],
+        },
+      ]} />
 
       <header className="py-2 sm:py-3">
         <p className="editorial-kicker">โลกและอารมณ์ของเรื่อง</p>
