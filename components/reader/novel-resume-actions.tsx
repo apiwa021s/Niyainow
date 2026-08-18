@@ -94,7 +94,7 @@ export function NovelResumeActions({
 
   return (
     <div className="mt-6">
-      <div className="hidden flex-wrap gap-2.5 lg:flex">
+      <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
         <ButtonLink href={href} size="lg">
           <BookOpen className="h-4 w-4" />
           {label}
@@ -107,11 +107,8 @@ export function NovelResumeActions({
         ) : (
           <LibraryButton slug={slug} initialStatus={libraryStatus} count={bookmarkCount} />
         )}
+        <FollowButton slug={slug} initialActive={followed} />
         <ShareButton title={title} />
-      </div>
-
-      <div className="mt-2 flex justify-center md:justify-start">
-        <FollowButton slug={slug} initialActive={followed} quiet />
       </div>
 
       {selection ? (

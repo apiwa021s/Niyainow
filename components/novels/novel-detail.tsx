@@ -5,7 +5,7 @@ import { BookOpen, ListOrdered, Star } from "lucide-react";
 import {
   CompleteButton,
 } from "@/components/interactive/novel-actions";
-import { RatingReviewForm } from "@/components/interactive/rating-review-form";
+import { RatingForm } from "@/components/interactive/rating-form";
 import { SimilarNovelCard } from "@/components/novels/novel-card";
 import { NovelResumeActions } from "@/components/reader/novel-resume-actions";
 import { ButtonLink } from "@/components/ui/button";
@@ -204,18 +204,12 @@ export function NovelCommunity({
 }) {
   return (
     <>
-      <section aria-labelledby="rate-review-title">
-        <h2 id="rate-review-title" className="sr-only">ให้คะแนนและเขียนรีวิว</h2>
-        <RatingReviewForm
+      <section aria-labelledby="rating-title">
+        <h2 id="rating-title" className="sr-only">ให้คะแนนเรื่องนี้</h2>
+        <RatingForm
           slug={novel.slug}
           isAuthenticated={Boolean(userState)}
           initialRating={userState?.rating}
-          initialReview={userState?.review ? {
-            title: userState.review.title,
-            body: userState.review.body,
-            isSpoiler: userState.review.isSpoiler,
-            status: userState.review.status,
-          } : null}
         />
       </section>
 
