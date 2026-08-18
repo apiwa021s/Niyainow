@@ -24,7 +24,7 @@ export function AccountPageSkeleton({ variant }: { variant: AccountLoadingVarian
     return (
       <PageShell>
         <p role="status" className="sr-only">{loadingLabel[variant]}</p>
-        <section className="mx-auto max-w-2xl border-y border-border py-8" aria-hidden>
+        <section className="mx-auto max-w-2xl py-5" aria-hidden>
           <Skeleton className="h-7 w-7" />
           <Skeleton className="mt-4 h-9 w-[min(420px,85%)]" />
           <Skeleton className="mt-4 h-4 w-full" />
@@ -42,21 +42,21 @@ export function AccountPageSkeleton({ variant }: { variant: AccountLoadingVarian
 
       {variant === "profile" ? (
         <div aria-hidden className="space-y-8">
-          <section className="grid gap-6 border-y border-border py-6 lg:grid-cols-[1fr_auto] lg:items-center">
+          <section className="grid gap-6 py-3 lg:grid-cols-[1fr_auto] lg:items-center">
             <div className="flex items-center gap-4"><Skeleton className="h-16 w-16 rounded-full" /><div><Skeleton className="h-6 w-44" /><Skeleton className="mt-2 h-4 w-56" /><Skeleton className="mt-2 h-3 w-36" /></div></div>
             <div className="flex gap-2"><Skeleton className="h-11 w-24" /><Skeleton className="h-11 w-28" /></div>
           </section>
           <section>
             <div className="mb-3 flex items-center justify-between gap-3"><Skeleton className="h-6 w-32" /><Skeleton className="h-4 w-40" /></div>
-            <div className="grid border-y border-border sm:grid-cols-2">
-              {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className={`h-16 rounded-none ${index < 3 ? "border-b border-border" : ""} ${index === 2 ? "sm:border-b-0" : ""} ${index % 2 === 0 ? "sm:border-r sm:border-border" : ""}`} />)}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-16" />)}
             </div>
           </section>
         </div>
       ) : null}
 
       {variant === "settings" ? (
-        <div aria-hidden className="divide-y divide-border border-y border-border">
+        <div aria-hidden className="divide-y divide-border">
           {Array.from({ length: 4 }, (_, index) => (
             <section key={index} className="grid gap-5 py-6 lg:grid-cols-[240px_1fr]">
               <div><Skeleton className="h-6 w-36" /><Skeleton className="mt-2 h-4 w-48" /></div>
@@ -67,7 +67,7 @@ export function AccountPageSkeleton({ variant }: { variant: AccountLoadingVarian
       ) : null}
 
       {variant === "notifications" ? (
-        <section aria-hidden className="flex gap-4 border-y border-border py-6">
+        <section aria-hidden className="flex gap-4 py-3">
           <Skeleton className="h-6 w-6 shrink-0" />
           <div className="w-full"><Skeleton className="h-6 w-64 max-w-full" /><Skeleton className="mt-3 h-4 w-full" /><Skeleton className="mt-2 h-4 w-[76%]" /><Skeleton className="mt-5 h-11 w-40" /></div>
         </section>

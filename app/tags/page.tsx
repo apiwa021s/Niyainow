@@ -35,12 +35,12 @@ function tagCountLabel(tag: TagSummary) {
 
 function TagIndex({ tags }: { tags: TagSummary[] }) {
   return (
-    <ul className="grid border-t border-border md:grid-cols-2 xl:grid-cols-3">
+    <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
       {tags.map((tag) => (
-        <li key={tag.slug} className="border-b border-border md:odd:border-r xl:border-r xl:[&:nth-child(3n)]:border-r-0">
+        <li key={tag.slug}>
           <Link
             href={`/tag/${tag.slug}`}
-            className="group grid min-h-20 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-3 py-3 transition-colors hover:bg-muted/45 sm:px-4"
+            className="group grid min-h-20 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[8px] bg-card/70 px-3 py-3 transition-colors hover:bg-muted/55 sm:px-4"
           >
             <span className="min-w-0">
               <span className="block truncate font-semibold group-hover:text-[var(--brand-emphasis)]">#{tag.name}</span>
@@ -66,7 +66,7 @@ function TagsContent({ query, tags, limit }: { query: string; tags: TagSummary[]
 
   return (
     <PageShell className="space-y-10 lg:space-y-14">
-      <header className="grid gap-5 border-y border-border py-5 sm:py-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] lg:items-end">
+      <header className="grid gap-5 py-2 sm:py-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] lg:items-end">
         <div>
           <p className="editorial-kicker">ค้นจากองค์ประกอบของเรื่อง</p>
           <h1 className="mt-1 text-h1 font-semibold sm:text-display">แท็กนิยาย</h1>
@@ -93,10 +93,10 @@ function TagsContent({ query, tags, limit }: { query: string; tags: TagSummary[]
             <p className="mt-2 text-sm text-muted-foreground">จัดจากจำนวนนิยายที่เผยแพร่และผูกกับแต่ละแท็กจริง</p>
           </div>
           {featuredTags.length > 0 ? (
-            <ol className="grid border-t border-border sm:grid-cols-2 lg:grid-cols-4">
+            <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {featuredTags.map((tag, index) => (
-                <li key={tag.slug} className="border-b border-border sm:odd:border-r lg:border-r lg:[&:nth-child(4n)]:border-r-0">
-                  <Link href={`/tag/${tag.slug}`} className="group flex min-h-32 flex-col justify-between gap-5 p-4 transition-colors hover:bg-muted/45">
+                <li key={tag.slug}>
+                  <Link href={`/tag/${tag.slug}`} className="group flex min-h-32 flex-col justify-between gap-5 rounded-[8px] bg-card/70 p-4 transition-colors hover:bg-muted/55">
                     <span className="flex items-start justify-between gap-3">
                       <span className="tabular font-mono text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
                       <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--brand-emphasis)]" />
@@ -110,7 +110,7 @@ function TagsContent({ query, tags, limit }: { query: string; tags: TagSummary[]
               ))}
             </ol>
           ) : (
-            <div className="border-y border-border py-7 text-sm text-muted-foreground">ยังไม่มีแท็กที่ผูกกับนิยายเผยแพร่</div>
+            <div className="py-5 text-sm text-muted-foreground">ยังไม่มีแท็กที่ผูกกับนิยายเผยแพร่</div>
           )}
         </section>
       ) : null}

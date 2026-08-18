@@ -107,7 +107,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           ? "อ้างอิงกิจกรรมการอ่านในช่วง 7 วันล่าสุด"
           : "ใช้คะแนนจริงจากผู้อ่าน เมื่อข้อมูลความนิยมรายสัปดาห์ยังไม่เพียงพอ"}
         discoveryTopics={(
-          <section aria-labelledby="search-topics-title" className="border-y border-border py-5">
+          <section aria-labelledby="search-topics-title" className="py-2">
             <p className="editorial-kicker">START WITH A THREAD</p>
             <h2 id="search-topics-title" className="mt-1 text-xl font-semibold">เริ่มจากแนวหรือแท็กที่สนใจ</h2>
             <div className="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2">

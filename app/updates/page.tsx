@@ -49,7 +49,7 @@ async function CachedUpdatesPage({ range, genre }: { range: UpdateRange; genre?:
 
   return (
     <PageShell className="space-y-6">
-      <header className="border-y border-border py-5 sm:py-6">
+      <header className="py-2 sm:py-3">
         <p className="editorial-kicker">ตามจังหวะการเผยแพร่</p>
         <h1 className="mt-1 text-h1 font-semibold sm:text-display">อัปเดตล่าสุด</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">ตอนใหม่จากทุกเรื่อง เรียงตามเวลาที่เผยแพร่จริง</p>

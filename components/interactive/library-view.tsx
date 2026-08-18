@@ -73,7 +73,7 @@ export function LibraryView({
   const copy = MODE_COPY[mode];
   return (
     <section className="space-y-6">
-      <header className="border-y border-border py-5 sm:py-6">
+      <header className="py-2 sm:py-3">
         <p className="editorial-kicker">ชั้นหนังสือของฉัน</p>
         <h1 className="mt-1 text-h1 font-semibold sm:text-display">{copy.title}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{copy.description}</p>
@@ -83,7 +83,7 @@ export function LibraryView({
 
       {items.length ? (
         <>
-          <div id="library-results" className="divide-y divide-border border-y border-border">
+          <div id="library-results" className="divide-y divide-border">
             {items.map((item) => (
               mode === "reading" || mode === "history"
                 ? <ReadingRow key={item.novel.slug} item={item} mode={mode} />
@@ -118,7 +118,7 @@ function LibraryPagination({
   const pageHref = (page: number) => `${collectionPageHref(pathname, page)}#library-results`;
 
   return (
-    <footer className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
+    <footer className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
       <p className="tabular text-xs text-muted-foreground">
         แสดง {firstItem.toLocaleString("th-TH")}–{lastItem.toLocaleString("th-TH")} จาก {pagination.total.toLocaleString("th-TH")} เรื่อง
       </p>
@@ -146,7 +146,7 @@ function LibraryPagination({
 function LibraryNav({ mode }: { mode: LibraryMode }) {
   return (
     <div>
-      <nav aria-label="ส่วนหลักในชั้นหนังสือ" className="rail-scroll -mx-3 flex max-w-full gap-1 border-b border-border px-3 sm:mx-0 sm:px-0">
+      <nav aria-label="ส่วนหลักในชั้นหนังสือ" className="rail-scroll -mx-3 flex max-w-full gap-1 px-3 sm:mx-0 sm:px-0">
         {PRIMARY_NAV_ITEMS.map((item) => (
           <Link
             key={item.mode}

@@ -21,12 +21,12 @@ export default async function GenresPage() {
   return (
     <PageShell className="space-y-7">
       <JsonLd data={{ "@context": "https://schema.org", "@type": "ItemList", name: "หมวดหมู่นิยาย", itemListElement: genres.map((genre, index) => ({ "@type": "ListItem", position: index + 1, name: genre.thaiName, url: absoluteUrl(`/genre/${genre.slug}`) })) }} />
-      <header className="border-y border-border py-5 sm:py-6"><p className="editorial-kicker">เลือกโลกที่อยากเข้าไปอ่าน</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">หมวดหมู่ทั้งหมด</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">เริ่มจากอารมณ์และแนวเรื่อง แต่ละหมวดมีชั้นเรื่องเด่น อัปเดตล่าสุด และเรื่องจบแล้ว</p></header>
+      <header className="py-2 sm:py-3"><p className="editorial-kicker">เลือกโลกที่อยากเข้าไปอ่าน</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">หมวดหมู่ทั้งหมด</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">เริ่มจากอารมณ์และแนวเรื่อง แต่ละหมวดมีชั้นเรื่องเด่น อัปเดตล่าสุด และเรื่องจบแล้ว</p></header>
       {genres.length ? (
-        <ul className="grid border-l border-t border-border sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {genres.map((genre) => (
-            <li key={genre.slug} className="border-b border-r border-border">
-              <Link href={`/genre/${genre.slug}`} className="group flex min-h-40 flex-col p-4 transition-colors hover:bg-muted/45 sm:min-h-48 sm:p-5">
+            <li key={genre.slug}>
+              <Link href={`/genre/${genre.slug}`} className="group flex min-h-40 flex-col rounded-[8px] bg-card/70 p-4 transition-colors hover:bg-muted/55 sm:min-h-48 sm:p-5">
                 <BookOpen className="h-5 w-5 text-[var(--brand-emphasis)]" />
                 <h2 className="mt-5 text-xl font-semibold group-hover:text-[var(--brand-emphasis)]">{genre.thaiName}</h2>
                 {genre.name !== genre.thaiName ? <p className="mt-0.5 text-xs text-muted-foreground">{genre.name}</p> : null}

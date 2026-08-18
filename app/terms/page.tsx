@@ -54,7 +54,7 @@ function LegalArticle({ sections, updated }: { sections: typeof termsSections; u
         <p className="editorial-kicker">DOCUMENT STATUS</p>
         <p className="mt-2 leading-6">ปรับปรุงล่าสุด<br /><span className="font-medium text-foreground">{updated}</span></p>
       </aside>
-      <article className="border-t border-border">
+      <article>
         {sections.map((section, index) => (
           <section key={section.title} className="grid gap-3 border-b border-border py-7 sm:grid-cols-[44px_minmax(0,1fr)]">
             <span className="tabular font-mono text-xs font-semibold text-[var(--brand-light-on-light)]">{String(index + 1).padStart(2, "0")}</span>

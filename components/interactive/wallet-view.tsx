@@ -4,7 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 
 export function WalletView() {
   return (
-    <section className="mx-auto max-w-2xl border-y border-border py-5 sm:py-6">
+    <section className="mx-auto max-w-2xl py-2 sm:py-3">
       <LockKeyhole className="h-7 w-7 text-muted-foreground" />
       <h1 className="mt-4 text-h1 font-semibold sm:text-display">ยังไม่เปิดระบบชำระเงิน</h1>
       <p className="mt-3 text-sm leading-7 text-muted-foreground">NiyaiThai ยังไม่มีบริการเติมเหรียญ ซื้อแพ็กเกจ หรือปลดล็อกตอน จึงไม่แสดงยอดคงเหลือและไม่มีการเรียกเก็บเงินในบัญชี</p>

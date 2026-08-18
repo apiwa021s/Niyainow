@@ -10,5 +10,5 @@ export const metadata: Metadata = { title: "โปรไฟล์", robots: { in
 export default async function ProfilePage() {
   const user = await requireActiveUser("/profile");
   const summary = await getProfileSummary(user.id);
-  return <PageShell className="space-y-6"><header className="border-y border-border py-5 sm:py-6"><p className="editorial-kicker">บัญชีและการอ่าน</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">โปรไฟล์</h1></header><ProfilePanel user={user} summary={summary} /></PageShell>;
+  return <PageShell className="space-y-6"><header className="py-2 sm:py-3"><p className="editorial-kicker">บัญชีและการอ่าน</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">โปรไฟล์</h1></header><ProfilePanel user={user} summary={summary} /></PageShell>;
 }

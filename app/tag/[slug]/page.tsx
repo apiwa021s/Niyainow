@@ -70,7 +70,7 @@ export default async function TagDetailPage({ params, searchParams }: { params: 
         url: absoluteUrl(`/tag/${tag.slug}`),
         mainEntity: { "@type": "ItemList", numberOfItems: result.total, itemListElement: result.items.map((novel, index) => ({ "@type": "ListItem", position: (result.page - 1) * result.pageSize + index + 1, name: novel.thaiTitle, url: absoluteUrl(`/novel/${novel.slug}`) })) },
       }} />
-      <header className="border-y border-border py-5 sm:py-6">
+      <header className="py-2 sm:py-3">
         <p className="editorial-kicker">เส้นเรื่องและองค์ประกอบ</p>
         <h1 className="mt-1 text-h1 font-semibold sm:text-display">#{tag.name}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">{tag.description || `เรื่องทั้งหมดที่จัดอยู่ในแท็ก ${tag.name}`}</p>

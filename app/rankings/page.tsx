@@ -77,13 +77,13 @@ async function CachedRankingsPage({ view }: { view: RankingView }) {
         }} />
       ) : null}
 
-      <header className="border-y border-border py-5 sm:py-6">
+      <header className="py-2 sm:py-3">
         <p className="editorial-kicker">RANKING / READER SIGNALS</p>
         <h1 className="mt-1 text-h1 font-semibold sm:text-display">อันดับนิยาย</h1>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{selected.explanation}</p>
       </header>
 
-      <nav aria-label="ประเภทอันดับ" className="grid border-y border-border sm:grid-cols-3 sm:divide-x sm:divide-border">
+      <nav aria-label="ประเภทอันดับ" className="grid gap-1 rounded-[8px] bg-muted/35 p-1 sm:grid-cols-3">
         {views.map((view) => {
           const active = selected.value === view.value;
           return (
@@ -92,7 +92,7 @@ async function CachedRankingsPage({ view }: { view: RankingView }) {
               href={view.value === "trending" ? "/rankings" : `/rankings?view=${view.value}`}
               variant="ghost"
               aria-current={active ? "page" : undefined}
-              className={`h-auto min-h-16 flex-col items-start rounded-none border-b-2 px-4 py-3 text-left sm:border-b-0 sm:border-l-2 ${active ? "border-[var(--brand-emphasis)] bg-muted/45" : "border-transparent"}`}
+              className={`h-auto min-h-16 flex-col items-start rounded-[6px] px-4 py-3 text-left ${active ? "bg-card text-foreground shadow-[var(--sh-1)]" : "text-muted-foreground hover:bg-muted/55 hover:text-foreground"}`}
             >
               <span>{view.label}</span>
               <span className="text-[11px] font-normal text-muted-foreground">{view.description}</span>
@@ -103,7 +103,7 @@ async function CachedRankingsPage({ view }: { view: RankingView }) {
 
       {entries.length ? (
         <>
-          <section aria-label="สามอันดับแรก" className="grid grid-cols-1 gap-6 border-b border-border pb-7 sm:grid-cols-3">
+          <section aria-label="สามอันดับแรก" className="grid grid-cols-1 gap-6 pb-2 sm:grid-cols-3">
             {entries.slice(0, 3).map((entry) => (
               <div key={entry.novel.slug} className="flex justify-center">
                 <RankingCard novel={entry.novel} rank={entry.rank} movement={entry.movement} />

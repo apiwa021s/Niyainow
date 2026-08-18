@@ -27,7 +27,7 @@ export default function AboutPage() {
           <p className="editorial-kicker">OUR PRINCIPLES</p>
           <h2 id="principles-title" className="mt-2 text-2xl font-semibold">หลักที่ใช้ตัดสินใจ</h2>
         </div>
-        <ol className="border-t border-border">
+        <ol>
           {principles.map(([index, title, body]) => (
             <li key={index} className="grid gap-3 border-b border-border py-6 sm:grid-cols-[52px_180px_minmax(0,1fr)] sm:gap-5">
               <span className="tabular font-mono text-xs font-semibold text-[var(--brand-light-on-light)]">{index}</span>

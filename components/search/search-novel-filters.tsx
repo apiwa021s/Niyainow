@@ -147,7 +147,7 @@ export function SearchNovelFilters({
 
   return (
     <div aria-busy={pending}>
-      <div className="hidden flex-wrap items-end gap-3 border-y border-border py-3 md:flex">
+      <div className="hidden flex-wrap items-end gap-3 py-2 md:flex">
         <FilterSelect
           label="แนว"
           value={selectedGenres.length === 1 ? selectedGenres[0] : ""}

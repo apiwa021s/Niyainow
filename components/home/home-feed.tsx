@@ -342,7 +342,7 @@ export function HomeFeed({
         <section className="render-deferred">
           <SectionHeader title="อันดับความนิยม 7 วัน" href="/rankings" />
           {/* Ranks read as a list, never a grid — a card hides the ordinal (brief §5.3). */}
-          <div className="grid border-t border-border lg:grid-cols-2 lg:gap-x-6">
+          <div className="grid lg:grid-cols-2 lg:gap-x-6">
             {data.rankings.slice(0, 14).map((novel, index) => (
               <RankingNovelCard key={novel.slug} novel={novel} rank={index + 1} />
             ))}

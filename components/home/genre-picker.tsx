@@ -5,7 +5,7 @@ import type { Genre } from "@/types/novel";
 
 export function GenrePicker({ items }: { items: { genre: Genre; covers: string[] }[] }) {
   return (
-    <section aria-label="เลือกตามแนว" className="render-deferred border-y border-border py-4 sm:py-5">
+    <section aria-label="เลือกตามแนว" className="render-deferred py-2 sm:py-3">
       <div className="grid gap-4 lg:grid-cols-[220px_1fr] lg:items-start lg:gap-6">
         <div>
           <p className="editorial-kicker">เลือกตามแนวเรื่อง</p>

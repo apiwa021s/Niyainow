@@ -35,7 +35,7 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <header className="mb-5 grid gap-4 border-y border-border py-5 sm:mb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:py-6">
+    <header className="mb-5 grid gap-4 py-2 sm:mb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:py-3">
       <div className="flex min-w-0 gap-3">
         <span aria-hidden className="mt-0.5 w-0.5 shrink-0 bg-accent-base" />
         <div className="min-w-0">
@@ -63,7 +63,7 @@ export function SectionHeader({
   icon?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-end justify-between gap-4 border-b border-border pb-3">
+    <div className="mb-4 flex items-end justify-between gap-4">
       <div className="min-w-0">
         <div className="flex items-center gap-3">
           <span aria-hidden className="h-7 w-0.5 shrink-0 bg-[var(--brand-primary)]" />

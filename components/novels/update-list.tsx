@@ -7,7 +7,7 @@ import type { NovelUpdate } from "@/services/novel-service";
 export function UpdateList({ items, limit }: { items: NovelUpdate[]; limit?: number }) {
   const visibleItems = limit ? items.slice(0, limit) : items;
   return (
-    <ol className="divide-y divide-border border-y border-border">
+    <ol className="divide-y divide-border">
       {visibleItems.map((item) => {
         const genre = item.novel.genres[0];
         return (

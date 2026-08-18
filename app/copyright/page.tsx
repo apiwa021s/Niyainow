@@ -43,11 +43,11 @@ export default function CopyrightPage() {
           <p className="mt-3 leading-8 text-muted-foreground">การแจ้งที่มี URL รายละเอียดผลงาน และฐานสิทธิ์ครบถ้วนช่วยลดความคลาดเคลื่อนและทำให้ประเมินเนื้อหาได้เร็วขึ้น</p>
         </div>
 
-        <ol className="mt-7 grid border-y border-border md:grid-cols-3 md:divide-x md:divide-border">
+        <ol className="mt-7 grid gap-2 md:grid-cols-3">
           {steps.map((step, index) => {
             const Icon = step.icon;
             return (
-              <li key={step.title} className="border-b border-border py-6 last:border-b-0 md:border-b-0 md:px-6 md:first:pl-0 md:last:pr-0">
+              <li key={step.title} className="rounded-[8px] bg-card/70 p-5">
                 <div className="flex items-center justify-between">
                   <Icon aria-hidden className="h-5 w-5 text-[var(--brand-light-on-light)]" />
                   <span className="tabular font-mono text-xs text-muted-foreground">0{index + 1}</span>

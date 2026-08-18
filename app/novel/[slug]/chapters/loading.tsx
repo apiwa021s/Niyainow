@@ -3,7 +3,7 @@ import { PageShell, Skeleton } from "@/components/ui/section";
 export default function ChaptersLoading() {
   return (
     <PageShell aria-busy="true" className="space-y-5">
-      <div className="space-y-2 border-b border-border pb-5">
+      <div className="space-y-2 py-2">
         <Skeleton className="h-4 w-36" />
         <Skeleton className="h-9 w-48" />
         <Skeleton className="h-4 w-64" />

@@ -116,7 +116,7 @@ export function SearchResults({
 
   return (
     <section className="space-y-6">
-      <header className="border-y border-border py-5 sm:py-6">
+      <header className="py-2 sm:py-3">
         <p className="editorial-kicker">ค้นจากทั้งคลัง</p>
         <h1 className="mt-1 text-h1 font-semibold sm:text-display">ค้นหานิยาย</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">ค้นจากชื่อไทย ชื่อต้นฉบับ ชื่ออื่น ผู้แต่ง ผู้แปล หมวดหมู่ และแท็ก</p>

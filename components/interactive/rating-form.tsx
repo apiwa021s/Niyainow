@@ -145,7 +145,7 @@ export function RatingForm({
   };
 
   return (
-    <div className="max-w-lg border-y border-border py-5">
+    <div className="max-w-lg py-2">
       <p className="editorial-kicker">YOUR RATING</p>
       <h3 className="mt-1 text-xl font-semibold">ให้คะแนนเรื่องนี้</h3>
       <div className="mt-4">

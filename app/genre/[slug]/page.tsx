@@ -88,7 +88,7 @@ export default async function GenreDetailPage({
         },
       }} />
 
-      <header className="border-y border-border py-5 sm:py-6">
+      <header className="py-2 sm:py-3">
         <p className="editorial-kicker">โลกและอารมณ์ของเรื่อง</p>
         <h1 className="mt-1 max-w-3xl text-h1 font-semibold sm:text-display">นิยาย{genre.thaiName}</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">

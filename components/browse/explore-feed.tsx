@@ -11,7 +11,7 @@ const EXPLORE_SHELF_ITEM_CLASS = "w-[92px] shrink-0 sm:w-[106px] lg:w-[118px] 2x
 
 function ShelfEmpty({ description }: { description: string }) {
   return (
-    <div className="border-y border-border py-7 text-sm leading-7 text-muted-foreground">
+    <div className="py-5 text-sm leading-7 text-muted-foreground">
       {description}
     </div>
   );
@@ -71,7 +71,7 @@ export function ExploreFeed({
 
   return (
     <PageShell className="space-y-8 lg:space-y-10">
-      <header className="grid gap-4 border-y border-border py-4 sm:py-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+      <header className="grid gap-4 py-2 sm:py-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
         <div className="max-w-3xl">
           <p className="editorial-kicker">DISCOVERY / EXPLORE</p>
           <h1 className="mt-1 text-h1 font-semibold sm:text-display">วันนี้อยากอ่านอะไรต่อ</h1>
@@ -137,7 +137,7 @@ export function ExploreFeed({
           action="ดูอันดับทั้งหมด"
         />
         {trending.length > 0 ? (
-          <ol className="grid border-t border-border lg:grid-cols-2 lg:gap-x-8">
+          <ol className="grid lg:grid-cols-2 lg:gap-x-8">
             {trending.slice(0, 10).map((novel, index) => (
               <li key={novel.slug}><RankingNovelCard novel={novel} rank={index + 1} /></li>
             ))}

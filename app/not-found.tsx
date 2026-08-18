@@ -6,7 +6,7 @@ import { PageShell } from "@/components/ui/section";
 export default function NotFound() {
   return (
     <PageShell className="grid min-h-[68vh] place-items-center">
-      <section aria-labelledby="not-found-title" className="w-full max-w-3xl border-y border-border py-10 text-center">
+      <section aria-labelledby="not-found-title" className="w-full max-w-3xl py-8 text-center">
         <p className="tabular font-mono text-sm font-semibold text-[var(--brand-light-on-light)]">404 / PAGE NOT FOUND</p>
         <h1 id="not-found-title" className="mt-3 text-3xl font-semibold sm:text-5xl">ไม่พบหน้าที่คุณกำลังตามหา</h1>
         <p className="mx-auto mt-4 max-w-xl leading-7 text-muted-foreground">

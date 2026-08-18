@@ -288,7 +288,7 @@ export function SimilarNovelCard({ novel, href, highlight }: { novel: Novel; hre
 
 export function EditorialRecommendationCard({ novel }: { novel: Novel }) {
   return (
-    <Link href={`/novel/${novel.slug}`} className="group grid w-[310px] shrink-0 grid-cols-[84px_1fr] gap-4 border-y border-border py-4 sm:w-[390px] sm:grid-cols-[96px_1fr]">
+    <Link href={`/novel/${novel.slug}`} className="group grid w-[310px] shrink-0 grid-cols-[84px_1fr] gap-4 rounded-[8px] bg-card/70 p-4 transition-colors hover:bg-muted/55 sm:w-[390px] sm:grid-cols-[96px_1fr]">
       <div className="relative aspect-[2/3] overflow-hidden rounded-[5px] bg-muted">
         <Image src={novel.cover} alt="" fill sizes="96px" className="object-cover" />
       </div>

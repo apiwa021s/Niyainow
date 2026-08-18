@@ -194,7 +194,7 @@ export function NovelBrowser({
 
   return (
     <section className="min-w-0 space-y-4">
-      <header className="border-y border-border py-4">
+      <header className="py-2">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0">
             <p className="editorial-kicker">สำรวจคลังนิยาย</p>
@@ -290,7 +290,7 @@ export function NovelBrowser({
       <div className="grid gap-4 2xl:grid-cols-[248px_minmax(0,1fr)] 2xl:items-start">
         <aside className="hidden 2xl:block">
           <div className="sticky top-[calc(var(--topbar-h-lg)+12px)] max-h-[calc(100dvh-var(--topbar-h-lg)-24px)] overflow-y-auto rounded-[8px] border border-border bg-card p-3">
-            <div className="mb-3 flex items-start justify-between gap-2 border-b border-border pb-3">
+            <div className="mb-4 flex items-start justify-between gap-2">
               <div>
                 <p className="editorial-kicker">FILTERS</p>
                 <h2 className="mt-1 text-base font-semibold">ตัวกรองละเอียด</h2>
@@ -306,7 +306,7 @@ export function NovelBrowser({
         </aside>
 
         <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="tabular text-xs text-muted-foreground">
               {typeof resultStart === "number" && typeof resultEnd === "number"
                 ? `แสดง ${resultStart.toLocaleString("th-TH")}–${resultEnd.toLocaleString("th-TH")} จาก ${pagination.total.toLocaleString("th-TH")} เรื่อง`

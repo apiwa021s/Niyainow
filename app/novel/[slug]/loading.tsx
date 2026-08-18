@@ -5,7 +5,7 @@ export default function NovelLoading() {
     <PageShell aria-busy="true" className="space-y-12 lg:space-y-16">
       <Skeleton className="h-11 w-72 max-w-full" />
 
-      <section className="grid gap-7 border-y border-border py-7 md:grid-cols-[190px_minmax(0,1fr)] md:gap-9 lg:grid-cols-[220px_minmax(0,1fr)] lg:py-10">
+      <section className="grid gap-7 rounded-(--r-lg) bg-surface px-4 py-7 md:grid-cols-[190px_minmax(0,1fr)] md:gap-9 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-6 lg:py-10">
         <Skeleton className="aspect-[2/3] w-[160px] rounded-[6px] sm:w-[190px] lg:w-[220px]" />
         <div className="min-w-0 space-y-4 py-1">
           <Skeleton className="h-4 w-32" />
@@ -24,7 +24,7 @@ export default function NovelLoading() {
         </div>
       </section>
 
-      <section className="border-y border-border py-5">
+      <section className="rounded-(--r-md) bg-surface-subtle px-4 py-5">
         <Skeleton className="h-4 w-36" />
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((item) => (
@@ -44,12 +44,12 @@ export default function NovelLoading() {
             <Skeleton className="h-5 w-[96%]" />
             <Skeleton className="h-5 w-[84%]" />
           </section>
-          <section className="border-t border-border pt-6">
+          <section>
             <Skeleton className="h-8 w-52" />
             {[1, 2, 3].map((item) => <Skeleton key={item} className="mt-4 h-16 w-full" />)}
           </section>
         </div>
-        <aside className="space-y-4 border-t border-border pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
+        <aside className="space-y-4 lg:pl-7">
           <Skeleton className="h-4 w-28" />
           {[1, 2, 3, 4, 5].map((item) => <Skeleton key={item} className="h-11 w-full" />)}
         </aside>

@@ -56,7 +56,7 @@ export function RouteRecovery({
 
   return (
     <PageShell className="grid min-h-[68vh] place-items-center">
-      <section aria-labelledby="route-recovery-title" aria-live="polite" className="w-full max-w-2xl border-y border-border py-10 text-center">
+      <section aria-labelledby="route-recovery-title" aria-live="polite" className="w-full max-w-2xl py-8 text-center">
         {!isOnline ? <WifiOff className="mx-auto mb-4 h-7 w-7 text-[var(--brand-emphasis)]" aria-hidden /> : null}
         <p className="editorial-kicker">{isOnline ? kicker : "OFFLINE / RECOVERY"}</p>
         <h1 id="route-recovery-title" className="mt-2 text-3xl font-semibold sm:text-4xl">{resolvedTitle}</h1>

@@ -38,7 +38,7 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
   ];
   return (
     <div className="space-y-8">
-      <section className="grid gap-6 border-y border-border py-5 sm:py-6 lg:grid-cols-[1fr_auto] lg:items-center">
+      <section className="grid gap-6 py-2 sm:py-3 lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="flex min-w-0 items-center gap-4">
           <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-muted text-[var(--brand-emphasis)]"><UserRound className="h-8 w-8" /></div>
           <div className="min-w-0">
@@ -58,12 +58,12 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
           <h2 id="profile-reading-heading" className="text-xl font-semibold">ทางลัดการอ่าน</h2>
           <p className="text-sm text-muted-foreground">หนังสือในชั้นทั้งหมด {summary.libraryCount.toLocaleString("th-TH")} เรื่อง</p>
         </div>
-        <ul className="divide-y divide-border border-y border-border sm:grid sm:grid-cols-2 sm:divide-y-0">
-          {readingLinks.map((item, index) => {
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {readingLinks.map((item) => {
             const Icon = item.icon;
             return (
-              <li key={item.label} className={cn("min-w-0", index < 2 && "sm:border-b sm:border-border", index % 2 === 0 && "sm:border-r sm:border-border")}>
-                <ButtonLink href={item.href} variant="ghost" className="h-auto min-h-16 w-full justify-start rounded-none px-3 py-3 text-left">
+              <li key={item.label} className="min-w-0">
+                <ButtonLink href={item.href} variant="ghost" className="h-auto min-h-16 w-full justify-start rounded-[8px] bg-muted/35 px-3 py-3 text-left hover:bg-muted/60">
                   <Icon className="h-5 w-5 shrink-0 text-[var(--brand-emphasis)]" aria-hidden />
                   <span className="min-w-0 flex-1 whitespace-normal font-medium">{item.label}</span>
                   <span className="tabular shrink-0 text-sm font-semibold text-muted-foreground">{item.value.toLocaleString("th-TH")} เรื่อง</span>
@@ -84,7 +84,7 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
   const resetPrefs = useReaderStore((state) => state.resetPrefs);
 
   return (
-    <div className="divide-y divide-border border-y border-border">
+    <div className="divide-y divide-border">
       <SettingsSection title="บัญชี" description="ข้อมูลนี้มาจากบัญชี Google และแก้ไขบนเว็บไซต์ไม่ได้">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2"><Label htmlFor="profile-display-name">ชื่อที่แสดง</Label><Input id="profile-display-name" value={user.name || "นักอ่าน NiyaiThai"} readOnly disabled /></div>
@@ -148,7 +148,7 @@ function SettingsSection({ title, description, children }: { title: string; desc
 
 export function NotificationsPanel({ followingCount }: { followingCount: number }) {
   return (
-    <section className="flex gap-4 border-y border-border py-5 sm:py-6">
+    <section className="flex gap-4 py-2 sm:py-3">
       <BellOff className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
       <div>
         <h2 className="text-xl font-semibold">ยังไม่เปิดส่งการแจ้งเตือน</h2>
