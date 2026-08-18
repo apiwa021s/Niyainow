@@ -86,7 +86,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
   if (!novel && banner) {
     return (
       <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
-        <div className="relative aspect-3/2 w-full sm:aspect-[16/5]">
+        <div className="relative aspect-3/2 w-full sm:h-[clamp(240px,26vw,340px)] sm:aspect-auto">
           <Image src={banner.image} alt="" fill sizes="100vw" priority className="object-cover" />
           <div
             aria-hidden
@@ -141,7 +141,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
   return (
     <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
       <div className="hidden sm:block">
-        <div className="relative aspect-[16/5] w-full lg:aspect-[21/5]">
+        <div className="relative h-[clamp(240px,26vw,340px)] w-full">
           <Image src={novel.backdrop || novel.cover} alt="" fill sizes="100vw" priority className="object-cover" />
           <div aria-hidden className="absolute inset-0 bg-linear-to-r from-black/90 via-black/60 to-black/10" />
         </div>
@@ -212,16 +212,6 @@ function ShortcutCard({
   );
 }
 
-function SignalCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="min-w-0 rounded-(--r-md) border border-border bg-card p-2">
-      <p className="truncate text-[11px] text-(--text-secondary)">{label}</p>
-      <p className="tabular mt-0.5 text-lg font-semibold">{value}</p>
-      <p className="mt-0.5 truncate text-[10px] text-(--text-tertiary)">{hint}</p>
-    </div>
-  );
-}
-
 function MiniPanel({
   title,
   href,
@@ -261,55 +251,6 @@ function MiniNovelRow({ novel, rank }: { novel: Novel; rank: number }) {
   );
 }
 
-function MiniUpdateRow({ item, novel }: { item: UpdateItem; novel: Novel }) {
-  return (
-    <Link
-      href={`/novel/${novel.slug}/chapter/${item.chapter}`}
-      className="group grid min-h-[64px] grid-cols-[38px_minmax(0,1fr)] items-center gap-2 rounded-(--r-md) border border-border bg-card p-2 transition-colors hover:border-accent-base hover:bg-surface-subtle"
-    >
-      <span className="relative aspect-2/3 w-[38px] overflow-hidden rounded-(--r-sm) bg-surface-recessed">
-        <Image src={novel.cover} alt="" fill sizes="38px" className="object-cover" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold group-hover:text-accent-base">{novel.thaiTitle}</span>
-        <span className="block truncate text-[11px] text-(--text-secondary)">
-          ตอน {item.chapter.toLocaleString("th-TH")} · {item.time}
-        </span>
-      </span>
-    </Link>
-  );
-}
-
-function DesktopLatestUpdatesPanel({ data }: { data: HomeData }) {
-  const latestUpdates = data.updates
-    .map((item) => ({ item, novel: data.novelsBySlug[item.novelSlug] }))
-    .filter((entry): entry is { item: UpdateItem; novel: Novel } => Boolean(entry.novel))
-    .slice(0, 6);
-
-  if (!latestUpdates.length) return null;
-
-  return (
-    <section aria-label="ตอนใหม่ล่าสุดบนเดสก์ท็อป" className="hidden rounded-(--r-lg) border border-border bg-surface p-3 xl:block">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="editorial-kicker">LIVE UPDATES</p>
-          <h2 className="mt-1 truncate text-h2 font-semibold">ตอนใหม่ล่าสุด</h2>
-        </div>
-        <Link href="/updates" className="shrink-0 text-sm font-semibold text-(--text-secondary) hover:text-accent-base">
-          ดูทั้งหมด
-        </Link>
-      </div>
-      <ol className="grid gap-1.5 lg:grid-cols-2">
-        {latestUpdates.map(({ item, novel }) => (
-          <li key={`${item.novelSlug}-${item.chapter}`}>
-            <MiniUpdateRow item={item} novel={novel} />
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
 function HomeNovelCarousel({
   title,
   novels,
@@ -326,7 +267,7 @@ function HomeNovelCarousel({
   if (!novels.length) return null;
 
   return (
-    <ContentRow title={title} count={novels.length} description={description} href={href} className="render-deferred">
+    <ContentRow title={title} count={novels.length} description={description} href={href} bleed={false} className="render-deferred">
       {novels.map((novel, index) => (
         <RowItem key={novel.slug} className={HOME_CAROUSEL_ITEM_CLASS}>
           <HomeCoverTile novel={novel} priority={index < priorityCount} />
@@ -340,64 +281,57 @@ function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: Promo
   const topRanked = data.rankings.slice(0, 5);
 
   return (
-    <section aria-label="ศูนย์เริ่มอ่าน" className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="grid min-w-0 content-start gap-3">
-        <Hero novel={data.spotlightNovel} banner={banners[0]} />
-        <div className="hidden gap-3 xl:grid">
+    <section aria-label="ศูนย์เริ่มอ่าน" className="grid gap-3">
+      <Hero novel={data.spotlightNovel} banner={banners[0]} />
+
+      <div className="hidden gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-w-0 content-start gap-3">
           <TrendingTicker novels={data.rankings.slice(0, 16)} />
           <GenreChipRail items={data.genreShowcase} />
-          <DesktopLatestUpdatesPanel data={data} />
         </div>
+
+        <aside className="grid content-start gap-2.5 rounded-(--r-lg) border border-border bg-surface p-2.5 sm:p-3">
+          <div>
+            <p className="editorial-kicker">START READING</p>
+            <h2 className="mt-1 text-h2 font-semibold">เลือกทางลัดของวันนี้</h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <ShortcutCard
+              href="/novels?sort=popular"
+              label="ยอดนิยม"
+              description="เรื่องที่คนอ่านกำลังเปิดมากที่สุด"
+              icon={<Trophy className="h-4 w-4" />}
+            />
+            <ShortcutCard
+              href="/updates"
+              label="ตอนใหม่ล่าสุด"
+              description="กลับมาเช็กจังหวะอัปเดตของคลัง"
+              icon={<Clock3 className="h-4 w-4" />}
+            />
+            <ShortcutCard
+              href="/genres"
+              label="เลือกตามแนว"
+              description="เริ่มจากอารมณ์หรือโลกที่อยากอ่าน"
+              icon={<Compass className="h-4 w-4" />}
+            />
+            <ShortcutCard
+              href="/search"
+              label="ค้นหาแบบตรงใจ"
+              description="ชื่อเรื่อง ผู้แต่ง ผู้แปล แนว หรือแท็ก"
+              icon={<Search className="h-4 w-4" />}
+            />
+          </div>
+
+          {topRanked.length ? (
+            <MiniPanel title="อันดับที่คนกำลังอ่าน" href="/rankings">
+              {topRanked.map((novel, index) => (
+                <MiniNovelRow key={novel.slug} novel={novel} rank={index + 1} />
+              ))}
+            </MiniPanel>
+          ) : null}
+        </aside>
       </div>
-
-      <aside className="grid content-start gap-2.5 rounded-(--r-lg) border border-border bg-surface p-2.5 sm:p-3">
-        <div>
-          <p className="editorial-kicker">START READING</p>
-          <h2 className="mt-1 text-h2 font-semibold">เลือกทางลัดของวันนี้</h2>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <ShortcutCard
-            href="/novels?sort=popular"
-            label="ยอดนิยม"
-            description="เรื่องที่คนอ่านกำลังเปิดมากที่สุด"
-            icon={<Trophy className="h-4 w-4" />}
-          />
-          <ShortcutCard
-            href="/updates"
-            label="ตอนใหม่ล่าสุด"
-            description="กลับมาเช็กจังหวะอัปเดตของคลัง"
-            icon={<Clock3 className="h-4 w-4" />}
-          />
-          <ShortcutCard
-            href="/genres"
-            label="เลือกตามแนว"
-            description="เริ่มจากอารมณ์หรือโลกที่อยากอ่าน"
-            icon={<Compass className="h-4 w-4" />}
-          />
-          <ShortcutCard
-            href="/search"
-            label="ค้นหาแบบตรงใจ"
-            description="ชื่อเรื่อง ผู้แต่ง ผู้แปล แนว หรือแท็ก"
-            icon={<Search className="h-4 w-4" />}
-          />
-        </div>
-
-        <div className="grid grid-cols-4 gap-1.5">
-          <SignalCard label="มาใหม่" value={formatNumber(data.newThisWeek.length)} hint="เรื่องในชุดนี้" />
-          <SignalCard label="ตอนอัปเดต" value={formatNumber(data.updates.length)} hint="รายการล่าสุด" />
-          <SignalCard label="อันดับ" value={formatNumber(data.rankings.length)} hint="สัปดาห์นี้" />
-          <SignalCard label="อ่านจบได้" value={formatNumber(data.completed.length)} hint="เรื่องจบแล้ว" />
-        </div>
-
-        {topRanked.length ? (
-          <MiniPanel title="อันดับที่คนกำลังอ่าน" href="/rankings">
-            {topRanked.map((novel, index) => (
-              <MiniNovelRow key={novel.slug} novel={novel} rank={index + 1} />
-            ))}
-          </MiniPanel>
-        ) : null}
-      </aside>
     </section>
   );
 }

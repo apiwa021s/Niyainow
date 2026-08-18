@@ -20,6 +20,7 @@ export function ContentRow({
   href,
   action = "ดูทั้งหมด",
   children,
+  bleed = true,
   className
 }: {
   title: string;
@@ -28,6 +29,7 @@ export function ContentRow({
   href?: string;
   action?: string;
   children: React.ReactNode;
+  bleed?: boolean;
   className?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -106,7 +108,13 @@ export function ContentRow({
        * against a 12px gutter, which pushed 4px past the viewport on each side
        * and let the whole page scroll sideways on a phone.
        */}
-      <div ref={trackRef} className="rail-scroll -mx-3 flex snap-x snap-mandatory gap-2.5 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0">
+      <div
+        ref={trackRef}
+        className={cn(
+          "rail-scroll flex snap-x snap-mandatory gap-2.5",
+          bleed ? "-mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0" : "mx-0 px-0",
+        )}
+      >
         {children}
         {/* ตัวเว้นท้ายแถว ให้การ์ดสุดท้ายไม่ชิดขอบจอ */}
         <span aria-hidden className="w-1 shrink-0" />
