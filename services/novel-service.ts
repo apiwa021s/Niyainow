@@ -552,11 +552,12 @@ function startOfBangkokDay(value: Date) {
   return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - bangkokOffset);
 }
 
-async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
+async function hydrateNovels(rows: BaseNovelRow[], mode: "list" | "detail" = "list"): Promise<Novel[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((row) => row.id);
   const db = getDb();
   const now = new Date();
+  const includeDetails = mode === "detail";
 
   const [genreRows, tagRows, authorRows, paidRows] = await Promise.all([
     db
@@ -571,12 +572,14 @@ async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
       .innerJoin(genres, eq(genres.id, novelGenres.genreId))
       .where(and(inArray(novelGenres.novelId, ids), eq(genres.isActive, true)))
       .orderBy(asc(novelGenres.sortOrder), asc(genres.name)),
-    db
-      .select({ novelId: novelTags.novelId, slug: tags.slug, name: tags.name })
-      .from(novelTags)
-      .innerJoin(tags, eq(tags.id, novelTags.tagId))
-      .where(and(inArray(novelTags.novelId, ids), eq(tags.isActive, true)))
-      .orderBy(asc(tags.name)),
+    includeDetails
+      ? db
+          .select({ novelId: novelTags.novelId, slug: tags.slug, name: tags.name })
+          .from(novelTags)
+          .innerJoin(tags, eq(tags.id, novelTags.tagId))
+          .where(and(inArray(novelTags.novelId, ids), eq(tags.isActive, true)))
+          .orderBy(asc(tags.name))
+      : Promise.resolve([]),
     db
       .select({
         novelId: novelAuthors.novelId,
@@ -588,16 +591,18 @@ async function hydrateNovels(rows: BaseNovelRow[]): Promise<Novel[]> {
       .innerJoin(authors, eq(authors.id, novelAuthors.authorId))
       .where(inArray(novelAuthors.novelId, ids))
       .orderBy(asc(novelAuthors.sortOrder), asc(authors.name)),
-    db
-      .selectDistinct({ novelId: chapters.novelId })
-      .from(chapters)
-      .where(
-        and(
-          inArray(chapters.novelId, ids),
-          publicChapterCondition(now),
-          eq(chapters.isFree, false),
-        ),
-      ),
+    includeDetails
+      ? db
+          .selectDistinct({ novelId: chapters.novelId })
+          .from(chapters)
+          .where(
+            and(
+              inArray(chapters.novelId, ids),
+              publicChapterCondition(now),
+              eq(chapters.isFree, false),
+            ),
+          )
+      : Promise.resolve([]),
   ]);
 
   const genreMap = new Map<string, typeof genreRows>();
@@ -662,15 +667,25 @@ async function getNovelPageNormalized(query: NormalizedNovelQuery): Promise<Pagi
   const now = new Date();
   const where = queryCondition(query, now);
   const db = getDb();
-  const countRows = await db
-    .select({ value: countDistinct(novels.id) })
-    .from(novels)
-    .leftJoin(novelStatistics, eq(novelStatistics.novelId, novels.id))
-    .where(where);
+  const [countRows, requestedRows] = await Promise.all([
+    db
+      .select({ value: countDistinct(novels.id) })
+      .from(novels)
+      .leftJoin(novelStatistics, eq(novelStatistics.novelId, novels.id))
+      .where(where),
+    selectBaseNovels(
+      where,
+      orderByForQuery(query),
+      BROWSE_PAGE_SIZE,
+      (query.page - 1) * BROWSE_PAGE_SIZE,
+    ),
+  ]);
   const total = Number(countRows[0]?.value ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / BROWSE_PAGE_SIZE));
   const page = Math.min(query.page, totalPages);
-  const rows = await selectBaseNovels(where, orderByForQuery(query), BROWSE_PAGE_SIZE, (page - 1) * BROWSE_PAGE_SIZE);
+  const rows = page === query.page
+    ? requestedRows
+    : await selectBaseNovels(where, orderByForQuery(query), BROWSE_PAGE_SIZE, (page - 1) * BROWSE_PAGE_SIZE);
 
   return {
     items: await hydrateNovels(rows),
@@ -730,7 +745,7 @@ async function getNovelBySlugFromRedis(slug: string) {
         [desc(sql`${novels.id}`)],
         1,
       );
-      return (await hydrateNovels(rows))[0];
+      return (await hydrateNovels(rows, "detail"))[0];
     },
   });
 }
@@ -1097,7 +1112,6 @@ export async function searchNovels(
     if (!q || q.length < 2) {
       return { novels: [], authors: [], translators: [], genres: [], tags: [], page: 1, total: 0, totalPages: 1 };
     }
-    const novelPage = await getNovelPageUncached({ ...filtersInput, q, page });
     const pattern = safeSearchPattern(q);
     const prefix = safeSearchPrefix(q);
     const now = new Date();
@@ -1111,7 +1125,8 @@ export async function searchNovels(
         or ${authors.slug} ilike ${prefix} then 2
       else 1
     end`);
-    const [authorRows, translatorRows, genreRows, tagRows] = await Promise.all([
+    const [novelPage, authorRows, translatorRows, genreRows, tagRows] = await Promise.all([
+      getNovelPageUncached({ ...filtersInput, q, page }),
       getDb()
         .select({
           slug: authors.slug,
@@ -1368,17 +1383,18 @@ export const getRankingEntries = cache(async (
     ? periodInput
     : "WEEKLY";
   const limit = clampLimit(requestedLimit, MAX_LIST_LIMIT);
-  const rankedNovels = await getRankings(period, limit);
-  if (!rankedNovels.length) return [];
-
   const db = getDb();
-  const periods = await db
-    .select({ periodStart: novelRankings.periodStart })
-    .from(novelRankings)
-    .where(eq(novelRankings.period, period))
-    .groupBy(novelRankings.periodStart)
-    .orderBy(desc(novelRankings.periodStart))
-    .limit(2);
+  const [rankedNovels, periods] = await Promise.all([
+    getRankings(period, limit),
+    db
+      .select({ periodStart: novelRankings.periodStart })
+      .from(novelRankings)
+      .where(eq(novelRankings.period, period))
+      .groupBy(novelRankings.periodStart)
+      .orderBy(desc(novelRankings.periodStart))
+      .limit(2),
+  ]);
+  if (!rankedNovels.length) return [];
   const latest = periods[0]?.periodStart;
   const previous = periods[1]?.periodStart;
   if (!latest) {

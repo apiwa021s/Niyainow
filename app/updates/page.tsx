@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { ChevronDown } from "lucide-react";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { UpdateList } from "@/components/novels/update-list";
 import { ButtonLink } from "@/components/ui/button";
@@ -9,31 +11,40 @@ import { pageMetadata } from "@/lib/seo";
 import { canonicalizeUpdatesSearchParams, rawSearchParamsHref, updatesHref, type RawSearchParams, type UpdateRange } from "@/lib/validation/public-query";
 import { getGenres, getUpdates } from "@/services/novel-service";
 
+const ranges: { value: UpdateRange; label: string }[] = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "today", label: "วันนี้" },
+  { value: "yesterday", label: "เมื่อวาน" },
+  { value: "week", label: "สัปดาห์นี้" },
+];
+
 async function resolveUpdatesRequest(raw: RawSearchParams) {
   const genres = await getGenres(200);
   const normalized = canonicalizeUpdatesSearchParams(raw, genres.map((genre) => genre.slug));
   return { ...normalized, genres };
 }
 
+const getCanonicalUpdatesRequest = cache((rawKey: string) =>
+  resolveUpdatesRequest(JSON.parse(rawKey) as RawSearchParams),
+);
+
 export async function generateMetadata({ searchParams }: { searchParams: Promise<RawSearchParams> }): Promise<Metadata> {
-  const { href } = await resolveUpdatesRequest(await searchParams);
+  const raw = await searchParams;
+  const { href } = await getCanonicalUpdatesRequest(JSON.stringify(raw));
   return pageMetadata({ title: "อัปเดตนิยายล่าสุด", description: "ติดตามตอนใหม่จากนิยายที่เพิ่งเผยแพร่บน NiyaiThai", path: href });
 }
 
-export default async function UpdatesPage({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  const raw = await searchParams;
-  const { query, href, genres } = await resolveUpdatesRequest(raw);
-  if (rawSearchParamsHref("/updates", raw) !== href) redirect(href);
-  const { range, genre } = query;
-  const items = await getUpdates(range, genre, 50);
+async function CachedUpdatesPage({ range, genre }: { range: UpdateRange; genre?: string }) {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-chapters", "public-novels", "public-taxonomy");
+
+  const [genres, items] = await Promise.all([
+    getGenres(200),
+    getUpdates(range, genre, 50),
+  ]);
   const activeGenreSlugs = genres.map((item) => item.slug);
   const activeGenre = genres.find((item) => item.slug === genre);
-  const ranges: { value: UpdateRange; label: string }[] = [
-    { value: "all", label: "ทั้งหมด" },
-    { value: "today", label: "วันนี้" },
-    { value: "yesterday", label: "เมื่อวาน" },
-    { value: "week", label: "สัปดาห์นี้" },
-  ];
 
   return (
     <PageShell className="space-y-6">
@@ -61,7 +72,14 @@ export default async function UpdatesPage({ searchParams }: { searchParams: Prom
         </details>
       </div>
 
-      {items.length ? <UpdateList items={items} /> : <EmptyState title="ยังไม่มีตอนใหม่ในช่วงนี้" description="ลองเปลี่ยนช่วงเวลาหรือเลือกทุกแนวเพื่อดูอัปเดตล่าสุด" action={<ButtonLink href="/updates">ดูอัปเดตทั้งหมด</ButtonLink>} />}
+      {items.length ? <div className="render-deferred"><UpdateList items={items} /></div> : <EmptyState title="ยังไม่มีตอนใหม่ในช่วงนี้" description="ลองเปลี่ยนช่วงเวลาหรือเลือกทุกแนวเพื่อดูอัปเดตล่าสุด" action={<ButtonLink href="/updates">ดูอัปเดตทั้งหมด</ButtonLink>} />}
     </PageShell>
   );
+}
+
+export default async function UpdatesPage({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
+  const raw = await searchParams;
+  const { query, href } = await getCanonicalUpdatesRequest(JSON.stringify(raw));
+  if (rawSearchParamsHref("/updates", raw) !== href) redirect(href);
+  return <CachedUpdatesPage range={query.range} genre={query.genre} />;
 }

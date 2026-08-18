@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 
@@ -9,6 +10,8 @@ import { pageMetadata } from "@/lib/seo";
 import { getTags, type TagSummary } from "@/services/novel-service";
 
 type TagSearchParams = { q?: string | string[] };
+const TAG_INDEX_LIMIT = 200;
+const TAG_SEARCH_LIMIT = 60;
 
 function normalizedTagQuery(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim().slice(0, 100) : "";
@@ -53,11 +56,8 @@ function TagIndex({ tags }: { tags: TagSummary[] }) {
   );
 }
 
-export default async function TagsPage({ searchParams }: { searchParams: Promise<TagSearchParams> }) {
-  const { q } = await searchParams;
-  const query = normalizedTagQuery(q);
-  const tags = await getTags(query || undefined, 200);
-  const isTagLimitReached = tags.length === 200;
+function TagsContent({ query, tags, limit }: { query: string; tags: TagSummary[]; limit: number }) {
+  const isTagLimitReached = tags.length === limit;
   const featuredTags = query ? [] : tags.filter((tag) => tag.count > 0).slice(0, 8);
   const indexedTags = query
     ? tags
@@ -144,4 +144,22 @@ export default async function TagsPage({ searchParams }: { searchParams: Promise
       </section>
     </PageShell>
   );
+}
+
+async function CachedTagIndexPage() {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-taxonomy", "public-novels");
+
+  const tags = await getTags(undefined, TAG_INDEX_LIMIT);
+  return <TagsContent query="" tags={tags} limit={TAG_INDEX_LIMIT} />;
+}
+
+export default async function TagsPage({ searchParams }: { searchParams: Promise<TagSearchParams> }) {
+  const { q } = await searchParams;
+  const query = normalizedTagQuery(q);
+  if (!query) return <CachedTagIndexPage />;
+
+  const tags = await getTags(query, TAG_SEARCH_LIMIT);
+  return <TagsContent query={query} tags={tags} limit={TAG_SEARCH_LIMIT} />;
 }

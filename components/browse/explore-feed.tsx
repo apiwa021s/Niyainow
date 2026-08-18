@@ -42,7 +42,7 @@ function NovelCarouselShelf({
   }
 
   return (
-    <ContentRow title={title} description={description} count={novels.length} href={href} action={action} bleed={false} className="render-deferred">
+    <ContentRow title={title} description={description} href={href} action={action} bleed={false} className="render-deferred">
       {novels.map((novel) => (
         <RowItem key={novel.slug} className={EXPLORE_SHELF_ITEM_CLASS}>
           <NovelTile novel={novel} />

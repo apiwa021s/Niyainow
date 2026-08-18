@@ -229,7 +229,7 @@ function HomeNovelCarousel({
   if (!novels.length) return null;
 
   return (
-    <ContentRow title={title} count={novels.length} description={description} href={href} bleed={false} className="render-deferred">
+    <ContentRow title={title} description={description} href={href} bleed={false} className="render-deferred">
       {novels.map((novel) => (
         <RowItem key={novel.slug} className={HOME_CAROUSEL_ITEM_CLASS}>
           <HomeCoverTile novel={novel} />

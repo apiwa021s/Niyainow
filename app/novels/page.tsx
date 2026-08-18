@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
@@ -47,6 +48,10 @@ async function resolveBrowseRequest(raw: SearchParams) {
   return { ...normalized, allGenres };
 }
 
+const getCanonicalBrowseRequest = cache((rawKey: string) =>
+  resolveBrowseRequest(JSON.parse(rawKey) as SearchParams),
+);
+
 function resolvedPageQuery(query: NovelQuery, page: number): NovelQuery {
   const resolved = { ...query };
   if (page > 1) resolved.page = page;
@@ -54,9 +59,62 @@ function resolvedPageQuery(query: NovelQuery, page: number): NovelQuery {
   return resolved;
 }
 
+async function CachedExplorePage() {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-novels", "public-rankings", "public-taxonomy");
+
+  const [result, trending, newThisWeek, completed, genreShowcase] = await Promise.all([
+    getCanonicalNovelPage("{}"),
+    getRankings("WEEKLY", 10),
+    getNewThisWeek(12),
+    getCompletedNovels(12),
+    getGenreShowcase(8),
+  ]);
+  const popular = result.items.slice(0, 14);
+  const visibleNovels = [...new Map(
+    [...popular, ...trending, ...newThisWeek, ...completed]
+      .map((novel) => [novel.slug, novel] as const),
+  ).values()];
+
+  return (
+    <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: "สำรวจนิยาย",
+          numberOfItems: result.total,
+          itemListElement: visibleNovels.map((novel, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: novel.thaiTitle,
+            url: absoluteUrl(`/novel/${novel.slug}`),
+          })),
+        }}
+      />
+      <ExploreFeed
+        total={result.total}
+        popular={popular}
+        trending={trending}
+        newThisWeek={newThisWeek}
+        completed={completed}
+        genreShowcase={genreShowcase}
+      />
+    </>
+  );
+}
+
 export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
   const raw = await searchParams;
-  const { query, allGenres } = await resolveBrowseRequest(raw);
+  const { query, allGenres } = await getCanonicalBrowseRequest(JSON.stringify(raw));
+  if (Object.keys(query).length === 0) {
+    return pageMetadata({
+      title: "สำรวจนิยาย",
+      description: "สำรวจนิยายบน NiyaiThai เลือกตามแนว สถานะ คะแนน และช่วงเวลาอัปเดต",
+      path: "/novels",
+    });
+  }
   const result = await getCanonicalNovelPage(JSON.stringify(query));
   const canonicalQuery = resolvedPageQuery(query, result.page);
   const selected = parseGenreParam(query.genre)
@@ -74,60 +132,22 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 
 export default async function NovelsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const raw = await searchParams;
-  const { query, allGenres } = await resolveBrowseRequest(raw);
-  const result = await getCanonicalNovelPage(JSON.stringify(query));
-  const canonicalQuery = resolvedPageQuery(query, result.page);
-  const canonicalHref = novelBrowseHref(canonicalQuery, allGenres.map((genre) => genre.slug));
-  if (rawSearchParamsHref("/novels", raw) !== canonicalHref) redirect(canonicalHref);
-
-  if (Object.keys(canonicalQuery).length === 0) {
-    const [trending, newThisWeek, completed, genreShowcase] = await Promise.all([
-      getRankings("WEEKLY", 10),
-      getNewThisWeek(14),
-      getCompletedNovels(14),
-      getGenreShowcase(10),
-    ]);
-    const visibleNovels = [...new Map(
-      [
-        ...result.items,
-        ...trending,
-        ...newThisWeek,
-        ...completed,
-      ].map((novel) => [novel.slug, novel] as const),
-    ).values()];
-
-    return (
-      <>
-        <JsonLd
-          data={{
-            "@context": "https://schema.org",
-            "@type": "ItemList",
-            name: "สำรวจนิยาย",
-            numberOfItems: result.total,
-            itemListElement: visibleNovels.map((novel, index) => ({
-              "@type": "ListItem",
-              position: index + 1,
-              name: novel.thaiTitle,
-              url: absoluteUrl(`/novel/${novel.slug}`),
-            })),
-          }}
-        />
-        <ExploreFeed
-          total={result.total}
-          popular={result.items}
-          trending={trending}
-          newThisWeek={newThisWeek}
-          completed={completed}
-          genreShowcase={genreShowcase}
-        />
-      </>
-    );
+  const { query, allGenres } = await getCanonicalBrowseRequest(JSON.stringify(raw));
+  const activeGenreSlugs = allGenres.map((genre) => genre.slug);
+  const normalizedHref = novelBrowseHref(query, activeGenreSlugs);
+  if (Object.keys(query).length === 0) {
+    if (rawSearchParamsHref("/novels", raw) !== normalizedHref) redirect(normalizedHref);
+    return <CachedExplorePage />;
   }
 
-  const [facets, suggestions] = await Promise.all([
+  const [result, facets, suggestions] = await Promise.all([
+    getCanonicalNovelPage(JSON.stringify(query)),
     getGenreFacets({ ...query, page: undefined }),
     getRankings("WEEKLY", 6),
   ]);
+  const canonicalQuery = resolvedPageQuery(query, result.page);
+  const canonicalHref = novelBrowseHref(canonicalQuery, activeGenreSlugs);
+  if (rawSearchParamsHref("/novels", raw) !== canonicalHref) redirect(canonicalHref);
   const selected = parseGenreParam(canonicalQuery.genre)
     .map((slug) => allGenres.find((genre) => genre.slug === slug)?.thaiName)
     .filter((value): value is string => Boolean(value));

@@ -57,13 +57,6 @@ function GenreChip({ label }: { label: string }) {
 }
 
 /**
- * The one column ramp every cover grid uses: 3 / 5 / 6 / 8 (brief §5.7), with
- * the 12px minimum gutter (§5.2). Exported so home, browse, genre and tag
- * pages cannot drift apart.
- */
-export const NOVEL_GRID_CLASS = "grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-8";
-
-/**
  * Dense grid tile — the workhorse of every discovery grid.
  *
  * The cover is the only colour on the page (brief §3.2), so the label sits on

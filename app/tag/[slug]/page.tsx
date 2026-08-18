@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 
 import { NovelBrowser } from "@/components/interactive/novel-browser";
@@ -16,6 +17,24 @@ import {
 import { getGenreFacets, getGenres, getNovelPage, getRankings, getTagBySlug } from "@/services/novel-service";
 import type { NovelQuery } from "@/types/novel-query";
 
+async function getTagBrowseData(query: NovelQuery) {
+  const [result, facets, suggestions] = await Promise.all([
+    getNovelPage(query),
+    getGenreFacets(query),
+    getRankings("WEEKLY", 6),
+  ]);
+  return { result, facets, suggestions };
+}
+
+async function getCachedTagBrowse(slug: string) {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-novels", "public-rankings", "public-taxonomy");
+
+  const query: NovelQuery = { tag: slug };
+  return getTagBrowseData(query);
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const tag = await getTagBySlug(slug);
@@ -31,7 +50,10 @@ export default async function TagDetailPage({ params, searchParams }: { params: 
     activeGenreSlugs: allGenres.map((genre) => genre.slug),
   }).query;
   const query: NovelQuery = { ...visibleQuery, tag: tag.slug };
-  const [result, facets, suggestions] = await Promise.all([getNovelPage(query), getGenreFacets(query), getRankings("WEEKLY", 6)]);
+  const defaultBrowse = Object.keys(visibleQuery).length === 0;
+  const { result, facets, suggestions } = defaultBrowse
+    ? await getCachedTagBrowse(tag.slug)
+    : await getTagBrowseData(query);
   const canonicalQuery: NovelQuery = { ...visibleQuery, page: result.page > 1 ? result.page : undefined };
   const browseHref = novelBrowseHref(canonicalQuery, allGenres.map((genre) => genre.slug));
   const canonicalHref = `/tag/${tag.slug}${browseHref.slice("/novels".length)}`;

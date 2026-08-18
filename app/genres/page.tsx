@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import Link from "next/link";
 import { ArrowRight, BookOpen } from "lucide-react";
 
@@ -11,6 +12,10 @@ import { getGenres } from "@/services/novel-service";
 export const metadata: Metadata = pageMetadata({ title: "หมวดหมู่นิยาย", description: "เลือกอ่านนิยายตามโลก อารมณ์ และแนวเรื่องบน NiyaiThai", path: "/genres" });
 
 export default async function GenresPage() {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-taxonomy", "public-novels");
+
   const genres = await getGenres();
   return (
     <PageShell className="space-y-7">

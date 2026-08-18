@@ -1,3 +1,5 @@
+import { NOVEL_GRID_CLASS } from "@/components/novels/grid-layout";
+
 /**
  * Skeleton ของ grid นิยาย (ส่วนที่ 7)
  * ใช้แทน spinner กลางจอ และรักษา aspect 2:3 ไว้เพื่อไม่ให้เกิด layout shift
@@ -5,13 +7,15 @@
  */
 export function NovelGridSkeleton({ count = 12 }: { count?: number }) {
   return (
-    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-6" aria-hidden>
+    <ul className={NOVEL_GRID_CLASS} aria-hidden>
       {Array.from({ length: count }, (_, index) => (
         <li key={index}>
-          <div className="skeleton aspect-[2/3] w-full rounded-[12px]" />
-          <div className="skeleton mt-2 h-4 w-11/12 rounded" />
-          <div className="skeleton mt-1.5 h-3 w-2/3 rounded" />
-          <div className="skeleton mt-1.5 h-4 w-1/2 rounded-[8px]" />
+          <div className="skeleton relative aspect-2/3 w-full overflow-hidden rounded-(--r-lg)">
+            <div className="absolute inset-x-2 bottom-2 space-y-1.5">
+              <div className="h-3.5 w-10/12 rounded bg-white/16" />
+              <div className="h-2.5 w-7/12 rounded bg-white/10" />
+            </div>
+          </div>
         </li>
       ))}
     </ul>

@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 export function ContentRow({
   title,
   description,
-  count,
   href,
   action = "ดูทั้งหมด",
   children,
@@ -25,7 +24,6 @@ export function ContentRow({
 }: {
   title: string;
   description?: string;
-  count?: number;
   href?: string;
   action?: string;
   children: React.ReactNode;
@@ -75,7 +73,6 @@ export function ContentRow({
     <section className={cn("flex flex-col gap-2.5", className)} aria-label={title}>
       <SectionHeader
         title={title}
-        count={count}
         href={href}
         hrefLabel={action}
         trailing={hasOverflow ? (

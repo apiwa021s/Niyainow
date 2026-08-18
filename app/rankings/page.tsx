@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { RankingCard, RankingNovelCard } from "@/components/novels/novel-card";
@@ -51,10 +52,12 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   });
 }
 
-export default async function RankingsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const { view: rawView } = await searchParams;
-  if (rawView === "trending" || (rawView && !views.some((view) => view.value === rawView))) redirect("/rankings");
-  const selected = views.find((view) => view.value === rawView) ?? views[0];
+async function CachedRankingsPage({ view }: { view: RankingView }) {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-rankings", "public-novels");
+
+  const selected = views.find((item) => item.value === view) ?? views[0];
   const entries = await getRankingEntries(selected.period, 50);
 
   return (
@@ -106,7 +109,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
               </div>
             ))}
           </section>
-          <section aria-label={`อันดับ${selected.label}`} className="grid lg:grid-cols-2 lg:gap-x-8">
+          <section aria-label={`อันดับ${selected.label}`} className="render-deferred grid lg:grid-cols-2 lg:gap-x-8">
             {entries.slice(3).map((entry) => (
               <RankingNovelCard key={entry.novel.slug} novel={entry.novel} rank={entry.rank} movement={entry.movement} />
             ))}
@@ -121,4 +124,11 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
       )}
     </PageShell>
   );
+}
+
+export default async function RankingsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view: rawView } = await searchParams;
+  if (rawView === "trending" || (rawView && !views.some((view) => view.value === rawView))) redirect("/rankings");
+  const selected = views.find((view) => view.value === rawView) ?? views[0];
+  return <CachedRankingsPage view={selected.value} />;
 }

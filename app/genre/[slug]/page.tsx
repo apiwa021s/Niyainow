@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 
 import { NovelBrowser } from "@/components/interactive/novel-browser";
@@ -16,6 +17,20 @@ import {
 import { getGenreBySlug, getGenreFacets, getGenreRising, getNovelPage, getNovels, getRankings } from "@/services/novel-service";
 import type { Novel } from "@/types/novel";
 import type { NovelQuery } from "@/types/novel-query";
+
+async function getCachedGenreEditorial(slug: string) {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-novels", "public-rankings", "public-taxonomy");
+
+  const [top, rising, recent, completed] = await Promise.all([
+    getNovels({ genre: slug, sort: "popular" }, 6),
+    getGenreRising(slug, 6),
+    getNovels({ genre: slug, sort: "updated" }, 6),
+    getNovels({ genre: slug, status: "completed", sort: "rating" }, 6),
+  ]);
+  return { top, rising, recent, completed };
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -40,15 +55,13 @@ export default async function GenreDetailPage({
   if (!genre) notFound();
   const visibleQuery = canonicalizeNovelSearchParams(raw, { activeGenreSlugs: [] }).query;
   const query: NovelQuery = { ...visibleQuery, genre: genre.slug };
-  const [result, facets, suggestions, top, rising, recent, completed] = await Promise.all([
+  const [result, facets, suggestions, editorial] = await Promise.all([
     getNovelPage(query),
     getGenreFacets(query),
     getRankings("WEEKLY", 6),
-    getNovels({ genre: genre.slug, sort: "popular" }, 6),
-    getGenreRising(genre.slug, 6),
-    getNovels({ genre: genre.slug, sort: "updated" }, 6),
-    getNovels({ genre: genre.slug, status: "completed", sort: "rating" }, 6),
+    getCachedGenreEditorial(genre.slug),
   ]);
+  const { top, rising, recent, completed } = editorial;
   const canonicalQuery: NovelQuery = { ...visibleQuery, page: result.page > 1 ? result.page : undefined };
   const browseHref = novelBrowseHref(canonicalQuery, []);
   const canonicalHref = `/genre/${genre.slug}${browseHref.slice("/novels".length)}`;
@@ -110,7 +123,7 @@ export default async function GenreDetailPage({
 function EditorialShelf({ kicker, title, novels }: { kicker: string; title: string; novels: Novel[] }) {
   if (!novels.length) return null;
   return (
-    <section>
+    <section className="render-deferred">
       <p className="editorial-kicker">{kicker}</p>
       <h2 className="mb-5 mt-1 text-2xl font-semibold">{title}</h2>
       <NovelGrid novels={novels} compact />

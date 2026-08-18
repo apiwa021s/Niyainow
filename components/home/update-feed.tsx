@@ -22,7 +22,7 @@ export function UpdateFeed({
 
   return (
     <section aria-label={title}>
-      <SectionHeader title={title} count={visibleItems.length} href={href} />
+      <SectionHeader title={title} href={href} />
       {description ? <p className="-mt-1.5 mb-1.5 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}
 
       {visibleItems.length === 0 ? (

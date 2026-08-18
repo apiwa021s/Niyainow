@@ -1,4 +1,5 @@
-import { NOVEL_GRID_CLASS, NovelTile } from "@/components/novels/novel-card";
+import { NOVEL_GRID_CLASS } from "@/components/novels/grid-layout";
+import { NovelTile } from "@/components/novels/novel-card";
 import { cn } from "@/lib/utils";
 import type { Novel } from "@/types/novel";
 
