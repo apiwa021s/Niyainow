@@ -18,9 +18,102 @@ import {
 
 import { users } from "./auth";
 import { chapters, novels } from "./content";
-import { libraryStatusEnum, reviewStatusEnum } from "./enums";
+import { coinLedgerTypeEnum, libraryStatusEnum, reviewStatusEnum } from "./enums";
 
 const timestampConfig = { mode: "date", withTimezone: true } as const;
+
+/** Current spendable balance. Every mutation must also append a ledger row. */
+export const coinWallets = pgTable(
+  "coin_wallets",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "restrict" }),
+    balance: integer("balance").default(0).notNull(),
+    lifetimeCredited: integer("lifetime_credited").default(0).notNull(),
+    lifetimeSpent: integer("lifetime_spent").default(0).notNull(),
+    createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", timestampConfig)
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "coin_wallets_amounts_nonnegative",
+      sql`${table.balance} >= 0 and ${table.lifetimeCredited} >= 0 and ${table.lifetimeSpent} >= 0`,
+    ),
+  ],
+);
+
+/** Append-only accounting history. Idempotency keys prevent duplicate charges. */
+export const coinLedgerEntries = pgTable(
+  "coin_ledger_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    type: coinLedgerTypeEnum("type").notNull(),
+    amount: integer("amount").notNull(),
+    balanceAfter: integer("balance_after").notNull(),
+    chapterId: uuid("chapter_id").references(() => chapters.id, { onDelete: "restrict" }),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
+    externalReference: varchar("external_reference", { length: 255 }),
+    createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("coin_ledger_entries_idempotency_uidx").on(table.idempotencyKey),
+    uniqueIndex("coin_ledger_entries_user_id_uidx").on(table.userId, table.id),
+    uniqueIndex("coin_ledger_entries_chapter_id_uidx").on(table.chapterId, table.id),
+    uniqueIndex("coin_ledger_entries_external_reference_uidx")
+      .on(table.externalReference)
+      .where(sql`${table.externalReference} is not null`),
+    index("coin_ledger_entries_user_created_idx").on(table.userId, table.createdAt.desc(), table.id.desc()),
+    index("coin_ledger_entries_chapter_idx").on(table.chapterId, table.userId),
+    check("coin_ledger_entries_amount_nonzero", sql`${table.amount} <> 0`),
+    check("coin_ledger_entries_balance_nonnegative", sql`${table.balanceAfter} >= 0`),
+    check(
+      "coin_ledger_entries_direction_valid",
+      sql`(${table.type} = 'CHAPTER_UNLOCK' and ${table.amount} < 0)
+        or (${table.type} in ('TOP_UP', 'ADMIN_CREDIT', 'PROMOTION', 'REFUND') and ${table.amount} > 0)
+        or (${table.type} = 'ADJUSTMENT' and ${table.amount} <> 0)`,
+    ),
+  ],
+);
+
+/** Permanent reader entitlement and the immutable price paid at purchase time. */
+export const chapterUnlocks = pgTable(
+  "chapter_unlocks",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    chapterId: uuid("chapter_id")
+      .notNull()
+      .references(() => chapters.id, { onDelete: "restrict" }),
+    ledgerEntryId: uuid("ledger_entry_id").notNull(),
+    pricePaid: integer("price_paid").notNull(),
+    unlockedAt: timestamp("unlocked_at", timestampConfig).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "chapter_unlocks_pk", columns: [table.userId, table.chapterId] }),
+    foreignKey({
+      name: "chapter_unlocks_user_ledger_fk",
+      columns: [table.userId, table.ledgerEntryId],
+      foreignColumns: [coinLedgerEntries.userId, coinLedgerEntries.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "chapter_unlocks_chapter_ledger_fk",
+      columns: [table.chapterId, table.ledgerEntryId],
+      foreignColumns: [coinLedgerEntries.chapterId, coinLedgerEntries.id],
+    }).onDelete("restrict"),
+    uniqueIndex("chapter_unlocks_ledger_entry_uidx").on(table.ledgerEntryId),
+    index("chapter_unlocks_chapter_idx").on(table.chapterId, table.userId),
+    index("chapter_unlocks_user_recent_idx").on(table.userId, table.unlockedAt.desc(), table.chapterId),
+    check("chapter_unlocks_price_positive", sql`${table.pricePaid} > 0`),
+  ],
+);
 
 export const userLibrary = pgTable(
   "user_library",
@@ -213,3 +306,6 @@ export type UserLibraryEntry = typeof userLibrary.$inferSelect;
 export type ReadingProgress = typeof readingProgress.$inferSelect;
 export type Rating = typeof ratings.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
+export type CoinWallet = typeof coinWallets.$inferSelect;
+export type CoinLedgerEntry = typeof coinLedgerEntries.$inferSelect;
+export type ChapterUnlock = typeof chapterUnlocks.$inferSelect;

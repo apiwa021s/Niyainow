@@ -59,9 +59,9 @@ export type Chapter = {
   updatedAt: string;
   publishedAt?: string;
   wordCount?: number;
-  /** ตอนที่ยังไม่เปิดเนื้อหาเต็มแก่สาธารณะ */
+  /** ตอนเสียเหรียญ; service ฝั่งผู้ใช้จะเปลี่ยนเป็น false เมื่อมี entitlement */
   locked?: boolean;
-  /** Reserved legacy price; production admin currently accepts free chapters only. */
+  /** ราคาเหรียญปัจจุบันของตอน (0 สำหรับตอนฟรี) */
   coinPrice?: number;
 };
 

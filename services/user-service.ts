@@ -1,12 +1,13 @@
 import "server-only";
 
-import { and, desc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
 import { after } from "next/server";
 
 import { getDb } from "@/db";
 import {
   authors,
+  chapterUnlocks,
   chapters,
   novelAuthors,
   novelFollows,
@@ -619,11 +620,15 @@ export async function saveReadingProgress(userId: string, input: SaveProgressInp
     })
     .from(chapters)
     .innerJoin(novels, eq(novels.id, chapters.novelId))
+    .leftJoin(
+      chapterUnlocks,
+      and(eq(chapterUnlocks.chapterId, chapters.id), eq(chapterUnlocks.userId, userId)),
+    )
     .where(
       and(
         eq(chapters.id, input.chapterId),
         eq(chapters.status, "PUBLISHED"),
-        eq(chapters.isFree, true),
+        or(eq(chapters.isFree, true), isNotNull(chapterUnlocks.chapterId)),
         isNull(chapters.deletedAt),
         lte(chapters.publishedAt, new Date()),
         publicNovelWhere(),

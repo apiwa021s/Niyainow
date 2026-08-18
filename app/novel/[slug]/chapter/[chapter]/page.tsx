@@ -2,14 +2,22 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { ChapterContent } from "@/components/reader/chapter-content";
+import { ChapterUnlockCard } from "@/components/reader/chapter-unlock-card";
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
 import { ReaderView } from "@/components/reader/reader-view";
 import { JsonLd } from "@/components/seo/json-ld";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { canAccessAdmin } from "@/lib/auth/permissions";
 import { parseChapterNumberSegment, splitChapterParagraphs } from "@/lib/domain/chapter";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getAdjacentChapters, getChapterWindow, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
+import {
+  getStaffPublishedChapterContent,
+  getUnlockedChapterIds,
+  getUnlockedPublishedChapterContent,
+  getWalletBalance,
+} from "@/services/coin-service";
 import { getUserNovelState } from "@/services/user-service";
 
 type ChapterRouteProps = { params: Promise<{ slug: string; chapter: string }> };
@@ -66,10 +74,38 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
     permanentRedirect(`/novel/${novel.slug}/chapter/${parsed.canonical}`);
   }
 
-  const { chapter: chapterSummary, content, locked } = published;
-  const userState = currentUser?.status === "ACTIVE"
-    ? await getUserNovelState(currentUser.id, novel.slug)
+  const { chapter: chapterSummary, locked: commerciallyLocked } = published;
+  const activeUser = currentUser?.status === "ACTIVE" ? currentUser : null;
+  const staffAccess = activeUser ? canAccessAdmin(activeUser) : false;
+  const chapterIds = [...new Set([
+    ...(chapterSummary.id ? [chapterSummary.id] : []),
+    ...chapterWindow.items.flatMap((item) => item.id ? [item.id] : []),
+  ])];
+  const [userState, unlockedChapterIds, walletBalance] = await Promise.all([
+    activeUser ? getUserNovelState(activeUser.id, novel.slug) : Promise.resolve(null),
+    activeUser && !staffAccess ? getUnlockedChapterIds(activeUser.id, chapterIds) : Promise.resolve([]),
+    activeUser && commerciallyLocked && !staffAccess ? getWalletBalance(activeUser.id) : Promise.resolve(0),
+  ]);
+  const unlocked = new Set(unlockedChapterIds);
+  const hasPaidAccess = staffAccess || Boolean(chapterSummary.id && unlocked.has(chapterSummary.id));
+  const locked = commerciallyLocked && !hasPaidAccess;
+  const fullPaidContent = commerciallyLocked && hasPaidAccess && chapterSummary.id
+    ? staffAccess
+      ? await getStaffPublishedChapterContent(activeUser!, chapterSummary.id)
+      : await getUnlockedPublishedChapterContent(activeUser!.id, chapterSummary.id)
     : null;
+  const content = commerciallyLocked && hasPaidAccess ? fullPaidContent : published.content;
+  if (commerciallyLocked && hasPaidAccess && content === null) notFound();
+
+  const applyAccess = (item: typeof chapterSummary | undefined) => item
+    ? { ...item, locked: Boolean(item.locked && !staffAccess && !(item.id && unlocked.has(item.id))) }
+    : undefined;
+  const accessibleWindow = {
+    ...chapterWindow,
+    items: chapterWindow.items.map((item) => applyAccess(item)!),
+    earlierBoundary: applyAccess(chapterWindow.earlierBoundary),
+    laterBoundary: applyAccess(chapterWindow.laterBoundary),
+  };
   const paragraphs = splitChapterParagraphs(content ?? "");
   return (
     <>
@@ -99,7 +135,7 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
             publisher: { "@id": `${absoluteUrl("/")}#organization` },
             datePublished: chapterSummary.publishedAt ?? chapterSummary.updatedAt,
             dateModified: chapterSummary.updatedAt,
-            isAccessibleForFree: !locked,
+            isAccessibleForFree: !commerciallyLocked,
             inLanguage: "th-TH",
           },
           {
@@ -117,12 +153,22 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
       <ReaderView
         key={chapterSummary.id ?? chapterSummary.number}
         novel={novel}
-        chapter={chapterSummary}
-        previous={adjacent.previous}
-        next={adjacent.next}
-        chapterWindow={chapterWindow}
+        chapter={applyAccess(chapterSummary)!}
+        previous={applyAccess(adjacent.previous)}
+        next={applyAccess(adjacent.next)}
+        chapterWindow={accessibleWindow}
         locked={locked}
-        isAuthenticated={currentUser?.status === "ACTIVE"}
+        lockedContent={locked ? (
+          <ChapterUnlockCard
+            novelSlug={novel.slug}
+            novelTitle={novel.thaiTitle}
+            chapterNumber={chapterSummary.number}
+            price={chapterSummary.coinPrice ?? 0}
+            balance={walletBalance}
+            isAuthenticated={Boolean(activeUser)}
+          />
+        ) : undefined}
+        isAuthenticated={Boolean(activeUser)}
         initialLibraryStatus={userState?.libraryStatus}
         initialFollowing={userState?.followed}
         initialProgress={userState?.progress}

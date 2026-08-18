@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Eye, PencilLine, Save, Trash2 } from "lucide-react";
+import Image from "next/image";
 import { useState, type FormEvent } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
@@ -28,6 +29,7 @@ export function ChapterEditorView({
   const [content, setContent] = useState(chapter?.content ?? "");
   const [title, setTitle] = useState(chapter?.title ?? "");
   const [chapterNumber, setChapterNumber] = useState(String(chapter?.chapterNumber ?? defaults.chapterNumber));
+  const [isFree, setIsFree] = useState(chapter?.isFree ?? true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -43,11 +45,11 @@ export function ChapterEditorView({
       chapterNumber: Number(form.get("chapterNumber")),
       sortOrder: Number(form.get("sortOrder")),
       title: String(form.get("title") ?? ""),
-      content: String(form.get("content") ?? ""),
+      content,
       excerpt: String(form.get("excerpt") ?? ""),
       status,
-      isFree: true,
-      coinPrice: 0,
+      isFree,
+      coinPrice: isFree ? 0 : Number(form.get("coinPrice")),
       scheduledFor: status === "SCHEDULED" && scheduledRaw ? new Date(scheduledRaw).toISOString() : null,
     };
     try {
@@ -112,10 +114,44 @@ export function ChapterEditorView({
               <option value="DRAFT">ฉบับร่าง / ถอนเผยแพร่</option><option value="PUBLISHED">เผยแพร่ทันที</option><option value="ARCHIVED">เก็บถาวร</option>
             </Select></label>
             <div className="rounded-[12px] border border-border bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">การตั้งเวลาเผยแพร่ปิดไว้จนกว่าจะมี production scheduler ที่ retry และตรวจสอบผลได้</div>
-            <div className="rounded-[12px] border border-border bg-muted/50 p-3 text-sm">
-              <p className="font-medium">อ่านฟรี</p>
-              <p className="mt-1 text-xs text-muted-foreground">ระบบเหรียญ การชำระเงิน และ entitlement ยังปิดใช้งาน จึงไม่อนุญาตให้สร้างตอนแบบเสียเงิน</p>
-            </div>
+            <fieldset className="grid gap-3 rounded-[12px] bg-muted/50 p-3">
+              <legend className="px-1 text-sm font-medium">สิทธิ์การอ่าน</legend>
+              <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={isFree}
+                  onChange={(event) => setIsFree(event.target.checked)}
+                  className="h-4 w-4 accent-[var(--brand-primary)]"
+                />
+                <span>
+                  <span className="block text-sm font-medium">อ่านฟรี</span>
+                  <span className="block text-xs text-muted-foreground">ปิดตัวเลือกนี้เมื่อต้องการให้ผู้อ่านปลดล็อกถาวรด้วยเหรียญ</span>
+                </span>
+              </label>
+              {!isFree ? (
+                <Field label="ราคาเหรียญ" hint="ราคาที่ผู้อ่านยืนยันจะถูกบันทึกไว้ในประวัติธุรกรรม">
+                  <div className="relative">
+                    <Image
+                      src="/Images/Coins/nn-gold-coin.png"
+                      alt=""
+                      width={24}
+                      height={24}
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 object-contain"
+                    />
+                    <Input
+                      name="coinPrice"
+                      type="number"
+                      min="1"
+                      max="1000000"
+                      step="1"
+                      required
+                      defaultValue={chapter?.isFree === false ? chapter.coinPrice : 1}
+                      className="pl-11"
+                    />
+                  </div>
+                </Field>
+              ) : null}
+            </fieldset>
             {message ? <p role="alert" className="rounded-[10px] bg-destructive/10 px-3 py-2 text-sm text-destructive">{message}</p> : null}
             <Button type="submit" loading={busy}><Save className="h-4 w-4" />บันทึกตอน</Button>
             <ButtonLink href={`/admin/novels/${novel.slug}/chapters`} variant="outline">กลับสารบัญ</ButtonLink>

@@ -58,6 +58,7 @@ Editorial/publication และ review-text removal ใช้ immediate expiry �
 - Library/follow ใช้ unique key และปรับ aggregate เฉพาะ insert/delete จริง
 - Progress/history เป็น upsert หนึ่งแถวต่อ `(user, novel)`; client throttle และ save ตอน visibility/page change
 - Progress ฝั่ง browser ใช้ queue หนึ่ง request ต่อครั้งและ coalesce เป็น snapshot ล่าสุด; server serialize transaction ต่อ `(user, novel)` และเก็บเวลารับล่าสุด
+- การปลดล็อกตอนล็อก wallet row ต่อผู้ใช้ แล้วตัดยอด, เพิ่ม append-only ledger และสร้าง entitlement ใน transaction เดียว; shared cache เก็บได้เฉพาะ metadata/excerpt ส่วนเนื้อหาเต็ม query ผ่าน entitlement ทุก request
 - Review ที่แก้/ลบจะกลับเข้า moderation และ expire public review cache ทันที
 - Upload ออก presigned URL หลังตรวจ user/role/MIME/size/extension; key สร้างฝั่ง server และ credential ไม่ออกสู่ browser
 - Engagement aggregate ใช้ delta ภายใต้ statistics lock และ bounded reconciliation job ซ่อม drift เป็นระยะ

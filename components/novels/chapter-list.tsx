@@ -5,13 +5,14 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Check,
   ChevronDown,
-  Coins,
   LockKeyhole,
   Search,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { NovelCatalogResume, useNovelResumeProgress } from "@/components/reader/novel-resume-actions";
@@ -29,6 +30,8 @@ type ChapterListProps = {
   catalog: ChapterCatalogPage;
   serverProgress?: NovelResumeServerProgress | null;
   latestChapterNumber?: number;
+  unlockedChapterIds?: string[];
+  staffAccess?: boolean;
 };
 
 type ChapterRange = {
@@ -108,6 +111,8 @@ function ChapterRows({
   latestChapterNumber,
   jumpChapter,
   jumpFound,
+  unlockedChapterIds,
+  staffAccess,
 }: {
   slug: string;
   chapters: ChapterSummary[];
@@ -115,6 +120,8 @@ function ChapterRows({
   latestChapterNumber?: number;
   jumpChapter: number | null;
   jumpFound: boolean;
+  unlockedChapterIds: Set<string>;
+  staffAccess: boolean;
 }) {
   if (chapters.length === 0) {
     return (
@@ -132,6 +139,9 @@ function ChapterRows({
         const isJumpTarget = jumpFound && chapter.number === jumpChapter;
         const isLatest = chapter.number === latestChapterNumber;
         const title = displayChapterTitle(chapter);
+        const isPaid = Boolean(chapter.locked && (chapter.coinPrice ?? 0) > 0);
+        const isUnlocked = isPaid && (staffAccess || Boolean(chapter.id && unlockedChapterIds.has(chapter.id)));
+        const isLocked = Boolean(chapter.locked && !isUnlocked);
         return (
           <li
             key={chapter.id ?? chapter.number}
@@ -150,7 +160,7 @@ function ChapterRows({
               prefetch={false}
               onClick={() => markChapterNavigation(slug, chapter.number)}
               aria-current={isCurrent ? "page" : undefined}
-              aria-label={`${title}${isCurrent ? " กำลังอ่าน" : ""}${isLatest ? " ตอนล่าสุด" : ""}`}
+              aria-label={`${title}${isCurrent ? " กำลังอ่าน" : ""}${isLatest ? " ตอนล่าสุด" : ""}${isLocked ? ` ต้องใช้ ${chapter.coinPrice} เหรียญ` : ""}`}
               className="group flex min-h-20 items-start justify-between gap-4 px-4 py-4 sm:min-h-24 sm:px-5"
             >
               <span className="min-w-0">
@@ -176,15 +186,21 @@ function ChapterRows({
                     ล่าสุด
                   </span>
                 ) : null}
-                {chapter.locked ? (
-                  chapter.coinPrice && chapter.coinPrice > 0 ? (
-                    <span className="inline-flex items-center gap-1 text-warning" title={`${chapter.coinPrice} เหรียญ`}>
-                      <Coins className="h-4 w-4" aria-hidden />
-                      <span className="tabular">{chapter.coinPrice.toLocaleString("th-TH")}</span>
+                {isPaid ? (
+                  isUnlocked ? (
+                    <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-300" title="ปลดล็อกแล้ว">
+                      <Image src="/Images/Coins/nn-gold-coin.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />
+                      <Check className="h-3.5 w-3.5" aria-hidden />
+                      <span className="sr-only">ปลดล็อกแล้ว</span>
                     </span>
                   ) : (
-                    <LockKeyhole className="h-4 w-4 text-muted-foreground" aria-label="ตอนจำกัดสิทธิ์" />
+                    <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300" title={`${chapter.coinPrice} เหรียญ`}>
+                      <Image src="/Images/Coins/nn-gold-coin.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />
+                      <span className="tabular">{chapter.coinPrice?.toLocaleString("th-TH")}</span>
+                    </span>
                   )
+                ) : isLocked ? (
+                    <LockKeyhole className="h-4 w-4 text-muted-foreground" aria-label="ตอนจำกัดสิทธิ์" />
                 ) : null}
               </span>
             </Link>
@@ -200,6 +216,8 @@ export function ChapterList({
   catalog,
   serverProgress,
   latestChapterNumber,
+  unlockedChapterIds: unlockedChapterIdList = [],
+  staffAccess = false,
 }: ChapterListProps) {
   const action = `/novel/${slug}/chapters`;
   const resume = useNovelResumeProgress(slug, serverProgress);
@@ -208,6 +226,7 @@ export function ChapterList({
   const activeRange = pageRange(catalog);
   const activeRangeKey = rangeKey(activeRange);
   const [collapsedRange, setCollapsedRange] = useState<string | null>(null);
+  const unlockedChapterIds = new Set(unlockedChapterIdList);
 
   useEffect(() => {
     if (!catalog.jumpFound || catalog.jumpChapter === null) return;
@@ -320,6 +339,8 @@ export function ChapterList({
             latestChapterNumber={latestChapterNumber}
             jumpChapter={catalog.jumpChapter}
             jumpFound={catalog.jumpFound}
+            unlockedChapterIds={unlockedChapterIds}
+            staffAccess={staffAccess}
           />
           {catalog.totalPages > 1 ? (
             <nav aria-label="แบ่งหน้าผลการค้นหาตอน" className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-t border-border bg-surface-subtle px-3 py-3 sm:px-4">
@@ -386,6 +407,8 @@ export function ChapterList({
                     latestChapterNumber={latestChapterNumber}
                     jumpChapter={catalog.jumpChapter}
                     jumpFound={catalog.jumpFound}
+                    unlockedChapterIds={unlockedChapterIds}
+                    staffAccess={staffAccess}
                   />
                 ) : null}
               </section>

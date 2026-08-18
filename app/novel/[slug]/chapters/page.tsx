@@ -8,9 +8,11 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageShell } from "@/components/ui/section";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { canAccessAdmin } from "@/lib/auth/permissions";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getChapterCatalogPage, getNovelBySlug } from "@/services/novel-service";
+import { getUnlockedChapterIds } from "@/services/coin-service";
 import { getUserNovelState } from "@/services/user-service";
 import { parsePositivePage } from "@/types/novel-query";
 
@@ -92,6 +94,10 @@ export default async function ChaptersPage({
     }),
     currentUser?.status === "ACTIVE" ? getUserNovelState(currentUser.id, novel.slug) : Promise.resolve(null),
   ]);
+  const staffAccess = currentUser ? canAccessAdmin(currentUser) : false;
+  const unlockedChapterIds = currentUser?.status === "ACTIVE" && !staffAccess
+    ? await getUnlockedChapterIds(currentUser.id, catalog.items.flatMap((chapter) => chapter.id ? [chapter.id] : []))
+    : [];
 
   if (requestedPage !== catalog.page) {
     redirect(catalogUrl(novel.slug, { ...filters, resolvedPage: catalog.page }));
@@ -169,6 +175,8 @@ export default async function ChaptersPage({
           catalog={catalog}
           serverProgress={userState?.progress}
           latestChapterNumber={novel.latestChapter?.number}
+          unlockedChapterIds={unlockedChapterIds}
+          staffAccess={staffAccess}
         />
       ) : (
         <EmptyState title="ยังไม่มีตอนที่เผยแพร่" description="กลับมาดูใหม่เมื่อนักเขียนเผยแพร่ตอนแรก" />

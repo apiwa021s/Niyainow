@@ -17,6 +17,9 @@ import {
   tags,
 } from "./content";
 import {
+  chapterUnlocks,
+  coinLedgerEntries,
+  coinWallets,
   novelFollows,
   ratings,
   readingHistory,
@@ -26,7 +29,7 @@ import {
   userLibrary,
 } from "./user";
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
   authenticators: many(authenticators),
@@ -41,6 +44,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   mediaAssets: many(mediaAssets),
   auditLogs: many(adminAuditLogs),
   settingsUpdates: many(siteSettings),
+  coinWallet: one(coinWallets),
+  coinLedger: many(coinLedgerEntries),
+  chapterUnlocks: many(chapterUnlocks),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -108,8 +114,32 @@ export const novelSearchDocumentsRelations = relations(novelSearchDocuments, ({ 
   novel: one(novels, { fields: [novelSearchDocuments.novelId], references: [novels.id] }),
 }));
 
-export const chaptersRelations = relations(chapters, ({ one }) => ({
+export const chaptersRelations = relations(chapters, ({ many, one }) => ({
   novel: one(novels, { fields: [chapters.novelId], references: [novels.id] }),
+  coinLedger: many(coinLedgerEntries),
+  unlocks: many(chapterUnlocks),
+}));
+
+export const coinWalletsRelations = relations(coinWallets, ({ one }) => ({
+  user: one(users, { fields: [coinWallets.userId], references: [users.id] }),
+}));
+
+export const coinLedgerEntriesRelations = relations(coinLedgerEntries, ({ one }) => ({
+  user: one(users, { fields: [coinLedgerEntries.userId], references: [users.id] }),
+  chapter: one(chapters, { fields: [coinLedgerEntries.chapterId], references: [chapters.id] }),
+  unlock: one(chapterUnlocks, {
+    fields: [coinLedgerEntries.id],
+    references: [chapterUnlocks.ledgerEntryId],
+  }),
+}));
+
+export const chapterUnlocksRelations = relations(chapterUnlocks, ({ one }) => ({
+  user: one(users, { fields: [chapterUnlocks.userId], references: [users.id] }),
+  chapter: one(chapters, { fields: [chapterUnlocks.chapterId], references: [chapters.id] }),
+  ledgerEntry: one(coinLedgerEntries, {
+    fields: [chapterUnlocks.ledgerEntryId],
+    references: [coinLedgerEntries.id],
+  }),
 }));
 
 export const novelStatisticsRelations = relations(novelStatistics, ({ one }) => ({

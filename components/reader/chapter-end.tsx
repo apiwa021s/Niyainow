@@ -1,4 +1,5 @@
-import { Bell, ChevronLeft, ChevronRight, List, Lock, Zap } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, List, Zap } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 import { FollowButton } from "@/components/interactive/novel-actions";
@@ -48,10 +49,15 @@ export function ChapterEnd({
 
       {next ? (
         next.locked ? (
-          <div className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[6px] border border-current/15 bg-current/5 px-5 text-center text-sm font-semibold opacity-75">
-            <Lock className="h-4 w-4 shrink-0" />
-            ตอนที่ {next.number} ยังไม่เปิดให้อ่านบนระบบนี้
-          </div>
+          <Link
+            href={`/novel/${novel.slug}/chapter/${next.number}`}
+            onClick={() => onNavigateChapter?.(next.number)}
+            className="flex min-h-[64px] w-full items-center justify-center gap-2 bg-current/5 px-5 text-center text-sm font-semibold transition-colors hover:bg-current/10"
+          >
+            <Image src="/Images/Coins/nn-gold-coin.png" alt="" width={24} height={24} className="h-6 w-6 object-contain" />
+            ตอนถัดไป · {next.coinPrice?.toLocaleString("th-TH")} เหรียญ
+            <ChevronRight className="h-4 w-4 shrink-0" />
+          </Link>
         ) : (
           <Link
             href={`/novel/${novel.slug}/chapter/${next.number}`}

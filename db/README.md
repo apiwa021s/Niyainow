@@ -18,7 +18,8 @@ operation does. This keeps credential-less production builds safe.
   Chapter content is PostgreSQL `TEXT`. Decimal `chapter_number` is display data;
   `sort_order` is the only navigation order.
 - Personal data: library states, follows, one upserted progress row per user/novel,
-  compact reading history, ratings, reviews, and review likes. Composite foreign
+  compact reading history, ratings, reviews, review likes, coin wallets, an
+  append-only coin ledger, and permanent chapter entitlements. Composite foreign
   keys prevent a progress/history chapter from belonging to another novel.
 - Analytics: daily engagement rollups and precomputed daily/weekly/monthly/all-time
   rankings. Public ranking requests read snapshots rather than aggregating events.
@@ -72,6 +73,11 @@ The application service layer must keep these operations atomic:
    only through a conditional `PENDING -> VERIFYING -> READY` claim, an ETag-bound
    R2 `HEAD` plus ranged magic-byte verification, a conditional same-bucket copy
    to the final allowlisted key, and staging cleanup.
+5. A chapter unlock locks the user's wallet, rechecks the current published price,
+   debits the wallet, appends one idempotent ledger entry, and creates the matching
+   entitlement in one transaction. Paid chapter bodies are selected only through
+   that entitlement (or an active editor/admin privilege check), never from a
+   shared cache.
 
 Engagement writes apply constant-time deltas while holding the per-novel
 statistics lock; they do not recount an unbounded user table in the request path.

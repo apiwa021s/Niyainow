@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, List, Search, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, List, Search, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, MouseEvent, ReactNode, RefObject } from "react";
@@ -112,6 +113,7 @@ export function ReaderView({
   initialFollowing,
   initialProgress,
   locked = false,
+  lockedContent,
 }: {
   novel: Novel;
   chapter: ChapterSummary;
@@ -125,6 +127,7 @@ export function ReaderView({
   initialFollowing?: boolean;
   initialProgress?: ReaderInitialProgress | null;
   locked?: boolean;
+  lockedContent?: ReactNode;
 }) {
   const router = useRouter();
   const prefs = useReaderStore((state) => state.prefs);
@@ -146,7 +149,7 @@ export function ReaderView({
       : null,
   );
 
-  const nextHref = next && !next.locked ? `/novel/${novel.slug}/chapter/${next.number}` : null;
+  const nextHref = next ? `/novel/${novel.slug}/chapter/${next.number}` : null;
   const previousHref = previous ? `/novel/${novel.slug}/chapter/${previous.number}` : null;
   const chaptersHref = `/novel/${novel.slug}/chapters`;
   const chapterKey = `${novel.slug}:${chapter.id ?? chapter.number}`;
@@ -609,10 +612,11 @@ export function ReaderView({
           </div>
 
           {locked ? (
-            <div className="mt-10 rounded-[8px] bg-current/6 px-5 py-6 text-center">
-              <p className="font-semibold">ตอนนี้ยังไม่เปิดให้อ่าน</p>
-              <p className="mt-2 text-sm opacity-70">ระบบไม่ได้เปิดการซื้อหรือปลดล็อกตอน จึงไม่ส่งเนื้อหาที่ถูกจำกัดมายังเบราว์เซอร์</p>
-            </div>
+            lockedContent ?? (
+              <div className="mt-10 bg-current/6 px-5 py-6 text-center">
+                <p className="font-semibold">ตอนนี้ยังไม่เปิดให้อ่าน</p>
+              </div>
+            )
           ) : (
             <ChapterEnd
               novel={novel}
@@ -746,7 +750,13 @@ function ReaderSidebar({
                     active ? "bg-current/8 text-[var(--reader-accent)]" : "hover:bg-current/6",
                   )}
                 >
-                  <span className="line-clamp-2 font-medium leading-[1.5]">{item.title}</span>
+                  <span className="min-w-0 flex-1 line-clamp-2 font-medium leading-[1.5]">{item.title}</span>
+                  {(item.coinPrice ?? 0) > 0 ? (
+                    <span className="ml-2 inline-flex shrink-0 items-center gap-1 text-xs font-semibold opacity-80">
+                      <Image src="/Images/Coins/nn-gold-coin.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />
+                      {item.locked ? item.coinPrice?.toLocaleString("th-TH") : <Check className="h-3.5 w-3.5" aria-label="ปลดล็อกแล้ว" />}
+                    </span>
+                  ) : null}
                   {active ? <span className="sr-only"> กำลังอ่าน</span> : null}
                 </Link>
               );

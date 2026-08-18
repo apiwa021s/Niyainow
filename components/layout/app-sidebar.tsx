@@ -2,7 +2,6 @@
 import {
   BookOpen,
   Clock3,
-  Coins,
   Compass,
   Home,
   Info,
@@ -11,6 +10,7 @@ import {
   Tags,
   Trophy,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
@@ -38,10 +38,18 @@ const primaryNav: NavItem[] = [
 const libraryNav: NavItem[] = [
   { href: "/library", label: "ชั้นหนังสือ", icon: Library },
   { href: "/history", label: "ประวัติการอ่าน", icon: Clock3 },
-  { href: "/wallet", label: "กระเป๋าเหรียญ", icon: Coins },
+  { href: "/wallet", label: "กระเป๋าเหรียญ", icon: CoinNavIcon },
 ];
 
 const supportNav: NavItem[] = [{ href: "/about", label: "ศูนย์ข้อมูล", icon: Info }];
+
+function CoinNavIcon({ className }: { className?: string; strokeWidth?: number }) {
+  return (
+    <span className={cn("relative inline-block", className)}>
+      <Image src="/Images/Coins/nn-gold-coin.png" alt="" fill sizes="18px" className="object-contain" />
+    </span>
+  );
+}
 
 function isActive(pathname: string, item: NavItem) {
   if (item.href === "/") return pathname === "/";

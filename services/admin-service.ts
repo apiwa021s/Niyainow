@@ -134,16 +134,21 @@ const adminChapterBaseSchema = z
     content: z.string().max(MAX_CHAPTER_CHARACTERS),
     excerpt: z.string().trim().max(5_000).optional().nullable().transform((value) => value || null),
     status: chapterStatusSchema,
-    // Commerce and entitlement delivery are intentionally disabled. Until a
-    // ledger exists, admin cannot publish content that readers cannot unlock.
-    isFree: z.literal(true),
-    coinPrice: z.literal(0),
+    isFree: z.boolean(),
+    coinPrice: z.number().int().min(0).max(1_000_000),
     scheduledFor: z.iso.datetime({ offset: true }).optional().nullable(),
   })
   .strict();
 
 function validateChapterPublication(
-  input: { status: ChapterStatus; scheduledFor?: string | null; content: string },
+  input: {
+    status: ChapterStatus;
+    scheduledFor?: string | null;
+    content: string;
+    excerpt?: string | null;
+    isFree: boolean;
+    coinPrice: number;
+  },
   context: z.RefinementCtx,
 ) {
   if (Buffer.byteLength(input.content, "utf8") > MAX_CHAPTER_UTF8_BYTES) {
@@ -180,6 +185,15 @@ function validateChapterPublication(
 
   if (input.status === "PUBLISHED" && !input.content.trim()) {
     context.addIssue({ code: "custom", path: ["content"], message: "Published chapters cannot be empty" });
+  }
+  if (input.isFree && input.coinPrice !== 0) {
+    context.addIssue({ code: "custom", path: ["coinPrice"], message: "Free chapters must have a price of 0" });
+  }
+  if (!input.isFree && input.coinPrice <= 0) {
+    context.addIssue({ code: "custom", path: ["coinPrice"], message: "Paid chapters need a positive coin price" });
+  }
+  if (!input.isFree && input.status === "PUBLISHED" && !input.excerpt?.trim()) {
+    context.addIssue({ code: "custom", path: ["excerpt"], message: "Paid chapters need a public preview excerpt" });
   }
   if (input.status === "SCHEDULED") {
     if (!input.scheduledFor) {
