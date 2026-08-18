@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 export function ContentRow({
   title,
   description,
+  count,
   href,
   action = "ดูทั้งหมด",
   children,
@@ -23,6 +24,7 @@ export function ContentRow({
 }: {
   title: string;
   description?: string;
+  count?: number;
   href?: string;
   action?: string;
   children: React.ReactNode;
@@ -69,6 +71,7 @@ export function ContentRow({
     <section className={cn("flex flex-col gap-2.5", className)} aria-label={title}>
       <SectionHeader
         title={title}
+        count={count}
         href={href}
         hrefLabel={action}
         trailing={
@@ -113,6 +116,6 @@ export function ContentRow({
 }
 
 /** ห่อการ์ดแต่ละใบให้ snap — แยกออกมาเพื่อให้ ContentRow ไม่ต้องรู้จักชนิดการ์ด */
-export function RowItem({ children }: { children: React.ReactNode }) {
-  return <div className="snap-start">{children}</div>;
+export function RowItem({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("snap-start", className)}>{children}</div>;
 }

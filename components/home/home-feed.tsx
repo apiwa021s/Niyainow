@@ -35,7 +35,7 @@ export type HomeData = {
   spotlightNovel?: Novel;
 };
 
-const HOME_GRID = "grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8 2xl:grid-cols-10";
+const HOME_CAROUSEL_ITEM_CLASS = "w-[84px] shrink-0 sm:w-[96px] lg:w-[108px] xl:w-[118px] 2xl:w-[126px]";
 
 const genreNameOf = (novel: Novel, slug?: string) =>
   slug ? (novel.genreNames?.[slug] ?? slug) : "";
@@ -52,7 +52,7 @@ function HomeCoverTile({ novel, priority = false }: { novel: Novel; priority?: b
             src={novel.cover}
             alt=""
             fill
-            sizes="(max-width: 640px) 24vw, (max-width: 1024px) 16vw, 10vw"
+            sizes="(max-width: 640px) 84px, (max-width: 1024px) 96px, 126px"
             priority={priority}
             className="object-cover"
           />
@@ -263,9 +263,12 @@ function MiniNovelRow({ novel, rank }: { novel: Novel; rank: number }) {
 
 function MiniUpdateRow({ item, novel }: { item: UpdateItem; novel: Novel }) {
   return (
-    <Link href={`/novel/${novel.slug}/chapter/${item.chapter}`} className="group grid min-h-12 grid-cols-[34px_minmax(0,1fr)] items-center gap-2 py-1.5">
-      <span className="relative aspect-2/3 w-[34px] overflow-hidden rounded-(--r-sm) bg-surface-recessed">
-        <Image src={novel.cover} alt="" fill sizes="34px" className="object-cover" />
+    <Link
+      href={`/novel/${novel.slug}/chapter/${item.chapter}`}
+      className="group grid min-h-[64px] grid-cols-[38px_minmax(0,1fr)] items-center gap-2 rounded-(--r-md) border border-border bg-card p-2 transition-colors hover:border-accent-base hover:bg-surface-subtle"
+    >
+      <span className="relative aspect-2/3 w-[38px] overflow-hidden rounded-(--r-sm) bg-surface-recessed">
+        <Image src={novel.cover} alt="" fill sizes="38px" className="object-cover" />
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-semibold group-hover:text-accent-base">{novel.thaiTitle}</span>
@@ -277,20 +280,77 @@ function MiniUpdateRow({ item, novel }: { item: UpdateItem; novel: Novel }) {
   );
 }
 
-function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: PromoBannerItem[] }) {
-  const topRanked = data.rankings.slice(0, 5);
+function DesktopLatestUpdatesPanel({ data }: { data: HomeData }) {
   const latestUpdates = data.updates
     .map((item) => ({ item, novel: data.novelsBySlug[item.novelSlug] }))
     .filter((entry): entry is { item: UpdateItem; novel: Novel } => Boolean(entry.novel))
-    .slice(0, 5);
+    .slice(0, 6);
+
+  if (!latestUpdates.length) return null;
+
+  return (
+    <section aria-label="ตอนใหม่ล่าสุดบนเดสก์ท็อป" className="hidden rounded-(--r-lg) border border-border bg-surface p-3 xl:block">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="editorial-kicker">LIVE UPDATES</p>
+          <h2 className="mt-1 truncate text-h2 font-semibold">ตอนใหม่ล่าสุด</h2>
+        </div>
+        <Link href="/updates" className="shrink-0 text-sm font-semibold text-(--text-secondary) hover:text-accent-base">
+          ดูทั้งหมด
+        </Link>
+      </div>
+      <ol className="grid gap-1.5 lg:grid-cols-2">
+        {latestUpdates.map(({ item, novel }) => (
+          <li key={`${item.novelSlug}-${item.chapter}`}>
+            <MiniUpdateRow item={item} novel={novel} />
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function HomeNovelCarousel({
+  title,
+  novels,
+  href,
+  description,
+  priorityCount = 0,
+}: {
+  title: string;
+  novels: Novel[];
+  href: string;
+  description?: string;
+  priorityCount?: number;
+}) {
+  if (!novels.length) return null;
+
+  return (
+    <ContentRow title={title} count={novels.length} description={description} href={href} className="render-deferred">
+      {novels.map((novel, index) => (
+        <RowItem key={novel.slug} className={HOME_CAROUSEL_ITEM_CLASS}>
+          <HomeCoverTile novel={novel} priority={index < priorityCount} />
+        </RowItem>
+      ))}
+    </ContentRow>
+  );
+}
+
+function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: PromoBannerItem[] }) {
+  const topRanked = data.rankings.slice(0, 5);
 
   return (
     <section aria-label="ศูนย์เริ่มอ่าน" className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="min-w-0">
+      <div className="grid min-w-0 content-start gap-3">
         <Hero novel={data.spotlightNovel} banner={banners[0]} />
+        <div className="hidden gap-3 xl:grid">
+          <TrendingTicker novels={data.rankings.slice(0, 16)} />
+          <GenreChipRail items={data.genreShowcase} />
+          <DesktopLatestUpdatesPanel data={data} />
+        </div>
       </div>
 
-      <aside className="grid gap-2.5 rounded-(--r-lg) border border-border bg-surface p-2.5 sm:p-3">
+      <aside className="grid content-start gap-2.5 rounded-(--r-lg) border border-border bg-surface p-2.5 sm:p-3">
         <div>
           <p className="editorial-kicker">START READING</p>
           <h2 className="mt-1 text-h2 font-semibold">เลือกทางลัดของวันนี้</h2>
@@ -330,23 +390,12 @@ function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: Promo
           <SignalCard label="อ่านจบได้" value={formatNumber(data.completed.length)} hint="เรื่องจบแล้ว" />
         </div>
 
-        {topRanked.length || latestUpdates.length ? (
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-1">
-            {topRanked.length ? (
-              <MiniPanel title="อันดับที่คนกำลังอ่าน" href="/rankings">
-                {topRanked.map((novel, index) => (
-                  <MiniNovelRow key={novel.slug} novel={novel} rank={index + 1} />
-                ))}
-              </MiniPanel>
-            ) : null}
-            {latestUpdates.length ? (
-              <MiniPanel title="ตอนใหม่ที่เพิ่งมา" href="/updates">
-                {latestUpdates.map(({ item, novel }) => (
-                  <MiniUpdateRow key={`${item.novelSlug}-${item.chapter}`} item={item} novel={novel} />
-                ))}
-              </MiniPanel>
-            ) : null}
-          </div>
+        {topRanked.length ? (
+          <MiniPanel title="อันดับที่คนกำลังอ่าน" href="/rankings">
+            {topRanked.map((novel, index) => (
+              <MiniNovelRow key={novel.slug} novel={novel} rank={index + 1} />
+            ))}
+          </MiniPanel>
         ) : null}
       </aside>
     </section>
@@ -398,41 +447,37 @@ export function HomeFeed({
       {guestContinueSlot}
       {accountSections}
 
-      <TrendingTicker novels={data.rankings.slice(0, 16)} />
+      <div className="xl:hidden">
+        <TrendingTicker novels={data.rankings.slice(0, 16)} />
+      </div>
 
-      <GenreChipRail items={data.genreShowcase} />
+      <div className="xl:hidden">
+        <GenreChipRail items={data.genreShowcase} />
+      </div>
 
       {data.updates.length ? (
-        <UpdateFeed
-          title="ตอนใหม่ล่าสุด"
-          description="รายการอัปเดตแบบ live feed สำหรับคนที่กลับมาเช็กทุกวัน"
-          href="/updates"
-          items={data.updates}
-          novelsBySlug={data.novelsBySlug}
-        />
+        <div className="xl:hidden">
+          <UpdateFeed
+            title="ตอนใหม่ล่าสุด"
+            description="รายการอัปเดตแบบ live feed สำหรับคนที่กลับมาเช็กทุกวัน"
+            href="/updates"
+            items={data.updates}
+            novelsBySlug={data.novelsBySlug}
+          />
+        </div>
       ) : null}
 
-      {data.recommended.length ? (
-        <section className="render-deferred">
-          <SectionHeader title="ผู้อ่านให้คะแนนสูง" count={data.recommended.length} href="/novels?sort=rating" />
-          <div className={HOME_GRID}>
-            {data.recommended.slice(0, 12).map((novel, index) => (
-              <HomeCoverTile key={novel.slug} novel={novel} priority={index < 4} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <HomeNovelCarousel
+        title="ผู้อ่านให้คะแนนสูง"
+        novels={data.recommended}
+        href="/novels?sort=rating"
+      />
 
-      {data.newThisWeek.length ? (
-        <section className="render-deferred">
-          <SectionHeader title="มาใหม่สัปดาห์นี้" count={data.newThisWeek.length} href="/novels?sort=new" />
-          <div className={HOME_GRID}>
-            {data.newThisWeek.slice(0, 12).map((novel) => (
-              <HomeCoverTile key={novel.slug} novel={novel} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <HomeNovelCarousel
+        title="มาใหม่สัปดาห์นี้"
+        novels={data.newThisWeek}
+        href="/novels?sort=new"
+      />
 
       {data.rankings.length ? (
         <section className="render-deferred">
@@ -446,20 +491,11 @@ export function HomeFeed({
         </section>
       ) : null}
 
-      {data.completed.length ? (
-        <section className="render-deferred">
-          <SectionHeader
-            title="เรื่องจบแล้ว"
-            count={data.completed.length}
-            href="/novels?status=completed&sort=rating"
-          />
-          <div className={HOME_GRID}>
-            {data.completed.slice(0, 12).map((novel) => (
-              <HomeCoverTile key={novel.slug} novel={novel} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <HomeNovelCarousel
+        title="เรื่องจบแล้ว"
+        novels={data.completed}
+        href="/novels?status=completed&sort=rating"
+      />
 
       {signupSlot}
     </div>
