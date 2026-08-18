@@ -28,6 +28,7 @@ const FONT_CLASS = {
   anuphan: "reader-font-anuphan",
   serif: "reader-font-serif",
 } as const;
+const PROTECTED_READER_SELECTOR = "[data-reader-protected='true']";
 
 type ProgressWrite = {
   chapterId: string;
@@ -59,6 +60,29 @@ function currentParagraphAnchor() {
     }
   }
   return undefined;
+}
+
+function isInsideProtectedContent(node: Node | null) {
+  if (!node) return false;
+  const element = node.nodeType === Node.ELEMENT_NODE
+    ? node as Element
+    : node.parentElement;
+  return Boolean(element?.closest(PROTECTED_READER_SELECTOR));
+}
+
+function eventTouchesProtectedContent(event: Event) {
+  return event.target instanceof Node && isInsideProtectedContent(event.target);
+}
+
+function selectionTouchesProtectedContent() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+  if (isInsideProtectedContent(selection.anchorNode) || isInsideProtectedContent(selection.focusNode)) return true;
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    if (isInsideProtectedContent(selection.getRangeAt(index).commonAncestorContainer)) return true;
+  }
+  return false;
 }
 
 // Keep a single writer for the browser module so App Router chapter
@@ -393,6 +417,36 @@ export function ReaderView({
     };
   }, [prefs.keepScreenAwake]);
 
+  useEffect(() => {
+    const preventCopy = (event: Event) => {
+      if (!eventTouchesProtectedContent(event) && !selectionTouchesProtectedContent()) return;
+      event.preventDefault();
+      window.getSelection()?.removeAllRanges();
+    };
+
+    const preventCopyShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if ((key === "c" || key === "x") && selectionTouchesProtectedContent()) {
+        event.preventDefault();
+        window.getSelection()?.removeAllRanges();
+      }
+    };
+
+    document.addEventListener("copy", preventCopy, true);
+    document.addEventListener("cut", preventCopy, true);
+    document.addEventListener("contextmenu", preventCopy, true);
+    document.addEventListener("dragstart", preventCopy, true);
+    window.addEventListener("keydown", preventCopyShortcut, true);
+    return () => {
+      document.removeEventListener("copy", preventCopy, true);
+      document.removeEventListener("cut", preventCopy, true);
+      document.removeEventListener("contextmenu", preventCopy, true);
+      document.removeEventListener("dragstart", preventCopy, true);
+      window.removeEventListener("keydown", preventCopyShortcut, true);
+    };
+  }, []);
+
   const modalOpen = settingsOpen || sidebarOpen;
 
   useEffect(() => {
@@ -544,7 +598,11 @@ export function ReaderView({
             <p className="mt-2 text-sm opacity-60">{novel.thaiTitle}</p>
             <h1 className="mt-2 text-2xl font-semibold leading-[1.45] sm:text-3xl">{chapter.title}</h1>
           </header>
-          <div className="text-[length:var(--reader-font-size)] sm:text-[length:calc(var(--reader-font-size)+1px)]" style={{ fontFamily: "var(--reader-family)", lineHeight: "var(--reader-line-height)" }}>
+          <div
+            data-reader-protected="true"
+            className="select-none text-[length:var(--reader-font-size)] sm:text-[length:calc(var(--reader-font-size)+1px)]"
+            style={{ fontFamily: "var(--reader-family)", lineHeight: "var(--reader-line-height)" }}
+          >
             {children}
           </div>
 
