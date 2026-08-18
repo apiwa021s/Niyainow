@@ -1,6 +1,6 @@
 "use client";
 
-import { BellOff, BookMarked, CheckCircle2, Clock3, Heart, LogOut, RotateCcw, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { BellOff, BookMarked, CheckCircle2, Clock3, Coins, Heart, LogOut, RotateCcw, Settings, ShieldCheck, UserRound } from "lucide-react";
 
 import { ThemeSwitcher } from "@/components/interactive/theme-switcher";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
           </div>
         </div>
         <div className="grid gap-2 sm:flex sm:flex-wrap">
+          <ButtonLink href="/wallet" variant="secondary" className="w-full sm:w-auto"><Coins className="h-4 w-4" />กระเป๋าเหรียญ</ButtonLink>
           <ButtonLink href="/settings" variant="secondary" className="w-full sm:w-auto"><Settings className="h-4 w-4" />ตั้งค่า</ButtonLink>
           <form action={signOutUser} className="sm:w-auto"><input type="hidden" name="callbackUrl" value="/" /><Button type="submit" variant="outline" className="w-full sm:w-auto"><LogOut className="h-4 w-4" />ออกจากระบบ</Button></form>
         </div>

@@ -2,6 +2,7 @@
 import {
   BookOpen,
   Clock3,
+  Coins,
   Compass,
   Home,
   Info,
@@ -37,6 +38,7 @@ const primaryNav: NavItem[] = [
 const libraryNav: NavItem[] = [
   { href: "/library", label: "ชั้นหนังสือ", icon: Library },
   { href: "/history", label: "ประวัติการอ่าน", icon: Clock3 },
+  { href: "/wallet", label: "กระเป๋าเหรียญ", icon: Coins },
 ];
 
 const supportNav: NavItem[] = [{ href: "/about", label: "ศูนย์ข้อมูล", icon: Info }];

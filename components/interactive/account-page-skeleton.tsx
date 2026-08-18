@@ -24,12 +24,12 @@ export function AccountPageSkeleton({ variant }: { variant: AccountLoadingVarian
     return (
       <PageShell>
         <p role="status" className="sr-only">{loadingLabel[variant]}</p>
-        <section className="mx-auto max-w-2xl py-5" aria-hidden>
-          <Skeleton className="h-7 w-7" />
-          <Skeleton className="mt-4 h-9 w-[min(420px,85%)]" />
-          <Skeleton className="mt-4 h-4 w-full" />
-          <Skeleton className="mt-3 h-4 w-[88%]" />
-          <Skeleton className="mt-5 h-11 w-40" />
+        <section className="mx-auto max-w-5xl space-y-6 py-5" aria-hidden>
+          <header><Skeleton className="h-3 w-28" /><Skeleton className="mt-3 h-9 w-52" /><Skeleton className="mt-3 h-4 w-[min(520px,90%)]" /></header>
+          <Skeleton className="h-60 w-full rounded-(--r-lg)" />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-56 rounded-(--r-lg)" />)}
+          </div>
         </section>
       </PageShell>
     );
