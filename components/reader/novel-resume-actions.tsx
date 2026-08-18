@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ListOrdered, Play } from "lucide-react";
+import { BookOpen, ListOrdered } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useSyncExternalStore } from "react";
 
@@ -96,7 +96,7 @@ export function NovelResumeActions({
     <div className="mt-6">
       <div className="hidden flex-wrap gap-2.5 lg:flex">
         <ButtonLink href={href} size="lg">
-          <Play className="h-4 w-4 fill-current" />
+          <BookOpen className="h-4 w-4" />
           {label}
         </ButtonLink>
         {progressed ? (

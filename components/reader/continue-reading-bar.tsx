@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, X } from "lucide-react";
+import { BookOpen, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -56,7 +56,7 @@ export function ContinueReadingBar() {
             </span>
           </span>
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-base text-accent-on">
-            <Play className="h-4 w-4 fill-current" aria-hidden />
+            <BookOpen className="h-4 w-4" aria-hidden />
           </span>
         </Link>
         <button

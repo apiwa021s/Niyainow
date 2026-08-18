@@ -4,10 +4,10 @@ import {
   ArrowRight,
   BellRing,
   BookMarked,
+  BookOpen,
   Clock3,
   Compass,
   LibraryBig,
-  Play,
   Search,
   Trophy,
 } from "lucide-react";
@@ -19,7 +19,6 @@ import { UpdateFeed } from "@/components/home/update-feed";
 import { RankingNovelCard } from "@/components/novels/novel-card";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
 import { SectionHeader } from "@/components/ui/section-header";
-import { formatNumber } from "@/lib/utils";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { HomePersonalization } from "@/services/user-service";
 import type { Genre, Novel, UpdateItem } from "@/types/novel";
@@ -154,7 +153,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
             href={`/novel/${novel.slug}`}
             className="mt-1.5 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on transition-colors hover:bg-accent-hover"
           >
-            <Play className="h-4 w-4 fill-current" aria-hidden />
+            <BookOpen className="h-4 w-4" aria-hidden />
             เริ่มอ่าน
           </Link>
         </div>
@@ -172,7 +171,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
             href={`/novel/${novel.slug}`}
             className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-full bg-accent-base px-4 text-sm font-semibold text-accent-on"
           >
-            <Play className="h-3.5 w-3.5 fill-current" aria-hidden />
+            <BookOpen className="h-3.5 w-3.5" aria-hidden />
             เริ่มอ่าน
           </Link>
         </div>
@@ -212,45 +211,6 @@ function ShortcutCard({
   );
 }
 
-function MiniPanel({
-  title,
-  href,
-  children,
-}: {
-  title: string;
-  href: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="min-w-0 rounded-(--r-md) border border-border bg-card p-2.5">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <h3 className="truncate text-sm font-semibold">{title}</h3>
-        <Link href={href} className="shrink-0 text-[11px] font-semibold text-(--text-secondary) hover:text-accent-base">
-          ดูทั้งหมด
-        </Link>
-      </div>
-      <div className="divide-y divide-border">{children}</div>
-    </section>
-  );
-}
-
-function MiniNovelRow({ novel, rank }: { novel: Novel; rank: number }) {
-  return (
-    <Link href={`/novel/${novel.slug}`} className="group grid min-h-12 grid-cols-[28px_34px_minmax(0,1fr)] items-center gap-2 py-1.5">
-      <span className="tabular text-center font-mono text-xs font-semibold text-accent-base">{rank}</span>
-      <span className="relative aspect-2/3 w-[34px] overflow-hidden rounded-(--r-sm) bg-surface-recessed">
-        <Image src={novel.cover} alt="" fill sizes="34px" className="object-cover" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold group-hover:text-accent-base">{novel.thaiTitle}</span>
-        <span className="tabular block truncate text-[11px] text-(--text-secondary)">
-          {formatNumber(novel.views)} ครั้ง · {novel.chapters.toLocaleString("th-TH")} ตอน
-        </span>
-      </span>
-    </Link>
-  );
-}
-
 function HomeNovelCarousel({
   title,
   novels,
@@ -278,59 +238,39 @@ function HomeNovelCarousel({
 }
 
 function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: PromoBannerItem[] }) {
-  const topRanked = data.rankings.slice(0, 5);
-
   return (
     <section aria-label="ศูนย์เริ่มอ่าน" className="grid gap-3">
       <Hero novel={data.spotlightNovel} banner={banners[0]} />
 
-      <div className="hidden gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid min-w-0 content-start gap-3">
-          <TrendingTicker novels={data.rankings.slice(0, 16)} />
-          <GenreChipRail items={data.genreShowcase} />
-        </div>
-
-        <aside className="grid content-start gap-2.5 rounded-(--r-lg) border border-border bg-surface p-2.5 sm:p-3">
-          <div>
-            <p className="editorial-kicker">START READING</p>
-            <h2 className="mt-1 text-h2 font-semibold">เลือกทางลัดของวันนี้</h2>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <ShortcutCard
-              href="/novels?sort=popular"
-              label="ยอดนิยม"
-              description="เรื่องที่คนอ่านกำลังเปิดมากที่สุด"
-              icon={<Trophy className="h-4 w-4" />}
-            />
-            <ShortcutCard
-              href="/updates"
-              label="ตอนใหม่ล่าสุด"
-              description="กลับมาเช็กจังหวะอัปเดตของคลัง"
-              icon={<Clock3 className="h-4 w-4" />}
-            />
-            <ShortcutCard
-              href="/genres"
-              label="เลือกตามแนว"
-              description="เริ่มจากอารมณ์หรือโลกที่อยากอ่าน"
-              icon={<Compass className="h-4 w-4" />}
-            />
-            <ShortcutCard
-              href="/search"
-              label="ค้นหาแบบตรงใจ"
-              description="ชื่อเรื่อง ผู้แต่ง ผู้แปล แนว หรือแท็ก"
-              icon={<Search className="h-4 w-4" />}
-            />
-          </div>
-
-          {topRanked.length ? (
-            <MiniPanel title="อันดับที่คนกำลังอ่าน" href="/rankings">
-              {topRanked.map((novel, index) => (
-                <MiniNovelRow key={novel.slug} novel={novel} rank={index + 1} />
-              ))}
-            </MiniPanel>
-          ) : null}
-        </aside>
+      <div className="hidden min-w-0 gap-3 xl:grid">
+        <nav aria-label="ทางลัดเริ่มอ่าน" className="grid min-w-0 gap-2 xl:grid-cols-4">
+          <ShortcutCard
+            href="/novels?sort=popular"
+            label="ยอดนิยม"
+            description="เรื่องที่คนอ่านกำลังเปิดมากที่สุด"
+            icon={<Trophy className="h-4 w-4" />}
+          />
+          <ShortcutCard
+            href="/updates"
+            label="ตอนใหม่ล่าสุด"
+            description="กลับมาเช็กจังหวะอัปเดตของคลัง"
+            icon={<Clock3 className="h-4 w-4" />}
+          />
+          <ShortcutCard
+            href="/genres"
+            label="เลือกตามแนว"
+            description="เริ่มจากอารมณ์หรือโลกที่อยากอ่าน"
+            icon={<Compass className="h-4 w-4" />}
+          />
+          <ShortcutCard
+            href="/search"
+            label="ค้นหาแบบตรงใจ"
+            description="ชื่อเรื่อง ผู้แต่ง ผู้แปล แนว หรือแท็ก"
+            icon={<Search className="h-4 w-4" />}
+          />
+        </nav>
+        <TrendingTicker novels={data.rankings.slice(0, 16)} />
+        <GenreChipRail items={data.genreShowcase} />
       </div>
     </section>
   );

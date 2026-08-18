@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUp, Eye, Minus, Play, Sparkles, Star } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, BookOpen, Eye, Minus, Sparkles, Star } from "lucide-react";
 
 import { BookmarkToggle } from "@/components/interactive/novel-actions";
 import { cn, formatNumber } from "@/lib/utils";
@@ -158,7 +158,7 @@ export function ContinueReadingCard({
         <div className="mt-2 flex items-center justify-between gap-2">
           {meta ? <span className="truncate text-[11px] text-muted-foreground">{meta}</span> : <span />}
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-emphasis)]">
-            <Play className="h-3.5 w-3.5 fill-current" /> อ่านต่อ
+            <BookOpen className="h-3.5 w-3.5" /> อ่านต่อ
           </span>
         </div>
       </div>
