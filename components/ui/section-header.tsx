@@ -30,8 +30,7 @@ export function SectionHeader({
           </span>
         ) : null}
       </h2>
-      <div className="flex shrink-0 items-center gap-1">
-        {trailing}
+      <div className="flex shrink-0 items-center gap-2">
         {href ? (
           /*
            * `py-3 -my-3` grows the hit area to 44px (§9) while the negative
@@ -46,6 +45,7 @@ export function SectionHeader({
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         ) : null}
+        {trailing}
       </div>
     </div>
   );

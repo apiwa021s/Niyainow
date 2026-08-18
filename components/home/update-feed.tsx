@@ -3,18 +3,16 @@ import Link from "next/link";
 import { ChevronRight, Clock3 } from "lucide-react";
 
 import { SectionHeader } from "@/components/ui/section-header";
-import type { Novel, UpdateItem } from "@/types/novel";
+import type { NovelUpdate } from "@/services/novel-service";
 
 export function UpdateFeed({
   items,
-  novelsBySlug,
   title,
   description,
   href,
   emptyText,
 }: {
-  items: UpdateItem[];
-  novelsBySlug: Record<string, Novel>;
+  items: NovelUpdate[];
   title: string;
   description?: string;
   href?: string;
@@ -34,8 +32,7 @@ export function UpdateFeed({
       ) : (
         <ol className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
           {visibleItems.map((item, index) => {
-            const novel = novelsBySlug[item.novelSlug];
-            if (!novel) return null;
+            const novel = item.novel;
             return (
               <li key={`${item.novelSlug}-${item.chapter}-${index}`}>
                 <Link

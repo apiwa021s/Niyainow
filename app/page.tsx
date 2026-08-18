@@ -1,3 +1,6 @@
+import { cacheLife, cacheTag } from "next/cache";
+import { Suspense, type ReactNode } from "react";
+
 import { HomeFeed, HomePersonalizedSections, HomeSignup, type HomeData } from "@/components/home/home-feed";
 import { GuestContinueReading } from "@/components/reader/guest-continue-reading";
 import { getCurrentUser } from "@/lib/auth/dal";
@@ -15,7 +18,6 @@ import {
   getUpdatesForNovels,
 } from "@/services/novel-service";
 import { getHomePersonalization } from "@/services/user-service";
-import type { Novel } from "@/types/novel";
 
 export const metadata = pageMetadata({
   title: siteConfig.title,
@@ -23,37 +25,56 @@ export const metadata = pageMetadata({
   path: "/",
 });
 
-async function getHomeAccountData() {
+async function HomeReaderSections() {
   const currentUser = await getCurrentUser();
-  if (currentUser?.status !== "ACTIVE") return null;
+  if (currentUser?.status !== "ACTIVE") {
+    return <GuestContinueReading />;
+  }
 
   const personalization = await getHomePersonalization(currentUser.id);
   const followedUpdates = personalization.followedNovelSlugs.length
     ? await getUpdatesForNovels(personalization.followedNovelSlugs, 10)
     : [];
-  return { personalization, followedUpdates };
+  const renderedAccountSlugs = personalization.continueReading
+    .slice(0, 5)
+    .map((item) => item.novel.slug);
+  const hasPersonalizedSections = Boolean(
+    personalization.continueReading.length || personalization.followedNovelSlugs.length,
+  );
+
+  return (
+    <>
+      <GuestContinueReading
+        excludeSlugs={renderedAccountSlugs}
+        title="อ่านต่อจากอุปกรณ์นี้"
+      />
+      {hasPersonalizedSections ? (
+        <HomePersonalizedSections personalization={personalization} followedUpdates={followedUpdates} />
+      ) : null}
+    </>
+  );
 }
 
-export default async function HomePage() {
-  const [newThisWeek, recommended, completed, rankings, updates, genreShowcase, banners, featured, account] = await Promise.all([
-    getNewThisWeek(18),
-    getRecommendedNovels(18),
-    getCompletedNovels(18),
-    getRankings("WEEKLY", 18),
-    getUpdates("all", undefined, 18),
+async function HomeGuestSignup() {
+  const currentUser = await getCurrentUser();
+  return currentUser?.status === "ACTIVE" ? null : <HomeSignup />;
+}
+
+async function CachedHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 60, expire: 604_800 });
+  cacheTag("public-novels", "public-chapters", "public-rankings", "public-taxonomy", "public-banners");
+
+  const [newThisWeek, recommended, completed, rankings, updates, genreShowcase, banners, featured] = await Promise.all([
+    getNewThisWeek(12),
+    getRecommendedNovels(12),
+    getCompletedNovels(12),
+    getRankings("WEEKLY", 16),
+    getUpdates("all", undefined, 15),
     getGenreShowcase(10),
     getActiveBanners(),
     getFeaturedNovels(1),
-    getHomeAccountData(),
   ]);
-  const allNovels: Novel[] = [
-    ...newThisWeek,
-    ...recommended,
-    ...completed,
-    ...rankings,
-    ...updates.map((item) => item.novel),
-  ];
-  const novelsBySlug = Object.fromEntries(allNovels.map((novel) => [novel.slug, novel]));
   const data: HomeData = {
     newThisWeek,
     recommended,
@@ -61,31 +82,31 @@ export default async function HomePage() {
     rankings,
     updates,
     genreShowcase,
-    novelsBySlug,
     spotlightNovel: featured[0] ?? recommended[0] ?? newThisWeek[0],
   };
-  const hasPersonalizedSections = Boolean(
-    account && (account.personalization.continueReading.length || account.personalization.followedNovelSlugs.length),
-  );
-  const renderedAccountSlugs = account?.personalization.continueReading
-    .slice(0, 5)
-    .map((item) => item.novel.slug) ?? [];
 
   return (
-    <main id="main" className="mx-auto w-full max-w-(--shell-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6">
+    <HomeFeed data={data} banners={banners} signupSlot={signupSlot}>
+      {children}
+    </HomeFeed>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <main id="main" className="mx-auto w-full max-w-(--home-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6 2xl:px-6">
       <h1 className="sr-only">NiyaiThai — อ่านนิยายแปลไทยและค้นหาเรื่องถัดไป</h1>
-      <HomeFeed
-        data={data}
-        banners={banners}
-        accountSections={hasPersonalizedSections && account ? <HomePersonalizedSections {...account} /> : null}
-        guestContinueSlot={
-          <GuestContinueReading
-            excludeSlugs={renderedAccountSlugs}
-            title={account ? "อ่านต่อจากอุปกรณ์นี้" : undefined}
-          />
+      <CachedHomeFeed
+        signupSlot={
+          <Suspense fallback={null}>
+            <HomeGuestSignup />
+          </Suspense>
         }
-        signupSlot={!account ? <HomeSignup /> : null}
-      />
+      >
+        <Suspense fallback={<GuestContinueReading />}>
+          <HomeReaderSections />
+        </Suspense>
+      </CachedHomeFeed>
     </main>
   );
 }

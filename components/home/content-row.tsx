@@ -35,13 +35,15 @@ export function ContentRow({
   const trackRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const hasOverflow = canScrollLeft || canScrollRight;
 
   const updateArrows = useCallback(() => {
     const track = trackRef.current;
     if (!track) return;
     const maxScroll = track.scrollWidth - track.clientWidth;
-    setCanScrollLeft(track.scrollLeft > 4);
-    setCanScrollRight(track.scrollLeft < maxScroll - 4);
+    const overflows = maxScroll > 1;
+    setCanScrollLeft(overflows && track.scrollLeft > 1);
+    setCanScrollRight(overflows && track.scrollLeft < maxScroll - 1);
   }, []);
 
   useEffect(() => {
@@ -76,15 +78,15 @@ export function ContentRow({
         count={count}
         href={href}
         hrefLabel={action}
-        trailing={
+        trailing={hasOverflow ? (
           /* ลูกศรเฉพาะ desktop — mobile ใช้นิ้วปัด */
-          <div className="hidden items-center gap-1 lg:flex">
+          <div className="hidden items-center overflow-hidden rounded-full border border-border bg-card shadow-(--sh-1) lg:flex">
             <button
               type="button"
               onClick={() => scrollBy(-1)}
               disabled={!canScrollLeft}
               aria-label={`เลื่อน ${title} ไปทางซ้าย`}
-              className="-my-2 grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
+              className="grid h-10 w-10 place-items-center text-(--text-secondary) transition-colors hover:bg-muted hover:text-(--text-primary) disabled:pointer-events-none disabled:opacity-35"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -93,12 +95,12 @@ export function ContentRow({
               onClick={() => scrollBy(1)}
               disabled={!canScrollRight}
               aria-label={`เลื่อน ${title} ไปทางขวา`}
-              className="-my-2 grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition-opacity hover:bg-muted disabled:pointer-events-none disabled:opacity-0"
+              className="grid h-10 w-10 place-items-center border-l border-border text-(--text-secondary) transition-colors hover:bg-muted hover:text-(--text-primary) disabled:pointer-events-none disabled:opacity-35"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-        }
+        ) : null}
       />
 
       {description ? <p className="-mt-1 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}

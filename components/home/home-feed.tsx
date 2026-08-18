@@ -8,7 +8,6 @@ import {
   Clock3,
   Compass,
   LibraryBig,
-  Search,
   Trophy,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -21,25 +20,24 @@ import { AccountContinueReadingCard } from "@/components/reader/guest-continue-r
 import { SectionHeader } from "@/components/ui/section-header";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { HomePersonalization } from "@/services/user-service";
-import type { Genre, Novel, UpdateItem } from "@/types/novel";
+import type { Genre, Novel } from "@/types/novel";
 
 export type HomeData = {
   newThisWeek: Novel[];
   recommended: Novel[];
   completed: Novel[];
   rankings: Novel[];
-  updates: UpdateItem[];
+  updates: NovelUpdate[];
   genreShowcase: { genre: Genre; covers: string[] }[];
-  novelsBySlug: Record<string, Novel>;
   spotlightNovel?: Novel;
 };
 
-const HOME_CAROUSEL_ITEM_CLASS = "w-[84px] shrink-0 sm:w-[96px] lg:w-[108px] xl:w-[118px] 2xl:w-[126px]";
+const HOME_CAROUSEL_ITEM_CLASS = "w-[84px] shrink-0 sm:w-[96px] lg:w-[108px] xl:w-[118px]";
 
 const genreNameOf = (novel: Novel, slug?: string) =>
   slug ? (novel.genreNames?.[slug] ?? slug) : "";
 
-function HomeCoverTile({ novel, priority = false }: { novel: Novel; priority?: boolean }) {
+function HomeCoverTile({ novel }: { novel: Novel }) {
   const badge = novel.isNew ? "ใหม่" : novel.status === "completed" ? "จบ" : null;
   const genre = genreNameOf(novel, novel.genres[0]);
 
@@ -51,8 +49,7 @@ function HomeCoverTile({ novel, priority = false }: { novel: Novel; priority?: b
             src={novel.cover}
             alt=""
             fill
-            sizes="(max-width: 640px) 84px, (max-width: 1024px) 96px, 126px"
-            priority={priority}
+            sizes="(max-width: 640px) 84px, (max-width: 1024px) 96px, (max-width: 1280px) 108px, 118px"
             className="object-cover"
           />
           {badge ? (
@@ -86,7 +83,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
     return (
       <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
         <div className="relative aspect-3/2 w-full sm:h-[clamp(240px,26vw,340px)] sm:aspect-auto">
-          <Image src={banner.image} alt="" fill sizes="100vw" priority className="object-cover" />
+          <Image src={banner.image} alt="" fill sizes="100vw" preload className="object-cover" />
           <div
             aria-hidden
             className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent sm:bg-linear-to-r sm:from-black/85 sm:via-black/55 sm:to-transparent"
@@ -141,7 +138,14 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
     <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
       <div className="hidden sm:block">
         <div className="relative h-[clamp(240px,26vw,340px)] w-full">
-          <Image src={novel.backdrop || novel.cover} alt="" fill sizes="100vw" priority className="object-cover" />
+          <Image
+            src={novel.backdrop || novel.cover}
+            alt=""
+            fill
+            sizes="(min-width: 1280px) calc(100vw - 364px), 100vw"
+            fetchPriority="high"
+            className="object-cover"
+          />
           <div aria-hidden className="absolute inset-0 bg-linear-to-r from-black/90 via-black/60 to-black/10" />
         </div>
         <div className="absolute inset-y-0 left-0 flex max-w-[min(600px,76%)] flex-col justify-center gap-2 p-5 lg:p-6">
@@ -161,7 +165,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
 
       <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:hidden">
         <Link href={`/novel/${novel.slug}`} className="relative aspect-2/3 overflow-hidden rounded-(--r-md) bg-surface-recessed">
-          <Image src={novel.cover} alt="" fill sizes="84px" priority className="object-cover" />
+          <Image src={novel.cover} alt="" fill sizes="84px" fetchPriority="high" className="object-cover" />
         </Link>
         <div className="flex min-w-0 flex-col gap-1">
           <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
@@ -216,21 +220,19 @@ function HomeNovelCarousel({
   novels,
   href,
   description,
-  priorityCount = 0,
 }: {
   title: string;
   novels: Novel[];
   href: string;
   description?: string;
-  priorityCount?: number;
 }) {
   if (!novels.length) return null;
 
   return (
     <ContentRow title={title} count={novels.length} description={description} href={href} bleed={false} className="render-deferred">
-      {novels.map((novel, index) => (
+      {novels.map((novel) => (
         <RowItem key={novel.slug} className={HOME_CAROUSEL_ITEM_CLASS}>
-          <HomeCoverTile novel={novel} priority={index < priorityCount} />
+          <HomeCoverTile novel={novel} />
         </RowItem>
       ))}
     </ContentRow>
@@ -243,7 +245,7 @@ function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: Promo
       <Hero novel={data.spotlightNovel} banner={banners[0]} />
 
       <div className="hidden min-w-0 gap-3 xl:grid">
-        <nav aria-label="ทางลัดเริ่มอ่าน" className="grid min-w-0 gap-2 xl:grid-cols-4">
+        <nav aria-label="ทางลัดเริ่มอ่าน" className="grid min-w-0 grid-cols-3 gap-2">
           <ShortcutCard
             href="/novels?sort=popular"
             label="ยอดนิยม"
@@ -262,15 +264,7 @@ function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: Promo
             description="เริ่มจากอารมณ์หรือโลกที่อยากอ่าน"
             icon={<Compass className="h-4 w-4" />}
           />
-          <ShortcutCard
-            href="/search"
-            label="ค้นหาแบบตรงใจ"
-            description="ชื่อเรื่อง ผู้แต่ง ผู้แปล แนว หรือแท็ก"
-            icon={<Search className="h-4 w-4" />}
-          />
         </nav>
-        <TrendingTicker novels={data.rankings.slice(0, 16)} />
-        <GenreChipRail items={data.genreShowcase} />
       </div>
     </section>
   );
@@ -304,30 +298,22 @@ function GenreChipRail({ items }: { items: { genre: Genre; covers: string[] }[] 
 export function HomeFeed({
   data,
   banners,
-  accountSections,
-  guestContinueSlot,
+  children,
   signupSlot,
 }: {
   data: HomeData;
   banners: PromoBannerItem[];
-  accountSections?: ReactNode;
-  guestContinueSlot?: ReactNode;
+  children?: ReactNode;
   signupSlot?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4 lg:gap-5">
       <ReaderCommandCenter data={data} banners={banners} />
 
-      {guestContinueSlot}
-      {accountSections}
+      <TrendingTicker novels={data.rankings.slice(0, 16)} />
+      <GenreChipRail items={data.genreShowcase} />
 
-      <div className="xl:hidden">
-        <TrendingTicker novels={data.rankings.slice(0, 16)} />
-      </div>
-
-      <div className="xl:hidden">
-        <GenreChipRail items={data.genreShowcase} />
-      </div>
+      {children}
 
       {data.updates.length ? (
         <div className="xl:hidden">
@@ -336,7 +322,6 @@ export function HomeFeed({
             description="รายการอัปเดตแบบ live feed สำหรับคนที่กลับมาเช็กทุกวัน"
             href="/updates"
             items={data.updates}
-            novelsBySlug={data.novelsBySlug}
           />
         </div>
       ) : null}
@@ -384,7 +369,6 @@ export function HomePersonalizedSections({
   followedUpdates: NovelUpdate[];
 }) {
   const continueItems = personalization.continueReading.slice(0, 5);
-  const novelsBySlug = Object.fromEntries(followedUpdates.map((item) => [item.novel.slug, item.novel]));
   if (!continueItems.length && !personalization.followedNovelSlugs.length) return null;
 
   return (
@@ -404,7 +388,6 @@ export function HomePersonalizedSections({
         description="อัปเดตจากรายการติดตามของคุณ"
         href="/library/following"
         items={followedUpdates.slice(0, 6)}
-        novelsBySlug={novelsBySlug}
         emptyText={
           personalization.followedNovelSlugs.length
             ? "เรื่องที่ติดตามยังไม่มีตอนใหม่"

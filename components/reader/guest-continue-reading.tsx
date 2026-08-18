@@ -48,7 +48,7 @@ export function GuestContinueReading({
   const href = `/novel/${progress.novelSlug}/chapter/${progress.chapterNumber}`;
 
   return (
-    <section className={cn("flex flex-col", className)} aria-labelledby="guest-continue-title">
+    <section className={cn("flex w-full max-w-6xl flex-col", className)} aria-labelledby="guest-continue-title">
       <h2 id="guest-continue-title" className="mb-2.5 flex h-8 items-center text-h2 font-semibold">
         {title}
       </h2>
