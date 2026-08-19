@@ -120,8 +120,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       },
     },
     events: {
-      async signIn({ user, session }) {
-        if (!user?.id || !session?.sessionToken) return;
+      async signIn({ user }) {
+        if (!user?.id) return;
 
         const now = new Date();
         const activeSessions = await database
@@ -130,15 +130,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
           .where(and(eq(sessions.userId, user.id), gt(sessions.expires, now)))
           .orderBy(desc(sessions.expires));
 
-        const keep = new Set<string>([session.sessionToken]);
-        for (const activeSession of activeSessions) {
-          if (keep.size >= maxActiveSessionsPerUser) break;
-          keep.add(activeSession.sessionToken);
-        }
-
         const toDelete = activeSessions
-          .map((activeSession) => activeSession.sessionToken)
-          .filter((sessionToken) => !keep.has(sessionToken));
+          .slice(maxActiveSessionsPerUser)
+          .map((activeSession) => activeSession.sessionToken);
 
         if (toDelete.length === 0) return;
 
