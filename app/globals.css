@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* next-themes writes `.dark` to <html>. Keep every `dark:` utility in sync
+   with the selected site theme instead of the operating-system preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * NovelNow — token layer.
  *
