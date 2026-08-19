@@ -61,6 +61,7 @@ export default function AboutPage() {
         <div className="max-w-3xl">
           <p className="editorial-kicker">READERS & TRANSLATORS</p>
           <h2 id="roles-title" className="mt-2 text-2xl font-semibold">ไม่ว่าคุณจะอ่านหรือแปล ที่นี่มีที่ให้คุณ</h2>
+          <InkUnderline className="mt-1 max-w-44" variant="swoop" delay="0.05s" />
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -90,6 +91,7 @@ export default function AboutPage() {
         <div className="max-w-3xl">
           <p className="editorial-kicker">OUR PRINCIPLES</p>
           <h2 id="principles-title" className="mt-2 text-2xl font-semibold">หลักที่เรายึดไว้</h2>
+          <InkUnderline className="mt-1 max-w-32" variant="flick" delay="0.05s" />
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -113,7 +115,10 @@ export default function AboutPage() {
       <section className="relative mt-10 overflow-hidden rounded-xl bg-accent-subtle p-6 sm:mt-14 sm:p-8">
         <InkHeroMark className="pointer-events-none absolute -right-4 -top-4 max-w-28 opacity-[0.12] sm:max-w-36" />
         <div className="relative grid gap-4">
-          <h2 className="text-xl font-semibold">พร้อมเริ่มหรือยัง</h2>
+          <div>
+            <h2 className="text-xl font-semibold">พร้อมเริ่มหรือยัง</h2>
+            <InkUnderline className="mt-1 max-w-28" variant="wave" delay="0.05s" />
+          </div>
           <p className="max-w-3xl leading-7 text-muted-foreground">
             จะแวะมาอ่านเรื่องแรก หรือตามหานักแปลที่ติดตามอยู่ ก็เริ่มได้จากตรงนี้เลย
           </p>

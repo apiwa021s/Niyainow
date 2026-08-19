@@ -68,7 +68,7 @@ export function AppSidebar() {
   const renderGroup = (items: NavItem[], label?: string) => (
     <div className="flex flex-col gap-0.5">
       {label ? (
-        <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-widest text-(--text-tertiary)">
+        <p className="px-3 pb-1 pt-3 text-xs font-semibold text-(--text-tertiary)">
           {label}
         </p>
       ) : null}

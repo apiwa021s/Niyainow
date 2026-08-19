@@ -45,7 +45,7 @@ export function TrendingTicker({ novels }: { novels: Novel[] }) {
                 <Image src={novel.cover} alt="" fill sizes="38px" className="object-cover" />
                 <span
                   aria-hidden
-                  className="tabular absolute left-0 top-0 rounded-br-(--r-sm) bg-black/70 px-1 text-[10px] font-semibold leading-[1.35] text-white"
+                  className="tabular absolute left-0 top-0 rounded-br-(--r-sm) bg-black/70 px-1 text-xs font-semibold leading-[1.35] text-white"
                 >
                   {index + 1}
                 </span>
@@ -54,7 +54,7 @@ export function TrendingTicker({ novels }: { novels: Novel[] }) {
                 <span className="block truncate text-xs font-semibold transition-colors group-hover:text-accent-base">
                   {novel.thaiTitle}
                 </span>
-                <span className="tabular mt-0.5 block text-[11px] text-(--text-secondary)">
+                <span className="tabular mt-0.5 block text-xs text-(--text-secondary)">
                   {formatNumber(novel.views)} ครั้ง
                 </span>
               </span>

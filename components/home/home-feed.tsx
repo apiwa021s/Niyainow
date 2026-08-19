@@ -53,15 +53,15 @@ function HomeCoverTile({ novel }: { novel: Novel }) {
             className="object-cover"
           />
           {badge ? (
-            <span className="absolute left-1 top-1 z-20 rounded-[4px] bg-black/78 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            <span className="absolute left-1 top-1 z-20 rounded-[4px] bg-black/78 px-1.5 py-0.5 text-xs font-semibold text-white">
               {badge}
             </span>
           ) : null}
           <div className="absolute inset-x-0 bottom-0 z-20 p-1.5">
-            <h3 className="line-clamp-2 text-[11px] font-semibold leading-[1.35] text-white drop-shadow-sm sm:text-xs">
+            <h3 className="line-clamp-2 text-xs font-semibold leading-[1.35] text-white drop-shadow-sm">
               {novel.thaiTitle}
             </h3>
-            <p className="tabular mt-0.5 truncate text-[10px] text-white/75">
+            <p className="tabular mt-0.5 truncate text-xs text-white/75">
               {genre ? `${genre} · ` : ""}{novel.chapters.toLocaleString("th-TH")} ตอน
             </p>
           </div>
@@ -158,7 +158,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
         </Link>
 
         <div className="flex min-w-0 flex-col gap-1 sm:order-1 sm:max-w-[650px] sm:gap-2">
-          <p className="text-xs font-semibold uppercase tracking-[.14em] text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
+          <p className="text-xs font-semibold text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
           <h2 className="line-clamp-2 text-h2 font-semibold sm:text-h1 sm:text-white lg:text-display">{novel.thaiTitle}</h2>
           <p className="hidden text-body text-white/75 sm:line-clamp-2">{novel.synopsis}</p>
           {meta}
@@ -199,7 +199,7 @@ function ShortcutCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold transition-colors group-hover:text-accent-base">{label}</span>
-        <span className="mt-0.5 block truncate text-[11px] leading-[1.35] text-(--text-secondary)">{description}</span>
+        <span className="mt-0.5 block truncate text-xs leading-[1.35] text-(--text-secondary)">{description}</span>
       </span>
       <ArrowRight className="h-4 w-4 shrink-0 text-(--text-tertiary) transition-colors group-hover:text-accent-base" />
     </Link>

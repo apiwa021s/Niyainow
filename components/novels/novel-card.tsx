@@ -42,7 +42,7 @@ function CoverBadge({ novel }: { novel: Novel }) {
         : null;
   if (!label) return null;
   return (
-    <span className="rounded-[4px] bg-black/80 px-2 py-1 text-[11px] font-semibold text-white">
+    <span className="rounded-[4px] bg-black/80 px-2 py-1 text-xs font-semibold text-white">
       {label}
     </span>
   );
@@ -50,7 +50,7 @@ function CoverBadge({ novel }: { novel: Novel }) {
 
 function GenreChip({ label }: { label: string }) {
   return (
-    <span className="rounded-[4px] border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+    <span className="rounded-[4px] border border-border px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
       {label}
     </span>
   );
@@ -89,7 +89,7 @@ export function NovelTile({ novel, priority = false }: { novel: Novel; priority?
           <div className="absolute left-1.5 top-1.5 z-20 flex flex-col items-start gap-1">
             <CoverBadge novel={novel} />
             {(novel.ratingCount ?? 0) > 0 ? (
-              <span className="tabular inline-flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+              <span className="tabular inline-flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-xs font-semibold text-white">
                 <Star className="h-3 w-3 fill-[var(--accent-base)] text-[var(--accent-base)]" aria-hidden />
                 {novel.rating.toFixed(1)}
               </span>
@@ -146,10 +146,10 @@ export function ContinueReadingCard({
           <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
             <div className="h-full bg-[var(--brand-primary)]" style={{ width: `${safeProgress}%` }} />
           </div>
-          <span className="tabular text-[11px] text-muted-foreground">{safeProgress}%</span>
+          <span className="tabular text-xs text-muted-foreground">{safeProgress}%</span>
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
-          {meta ? <span className="truncate text-[11px] text-muted-foreground">{meta}</span> : <span />}
+          {meta ? <span className="truncate text-xs text-muted-foreground">{meta}</span> : <span />}
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-emphasis)]">
             <BookOpen className="h-3.5 w-3.5" /> อ่านต่อ
           </span>
@@ -273,7 +273,7 @@ export function NovelListItem({
         {safeProgress !== undefined ? (
           <div className="mt-1 flex items-center gap-2">
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-[var(--brand-primary)]" style={{ width: `${safeProgress}%` }} /></div>
-            <span className="tabular text-[11px] text-muted-foreground">{safeProgress}%</span>
+            <span className="tabular text-xs text-muted-foreground">{safeProgress}%</span>
           </div>
         ) : null}
         {action ? <div className="mt-1.5">{action}</div> : null}
@@ -293,10 +293,10 @@ export function EditorialRecommendationCard({ novel }: { novel: Novel }) {
         <Image src={novel.cover} alt="" fill sizes="96px" className="object-cover" />
       </div>
       <div className="min-w-0 self-center">
-        <p className="text-xs font-semibold tracking-[.14em] text-[var(--brand-emphasis)]">คัดจากคะแนนผู้อ่าน</p>
+        <p className="text-xs font-semibold text-[var(--brand-emphasis)]">คัดจากคะแนนผู้อ่าน</p>
         <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-[1.5] group-hover:text-[var(--brand-emphasis)]">{novel.thaiTitle}</h3>
         <p className="mt-2 line-clamp-2 text-xs leading-[1.7] text-muted-foreground">{novel.synopsis}</p>
-        <div className="tabular mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div className="tabular mt-3 flex items-center gap-2 text-xs text-muted-foreground">
           {(novel.ratingCount ?? 0) > 0 ? <><Star className="h-3 w-3 fill-[var(--brand-emphasis)] text-[var(--brand-emphasis)]" />{novel.rating.toFixed(1)}</> : <span>ยังไม่มีคะแนน</span>}
           <span>{novel.chapters.toLocaleString("th-TH")} ตอน</span>
         </div>
@@ -316,7 +316,7 @@ export function RankingCard({ novel, rank, movement }: { novel: Novel; rank: num
         <Link href={`/novel/${novel.slug}`} className="block">
           <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted"><Image src={novel.cover} alt="" fill sizes="150px" className="object-cover" /></div>
           <h3 className="mt-2 truncate text-sm font-semibold">{novel.thaiTitle}</h3>
-          <p className="tabular mt-1 truncate text-[11px] text-muted-foreground">{genreNameOf(novel, novel.genres[0])} · {novel.chapters.toLocaleString("th-TH")} ตอน</p>
+          <p className="tabular mt-1 truncate text-xs text-muted-foreground">{genreNameOf(novel, novel.genres[0])} · {novel.chapters.toLocaleString("th-TH")} ตอน</p>
           {movement ? <MovementLabel movement={movement} className="mt-1" /> : null}
         </Link>
       </div>
@@ -340,7 +340,7 @@ function MovementLabel({ movement, className }: { movement: RankingMovement; cla
         ? "เข้าอันดับใหม่"
         : "อันดับคงที่";
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground", movement.direction === "up" && "text-[var(--brand-emphasis)]", className)}>
+    <span className={cn("inline-flex items-center gap-1 text-xs font-medium text-muted-foreground", movement.direction === "up" && "text-[var(--brand-emphasis)]", className)}>
       <Icon className="h-3 w-3" aria-hidden />{label}
     </span>
   );

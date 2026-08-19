@@ -46,10 +46,10 @@ export function UpdateFeed({
                     <span className="block truncate text-sm font-semibold transition-colors group-hover:text-accent-base">
                       {novel.thaiTitle}
                     </span>
-                    <span className="mt-0.5 block truncate text-[13px] text-(--text-secondary)">
+                    <span className="mt-0.5 block truncate text-sm text-(--text-secondary)">
                       ตอน {item.chapter.toLocaleString("th-TH")} · {item.chapterTitle}
                     </span>
-                    <span className="tabular mt-0.5 flex items-center gap-1 text-[11px] text-(--text-tertiary)">
+                    <span className="tabular mt-0.5 flex items-center gap-1 text-xs text-(--text-tertiary)">
                       <Clock3 className="h-3 w-3" aria-hidden />
                       {item.time}
                     </span>
