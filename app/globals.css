@@ -345,6 +345,28 @@ p {
   outline-offset: 3px;
 }
 
+/*
+ * iOS Safari zooms the viewport whenever a focused field renders text below
+ * 16px, and it never zooms back out. The cure is the font size itself:
+ * `user-scalable=no` has been ignored since iOS 10 and costs pinch-zoom, so on
+ * coarse pointers every text-entry control is pinned to 16px while pointer
+ * devices keep the 14px the design asks for. Deliberately unlayered — it has to
+ * outrank the `text-sm` Tailwind emits into the utilities layer.
+ */
+@media (pointer: coarse) {
+  input:not([type="button"]):not([type="checkbox"]):not([type="color"]):not([type="file"]):not([type="radio"]):not([type="range"]):not([type="reset"]):not([type="submit"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Double-tap-to-zoom only ever fires by accident on a control meant for a
+   single tap, and the wait for it delays the first one. */
+:where(button, label, select, summary, [role="button"], input, textarea, a) {
+  touch-action: manipulation;
+}
+
 ::selection {
   background: color-mix(in srgb, var(--brand-primary) 28%, transparent);
 }
