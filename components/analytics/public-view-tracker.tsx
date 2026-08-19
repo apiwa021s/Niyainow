@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { hasAnalyticsConsent } from "@/lib/cookies/consent";
+
 function bangkokDay() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Bangkok",
@@ -25,6 +27,7 @@ function sessionToken(storage: Storage) {
 /** Emits aggregate-only telemetry; chapter text and reading position never leave the page. */
 export function PublicViewTracker({ slug, chapterNumber }: { slug: string; chapterNumber?: number }) {
   useEffect(() => {
+    if (!hasAnalyticsConsent()) return;
     let storage: Storage;
     try {
       storage = window.sessionStorage;

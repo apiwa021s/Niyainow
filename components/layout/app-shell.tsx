@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { Footer } from "@/components/layout/footer";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+import { CookieConsentBanner } from "@/components/layout/cookie-consent-banner";
 import { SiteChrome } from "@/components/layout/site-chrome";
 import { UpdatesRail } from "@/components/layout/updates-rail";
 import { getCurrentUser } from "@/lib/auth/dal";
@@ -68,6 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Suspense>
 
         {children}
+        <CookieConsentBanner />
 
         <Suspense fallback={null}>
           <SiteChrome>
