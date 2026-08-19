@@ -2169,6 +2169,49 @@ export const getPublishedReviews = cache(
   },
 );
 
+export type NovelDetailSections = {
+  firstChapters: ChapterSummary[];
+  latestChapters: ChapterSummary[];
+  similar: Novel[];
+  reviews: Review[];
+};
+
+async function getNovelDetailSectionsFromSources(slug: string): Promise<NovelDetailSections> {
+  const [firstChapters, latestChapterItems, similar, publishedReviews] = await Promise.all([
+    getChapters(slug, 1),
+    getLatestChapters(slug, 5),
+    getSimilarNovels(slug, 4),
+    getPublishedReviews(slug, 6),
+  ]);
+
+  return {
+    firstChapters,
+    latestChapters: latestChapterItems,
+    similar,
+    reviews: publishedReviews,
+  };
+}
+
+const getNovelDetailSectionsCached = unstable_cache(
+  getNovelDetailSectionsFromSources,
+  ["public-novel-detail-sections-v1"],
+  {
+    revalidate: PUBLIC_CACHE_SECONDS,
+    tags: ["public-novels", "public-chapters", "public-reviews", "public-taxonomy"],
+  },
+);
+
+/**
+ * Public, slow-changing detail-page sections. Keeping this bundle in the Next
+ * data cache avoids four PostgreSQL-backed lookups whenever Redis is disabled,
+ * while the existing editorial tags still invalidate it after a mutation.
+ */
+export const getNovelDetailSections = cache(async (slugInput: string): Promise<NovelDetailSections> => {
+  const slug = cleanText(slugInput, 180);
+  if (!slug) return { firstChapters: [], latestChapters: [], similar: [], reviews: [] };
+  return getNovelDetailSectionsCached(slug);
+});
+
 /**
  * Atomically records a validated public page view. No viewer identifier enters
  * PostgreSQL; callers pass only whether the process-local deduper considers the

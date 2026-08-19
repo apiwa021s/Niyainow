@@ -4,7 +4,7 @@ import { SlidersHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { FilterPanel } from "@/components/browse/filter-panel";
+import { DeferredFilterPanel as FilterPanel } from "@/components/browse/deferred-filter-panel";
 import { Select } from "@/components/ui/form-controls";
 import { novelBrowseHref } from "@/lib/validation/public-query";
 import type { GenreFacet } from "@/services/novel-service";

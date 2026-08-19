@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowDown, ArrowRight, ArrowUp, BookOpen, Eye, Minus, Sparkles, Star } from "lucide-react";
 
-import { BookmarkToggle } from "@/components/interactive/novel-actions";
+import { DeferredBookmarkToggle } from "@/components/interactive/deferred-bookmark-toggle";
 import { cn, formatNumber } from "@/lib/utils";
 import type { RankingMovement } from "@/services/novel-service";
 import type { Novel } from "@/types/novel";
@@ -74,7 +74,7 @@ export function NovelTile({ novel, priority = false }: { novel: Novel; priority?
        * on mobile the same action lives on the novel page one tap away.
        */}
       <div className="absolute right-1.5 top-1.5 z-20 hidden opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 lg:block">
-        <BookmarkToggle slug={novel.slug} />
+        <DeferredBookmarkToggle slug={novel.slug} />
       </div>
       <Link href={`/novel/${novel.slug}`} className="block">
         <div className="cover-tile">

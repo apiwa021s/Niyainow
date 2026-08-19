@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, List, Search, X } from "lucide-react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, MouseEvent, ReactNode, RefObject } from "react";
@@ -9,7 +10,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BookmarkButton } from "@/components/interactive/novel-actions";
 import { ChapterEnd } from "@/components/reader/chapter-end";
-import { ReaderSettings } from "@/components/reader/reader-settings";
 import { createLatestTaskQueue } from "@/lib/domain/latest-task-queue";
 import { cn } from "@/lib/utils";
 import {
@@ -32,6 +32,22 @@ const FONT_CLASS = {
 const PROTECTED_READER_SELECTOR = "[data-reader-protected='true']";
 const READER_ICON_ACTION_CLASS = "grid h-11 w-11 shrink-0 place-items-center text-current/70 transition-colors hover:text-[var(--reader-action)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--reader-action)]";
 const READER_NAV_ACTION_CLASS = "flex h-12 items-center gap-1 px-2 text-sm font-semibold opacity-75 transition-[color,opacity] hover:text-[var(--reader-action)] hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--reader-action)] sm:px-3";
+
+const ReaderSettings = dynamic(
+  () => import("@/components/reader/reader-settings").then((module) => module.ReaderSettings),
+  {
+    loading: () => (
+      <>
+        <div aria-hidden className="fixed inset-0 z-50 bg-black/40" />
+        <div
+          role="status"
+          aria-label="กำลังโหลดการตั้งค่าการอ่าน"
+          className="fixed inset-x-0 bottom-0 z-50 h-64 animate-pulse rounded-t-[10px] bg-[var(--reader-paper)] sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:w-[380px] sm:rounded-[8px]"
+        />
+      </>
+    ),
+  },
+);
 
 type ProgressWrite = {
   chapterId: string;
@@ -644,7 +660,7 @@ export function ReaderView({
       </div>
 
       <ReaderSidebar novel={novel} current={chapter} chapterWindow={chapterWindow} open={sidebarOpen} onClose={closeSidebar} onNavigateChapter={navigateChapter} returnFocusRef={modalReturnFocusRef} />
-      <ReaderSettings open={settingsOpen} onClose={closeSettings} returnFocusRef={modalReturnFocusRef} />
+      {settingsOpen ? <ReaderSettings open onClose={closeSettings} returnFocusRef={modalReturnFocusRef} /> : null}
     </div>
   );
 }

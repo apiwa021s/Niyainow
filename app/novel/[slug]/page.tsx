@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
 import {
@@ -19,11 +20,8 @@ import { displayTagName } from "@/lib/domain/tag";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import {
-  getChapters,
-  getLatestChapters,
   getNovelBySlug,
-  getPublishedReviews,
-  getSimilarNovels,
+  getNovelDetailSections,
 } from "@/services/novel-service";
 import { getUserNovelState } from "@/services/user-service";
 
@@ -53,20 +51,23 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function NovelDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const novel = await getNovelBySlug(slug);
+  await connection();
+
+  const novelPromise = getNovelBySlug(slug);
+  const detailSectionsPromise = getNovelDetailSections(slug);
+  const userStatePromise = Promise.all([novelPromise, getCurrentUser()]).then(([resolvedNovel, currentUser]) =>
+    resolvedNovel && currentUser?.status === "ACTIVE"
+      ? getUserNovelState(currentUser.id, slug)
+      : undefined,
+  );
+  const [novel, detailSections, userState] = await Promise.all([
+    novelPromise,
+    detailSectionsPromise,
+    userStatePromise,
+  ]);
   if (!novel) notFound();
 
-  const [firstChapters, latestChapters, similar, reviews, currentUser] = await Promise.all([
-    getChapters(slug, 1),
-    getLatestChapters(slug, 5),
-    getSimilarNovels(slug, 4),
-    getPublishedReviews(slug, 6),
-    getCurrentUser(),
-  ]);
-  const userState = currentUser?.status === "ACTIVE"
-    ? await getUserNovelState(currentUser.id, slug)
-    : undefined;
-  const firstChapter = firstChapters[0];
+  const firstChapter = detailSections.firstChapters[0];
   const startHref = firstChapter
     ? `/novel/${novel.slug}/chapter/${firstChapter.number}`
     : `/novel/${novel.slug}/chapters`;
@@ -151,14 +152,14 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-10">
-          <ChapterPreview slug={novel.slug} chapters={latestChapters} />
-          <NovelCommunity novel={novel} userState={userState} reviews={reviews} />
+          <ChapterPreview slug={novel.slug} chapters={detailSections.latestChapters} />
+          <NovelCommunity novel={novel} userState={userState} reviews={detailSections.reviews} />
         </div>
         <NovelMetaRail novel={novel} userState={userState} />
       </div>
 
       <div className="mt-12">
-        <SimilarNovels novels={similar} />
+        <SimilarNovels novels={detailSections.similar} />
       </div>
     </PageShell>
   );

@@ -2,6 +2,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 
 import { auth } from "@/auth";
@@ -39,6 +40,10 @@ export class AuthorizationDeniedError extends Error {
 
 /** Secure request-time identity lookup. Never authorize from client state. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  // Session decryption is request-bound and may use Web Crypto internally.
+  // Mark it once here so every authenticated route skips speculative
+  // prerender attempts without duplicating connection() across pages.
+  await connection();
   const session = await auth();
   if (!session?.user?.id) return null;
 

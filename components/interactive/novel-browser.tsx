@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition, type FormEvent, type ReactNode } from "react";
 
-import { FilterPanel } from "@/components/browse/filter-panel";
+import {
+  DeferredFilterPanel as FilterPanel,
+  FilterPanelSkeleton,
+} from "@/components/browse/deferred-filter-panel";
 import { NovelGridSkeleton } from "@/components/browse/novel-grid-skeleton";
 import { Select } from "@/components/ui/form-controls";
 import { cn } from "@/lib/utils";
@@ -20,6 +23,17 @@ const SORT_OPTIONS: { value: NovelSort; label: string }[] = [
   { value: "new", label: "มาใหม่" },
   { value: "chapters", label: "จำนวนตอนมากสุด" },
 ];
+
+const DESKTOP_FILTER_QUERY = "(min-width: 1536px)";
+function subscribeToDesktopFilters(change: () => void) {
+  const media = window.matchMedia(DESKTOP_FILTER_QUERY);
+  media.addEventListener("change", change);
+  return () => media.removeEventListener("change", change);
+}
+
+function getDesktopFiltersSnapshot() {
+  return window.matchMedia(DESKTOP_FILTER_QUERY).matches;
+}
 
 const FILTER_LABELS: Record<string, Record<string, string>> = {
   status: { ongoing: "กำลังแปล", completed: "จบแล้ว", hiatus: "พักการแปล" },
@@ -69,6 +83,7 @@ export function NovelBrowser({
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const showDesktopFilters = useSyncExternalStore(subscribeToDesktopFilters, getDesktopFiltersSnapshot, () => false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const selectedGenres = parseGenreParam(query.genre);
@@ -301,7 +316,11 @@ export function NovelBrowser({
                 </button>
               ) : null}
             </div>
-            <FilterPanel query={query} genres={facets} hideGenres={Boolean(fixedGenre)} compact onChange={applyFilter} />
+            {showDesktopFilters ? (
+              <FilterPanel query={query} genres={facets} hideGenres={Boolean(fixedGenre)} compact onChange={applyFilter} />
+            ) : (
+              <FilterPanelSkeleton />
+            )}
           </div>
         </aside>
 
