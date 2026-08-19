@@ -1,4 +1,5 @@
 import { PageShell, Skeleton } from "@/components/ui/section";
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 
 const COVER_PLACEHOLDERS = Array.from({ length: 12 }, (_, index) => index);
 
@@ -24,6 +25,7 @@ function CoverRowSkeleton() {
 export default function Loading() {
   return (
     <PageShell className="max-w-(--home-max) 2xl:px-6">
+      <InkLogoLoader />
       <p role="status" className="sr-only">กำลังเตรียมหน้าแรก</p>
       <div className="flex flex-col gap-4 lg:gap-5">
         <section aria-hidden className="overflow-hidden rounded-(--r-lg) border border-border bg-surface">

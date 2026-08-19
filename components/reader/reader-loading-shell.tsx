@@ -4,6 +4,7 @@ import { ArrowLeft, List } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import {
   LINE_HEIGHT_VALUES,
   READER_THEME_VALUES,
@@ -53,6 +54,7 @@ export function ReaderLoadingShell() {
       className={cn("min-h-screen bg-[var(--reader-bg)] text-[var(--reader-text)]", FONT_CLASS[prefs.font])}
       style={readerStyle}
     >
+      <InkLogoLoader />
       <div className="fixed inset-x-0 top-0 z-40 h-[calc(4rem+env(safe-area-inset-top))] border-b border-current/10 bg-[var(--reader-paper)] pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-16 max-w-[calc(var(--reader-measure)+12rem)] items-center gap-2 px-2 sm:px-4">
           <IconGhost><ArrowLeft className="h-5 w-5" /></IconGhost>

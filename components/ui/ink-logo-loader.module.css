@@ -1,0 +1,136 @@
+.root {
+  position: fixed;
+  top: calc(var(--topbar-h) + env(safe-area-inset-top) + 0.75rem);
+  left: 50%;
+  z-index: 45;
+  display: grid;
+  width: 5.5rem;
+  height: 3rem;
+  place-items: center;
+  transform: translateX(-50%);
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  box-shadow: var(--sh-2);
+  color: var(--brand-ink);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+}
+
+.mark {
+  width: 4.5rem;
+  height: auto;
+  overflow: visible;
+}
+
+.line,
+.bleed {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+
+.line {
+  stroke-width: 7;
+}
+
+.bleed {
+  stroke-width: 10;
+  opacity: 0;
+  filter: blur(2px);
+}
+
+.ink {
+  stroke: currentColor;
+  animation: ink-write-first 2.2s var(--ease-out) infinite;
+}
+
+.accent {
+  stroke: var(--brand-primary);
+  animation: ink-write-second 2.2s var(--ease-out) infinite;
+}
+
+.bleed.ink {
+  animation-name: ink-bleed-first;
+}
+
+.bleed.accent {
+  animation-name: ink-bleed-second;
+}
+
+@keyframes ink-write-first {
+  0%, 8% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  42%, 82% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ink-write-second {
+  0%, 24% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  62%, 82% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ink-bleed-first {
+  0%, 8% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  42%, 82% {
+    opacity: 0.13;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ink-bleed-second {
+  0%, 24% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  62%, 82% {
+    opacity: 0.16;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line,
+  .bleed {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .line {
+    opacity: 1;
+  }
+
+  .bleed {
+    opacity: 0.12;
+  }
+}

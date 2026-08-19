@@ -1,8 +1,10 @@
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { PageShell, Skeleton } from "@/components/ui/section";
 
 export default function TagsLoading() {
   return (
     <PageShell className="space-y-10 lg:space-y-14">
+      <InkLogoLoader />
       <p role="status" className="sr-only">กำลังโหลดแท็กนิยาย</p>
       <header aria-hidden className="grid gap-5 py-2 sm:py-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] lg:items-end">
         <div>

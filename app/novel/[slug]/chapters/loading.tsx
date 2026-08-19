@@ -1,8 +1,11 @@
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { PageShell, Skeleton } from "@/components/ui/section";
 
 export default function ChaptersLoading() {
   return (
     <PageShell aria-busy="true" className="space-y-5">
+      <InkLogoLoader />
+      <p role="status" className="sr-only">กำลังเตรียมสารบัญ</p>
       <div className="space-y-2 py-2">
         <Skeleton className="h-4 w-36" />
         <Skeleton className="h-9 w-48" />

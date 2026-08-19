@@ -1,8 +1,10 @@
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { PageShell, Skeleton } from "@/components/ui/section";
 
 export default function GenresLoading() {
   return (
     <PageShell className="space-y-7">
+      <InkLogoLoader />
       <p role="status" className="sr-only">กำลังโหลดหมวดหมู่นิยาย</p>
       <header aria-hidden className="py-2 sm:py-3">
         <Skeleton className="h-3 w-44" />

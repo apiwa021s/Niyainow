@@ -1,8 +1,11 @@
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { PageShell, Skeleton } from "@/components/ui/section";
 
 export default function NovelLoading() {
   return (
     <PageShell aria-busy="true" className="space-y-12 lg:space-y-16">
+      <InkLogoLoader />
+      <p role="status" className="sr-only">กำลังเตรียมรายละเอียดนิยาย</p>
       <Skeleton className="h-11 w-72 max-w-full" />
 
       <section className="grid gap-7 rounded-(--r-lg) bg-surface px-4 py-7 md:grid-cols-[190px_minmax(0,1fr)] md:gap-9 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-6 lg:py-10">

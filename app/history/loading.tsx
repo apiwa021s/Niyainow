@@ -1,8 +1,10 @@
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { PageShell, Skeleton } from "@/components/ui/section";
 
 export default function HistoryLoading() {
   return (
     <PageShell>
+      <InkLogoLoader />
       <p role="status" className="sr-only">กำลังเตรียมประวัติการอ่าน</p>
       <Skeleton className="h-3 w-32" />
       <Skeleton className="mt-3 h-9 w-48" />

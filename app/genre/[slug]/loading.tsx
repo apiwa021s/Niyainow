@@ -1,9 +1,11 @@
 import { NovelGridSkeleton } from "@/components/browse/novel-grid-skeleton";
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { PageShell, Skeleton } from "@/components/ui/section";
 
 export default function GenreLoading() {
   return (
     <PageShell className="space-y-14">
+      <InkLogoLoader />
       <p role="status" className="sr-only">กำลังเตรียมหน้านิยายตามแนว</p>
       <div className="py-3 sm:py-4">
         <Skeleton className="h-3 w-36" />

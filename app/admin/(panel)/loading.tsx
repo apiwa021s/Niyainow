@@ -1,9 +1,12 @@
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { Skeleton } from "@/components/ui/section";
 
 /** โครงร่างระหว่างโหลด — ใช้สัดส่วนเดียวกับหน้าจริงเพื่อไม่ให้เลย์เอาต์กระตุก (ส่วนที่ 7) */
 export default function AdminLoading() {
   return (
     <div className="grid gap-6">
+      <InkLogoLoader />
+      <p role="status" className="sr-only">กำลังเตรียมหน้าจัดการ</p>
       <div className="grid gap-2">
         <Skeleton className="h-7 w-48" />
         <Skeleton className="h-4 w-80" />

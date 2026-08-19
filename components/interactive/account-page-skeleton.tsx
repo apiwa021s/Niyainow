@@ -1,3 +1,4 @@
+import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
 import { PageShell, Skeleton } from "@/components/ui/section";
 
 type AccountLoadingVariant = "profile" | "settings" | "notifications" | "wallet";
@@ -23,6 +24,7 @@ export function AccountPageSkeleton({ variant }: { variant: AccountLoadingVarian
   if (variant === "wallet") {
     return (
       <PageShell>
+        <InkLogoLoader />
         <p role="status" className="sr-only">{loadingLabel[variant]}</p>
         <section className="mx-auto max-w-5xl space-y-6 py-5" aria-hidden>
           <header><Skeleton className="h-3 w-28" /><Skeleton className="mt-3 h-9 w-52" /><Skeleton className="mt-3 h-4 w-[min(520px,90%)]" /></header>
@@ -37,6 +39,7 @@ export function AccountPageSkeleton({ variant }: { variant: AccountLoadingVarian
 
   return (
     <PageShell className="space-y-6">
+      <InkLogoLoader />
       <p role="status" className="sr-only">{loadingLabel[variant]}</p>
       <AccountHeaderSkeleton description={variant === "settings"} />
 
