@@ -1,5 +1,5 @@
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 
@@ -33,9 +33,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
     return { ...user, email: user.email ?? email };
   };
 
+  const maxActiveSessionsPerUser = 2;
+
   return {
     adapter,
     secret: env.AUTH_SECRET,
+    // Database sessions let us enforce device limits and revoke the oldest sessions
+    // when a user exceeds the maximum active session count.
+    // This keeps middleware authorization fast while preventing unlimited concurrent logins.
     providers: [
       Google({
         clientId: env.AUTH_GOOGLE_ID,
@@ -55,9 +60,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       error: "/login",
     },
     session: {
-      // A signed/encrypted JWT keeps Proxy checks fast. Privileged access is
-      // always revalidated against PostgreSQL by the authorization DAL.
-      strategy: "jwt",
+      strategy: "database",
       maxAge: 24 * 60 * 60,
     },
     callbacks: {
@@ -84,44 +87,62 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
           if (provisionedUser?.googleId && provisionedUser.googleId !== account.providerAccountId) return false;
         }
 
+        if (!user.id) return false;
+        const now = new Date();
+        const [currentUser] = await database
+          .update(users)
+          .set({
+            googleId: account.providerAccountId,
+            lastLoginAt: now,
+            updatedAt: now,
+          })
+          .where(and(eq(users.id, user.id), eq(users.status, "ACTIVE")))
+          .returning({ id: users.id, role: users.role, status: users.status });
+
+        // Fail closed if the user was removed or disabled between callback and DB write.
+        if (!currentUser) return false;
+
         return true;
       },
-      async jwt({ token, user, account }) {
-        if (user && account?.provider === "google") {
-          if (!user.id) return null;
+      async session({ session, user }) {
+        const appSession = session as typeof session & {
+          user: {
+            id: string;
+            role: UserRole;
+            status: UserStatus;
+          };
+        };
+        appSession.user.id = user.id;
+        appSession.user.role = (user.role as UserRole) ?? "READER";
+        // Missing legacy authorization claims fail closed at protected routes.
+        appSession.user.status = (user.status as UserStatus) ?? "SUSPENDED";
+        return appSession;
+      },
+    },
+    events: {
+      async signIn({ user, session }) {
+        if (!user?.id || !session?.sessionToken) return;
 
-          const now = new Date();
-          const [currentUser] = await database
-            .update(users)
-            .set({
-              googleId: account.providerAccountId,
-              lastLoginAt: now,
-              updatedAt: now,
-            })
-            .where(and(eq(users.id, user.id), eq(users.status, "ACTIVE")))
-            .returning({
-              id: users.id,
-              role: users.role,
-              status: users.status,
-            });
+        const now = new Date();
+        const activeSessions = await database
+          .select({ sessionToken: sessions.sessionToken, expires: sessions.expires })
+          .from(sessions)
+          .where(and(eq(sessions.userId, user.id), gt(sessions.expires, now)))
+          .orderBy(desc(sessions.expires));
 
-          // Fail closed if the user was removed or disabled between the OAuth
-          // authorization callback and session creation.
-          if (!currentUser) return null;
-
-          token.sub = currentUser.id;
-          token.role = currentUser.role;
-          token.status = currentUser.status;
+        const keep = new Set<string>([session.sessionToken]);
+        for (const activeSession of activeSessions) {
+          if (keep.size >= maxActiveSessionsPerUser) break;
+          keep.add(activeSession.sessionToken);
         }
 
-        return token;
-      },
-      session({ session, token }) {
-        session.user.id = token.sub ?? "";
-        session.user.role = (token.role as UserRole | undefined) ?? "READER";
-        // Missing legacy authorization claims fail closed at protected routes.
-        session.user.status = (token.status as UserStatus | undefined) ?? "SUSPENDED";
-        return session;
+        const toDelete = activeSessions
+          .map((activeSession) => activeSession.sessionToken)
+          .filter((sessionToken) => !keep.has(sessionToken));
+
+        if (toDelete.length === 0) return;
+
+        await database.delete(sessions).where(inArray(sessions.sessionToken, toDelete));
       },
     },
   };
