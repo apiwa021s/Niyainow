@@ -1,6 +1,7 @@
 import { CheckCircle2, FileSearch, ShieldAlert } from "lucide-react";
 
 import { PageHeader, PageShell } from "@/components/ui/section";
+import { Logo } from "@/components/layout/logo";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
@@ -34,6 +35,7 @@ export default function CopyrightPage() {
         eyebrow="LEGAL / COPYRIGHT"
         title="ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด"
         description="NovelNow มีนโยบายเคารพสิทธิ์ของผู้เขียน ผู้แปล สำนักพิมพ์ และผู้สร้างสรรค์ทุกฝ่าย"
+        action={<Logo />}
       />
 
       <section aria-labelledby="process-title" className="mt-10">
@@ -80,3 +82,4 @@ export default function CopyrightPage() {
     </PageShell>
   );
 }
+

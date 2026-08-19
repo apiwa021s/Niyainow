@@ -1,4 +1,5 @@
 import { PageHeader, PageShell } from "@/components/ui/section";
+import { Logo } from "@/components/layout/logo";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
@@ -20,6 +21,7 @@ export default function AboutPage() {
         eyebrow="ABOUT / NOVELNOW"
         title="พื้นที่อ่านที่สงบ ชัด และกลับมาอ่านต่อได้ง่าย"
         description="NovelNow คือแพลตฟอร์มอ่านนิยายภาษาไทยที่วางเนื้อหาไว้เหนือสิ่งรบกวน ออกแบบสำหรับการค้นพบเรื่องใหม่และการอ่านต่อเนื่องบนทุกขนาดหน้าจอ"
+        action={<Logo />}
       />
 
       <section aria-labelledby="principles-title" className="mt-10 grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -40,3 +42,4 @@ export default function AboutPage() {
     </PageShell>
   );
 }
+
