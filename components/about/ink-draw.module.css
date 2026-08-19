@@ -1,0 +1,42 @@
+/*
+ * Shared "brush stroke" reveal: a path hidden by its own dash length, drawn
+ * in once on mount. Peak opacity is a custom property so the same keyframes
+ * serve a crisp line and its blurred ink-bleed layer underneath.
+ */
+.path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  opacity: 0;
+  animation: ink-draw 1.1s var(--ease-out) both;
+  animation-delay: var(--ink-delay, 0s);
+}
+
+.bleed {
+  filter: blur(3px);
+  --ink-peak: 0.16;
+}
+
+@keyframes ink-draw {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  14% {
+    opacity: var(--ink-peak, 1);
+  }
+  100% {
+    opacity: var(--ink-peak, 1);
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .path {
+    animation: none;
+    opacity: var(--ink-peak, 1);
+    stroke-dashoffset: 0;
+  }
+}
