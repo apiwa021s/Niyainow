@@ -3,86 +3,22 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export const READER_THEMES = ["light", "sepia", "dark", "amoled"] as const;
-export type ReaderTheme = (typeof READER_THEMES)[number];
+import {
+  DEFAULT_PREFS,
+  READER_STORAGE_KEY,
+  normalizeReaderPrefs,
+  type ReaderPrefs,
+} from "@/lib/reader/prefs";
 
-export const READER_THEME_LABELS: Record<ReaderTheme, string> = {
-  light: "สว่าง",
-  sepia: "กระดาษ",
-  dark: "มืด",
-  amoled: "OLED",
-};
-
-export type ReaderThemeValues = {
-  bg: string;
-  paper: string;
-  fg: string;
-  accent: string;
-  action: string;
-  progress: string;
-  scheme: "light" | "dark";
-};
-
-export const READER_THEME_VALUES: Record<ReaderTheme, ReaderThemeValues> = {
-  light: { bg: "#FAFAF8", paper: "#FAFAF8", fg: "#242220", accent: "#B51F32", action: "#B51F32", progress: "#C2237F", scheme: "light" },
-  sepia: { bg: "#F4EEE2", paper: "#F4EEE2", fg: "#302C28", accent: "#B51F32", action: "#B51F32", progress: "#9A6A38", scheme: "light" },
-  dark: { bg: "#111113", paper: "#111113", fg: "#E8E5E1", accent: "#E24A5B", action: "#B51F32", progress: "#7AA2FF", scheme: "dark" },
-  amoled: { bg: "#000000", paper: "#090909", fg: "#F0EDE9", accent: "#FF6171", action: "#B51F32", progress: "#FF6EC7", scheme: "dark" },
-};
-
-export const READER_THEME_SWATCH: Record<ReaderTheme, { bg: string; fg: string }> = Object.fromEntries(
-  READER_THEMES.map((theme) => [theme, { bg: READER_THEME_VALUES[theme].bg, fg: READER_THEME_VALUES[theme].fg }]),
-) as Record<ReaderTheme, { bg: string; fg: string }>;
-
-export const READER_FONTS = ["looped", "anuphan", "serif"] as const;
-export type ReaderFont = (typeof READER_FONTS)[number];
-
-export const READER_FONT_LABELS: Record<ReaderFont, string> = {
-  looped: "อ่านสบาย",
-  anuphan: "โมเดิร์น",
-  serif: "Serif",
-};
-
-export type ReaderLineHeight = "tight" | "normal" | "airy";
-export type ReaderWidth = "narrow" | "normal" | "wide";
-
-export const LINE_HEIGHT_VALUES: Record<ReaderLineHeight, number> = {
-  tight: 1.7,
-  normal: 1.8,
-  airy: 2,
-};
-
-export const WIDTH_VALUES: Record<ReaderWidth, string> = {
-  narrow: "580px",
-  normal: "720px",
-  wide: "760px",
-};
-
-export const FONT_SIZE_MIN = 14;
-export const FONT_SIZE_MAX = 28;
-export const FONT_SIZE_STEP = 2;
-
-export type ReaderPrefs = {
-  theme: ReaderTheme;
-  font: ReaderFont;
-  fontSize: number;
-  lineHeight: ReaderLineHeight;
-  width: ReaderWidth;
-  paragraphGap: number;
-  dim: number;
-  keepScreenAwake: boolean;
-};
-
-export const DEFAULT_PREFS: ReaderPrefs = {
-  theme: "sepia",
-  font: "looped",
-  fontSize: 18,
-  lineHeight: "normal",
-  width: "normal",
-  paragraphGap: 0.78,
-  dim: 0,
-  keepScreenAwake: false,
-};
+/**
+ * The scales, labels, and normalisation live in lib/reader/prefs.ts, which has
+ * no "use client" directive. That matters: Server Components — the pre-paint
+ * script and /dev/type-spec — need the real values, and a named export read
+ * across the client boundary arrives as a reference stub instead.
+ *
+ * Re-exported here so existing client imports keep working unchanged.
+ */
+export * from "@/lib/reader/prefs";
 
 export type LocalReadingProgress = {
   novelId?: string;
@@ -222,27 +158,26 @@ export const useReaderStore = create<ReaderState>()(
       markHydrated: () => set({ hasHydrated: true }),
     }),
     {
-      name: "niyainow-reader",
-      version: 5,
+      name: READER_STORAGE_KEY,
+      version: 6,
+      /**
+       * v6 moved size from px to a scale index, renamed the "anuphan" face to
+       * "loopless", and replaced the free-form paragraph gap with a two-mode
+       * choice. normalizeReaderPrefs absorbs all of it, so a returning reader
+       * keeps the closest equivalent of what they had rather than being reset.
+       */
       migrate: (persisted) => {
         const state = (persisted ?? {}) as {
-          prefs?: Omit<Partial<ReaderPrefs>, "theme" | "font"> & {
-            theme?: ReaderTheme | "mist";
-            font?: ReaderFont | "sarabun";
-          };
+          prefs?: unknown;
           fontSize?: number;
           localProgress?: Record<string, LocalReadingProgress>;
         };
-        const theme = state.prefs?.theme === "mist" ? "sepia" : state.prefs?.theme;
-        const font = state.prefs?.font === "sarabun" ? "looped" : state.prefs?.font;
+        const legacy = (state.prefs ?? {}) as Record<string, unknown>;
         return {
-          prefs: {
-            ...DEFAULT_PREFS,
-            ...(state.prefs ?? {}),
-            theme: theme && READER_THEMES.includes(theme) ? theme : DEFAULT_PREFS.theme,
-            font: font && READER_FONTS.includes(font) ? font : DEFAULT_PREFS.font,
-            fontSize: state.prefs?.fontSize ?? state.fontSize ?? DEFAULT_PREFS.fontSize,
-          },
+          prefs: normalizeReaderPrefs({
+            ...legacy,
+            fontSize: legacy.fontSize ?? state.fontSize,
+          }),
           localProgress: boundedProgress(state.localProgress ?? {}),
         };
       },

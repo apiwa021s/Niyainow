@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { fontVariables } from "./fonts";
+import { ReaderPrefsScript } from "@/components/reader/reader-prefs-script";
 import { ThemeProvider } from "@/components/interactive/theme-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { ToastProvider } from "@/components/ui/toast";
@@ -63,6 +64,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="th" className={fontVariables} suppressHydrationWarning>
+      <head>
+        {/* Must run before the first paint, so it cannot live in the body. */}
+        <ReaderPrefsScript />
+      </head>
       <body className="font-sans antialiased">
         <ThemeProvider>
           <ToastProvider>

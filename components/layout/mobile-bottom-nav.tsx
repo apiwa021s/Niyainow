@@ -57,7 +57,7 @@ export function MobileBottomNav() {
                   )}
                 >
                   <Icon aria-hidden className="h-5 w-5 shrink-0" strokeWidth={active ? 2.3 : 1.8} />
-                  <span className={cn("max-w-full truncate text-[11px] leading-none", active && "font-semibold")}>{item.label}</span>
+                  <span className={cn("max-w-full truncate text-[11px] leading-[1.45]", active && "font-semibold")}>{item.label}</span>
                 </Link>
               </li>
             );

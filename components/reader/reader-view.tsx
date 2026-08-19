@@ -5,30 +5,22 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { CSSProperties, MouseEvent, ReactNode, RefObject } from "react";
+import type { MouseEvent, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BookmarkButton } from "@/components/interactive/novel-actions";
 import { ChapterEnd } from "@/components/reader/chapter-end";
+import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import { createLatestTaskQueue } from "@/lib/domain/latest-task-queue";
 import { cn } from "@/lib/utils";
 import {
   consumeChapterNavigation,
-  LINE_HEIGHT_VALUES,
   markChapterNavigation,
-  READER_THEME_VALUES,
   selectReadingPosition,
-  WIDTH_VALUES,
   useReaderStore,
   type LocalReadingProgress,
 } from "@/stores/use-reader-store";
 import type { ChapterSummary, ChapterWindow, Novel } from "@/types/novel";
-
-const FONT_CLASS = {
-  looped: "reader-font-looped",
-  anuphan: "reader-font-anuphan",
-  serif: "reader-font-serif",
-} as const;
 const PROTECTED_READER_SELECTOR = "[data-reader-protected='true']";
 const READER_ICON_ACTION_CLASS = "grid h-11 w-11 shrink-0 place-items-center text-current/70 transition-colors hover:text-[var(--reader-action)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--reader-action)]";
 const READER_NAV_ACTION_CLASS = "flex h-12 items-center gap-1 px-2 text-sm font-semibold opacity-75 transition-[color,opacity] hover:text-[var(--reader-action)] hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--reader-action)] sm:px-3";
@@ -147,8 +139,7 @@ export function ReaderView({
   lockedContent?: ReactNode;
 }) {
   const router = useRouter();
-  const prefs = useReaderStore((state) => state.prefs);
-  const setPrefs = useReaderStore((state) => state.setPrefs);
+  const { prefs, stepFontSize, cycleTheme } = useReaderPrefs({ signedIn: isAuthenticated });
   const sidebarOpen = useReaderStore((state) => state.sidebarOpen);
   const setSidebarOpen = useReaderStore((state) => state.setSidebarOpen);
   const hasHydrated = useReaderStore((state) => state.hasHydrated);
@@ -387,21 +378,32 @@ export function ReaderView({
         router.push(previousHref);
       }
 
+      // "=" is the unshifted key that produces "+" on most layouts; accepting
+      // both means the reader does not have to hold shift to size up.
+      if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        stepFontSize(1);
+        return;
+      }
+      if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        stepFontSize(-1);
+        return;
+      }
+
       const key = event.key.toLowerCase();
       if (key === "s") {
         event.preventDefault();
         modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setSettingsOpen(true);
       } else if (key === "t") {
-        const order = ["light", "sepia", "dark", "amoled"] as const;
-        const index = order.indexOf(prefs.theme);
-        setPrefs({ theme: order[(index + 1) % order.length] });
+        cycleTheme();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [moreOpen, next, nextHref, novel.slug, prefs.theme, previous, previousHref, router, setPrefs, setSidebarOpen, settingsOpen, sidebarOpen]);
+  }, [cycleTheme, moreOpen, next, nextHref, novel.slug, previous, previousHref, router, setSidebarOpen, settingsOpen, sidebarOpen, stepFontSize]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -531,33 +533,18 @@ export function ReaderView({
     markChapterNavigation(novel.slug, chapterNumber);
   }, [novel.slug, persistProgress]);
 
-  const theme = READER_THEME_VALUES[prefs.theme];
   const chapterWindowIndex = chapterWindow.items.findIndex((item) =>
     item.id && chapter.id ? item.id === chapter.id : item.number === chapter.number,
   );
   const chapterPosition = chapterWindowIndex >= 0
     ? chapterWindow.startPosition + chapterWindowIndex
     : undefined;
-  const readerStyle = {
-    "--reader-font-size": `${prefs.fontSize}px`,
-    "--reader-line-height": String(LINE_HEIGHT_VALUES[prefs.lineHeight]),
-    "--reader-paragraph-gap": `${prefs.paragraphGap}em`,
-    "--reader-measure": WIDTH_VALUES[prefs.width],
-    "--reader-bg": theme.bg,
-    "--reader-paper": theme.paper,
-    "--reader-text": theme.fg,
-    "--reader-accent": theme.accent,
-    "--reader-action": theme.action,
-    "--reader-progress": theme.progress,
-    colorScheme: theme.scheme,
-  } as CSSProperties;
-
   return (
-    <div
-      className={cn("min-h-screen bg-[var(--reader-bg)] text-[var(--reader-text)]", FONT_CLASS[prefs.font])}
-      style={readerStyle}
-    >
+    <div className="min-h-screen bg-[var(--reader-bg)] text-[var(--reader-text)]">
       <div inert={modalOpen} aria-hidden={modalOpen ? true : undefined}>
+        {/* A veil over everything dims text and ground together. That still costs
+            contrast, so DIM_MAX is set where every theme stays above 4.5:1 —
+            asserted in tests/reader-typography.test.ts, not assumed. */}
         {prefs.dim > 0 ? <div aria-hidden className="pointer-events-none fixed inset-0 z-30 bg-black" style={{ opacity: prefs.dim }} /> : null}
 
         <div role="progressbar" aria-label="ความคืบหน้าการอ่าน" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} className="fixed inset-x-0 top-0 z-50 h-0.5 bg-transparent">
@@ -612,19 +599,15 @@ export function ReaderView({
         </div>
       </header>
 
-      <main id="main" onClick={handleContentClick} className="mx-auto w-full px-[18px] pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:px-8 sm:pt-[calc(6rem+env(safe-area-inset-top))]" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
-        <article className="mx-auto sm:rounded-[8px] sm:border sm:border-current/10 sm:bg-[var(--reader-paper)] sm:px-10 sm:py-12 lg:px-14" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
+      <main id="main" onClick={handleContentClick} className="mx-auto w-full px-5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:px-8 sm:pt-[calc(6rem+env(safe-area-inset-top))]" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
+        <article className="read-sheet mx-auto sm:rounded-[8px] sm:px-10 sm:py-12 lg:px-14" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
           <div className="mx-auto" style={{ maxWidth: "var(--reader-measure)" }}>
           <header className="pb-7">
-            <p className="font-mono text-xs text-[var(--reader-accent)]">ตอน {chapter.number}</p>
-            <p className="mt-2 text-sm opacity-60">{novel.thaiTitle}</p>
-            <h1 className="mt-2 text-2xl font-semibold leading-[1.45] sm:text-3xl">{chapter.title}</h1>
+            <p className="read-kicker read-num">ตอน {chapter.number}</p>
+            <p className="mt-2 text-sm text-[var(--reader-accent)]">{novel.thaiTitle}</p>
+            <h1 className="read-title mt-2">{chapter.title}</h1>
           </header>
-          <div
-            data-reader-protected="true"
-            className="select-none text-[length:var(--reader-font-size)] sm:text-[length:calc(var(--reader-font-size)+1px)]"
-            style={{ fontFamily: "var(--reader-family)", lineHeight: "var(--reader-line-height)" }}
-          >
+          <div data-reader-protected="true" className="select-none">
             {children}
           </div>
 
@@ -660,7 +643,7 @@ export function ReaderView({
       </div>
 
       <ReaderSidebar novel={novel} current={chapter} chapterWindow={chapterWindow} open={sidebarOpen} onClose={closeSidebar} onNavigateChapter={navigateChapter} returnFocusRef={modalReturnFocusRef} />
-      {settingsOpen ? <ReaderSettings open onClose={closeSettings} returnFocusRef={modalReturnFocusRef} /> : null}
+      {settingsOpen ? <ReaderSettings open onClose={closeSettings} returnFocusRef={modalReturnFocusRef} signedIn={isAuthenticated} /> : null}
     </div>
   );
 }

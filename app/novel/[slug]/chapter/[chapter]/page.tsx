@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { connection } from "next/server";
 
-import { ChapterContent } from "@/components/reader/chapter-content";
+import { ChapterBody } from "@/components/reader/chapter-body";
 import { ChapterUnlockCard } from "@/components/reader/chapter-unlock-card";
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
 import { ReaderView } from "@/components/reader/reader-view";
@@ -182,7 +182,7 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
         initialFollowing={userState?.followed}
         initialProgress={userState?.progress}
       >
-        <ChapterContent paragraphs={paragraphs} teaser={locked} />
+        <ChapterBody paragraphs={paragraphs} teaser={locked} />
       </ReaderView>
     </>
   );

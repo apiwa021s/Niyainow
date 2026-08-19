@@ -1,22 +1,10 @@
 "use client";
 
 import { ArrowLeft, List } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { InkLogoLoader } from "@/components/ui/ink-logo-loader";
-import {
-  LINE_HEIGHT_VALUES,
-  READER_THEME_VALUES,
-  WIDTH_VALUES,
-  useReaderStore,
-} from "@/stores/use-reader-store";
-
-const FONT_CLASS = {
-  looped: "reader-font-looped",
-  anuphan: "reader-font-anuphan",
-  serif: "reader-font-serif",
-} as const;
 
 function ReaderSkeleton({ className }: { className?: string }) {
   return <span aria-hidden className={cn("block animate-pulse rounded-[6px] bg-current/10", className)} />;
@@ -30,29 +18,18 @@ function IconGhost({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Purely presentational: theme, measure, and face are already on <html> from
+ * the pre-paint script, so the skeleton inherits them without reading the
+ * store. That also keeps it renderable before hydration, which is the entire
+ * reason it exists.
+ */
 export function ReaderLoadingShell() {
-  const prefs = useReaderStore((state) => state.prefs);
-  const theme = READER_THEME_VALUES[prefs.theme];
-  const readerStyle = {
-    "--reader-font-size": `${prefs.fontSize}px`,
-    "--reader-line-height": String(LINE_HEIGHT_VALUES[prefs.lineHeight]),
-    "--reader-paragraph-gap": `${prefs.paragraphGap}em`,
-    "--reader-measure": WIDTH_VALUES[prefs.width],
-    "--reader-bg": theme.bg,
-    "--reader-paper": theme.paper,
-    "--reader-text": theme.fg,
-    "--reader-accent": theme.accent,
-    "--reader-action": theme.action,
-    "--reader-progress": theme.progress,
-    colorScheme: theme.scheme,
-  } as CSSProperties;
-
   return (
     <main
       id="main"
       aria-busy="true"
-      className={cn("min-h-screen bg-[var(--reader-bg)] text-[var(--reader-text)]", FONT_CLASS[prefs.font])}
-      style={readerStyle}
+      className="min-h-screen bg-[var(--reader-bg)] text-[var(--reader-text)]"
     >
       <InkLogoLoader />
       <div className="fixed inset-x-0 top-0 z-40 h-[calc(4rem+env(safe-area-inset-top))] border-b border-current/10 bg-[var(--reader-paper)] pt-[env(safe-area-inset-top)]">
@@ -80,7 +57,7 @@ export function ReaderLoadingShell() {
             <ReaderSkeleton className="mt-4 h-8 w-4/5 max-w-xl" />
             <ReaderSkeleton className="mt-3 h-4 w-2/5" />
 
-            <div className="mt-9 space-y-3" style={{ fontFamily: "var(--reader-family)", lineHeight: "var(--reader-line-height)" }}>
+            <div className="mt-9 space-y-3" style={{ fontFamily: "var(--read-family)", lineHeight: "var(--read-leading)" }}>
               <ReaderSkeleton className="h-4 w-full" />
               <ReaderSkeleton className="h-4 w-11/12" />
               <ReaderSkeleton className="h-4 w-10/12" />

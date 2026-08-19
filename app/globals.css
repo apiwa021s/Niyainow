@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
 /* next-themes writes `.dark` to <html>. Keep every `dark:` utility in sync
    with the selected site theme instead of the operating-system preference. */
@@ -140,70 +141,32 @@
   --fs-sm: 13px;       --lh-sm: 18px;
   --fs-xs: 11px;       --lh-xs: 16px;
 
-  /* Reader defaults; the four themes below own the colours. */
-  --reader-font-size: 18px;
-  --reader-line-height: 1.9;
-  --reader-paragraph-gap: 0.9em;
-  --reader-measure: 640px;
+  /* Reader defaults live in tokens.css; --reader-* below are chrome aliases. */
   --reader-dim: 0;
 
   color-scheme: light;
 }
 
 /*
- * Reader themes (brief §3.1). Body contrast is >= 7:1 (AAA) in every theme;
- * measured values live in docs alongside the /design-system page.
- * Dark leans hue ~220 rather than neutral grey; AMOLED stays separate from
- * Dark because its whole purpose is true black on OLED panels.
+ * Reader colour lives in tokens.css, keyed by [data-read-theme]. The aliases
+ * below exist so reader chrome (header, sheet, sidebar) can keep referencing
+ * --reader-* while body typography moves to --read-*. There is exactly one
+ * source of truth for every colour: tokens.css. Never re-declare one here, and
+ * never inline a theme colour from TypeScript.
  */
-[data-read-theme="light"] {
-  --read-bg: #fcfcfa;
-  --read-surface: #ffffff;
-  --read-text: #1c1d1f;
-  --read-text-muted: #6b7075;
-  --read-border: #e6e6e3;
-  --read-selection: #ffe9f6;
-  color-scheme: light;
-}
-
-[data-read-theme="sepia"] {
-  --read-bg: #f3e9d8;
-  --read-surface: #efe3ce;
-  --read-text: #4a3a28;
-  --read-text-muted: #8a7458;
-  --read-border: #ddcdb2;
-  --read-selection: #e8d5a8;
-  color-scheme: light;
-}
-
-[data-read-theme="dark"] {
-  --read-bg: #16181c;
-  --read-surface: #1e2126;
-  --read-text: #c6c9cf;
-  --read-text-muted: #8a8f98;
-  --read-border: #2a2e35;
-  --read-selection: #2e3440;
-  color-scheme: dark;
-}
-
-[data-read-theme="amoled"] {
-  --read-bg: #000000;
-  --read-surface: #0a0a0a;
-  --read-text: #b4b8bf;
-  --read-text-muted: #7a7f87;
-  --read-border: #1a1a1a;
-  --read-selection: #1e1e24;
-  color-scheme: dark;
-}
-
-/* Legacy aliases so reader surfaces keep rendering while §7 is rebuilt. */
 :root,
 [data-read-theme] {
-  --reader-bg: var(--read-bg, #fcfcfa);
+  --reader-bg: var(--read-bg, #fbfaf8);
   --reader-paper: var(--read-surface, #ffffff);
-  --reader-text: var(--read-text, #1c1d1f);
-  --reader-accent: var(--read-text-muted, #6b7075);
-  --reader-action: var(--accent-base);
+  --reader-text: var(--read-text, #1f2328);
+  --reader-accent: var(--read-muted, #5c636b);
+  --reader-border: var(--read-border, #e6e4df);
+  --reader-action: #b51f32;
+  --reader-progress: #b51f32;
+
+  /* Layout aliases: chrome sizes itself off the reading measure so the header
+     and the column stay in the same optical frame at every width setting. */
+  --reader-measure: var(--read-measure);
 }
 
 .dark,
@@ -303,6 +266,15 @@
   --color-reader-bg: var(--reader-bg);
   --color-reader-text: var(--reader-text);
 
+  /* Reading tokens, exposed as utilities for reader chrome. Body typography
+     still goes through .read-body rather than utility classes, so the rules
+     that make Thai work cannot be half-applied at a call site. */
+  --color-read-bg: var(--read-bg);
+  --color-read-surface: var(--read-surface);
+  --color-read-text: var(--read-text);
+  --color-read-muted: var(--read-muted);
+  --color-read-border: var(--read-border);
+
   --font-sans: var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-noto-serif-thai), ui-serif, Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -336,7 +308,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-feature-settings: "liga" 1, "kern" 1;
-  overflow-wrap: anywhere;
+
+  /* Never "anywhere". Thai has no inter-word spaces, so a free break
+     opportunity lands mid-word — or between a base glyph and the vowel that
+     belongs to it. Long unbreakable runs (URLs) opt in per component. */
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 h1,
@@ -505,16 +482,161 @@ p {
   }
 }
 
-.reader-font-looped {
-  --reader-family: var(--font-plex-thai-looped), var(--font-plex-thai), sans-serif;
+/* ==========================================================================
+   Reading surface. Everything here answers to tokens.css.
+   ========================================================================== */
+
+.read-body {
+  max-width: var(--read-measure);
+  margin-inline: auto;
+  color: var(--read-text);
+  font-family: var(--read-family);
+  font-size: var(--read-size);
+  font-weight: var(--read-weight);
+  line-height: var(--read-leading);
+
+  /* Positive tracking pulls vowels and tone marks away from the base glyph
+     they belong to; negative tracking collides them. Thai body copy is 0. */
+  letter-spacing: 0;
+
+  /* "normal" lets the browser use its Thai dictionary to find word
+     boundaries. break-all / break-word / anywhere all defeat it. */
+  word-break: normal;
+  overflow-wrap: normal;
+  line-break: normal;
+
+  /* Ragged right, always. Justification has no inter-word spaces to stretch
+     in Thai, so the engine stretches the glyph run instead. */
+  text-align: start;
+  text-wrap: pretty;
+  hyphens: none;
 }
 
-.reader-font-anuphan {
-  --reader-family: var(--font-anuphan), var(--font-plex-thai), sans-serif;
+/* A pointer reads at arm's length, a phone at 30cm: one step up on the larger
+   viewport keeps the apparent size constant across the whole scale. */
+@media (min-width: 640px) {
+  .read-body {
+    font-size: calc(var(--read-size) + 1px);
+  }
 }
 
-.reader-font-serif {
-  --reader-family: var(--font-noto-serif-thai), Georgia, serif;
+.read-body > p {
+  margin: 0 0 var(--read-para-gap);
+  text-indent: var(--read-indent);
+  white-space: pre-line;
+
+  /* Chapters run to hundreds of paragraphs. Skipping layout and paint for the
+     ones off screen is what keeps scrolling smooth on a mid-range phone; the
+     intrinsic size keeps the scrollbar honest while they are skipped. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 5rem;
+}
+
+.read-body > p:last-child {
+  margin-bottom: 0;
+}
+
+/* An indent is a continuation cue: the paragraph that opens a block never
+   takes one. */
+.read-body > p:first-child,
+.read-body > .read-break + p {
+  text-indent: 0;
+}
+
+/* URLs are the one place a hard break is correct — scoped so it can never
+   apply to a run of Thai. */
+.read-body a,
+.read-body code,
+.read-body [data-read-url] {
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+.read-title {
+  margin: 0;
+  font-family: var(--read-title-family);
+  font-size: var(--read-title-size);
+  font-weight: 600;
+  /* Still well above 1.2: a title is exactly where stacked tone marks land. */
+  line-height: var(--read-title-leading);
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.read-kicker {
+  color: var(--read-muted);
+  font-family: var(--read-title-family);
+  font-size: var(--read-kicker-size);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* Signature: the scene break. Sized in em so its optical weight is identical
+   at 16px and at 28px, and the only brand colour on the page. */
+.read-break {
+  display: flex;
+  justify-content: center;
+  margin-block: var(--read-break-gap);
+  border: 0;
+}
+
+.read-break::before {
+  display: block;
+  width: var(--read-break-width);
+  height: 1px;
+  background: color-mix(in srgb, #b51f32 25%, var(--read-muted));
+  content: "";
+}
+
+.read-quote {
+  margin: var(--read-para-gap) 0;
+  padding-inline-start: var(--read-quote-indent);
+  border-inline-start: 2px solid var(--read-border);
+  color: var(--read-muted);
+  text-indent: 0;
+}
+
+.read-note {
+  margin-top: var(--read-break-gap);
+  color: var(--read-muted);
+  font-size: var(--read-note-size);
+  text-indent: 0;
+}
+
+.read-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dark grounds only: pair the heavier weight with grayscale-free smoothing so
+   tone marks keep their hairline instead of being gamma-eaten. */
+[data-read-theme="dark"] .read-body,
+[data-read-theme="amoled"] .read-body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * The sheet the chapter sits on. On the paper-like themes the page IS the
+ * paper, so the card outline is one more piece of UI the reader has to see
+ * past; on the dark themes it is what stops the column dissolving into the
+ * viewport. Hence: card only where it earns its place.
+ */
+@media (min-width: 640px) {
+  .read-sheet {
+    border: 1px solid var(--read-border);
+    background: var(--read-surface);
+  }
+
+  [data-read-theme="light"] .read-sheet,
+  [data-read-theme="sepia"] .read-sheet {
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
+[data-read-theme] ::selection {
+  background: var(--read-selection);
+  color: var(--read-text);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,126 @@
+/*
+ * NiyaiNow — reading token layer.
+ *
+ * Every typographic decision in the reader resolves here and nowhere else.
+ * Components reference `--read-*`; they never hard-code a size, a leading, or
+ * a colour. The rules behind the numbers live in docs/TYPOGRAPHY.md — read it
+ * before changing any value in this file.
+ *
+ * The user-adjustable block is overwritten on <html> by the pre-paint script
+ * (components/reader/reader-prefs-script.tsx) and then kept in sync by
+ * hooks/use-reader-prefs.ts. The values below are the defaults a first-time
+ * reader sees.
+ */
+
+:root {
+  /* ---- reader-adjustable ------------------------------------------------ */
+
+  /* Thai reads optically smaller than Latin at the same px: lower relative
+     x-height, and the loops eat into the counter. 19/20 here is the perceptual
+     equivalent of ~17px Latin, not a generous default. */
+  --read-size: 19px;
+  --read-leading: 1.85;
+  --read-measure: 680px;
+
+  /* Paragraphs are separated by a gap OR by an indent — never both. Switching
+     modes zeroes the other token. */
+  --read-para-gap: 1.15em;
+  --read-indent: 0px;
+
+  --read-family: var(--font-read-looped);
+
+  /* ---- fixed ------------------------------------------------------------ */
+  --read-weight: 400;
+
+  --read-title-size: clamp(24px, calc(1.35 * var(--read-size)), 32px);
+  --read-title-leading: 1.4;
+  --read-title-family: var(--font-plex-thai), system-ui, sans-serif;
+
+  --read-kicker-size: 0.75rem;
+  --read-note-size: 0.875em;
+  --read-quote-indent: 1.5em;
+  --read-break-gap: 2.5em;
+
+  /* Signature: the scene-break rule scales with the body size so its optical
+     weight is identical at every step of the size scale. */
+  --read-break-width: 1.6em;
+
+  --read-gutter: 20px;
+  --read-gutter-lg: 32px;
+  --read-edge-gap: 48px;
+
+  /* Reader font stacks. Named separately from the UI stacks so a reader
+     preference can never leak into chrome. */
+  --font-read-looped: var(--font-plex-thai-looped), var(--font-plex-thai), system-ui, sans-serif;
+  --font-read-loopless: var(--font-plex-thai), system-ui, sans-serif;
+  --font-read-serif: var(--font-noto-serif-thai), Georgia, serif;
+}
+
+/*
+ * The four reader themes. Contrast is asserted in tests/reader-typography.test.ts
+ * against the WCAG formula — do not eyeball a replacement colour.
+ *
+ * Neither Light nor Dark goes to the extremes: pure #FFF/#000 body text is a
+ * glare source over a 45-minute session. AMOLED is the deliberate exception,
+ * because true black is the entire point of that theme on OLED panels.
+ */
+[data-read-theme="light"] {
+  --read-bg: #fbfaf8;
+  --read-surface: #ffffff;
+  --read-text: #1f2328;      /* 15.2:1 */
+  --read-muted: #5c636b;     /*  5.9:1 */
+  --read-border: #e6e4df;
+  --read-selection: #ffe0f0;
+  --read-weight: 400;
+  color-scheme: light;
+}
+
+[data-read-theme="sepia"] {
+  --read-bg: #f4ecd8;
+  --read-surface: #f9f3e4;
+  --read-text: #5b4636;      /*  7.4:1 */
+  --read-muted: #7a6450;     /*  4.6:1 */
+  --read-border: #e0d3b8;
+  --read-selection: #e8d5a8;
+  --read-weight: 400;
+  color-scheme: light;
+}
+
+[data-read-theme="dark"] {
+  --read-bg: #16171a;
+  --read-surface: #1e2024;
+  --read-text: #e3e1dc;      /* 14.1:1 */
+  --read-muted: #9aa0a6;     /*  6.4:1 */
+  --read-border: #2b2d33;
+  --read-selection: #333842;
+  /* One step up: hairline tone marks optically thin on a dark ground. */
+  --read-weight: 500;
+  color-scheme: dark;
+}
+
+[data-read-theme="amoled"] {
+  --read-bg: #000000;
+  --read-surface: #0a0a0b;
+  --read-text: #c9c7c2;      /* 11.6:1 */
+  --read-muted: #8a8a85;     /*  5.5:1 */
+  --read-border: #1c1c1e;
+  --read-selection: #26262b;
+  --read-weight: 500;
+  color-scheme: dark;
+}
+
+/* Reader font choice. Set on the reader root, so UI chrome outside it keeps
+   the site font no matter what the reader picked. */
+[data-read-font="looped"]   { --read-family: var(--font-read-looped); }
+[data-read-font="loopless"] { --read-family: var(--font-read-loopless); }
+[data-read-font="serif"]    { --read-family: var(--font-read-serif); }
+
+/* Paragraph style is one or the other, never both (TYPOGRAPHY.md §4). */
+[data-read-paragraph="gap"] {
+  --read-indent: 0px;
+}
+
+[data-read-paragraph="indent"] {
+  --read-para-gap: 0px;
+  --read-indent: 2em;
+}

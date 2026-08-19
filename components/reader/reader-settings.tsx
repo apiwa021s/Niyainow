@@ -2,22 +2,30 @@
 
 import { ChevronDown, Minus, Plus, RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useRef, type RefObject } from "react";
+import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import { cn } from "@/lib/utils";
 import {
-  FONT_SIZE_MAX,
-  FONT_SIZE_MIN,
-  FONT_SIZE_STEP,
+  DIM_MAX,
   READER_FONTS,
+  READER_FONT_KIND,
   READER_FONT_LABELS,
   READER_THEMES,
   READER_THEME_LABELS,
   READER_THEME_SWATCH,
-  useReaderStore,
   type ReaderFont,
   type ReaderLineHeight,
   type ReaderTheme,
+  type ReaderParagraphStyle,
   type ReaderWidth
 } from "@/stores/use-reader-store";
+
+/**
+ * Previews use real Thai with a full four-level stack (ปุ๋ย, ญี่ปุ่น) rather than
+ * "Aa" — the whole point of the leading control is what happens to tone marks,
+ * and Latin sample text cannot show it.
+ */
+const LEADING_SAMPLE = "ปุ๋ยญี่ปุ่นเกี๊ยะฏิฐิอึ๋ย";
+const FONT_SAMPLE = "ปุ๋ยญี่ปุ่น";
 
 const LINE_HEIGHT_OPTIONS: { value: ReaderLineHeight; label: string }[] = [
   { value: "tight", label: "แน่น" },
@@ -31,11 +39,16 @@ const WIDTH_OPTIONS: { value: ReaderWidth; label: string }[] = [
   { value: "wide", label: "กว้าง" }
 ];
 
-/** class ตัวอย่างฟอนต์ ให้ dropdown แสดงด้วยฟอนต์นั้นจริง ๆ */
-const FONT_PREVIEW_CLASS: Record<ReaderFont, string> = {
-  looped: "reader-font-looped",
-  anuphan: "reader-font-anuphan",
-  serif: "reader-font-serif"
+const PARAGRAPH_OPTIONS: { value: ReaderParagraphStyle; label: string }[] = [
+  { value: "gap", label: "เว้นระยะ" },
+  { value: "indent", label: "ย่อหน้า" }
+];
+
+/** Each option previews in its own face, so the choice is visible not verbal. */
+const FONT_PREVIEW_STACK: Record<ReaderFont, string> = {
+  looped: "var(--font-read-looped)",
+  loopless: "var(--font-read-loopless)",
+  serif: "var(--font-read-serif)"
 };
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -119,14 +132,14 @@ export function ReaderSettings({
   open,
   onClose,
   returnFocusRef,
+  signedIn = false,
 }: {
   open: boolean;
   onClose: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
+  signedIn?: boolean;
 }) {
-  const prefs = useReaderStore((state) => state.prefs);
-  const setPrefs = useReaderStore((state) => state.setPrefs);
-  const resetPrefs = useReaderStore((state) => state.resetPrefs);
+  const { prefs, fontSizePx, canGrow, canShrink, setPrefs, resetPrefs, stepFontSize } = useReaderPrefs({ signedIn });
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -235,23 +248,30 @@ export function ReaderSettings({
           </div>
         </Row>
 
-        <Row label={`ขนาดอักษร · ${prefs.fontSize}px`}>
+        <Row label={`ขนาดอักษร · ${fontSizePx}px`}>
           <div className="grid grid-cols-[44px_1fr_44px] items-center gap-3">
             <button
               type="button"
               aria-label="ลดขนาดอักษร"
-              disabled={prefs.fontSize <= FONT_SIZE_MIN}
-              onClick={() => setPrefs({ fontSize: Math.max(FONT_SIZE_MIN, prefs.fontSize - FONT_SIZE_STEP) })}
+              disabled={!canShrink}
+              onClick={() => stepFontSize(-1)}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/15 bg-current/5 hover:bg-current/10 disabled:opacity-40"
             >
               <Minus className="h-4 w-4" />
             </button>
-            <span aria-live="polite" className="text-center text-lg font-semibold">ก {prefs.fontSize}px</span>
+            {/* The sample is set at the size being chosen, in the reading face. */}
+            <span
+              aria-live="polite"
+              className="overflow-hidden text-center font-semibold"
+              style={{ fontFamily: "var(--read-family)", fontSize: `${fontSizePx}px`, lineHeight: 1.6 }}
+            >
+              ปุ๋ย {fontSizePx}px
+            </span>
             <button
               type="button"
               aria-label="เพิ่มขนาดอักษร"
-              disabled={prefs.fontSize >= FONT_SIZE_MAX}
-              onClick={() => setPrefs({ fontSize: Math.min(FONT_SIZE_MAX, prefs.fontSize + FONT_SIZE_STEP) })}
+              disabled={!canGrow}
+              onClick={() => stepFontSize(1)}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-current/15 bg-current/5 hover:bg-current/10 disabled:opacity-40"
             >
               <Plus className="h-4 w-4" />
@@ -275,13 +295,52 @@ export function ReaderSettings({
                     active ? "border-[var(--reader-accent)] bg-current/8" : "border-current/15 bg-current/5 hover:bg-current/10"
                   )}
                 >
-                  <span className="text-xs font-semibold">{READER_FONT_LABELS[font]}</span>
-                  <span className={cn("text-sm opacity-70", FONT_PREVIEW_CLASS[font])} style={{ fontFamily: "var(--reader-family)" }}>กข</span>
+                  <span className="text-base font-semibold" style={{ fontFamily: FONT_PREVIEW_STACK[font], lineHeight: 1.5 }}>
+                    {READER_FONT_LABELS[font]}
+                  </span>
+                  <span className="text-[11px] leading-[1.5] opacity-65">{READER_FONT_KIND[font]}</span>
+                  <span className="text-sm leading-[1.7] opacity-80" style={{ fontFamily: FONT_PREVIEW_STACK[font] }}>{FONT_SAMPLE}</span>
                 </button>
               );
             })}
           </div>
         </Row>
+
+        {/* Leading is the single highest-leverage control for Thai, so it is not
+            buried behind a disclosure the way it used to be. */}
+        <Row label="ระยะบรรทัด">
+          <SegmentedControl
+            label="ระยะบรรทัด"
+            value={prefs.lineHeight}
+            options={LINE_HEIGHT_OPTIONS}
+            onChange={(lineHeight) => setPrefs({ lineHeight })}
+          />
+          <p
+            aria-hidden
+            className="mt-1 rounded-[6px] bg-current/5 px-3 py-2 text-sm"
+            style={{ fontFamily: "var(--read-family)", lineHeight: "var(--read-leading)" }}
+          >
+            {LEADING_SAMPLE}
+            <br />
+            {LEADING_SAMPLE}
+          </p>
+        </Row>
+
+        <Row label="รูปแบบย่อหน้า">
+          <SegmentedControl
+            label="รูปแบบย่อหน้า"
+            value={prefs.paragraphStyle}
+            options={PARAGRAPH_OPTIONS}
+            onChange={(paragraphStyle) => setPrefs({ paragraphStyle })}
+          />
+        </Row>
+
+        {/* Width has nothing to control on a phone: the measure is the viewport. */}
+        <div className="hidden sm:block">
+          <Row label="ความกว้าง">
+            <SegmentedControl label="ความกว้าง" value={prefs.width} options={WIDTH_OPTIONS} onChange={(width) => setPrefs({ width })} />
+          </Row>
+        </div>
 
         <details className="group rounded-[6px] border border-current/15 bg-current/5">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold hover:bg-current/6 [&::-webkit-details-marker]:hidden">
@@ -289,37 +348,11 @@ export function ReaderSettings({
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </summary>
           <div className="grid gap-5 border-t border-current/10 p-3">
-            <Row label="ระยะบรรทัด">
-              <SegmentedControl
-                label="ระยะบรรทัด"
-                value={prefs.lineHeight}
-                options={LINE_HEIGHT_OPTIONS}
-                onChange={(lineHeight) => setPrefs({ lineHeight })}
-              />
-            </Row>
-
-            <Row label="ความกว้าง">
-              <SegmentedControl label="ความกว้าง" value={prefs.width} options={WIDTH_OPTIONS} onChange={(width) => setPrefs({ width })} />
-            </Row>
-
-            <Row label={`ระยะย่อหน้า · ${prefs.paragraphGap.toFixed(1)}em`}>
-              <input
-                type="range"
-                min={0.6}
-                max={1.8}
-                step={0.1}
-                value={prefs.paragraphGap}
-                aria-label="ระยะห่างระหว่างย่อหน้า"
-                onChange={(event) => setPrefs({ paragraphGap: Number(event.target.value) })}
-                className="h-11 w-full accent-[var(--reader-accent)]"
-              />
-            </Row>
-
             <Row label={`ความสว่าง · ${Math.round((1 - prefs.dim) * 100)}%`}>
               <input
                 type="range"
                 min={0}
-                max={0.6}
+                max={DIM_MAX}
                 step={0.05}
                 value={prefs.dim}
                 aria-label="ความสว่างหน้าจอ"

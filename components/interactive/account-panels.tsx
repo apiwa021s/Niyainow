@@ -8,16 +8,16 @@ import { Input, Label, Select } from "@/components/ui/form-controls";
 import { cn } from "@/lib/utils";
 import { signOutUser } from "@/lib/auth/actions";
 import type { CurrentUser } from "@/lib/auth/dal";
+import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import {
-  FONT_SIZE_MAX,
-  FONT_SIZE_MIN,
-  FONT_SIZE_STEP,
+  FONT_SIZE_MAX_INDEX,
+  FONT_SIZE_MIN_INDEX,
+  READER_FONT_KIND,
   READER_FONT_LABELS,
   READER_FONTS,
   READER_THEME_LABELS,
   READER_THEMES,
   READER_THEME_SWATCH,
-  useReaderStore,
   type ReaderLineHeight,
 } from "@/stores/use-reader-store";
 
@@ -79,10 +79,9 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
 }
 
 export function SettingsPanel({ user }: { user: CurrentUser }) {
-  const prefs = useReaderStore((state) => state.prefs);
-  const hydrated = useReaderStore((state) => state.hasHydrated);
-  const setPrefs = useReaderStore((state) => state.setPrefs);
-  const resetPrefs = useReaderStore((state) => state.resetPrefs);
+  // Same hook the reader uses, so a change made here syncs to the account and
+  // is already applied the next time a chapter opens.
+  const { prefs, hydrated, fontSizePx, setPrefs, resetPrefs } = useReaderPrefs({ signedIn: true });
 
   return (
     <div className="divide-y divide-border">
@@ -97,7 +96,7 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
         <ThemeSwitcher />
       </SettingsSection>
 
-      <SettingsSection title="การอ่าน" description={`บันทึกเฉพาะบนอุปกรณ์นี้${hydrated ? " และพร้อมใช้งานแล้ว" : ""}`}>
+      <SettingsSection title="การอ่าน" description={`ใช้กับทุกเรื่องและซิงก์ข้ามอุปกรณ์${hydrated ? "" : " · กำลังโหลด"}`}>
         <div className="grid gap-5 lg:grid-cols-2">
           <fieldset>
             <legend className="mb-2 text-sm font-semibold">พื้นหลังเครื่องอ่าน</legend>
@@ -117,13 +116,13 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
           <div className="grid content-start gap-2">
             <Label htmlFor="reader-font">รูปแบบตัวอักษร</Label>
             <Select id="reader-font" value={prefs.font} onChange={(event) => setPrefs({ font: event.target.value as (typeof READER_FONTS)[number] })} className="h-11">
-              {READER_FONTS.map((font) => <option key={font} value={font}>{READER_FONT_LABELS[font]}</option>)}
+              {READER_FONTS.map((font) => <option key={font} value={font}>{READER_FONT_LABELS[font]} · {READER_FONT_KIND[font]}</option>)}
             </Select>
           </div>
 
           <div className="grid gap-2">
-            <span className="flex items-center justify-between gap-2"><Label htmlFor="reader-font-size">ขนาดตัวอักษร</Label><span className="tabular text-xs text-muted-foreground">{prefs.fontSize}px</span></span>
-            <input id="reader-font-size" type="range" min={FONT_SIZE_MIN} max={FONT_SIZE_MAX} step={FONT_SIZE_STEP} value={prefs.fontSize} onChange={(event) => setPrefs({ fontSize: Number(event.target.value) })} className="h-11 w-full accent-[var(--brand-emphasis)]" />
+            <span className="flex items-center justify-between gap-2"><Label htmlFor="reader-font-size">ขนาดตัวอักษร</Label><span className="tabular text-xs text-muted-foreground">{fontSizePx}px</span></span>
+            <input id="reader-font-size" type="range" min={FONT_SIZE_MIN_INDEX} max={FONT_SIZE_MAX_INDEX} step={1} value={prefs.fontSizeIndex} onChange={(event) => setPrefs({ fontSizeIndex: Number(event.target.value) })} className="h-11 w-full accent-[var(--brand-emphasis)]" />
           </div>
 
           <fieldset>

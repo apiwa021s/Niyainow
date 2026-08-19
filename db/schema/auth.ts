@@ -5,6 +5,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -30,6 +31,15 @@ export const users = pgTable(
     role: userRoleEnum("role").default("READER").notNull(),
     status: userStatusEnum("status").default("ACTIVE").notNull(),
     lastLoginAt: timestamp("last_login_at", timestampConfig),
+    /**
+     * Reading display preferences (theme, size, face, measure). Presentation
+     * only — nothing here is authoritative for entitlements or progress, so it
+     * is safe to let the client overwrite the whole blob. Nullable because a
+     * reader who never opened the settings panel has nothing to sync, and the
+     * device's own localStorage stays the fast path either way.
+     */
+    readerPrefs: jsonb("reader_prefs").$type<Record<string, unknown>>(),
+    readerPrefsUpdatedAt: timestamp("reader_prefs_updated_at", timestampConfig),
     createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", timestampConfig)
       .defaultNow()

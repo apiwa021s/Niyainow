@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  READER_THEME_VALUES,
+  DEFAULT_PREFS,
+  FONT_SIZE_SCALE,
+  normalizeReaderPrefs,
   selectLatestLocalProgress,
   selectNovelResumeProgress,
   selectReadingPosition,
@@ -23,15 +25,34 @@ function localProgress(overrides: Partial<LocalReadingProgress> = {}): LocalRead
   };
 }
 
-describe("reader progress selection", () => {
-  it("uses the exact Night surface and text colors across the reader canvas", () => {
-    expect(READER_THEME_VALUES.dark).toMatchObject({
-      bg: "#111113",
-      paper: "#111113",
-      fg: "#E8E5E1",
-    });
+describe("reader preference normalisation", () => {
+  it("carries a pre-v6 px size onto the nearest step of the scale", () => {
+    // 18px was the old default; it is a real step now, so nobody moves.
+    expect(normalizeReaderPrefs({ fontSize: 18 }).fontSizeIndex).toBe(FONT_SIZE_SCALE.indexOf(18));
+    // 26px was reachable on the old even-numbered scale but is not a step now.
+    expect(FONT_SIZE_SCALE[normalizeReaderPrefs({ fontSize: 26 }).fontSizeIndex]).toBe(24);
+    // Out of range in either direction clamps rather than resetting.
+    expect(FONT_SIZE_SCALE[normalizeReaderPrefs({ fontSize: 9 }).fontSizeIndex]).toBe(16);
+    expect(FONT_SIZE_SCALE[normalizeReaderPrefs({ fontSize: 99 }).fontSizeIndex]).toBe(28);
   });
 
+  it("renames retired faces instead of dropping the reader back to the default", () => {
+    expect(normalizeReaderPrefs({ font: "anuphan" }).font).toBe("loopless");
+    expect(normalizeReaderPrefs({ theme: "mist" }).theme).toBe("sepia");
+  });
+
+  it("clamps dimming to a level every theme still passes AA at", () => {
+    expect(normalizeReaderPrefs({ dim: 0.9 }).dim).toBe(0.35);
+    expect(normalizeReaderPrefs({ dim: -1 }).dim).toBe(0);
+  });
+
+  it("falls back to the defaults for anything unrecognisable", () => {
+    expect(normalizeReaderPrefs(undefined)).toEqual(DEFAULT_PREFS);
+    expect(normalizeReaderPrefs({ theme: "neon", width: "huge" })).toEqual(DEFAULT_PREFS);
+  });
+});
+
+describe("reader progress selection", () => {
   it("selects the latest local novel record for the guest continue card", () => {
     const latest = localProgress({ novelSlug: "latest", chapterNumber: 12, updatedAt: 2_000 });
     expect(selectLatestLocalProgress({ old: localProgress(), latest })).toBe(latest);
