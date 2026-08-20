@@ -1,7 +1,8 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { Suspense, type ReactNode } from "react";
 
-import { HomeFeed, HomePersonalizedSections, HomeSignup, type HomeData } from "@/components/home/home-feed";
+import { HomeFeed, HomeHeroSection, HomePersonalizedSections, HomeSignup, type HomeData } from "@/components/home/home-feed";
+import { HomeFeedSkeleton, HomeHeroSkeleton } from "@/components/home/home-skeletons";
 import { GuestContinueReading } from "@/components/reader/guest-continue-reading";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
@@ -61,33 +62,43 @@ async function HomeGuestSignup() {
   return currentUser?.status === "ACTIVE" ? null : <HomeSignup />;
 }
 
+/**
+ * The hero is the first thing on screen and only ever needs two small
+ * queries, so it gets its own cache/Suspense boundary instead of sharing the
+ * six-query one below — otherwise it would wait on the slowest of all eight,
+ * which is what made the whole page feel stalled on first paint.
+ */
+async function CachedHomeHero() {
+  "use cache";
+  cacheLife(PUBLIC_CACHE_LIFE.live);
+  cacheTag("public-novels", "public-banners");
+
+  const [banners, featured, recommendedFallback] = await Promise.all([
+    getActiveBanners(),
+    getFeaturedNovels(1),
+    getRecommendedNovels(1),
+  ]);
+
+  return <HomeHeroSection novel={featured[0] ?? recommendedFallback[0]} banner={banners[0]} />;
+}
+
 async function CachedHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
   "use cache";
   cacheLife(PUBLIC_CACHE_LIFE.live);
-  cacheTag("public-novels", "public-chapters", "public-rankings", "public-taxonomy", "public-banners");
+  cacheTag("public-novels", "public-chapters", "public-rankings", "public-taxonomy");
 
-  const [newThisWeek, recommended, completed, rankings, updates, genreShowcase, banners, featured] = await Promise.all([
+  const [newThisWeek, recommended, completed, rankings, updates, genreShowcase] = await Promise.all([
     getNewThisWeek(12),
     getRecommendedNovels(12),
     getCompletedNovels(12),
     getRankings("WEEKLY", 16),
     getUpdates("all", undefined, 15),
     getGenreShowcase(10),
-    getActiveBanners(),
-    getFeaturedNovels(1),
   ]);
-  const data: HomeData = {
-    newThisWeek,
-    recommended,
-    completed,
-    rankings,
-    updates,
-    genreShowcase,
-    spotlightNovel: featured[0] ?? recommended[0] ?? newThisWeek[0],
-  };
+  const data: HomeData = { newThisWeek, recommended, completed, rankings, updates, genreShowcase };
 
   return (
-    <HomeFeed data={data} banners={banners} signupSlot={signupSlot}>
+    <HomeFeed data={data} signupSlot={signupSlot}>
       {children}
     </HomeFeed>
   );
@@ -97,17 +108,25 @@ export default function HomePage() {
   return (
     <main id="main" className="mx-auto w-full max-w-(--home-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6 2xl:px-6">
       <h1 className="sr-only">อ่านนิยายออนไลน์และนิยายแปลไทย อัปเดตตอนใหม่ทุกวัน</h1>
-      <CachedHomeFeed
-        signupSlot={
-          <Suspense fallback={null}>
-            <HomeGuestSignup />
-          </Suspense>
-        }
-      >
-        <Suspense fallback={<GuestContinueReading />}>
-          <HomeReaderSections />
+      <div className="flex flex-col gap-4 lg:gap-5">
+        <Suspense fallback={<HomeHeroSkeleton />}>
+          <CachedHomeHero />
         </Suspense>
-      </CachedHomeFeed>
+
+        <Suspense fallback={<HomeFeedSkeleton />}>
+          <CachedHomeFeed
+            signupSlot={
+              <Suspense key="home-signup" fallback={null}>
+                <HomeGuestSignup />
+              </Suspense>
+            }
+          >
+            <Suspense fallback={<GuestContinueReading />}>
+              <HomeReaderSections />
+            </Suspense>
+          </CachedHomeFeed>
+        </Suspense>
+      </div>
     </main>
   );
 }

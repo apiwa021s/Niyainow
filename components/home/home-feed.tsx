@@ -29,7 +29,6 @@ export type HomeData = {
   rankings: Novel[];
   updates: NovelUpdate[];
   genreShowcase: { genre: Genre; covers: string[] }[];
-  spotlightNovel?: Novel;
 };
 
 const HOME_CAROUSEL_ITEM_CLASS = "w-[84px] shrink-0 sm:w-[96px] lg:w-[108px] xl:w-[118px]";
@@ -230,10 +229,15 @@ function HomeNovelCarousel({
   );
 }
 
-function ReaderCommandCenter({ data, banners }: { data: HomeData; banners: PromoBannerItem[] }) {
+/**
+ * The hero and its shortcuts need only the spotlight novel and the active
+ * banner — a small, fast query pair — so this is fetched and streamed in on
+ * its own, ahead of the six-query feed below it. See app/page.tsx.
+ */
+export function HomeHeroSection({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
   return (
     <section aria-label="ศูนย์เริ่มอ่าน" className="grid gap-3">
-      <Hero novel={data.spotlightNovel} banner={banners[0]} />
+      <Hero novel={novel} banner={banner} />
 
       <div className="hidden min-w-0 gap-3 xl:grid">
         <nav aria-label="ทางลัดเริ่มอ่าน" className="grid min-w-0 grid-cols-3 gap-2">
@@ -288,19 +292,15 @@ function GenreChipRail({ items }: { items: { genre: Genre; covers: string[] }[] 
 
 export function HomeFeed({
   data,
-  banners,
   children,
   signupSlot,
 }: {
   data: HomeData;
-  banners: PromoBannerItem[];
   children?: ReactNode;
   signupSlot?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4 lg:gap-5">
-      <ReaderCommandCenter data={data} banners={banners} />
-
       <TrendingTicker novels={data.rankings.slice(0, 16)} />
       <GenreChipRail items={data.genreShowcase} />
 
