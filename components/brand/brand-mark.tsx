@@ -53,7 +53,10 @@ export function BrandWordmark({ className }: { className?: string }) {
   return (
     <span
       aria-label="NovelNow"
-      className={cn("relative inline-flex items-baseline text-xl font-extrabold leading-none tracking-tight", className)}
+      className={cn(
+        "relative inline-flex items-baseline font-(family-name:--font-wordmark) text-xl font-semibold leading-none tracking-[-0.01em]",
+        className,
+      )}
     >
       <span aria-hidden>
         {part("Novel", false)}

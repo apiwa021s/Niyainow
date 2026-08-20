@@ -86,7 +86,7 @@ export function ExploreFeed({
                 name="q"
                 type="search"
                 placeholder="ค้นชื่อเรื่อง ผู้แต่ง หรือผู้แปล"
-                className="h-11 w-full rounded-[6px] border border-border bg-card pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground hover:border-[var(--brand-emphasis)] focus:border-[var(--brand-emphasis)]"
+                className="h-11 w-full rounded-[6px] border border-border bg-card pl-9 pr-3 text-sm placeholder:text-muted-foreground hover:border-[var(--brand-emphasis)]"
               />
             </label>
             <button type="submit" className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white">

@@ -4,10 +4,15 @@ import { cn } from "@/lib/utils";
 const fieldBase =
   "w-full rounded-[6px] border bg-card px-3 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60";
 
+/*
+ * No focus border here on purpose. The global `:focus-visible` rule already
+ * draws a 2px ring in the same brand colour, so tinting the border as well
+ * stacked two pink outlines around one field.
+ */
 const fieldTone = (invalid?: boolean) =>
   invalid
-    ? "border-destructive focus:border-destructive"
-    : "border-border hover:border-[var(--brand-emphasis)] focus:border-[var(--brand-emphasis)]";
+    ? "border-destructive"
+    : "border-border hover:border-[var(--brand-emphasis)]";
 
 export function Input({
   className,

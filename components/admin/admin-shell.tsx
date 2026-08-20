@@ -66,7 +66,7 @@ export function AdminShell({
             <button type="button" onClick={() => setDrawerOpen(true)} aria-label="เปิดเมนู" className="grid h-11 w-11 place-items-center rounded-[12px] text-muted-foreground hover:bg-muted lg:hidden"><Menu className="h-5 w-5" /></button>
             <form role="search" action="/admin/novels" method="get" className="relative hidden min-w-0 max-w-sm flex-1 md:block">
               <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input name="q" type="search" placeholder="ค้นหานิยายหรือผู้แต่ง…" aria-label="ค้นหานิยายในระบบหลังบ้าน" className="h-10 w-full rounded-[12px] border border-border bg-card pl-9 pr-3 text-sm placeholder:text-[var(--text-tertiary)] focus:border-[var(--brand-emphasis)]" />
+              <input name="q" type="search" placeholder="ค้นหานิยายหรือผู้แต่ง…" aria-label="ค้นหานิยายในระบบหลังบ้าน" className="h-10 w-full rounded-[12px] border border-border bg-card pl-9 pr-3 text-sm placeholder:text-[var(--text-tertiary)]" />
             </form>
             <div className="ml-auto flex items-center gap-1">
               <Link href="/" className="hidden h-10 items-center gap-1.5 rounded-[12px] px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:flex"><ExternalLink className="h-4 w-4" />ดูเว็บไซต์</Link>

@@ -1,7 +1,8 @@
 import {
   IBM_Plex_Sans_Thai,
   IBM_Plex_Sans_Thai_Looped,
-  Noto_Serif_Thai
+  Noto_Serif_Thai,
+  Poppins
 } from "next/font/google";
 
 /**
@@ -61,8 +62,26 @@ export const notoSerifThai = Noto_Serif_Thai({
   preload: false
 });
 
+/**
+ * Wordmark only — the eight Latin letters of "NovelNow", nowhere else.
+ * §3.7's three-family ceiling governs text faces; a logotype is artwork, so
+ * this is a deliberate exception rather than a fourth UI family. Latin subset
+ * only (no Thai), one weight, which keeps it to a single small file, and it is
+ * preloaded because the mark sits in the header of every route.
+ */
+export const wordmark = Poppins({
+  variable: "--font-wordmark",
+  subsets: ["latin"],
+  weight: ["600"],
+  display: "swap",
+  adjustFontFallback: true,
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
+  preload: true
+});
+
 export const fontVariables = [
   plexThai.variable,
   plexThaiLooped.variable,
-  notoSerifThai.variable
+  notoSerifThai.variable,
+  wordmark.variable
 ].join(" ");

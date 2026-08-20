@@ -235,7 +235,7 @@ export function NovelBrowser({
               defaultValue={query.q ?? ""}
               placeholder="ค้นชื่อเรื่อง ผู้แต่ง หรือผู้แปล"
               enterKeyHint="search"
-              className="h-11 w-full rounded-[6px] border border-border bg-card pl-9 pr-12 text-sm text-foreground outline-none placeholder:text-muted-foreground hover:border-[var(--brand-emphasis)] focus:border-[var(--brand-emphasis)]"
+              className="h-11 w-full rounded-[6px] border border-border bg-card pl-9 pr-12 text-sm text-foreground placeholder:text-muted-foreground hover:border-[var(--brand-emphasis)]"
             />
             <button
               type="submit"

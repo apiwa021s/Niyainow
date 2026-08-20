@@ -281,7 +281,7 @@ export function ChapterList({
                 name="q"
                 defaultValue={catalog.query}
                 placeholder="ค้นหาลำดับหรือชื่อตอน..."
-                className="h-11 w-full rounded-[8px] border border-input bg-surface-subtle pl-10 pr-11 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-[var(--brand-emphasis)] focus:bg-card"
+                className="h-11 w-full rounded-[8px] border border-input bg-surface-subtle pl-10 pr-11 text-sm transition-colors placeholder:text-muted-foreground focus:bg-card"
               />
             </label>
             {catalog.query ? (
