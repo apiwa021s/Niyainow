@@ -138,7 +138,12 @@ export function GlobalSearch({ mode, onNavigate }: { mode: "inline" | "mobile"; 
   }
 
   function onBlur(event: FocusEvent<HTMLDivElement>) {
-    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      const container = event.currentTarget;
+      window.setTimeout(() => {
+        if (!container.contains(document.activeElement)) setOpen(false);
+      }, 0);
+    }
   }
 
   const showSuggestions = open && q.trim().length >= 2;
