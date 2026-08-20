@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { Logo } from "@/components/layout/logo";
 import { GlobalSearch } from "@/components/search/global-search";
+import { useScrollChromeVisibility } from "@/hooks/use-scroll-chrome-visibility";
 
 export type TopbarViewer = {
   name: string | null;
@@ -23,9 +24,11 @@ export type TopbarViewer = {
  * Desktop: the sidebar owns navigation, so the avatar appears here instead.
  */
 export function AppTopbar({ viewer }: { viewer: TopbarViewer | null | undefined }) {
+  const visible = useScrollChromeVisibility();
+
   return (
     <header
-      className="sticky top-0 z-40 bg-(--bg-base)/92 backdrop-blur-md"
+      className={`sticky top-0 z-40 bg-(--bg-base)/92 backdrop-blur-md transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)] motion-reduce:transition-none lg:translate-y-0 lg:opacity-100 ${visible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"}`}
       style={{ viewTransitionName: "site-header" }}
     >
       <div className="flex h-(--topbar-h) items-center gap-2 px-3 lg:h-(--topbar-h-lg) lg:px-4">

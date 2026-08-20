@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ContinueReadingBar } from "@/components/reader/continue-reading-bar";
+import { useScrollChromeVisibility } from "@/hooks/use-scroll-chrome-visibility";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -35,9 +36,10 @@ const nav = [
 export function MobileBottomNav() {
   const pathname = usePathname() ?? "";
   const activeIndex = Math.max(0, nav.findIndex((item) => item.match(pathname)));
+  const visible = useScrollChromeVisibility();
 
   return (
-    <div className="sticky bottom-0 z-40 mt-auto lg:hidden">
+    <div className={`sticky bottom-0 z-40 mt-auto transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)] motion-reduce:transition-none lg:translate-y-0 lg:opacity-100 ${visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}`}>
       <ContinueReadingBar />
       <nav
         aria-label="เมนูหลักบนมือถือ"
