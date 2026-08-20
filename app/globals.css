@@ -586,6 +586,11 @@ p {
   animation: motion-rise var(--dur-base) var(--ease-out) both;
 }
 
+/* The global resume strip sits inside the mobile nav and needs a second row. */
+body:has([data-continue-reading-bar]) .novel-resume-mobile-bar {
+  bottom: calc(8rem + env(safe-area-inset-bottom));
+}
+
 /* ==========================================================================
    Reading surface. Everything here answers to tokens.css.
    ========================================================================== */

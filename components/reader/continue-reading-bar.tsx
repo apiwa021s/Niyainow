@@ -28,7 +28,7 @@ export function ContinueReadingBar() {
   const percent = Math.max(0, Math.min(100, Math.round(progress.progressPercent)));
 
   return (
-    <div className="motion-enter border-t border-border bg-surface px-2 py-1.5">
+    <div data-continue-reading-bar className="motion-enter border-t border-border bg-surface px-2 py-1.5">
       <div className="flex items-center gap-2.5">
         <Link
           href={`/novel/${progress.novelSlug}/chapter/${progress.chapterNumber}`}
