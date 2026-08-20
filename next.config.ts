@@ -56,6 +56,7 @@ export default function createNextConfig(phase: string): NextConfig {
     "object-src 'none'",
     [
       `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
+      "https://challenges.cloudflare.com",
       ...(vercelLiveOrigin ? [vercelLiveOrigin] : []),
     ].join(" "),
     "style-src 'self' 'unsafe-inline'",
@@ -66,11 +67,12 @@ export default function createNextConfig(phase: string): NextConfig {
       "https://accounts.google.com",
       "https://oauth2.googleapis.com",
       "https://*.r2.cloudflarestorage.com",
+      "https://challenges.cloudflare.com",
       ...(assetOrigin ? [assetOrigin] : []),
       ...(vercelLiveOrigin ? [vercelLiveOrigin] : []),
       ...(isProduction ? [] : ["ws:", "wss:"]),
     ].join(" "),
-    ...(vercelLiveOrigin ? [`frame-src 'self' ${vercelLiveOrigin}`] : []),
+    ["frame-src 'self'", "https://challenges.cloudflare.com", ...(vercelLiveOrigin ? [vercelLiveOrigin] : [])].join(" "),
     "worker-src 'self' blob:",
     ...(isProduction ? ["upgrade-insecure-requests"] : []),
   ].join("; ");

@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import { signInWithGoogle } from "@/lib/auth/actions";
 import { Button, type ButtonSize } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TurnstileGate } from "@/components/interactive/turnstile-widget";
 
 function GoogleMark() {
   return (
@@ -22,15 +23,17 @@ export function GoogleSignInButton({
   label = "ดำเนินการต่อด้วย Google",
   size = "lg",
   className,
+  disabled,
 }: {
   label?: string;
   size?: ButtonSize;
   className?: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" size={size} className={className} loading={pending}>
+    <Button type="submit" size={size} className={className} loading={pending} disabled={disabled}>
       <GoogleMark />
       {label}
     </Button>
@@ -57,7 +60,7 @@ export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; e
 
         <form className="grid gap-4" action={signInWithGoogle}>
           <input type="hidden" name="callbackUrl" value={callbackUrl} />
-          <GoogleSignInButton className="w-full" />
+          <TurnstileGate className="w-full" />
         </form>
 
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">

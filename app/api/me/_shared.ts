@@ -2,10 +2,10 @@ import { NextResponse, connection } from "next/server";
 
 import { ApiError, apiErrorResponse } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
+import { takeDistributedRateLimit } from "@/lib/security/distributed-rate-limit";
 import {
   rateLimitHeaders,
   requestRateLimitKey,
-  takeRateLimit,
 } from "@/lib/security/rate-limit";
 import { assertSameOrigin } from "@/lib/security/request";
 import { requireApiUser } from "@/services/user-service";
@@ -32,7 +32,7 @@ export async function handleUserRoute<T>(
     const user = await requireApiUser();
 
     const limit = options.rateLimit
-      ? takeRateLimit(requestRateLimitKey(request, options.scope, user.id), options.rateLimit)
+      ? await takeDistributedRateLimit(requestRateLimitKey(request, options.scope, user.id), options.rateLimit)
       : null;
     if (limit && !limit.allowed) {
       return NextResponse.json(

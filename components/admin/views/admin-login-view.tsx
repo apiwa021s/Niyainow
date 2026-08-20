@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 
-import { GoogleSignInButton } from "@/components/interactive/auth-form";
 import { Logo } from "@/components/layout/logo";
+import { TurnstileGate } from "@/components/interactive/turnstile-widget";
 import { signInWithGoogle } from "@/lib/auth/actions";
 
 export function AdminLoginView({ callbackUrl = "/admin", error }: { callbackUrl?: string; error?: string }) {
@@ -29,7 +29,7 @@ export function AdminLoginView({ callbackUrl = "/admin", error }: { callbackUrl?
 
         <form className="grid gap-4" action={signInWithGoogle}>
           <input type="hidden" name="callbackUrl" value={callbackUrl} />
-          <GoogleSignInButton label="เข้าสู่ระบบทีมงานด้วย Google" />
+          <TurnstileGate label="เข้าสู่ระบบทีมงานด้วย Google" />
         </form>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-sm">

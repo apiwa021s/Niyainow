@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { rateLimitHeaders, requestRateLimitKey, takeRateLimit } from "@/lib/security/rate-limit";
+import { takeDistributedRateLimit } from "@/lib/security/distributed-rate-limit";
+import { rateLimitHeaders, requestRateLimitKey } from "@/lib/security/rate-limit";
 import { getSearchSuggestions } from "@/services/novel-service";
 
 
 export async function GET(request: Request) {
-  const limit = takeRateLimit(requestRateLimitKey(request, "public-search-suggest"), {
+  const limit = await takeDistributedRateLimit(requestRateLimitKey(request, "public-search-suggest"), {
     limit: 120,
     windowMs: 60_000,
   });

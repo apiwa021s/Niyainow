@@ -49,10 +49,20 @@ export function takeRateLimit(
   };
 }
 
-export function requestRateLimitKey(request: Request, scope: string, subject?: string) {
+/**
+ * Behind Cloudflare, CF-Connecting-IP is the only client address a caller
+ * cannot forge; the x-forwarded-for chain is attacker-controlled at the edge.
+ */
+export function clientIpAddress(request: Request) {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const address = request.headers.get("x-real-ip")?.trim() || forwarded || "unknown";
-  return `${scope}:${subject || address}`;
+  return request.headers.get("cf-connecting-ip")?.trim()
+    || request.headers.get("x-real-ip")?.trim()
+    || forwarded
+    || "unknown";
+}
+
+export function requestRateLimitKey(request: Request, scope: string, subject?: string) {
+  return `${scope}:${subject || clientIpAddress(request)}`;
 }
 
 export function rateLimitHeaders(result: RateLimitResult) {
