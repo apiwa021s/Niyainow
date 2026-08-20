@@ -297,8 +297,15 @@
   box-sizing: border-box;
 }
 
+/*
+ * No `scroll-behavior: smooth` here on purpose: it hijacks the Next.js
+ * router's scroll-to-top-on-navigation into an animated scroll, and a layout
+ * shift from streamed-in route content (loading.tsx swapping to real markup)
+ * cuts that animation short — the page lands a few dozen px shy of the top
+ * instead of at it. The skip-link (#main) jumps instantly instead; that's
+ * the right call for a11y anyway.
+ */
 html {
-  scroll-behavior: smooth;
   text-rendering: optimizeLegibility;
   -webkit-text-size-adjust: 100%;
 }
@@ -665,10 +672,6 @@ p {
   :root {
     --dur-fast: 1ms;
     --dur-base: 1ms;
-  }
-
-  html {
-    scroll-behavior: auto;
   }
 
   *,
