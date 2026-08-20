@@ -141,7 +141,7 @@
   --fs-body: 15px;     --lh-body: 22px;
   --fs-sm: 13px;       --lh-sm: 18px;
   --fs-xs: 11px;       --lh-xs: 16px;
-  --font-display-family: var(--font-noto-serif-thai), Georgia, serif;
+  --font-display-family: var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
 
   /* Reader defaults live in tokens.css; --reader-* below are chrome aliases. */
   --reader-dim: 0;

@@ -21,7 +21,7 @@ NiyaiNow ใช้ภาพลักษณ์แบบ **editorial reading loung
 ## Typography
 
 - UI และ body ใช้ IBM Plex Sans Thai ผ่าน `font-sans`
-- Heading ใช้ Noto Serif Thai ผ่าน `font-serif` / `--font-display` เพื่อให้มีน้ำหนักแบบหนังสือและตัดกับ UI ที่เป็นระบบ
+- Heading ใช้ IBM Plex Sans Thai ผ่าน `font-sans` / `--font-display` เพื่อให้คม ทันสมัย และเป็นภาษาเดียวกับ navigation, card และ control
 - Reader body ไม่เปลี่ยนตามเอกสารนี้ ให้ยึด `app/tokens.css` และ `docs/TYPOGRAPHY.md` เป็นหลัก
 - Thai text ใช้ `letter-spacing: 0` และไม่ใช้ `text-align: justify`
 
