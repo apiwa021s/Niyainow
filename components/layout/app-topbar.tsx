@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, LogIn, UserRound } from "lucide-react";
+import { Bell, LogIn, Search, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 
 import { Logo } from "@/components/layout/logo";
 import { GlobalSearch } from "@/components/search/global-search";
@@ -25,6 +26,7 @@ export type TopbarViewer = {
  */
 export function AppTopbar({ viewer }: { viewer: TopbarViewer | null | undefined }) {
   const visible = useScrollChromeVisibility();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <header
@@ -32,16 +34,43 @@ export function AppTopbar({ viewer }: { viewer: TopbarViewer | null | undefined 
       style={{ viewTransitionName: "site-header" }}
     >
       <div className="flex h-(--topbar-h) items-center gap-2 px-3 lg:h-(--topbar-h-lg) lg:px-4">
-        <Logo className="shrink-0 lg:hidden" />
+        <Logo className={`shrink-0 lg:hidden ${searchOpen ? "hidden" : ""}`} />
 
-        <div className="min-w-0 flex-1">
-          <GlobalSearch mode="inline" />
+        {/* Desktop keeps the field open; mobile trades it for the brand until asked. */}
+        <div className={`min-w-0 flex-1 ${searchOpen ? "" : "hidden lg:block"}`}>
+          <GlobalSearch
+            mode="inline"
+            autoFocus={searchOpen}
+            onDismiss={() => setSearchOpen(false)}
+            onNavigate={() => setSearchOpen(false)}
+          />
         </div>
+
+        {searchOpen ? (
+          <button
+            type="button"
+            onClick={() => setSearchOpen(false)}
+            aria-label="ปิดช่องค้นหา"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary) lg:hidden"
+          >
+            <X className="h-4.5 w-4.5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="ค้นหา"
+            aria-expanded={false}
+            className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary) lg:hidden"
+          >
+            <Search className="h-4.5 w-4.5" />
+          </button>
+        )}
 
         <Link
           href="/notifications"
           aria-label="การแจ้งเตือน"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary)"
+          className={`grid h-11 w-11 shrink-0 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary) ${searchOpen ? "hidden lg:grid" : ""}`}
         >
           <Bell className="h-4.5 w-4.5" />
         </Link>

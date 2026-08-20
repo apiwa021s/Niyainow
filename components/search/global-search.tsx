@@ -66,7 +66,18 @@ function saveRecent(query: string) {
   }
 }
 
-export function GlobalSearch({ mode, onNavigate }: { mode: "inline" | "mobile"; onNavigate?: () => void }) {
+export function GlobalSearch({
+  mode,
+  onNavigate,
+  onDismiss,
+  autoFocus,
+}: {
+  mode: "inline" | "mobile";
+  onNavigate?: () => void;
+  /** Escape on an already-closed dropdown asks the host to collapse the field. */
+  onDismiss?: () => void;
+  autoFocus?: boolean;
+}) {
   const router = useRouter();
   const listboxId = useId();
   const [q, setQ] = useState("");
@@ -134,7 +145,13 @@ export function GlobalSearch({ mode, onNavigate }: { mode: "inline" | "mobile"; 
       if (selected) go(selected.href, q.trim().length >= 2 ? q : selected.label);
       else submit();
     }
-    if (event.key === "Escape") { requestVersionRef.current += 1; setOpen(false); setOptions([]); setLoading(false); }
+    if (event.key === "Escape") {
+      if (!open) { onDismiss?.(); return; }
+      requestVersionRef.current += 1;
+      setOpen(false);
+      setOptions([]);
+      setLoading(false);
+    }
   }
 
   function onBlur(event: FocusEvent<HTMLDivElement>) {
@@ -154,6 +171,7 @@ export function GlobalSearch({ mode, onNavigate }: { mode: "inline" | "mobile"; 
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={q}
+        autoFocus={autoFocus}
         onFocus={() => setOpen(true)}
         onChange={(event) => {
           const next = event.target.value.slice(0, 100);
