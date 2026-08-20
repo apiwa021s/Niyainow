@@ -1,6 +1,6 @@
-# Superseded: NiyaiNow Branding & Visual Asset Report
+# NiyaiNow Branding & Visual Asset Report
 
-> เอกสารชุดสีม่วงและพรอมป์ด้านล่างเป็นแนวทางเดิมและไม่ใช่ข้อกำหนดของแบรนด์ที่ใช้งานอยู่ ปัจจุบันใช้ชื่อ NiyaiThai พร้อมระบบสี Akane red, ink และ paper ที่กำหนดใน `app/globals.css`; ห้ามนำพรอมป์เดิมไปสร้าง asset สำหรับ production ใหม่
+> เอกสารนี้เป็น asset direction และ prompt pack รุ่นเก่า ใช้เป็นแนวทางสร้างภาพเท่านั้น ระบบสีและ typography ที่ใช้งานจริงอยู่ใน [visual-system.md](visual-system.md) และ `app/globals.css` ห้ามนำค่าสีจาก prompt รุ่นเก่ามา hard-code ใน production
 
 เอกสารนี้เป็น art direction และ prompt pack สำหรับใช้กับ ChatGPT / image generator เพื่อสร้าง branding asset ของ NiyaiNow ให้ดูเป็น production, จำง่าย, และมีเอกลักษณ์ต่อเนื่องทั้งเว็บไซต์
 
@@ -49,18 +49,19 @@ NiyaiNow คือแพลตฟอร์มอ่านนิยายภา�
 - fake 3D clutter
 - crypto coin visual ที่ดูเหมือนเว็บลงทุน
 
-## 3. Existing Visual Foundation
+## 3. Existing Visual Foundation (archived asset direction)
 
-โปรเจกต์ปัจจุบันมี brand tokens ใน `app/globals.css` และ asset หลักใน `public/Images` อยู่แล้ว จึงควรรักษาแกนเดิมแทนการเปลี่ยนเป็นแบรนด์ใหม่ทั้งหมด
+โปรเจกต์ปัจจุบันมี brand tokens ใน `app/globals.css` และ asset หลักใน `public/Images` อยู่แล้ว สำหรับ UI ให้ยึด [visual-system.md](visual-system.md) เป็นหลัก ส่วน prompt ในเอกสารนี้ใช้กับ asset ที่ต้องการ mood แบบ fantasy/editorial เท่านั้น
 
 สีหลัก:
 
 | Role | Color | Use |
 | --- | --- | --- |
-| Deep Ink | `#2B1257` | header/footer, dark background, premium contrast |
-| Royal Violet | `#6D28FF` | primary CTA, active state, main brand glow |
-| Orchid | `#A855F7` | secondary brand light, hover, soft panels |
-| Novel Pink | `#FF6EC7` | accent, spark, rating/highlight, "new" signal |
+| Ink Charcoal | `#231F2A` | header/footer, dark controls, premium contrast |
+| Primary Pink | `#FF3E8B` | primary CTA, active state, "new" signal |
+| Paper | `#F9F7F2` | calm surfaces and asset backgrounds |
+| Lavender Canvas | `#F1ECF6` | surrounding UI space |
+| Neutral Plum | `#635E6D` | secondary labels, metadata, icon tone |
 | Sky Blue | `#60A5FA` | genre/info accent, cool counterbalance |
 | Paper Surface | `#F7F7FB` | light page background |
 

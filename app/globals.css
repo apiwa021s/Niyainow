@@ -6,10 +6,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * NovelNow — token layer.
+ * NiyaiNow — token layer.
  *
  * Two personalities, one token set (brief §1):
- *   Discovery = dense, dark-first, cover-led. Accent carries CTA/active only.
+ *   Discovery = warm editorial surfaces, cover-led browsing, pink action cues.
  *   Reader    = quiet. Its own --read-* palette; the accent never touches body text.
  *
  * Nothing below may be duplicated inside a component. Components reference
@@ -17,25 +17,26 @@
  */
 :root {
   /* Accent — CTA / active / badge only, target <=10% of any screen (brief §3.2). */
-  --accent-base: #ff6ec7;
-  --accent-hover: #ff87d1;
-  --accent-pressed: #e2489f;
-  --accent-subtle: color-mix(in srgb, var(--accent-base) 8%, transparent);
-  --accent-on: #1a0d16;
+  /* Pink action, ink navigation, paper warmth, lavender UI. */
+  --accent-base: #ff3e8b;
+  --accent-hover: #ff5da0;
+  --accent-pressed: #d9276d;
+  --accent-subtle: color-mix(in srgb, var(--accent-base) 10%, transparent);
+  --accent-on: #ffffff;
 
   /* Neutral ramp, slightly cool. Whole-site structure comes from here. */
-  --neutral-0: #ffffff;
-  --neutral-50: #f7f8fa;
-  --neutral-100: #eef0f4;
-  --neutral-200: #e1e4ea;
-  --neutral-300: #c7ccd6;
-  --neutral-400: #9aa1ae;
-  --neutral-500: #6f7684;
-  --neutral-600: #515865;
-  --neutral-700: #3a404b;
-  --neutral-800: #262a33;
-  --neutral-900: #181b22;
-  --neutral-950: #0e1015;
+  --neutral-0: #fffdfb;
+  --neutral-50: #f9f7f2;
+  --neutral-100: #f1ecf6;
+  --neutral-200: #e6deee;
+  --neutral-300: #cfc5d8;
+  --neutral-400: #a69cab;
+  --neutral-500: #817789;
+  --neutral-600: #635e6d;
+  --neutral-700: #494351;
+  --neutral-800: #312c38;
+  --neutral-900: #231f2a;
+  --neutral-950: #17131b;
 
   /* Semantic — status badges only. */
   --success: #2f9e6b;
@@ -46,11 +47,11 @@
   --brand-primary: var(--accent-base);
   --brand-hover: var(--accent-hover);
   --brand-active: var(--accent-pressed);
-  --brand-emphasis: #c2237f;
-  --brand-ink: var(--neutral-900);
+  --brand-emphasis: #be0058;
+  --brand-ink: #231f2a;
 
-  --bg-base: var(--neutral-50);
-  --bg-elevated: var(--neutral-0);
+  --bg-base: var(--neutral-100);
+  --bg-elevated: #fbf8ff;
   --bg-subtle: var(--neutral-100);
   --bg-recessed: var(--neutral-200);
   --border-color: var(--neutral-200);
@@ -83,16 +84,16 @@
   --sp-20: 80px;
   --sp-24: 96px;
 
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 10px;
-  --r-xl: 14px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
   --r-full: 999px;
 
-  --sh-1: 0 1px 2px rgb(29 27 27 / 0.05);
-  --sh-2: 0 8px 24px rgb(29 27 27 / 0.08);
-  --sh-3: 0 18px 48px rgb(29 27 27 / 0.12);
-  --sh-brand: 0 4px 12px rgb(181 31 50 / 0.18);
+  --sh-1: 0 1px 2px rgb(35 31 42 / 0.06);
+  --sh-2: 0 10px 28px rgb(35 31 42 / 0.09);
+  --sh-3: 0 22px 54px rgb(35 31 42 / 0.14);
+  --sh-brand: 0 6px 16px rgb(190 0 88 / 0.2);
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -133,13 +134,14 @@
   --topbar-h-lg: 56px;
 
   /* Type scale outside the reader — one step tighter than default, on purpose. */
-  --fs-display: 32px;  --lh-display: 40px;
-  --fs-h1: 26px;       --lh-h1: 34px;
+  --fs-display: 36px;  --lh-display: 44px;
+  --fs-h1: 28px;       --lh-h1: 36px;
   --fs-h2: 20px;       --lh-h2: 28px;
   --fs-h3: 17px;       --lh-h3: 24px;
   --fs-body: 15px;     --lh-body: 22px;
   --fs-sm: 13px;       --lh-sm: 18px;
   --fs-xs: 11px;       --lh-xs: 16px;
+  --font-display-family: var(--font-noto-serif-thai), Georgia, serif;
 
   /* Reader defaults live in tokens.css; --reader-* below are chrome aliases. */
   --reader-dim: 0;
@@ -176,11 +178,11 @@
 
   /* Panels sit a step above the page so cards separate by contrast, not by
      extra gutter — that is what keeps the grid dense (brief §5.2). */
-  --bg-base: #101216;
-  --bg-elevated: #171a1f;
-  --bg-subtle: #1d2026;
-  --bg-recessed: #24282f;
-  --border-color: #272b33;
+  --bg-base: #17131b;
+  --bg-elevated: #231f2a;
+  --bg-subtle: #312c38;
+  --bg-recessed: #494351;
+  --border-color: #494351;
   --text-primary: #eceef2;
   --text-secondary: #a3a9b5;
   --text-tertiary: #767d8a;
@@ -276,7 +278,8 @@
   --color-read-border: var(--read-border);
 
   --font-sans: var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-noto-serif-thai), ui-serif, Georgia, serif;
+  --font-display: var(--font-display-family);
+  --font-serif: var(--font-display-family);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --radius-sm: var(--r-sm);
@@ -315,6 +318,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-feature-settings: "liga" 1, "kern" 1;
+  background-image: radial-gradient(circle at 8% 0%, rgb(255 255 255 / 0.7), transparent 30rem);
 
   /* Never "anywhere". Thai has no inter-word spaces, so a free break
      opportunity lands mid-word — or between a base glyph and the vowel that
@@ -329,6 +333,7 @@ h3,
 h4,
 h5,
 h6 {
+  font-family: var(--font-display);
   line-height: 1.35;
   letter-spacing: 0;
   text-wrap: pretty;
@@ -408,6 +413,7 @@ p {
   border: 1px solid var(--border-color);
   background: var(--card);
   box-shadow: var(--shadow-soft);
+  border-radius: var(--r-lg);
 }
 
 .editorial-kicker {
