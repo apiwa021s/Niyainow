@@ -39,7 +39,7 @@ export function MobileBottomNav() {
   const visible = useScrollChromeVisibility();
 
   return (
-    <div className={`sticky bottom-0 z-40 mt-auto transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)] motion-reduce:transition-none lg:translate-y-0 lg:opacity-100 ${visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}`}>
+    <div className={`sticky bottom-0 z-40 mt-auto transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)] motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}`}>
       <ContinueReadingBar />
       <nav
         aria-label="เมนูหลักบนมือถือ"

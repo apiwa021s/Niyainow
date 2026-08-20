@@ -1,6 +1,7 @@
 import Image from "next/image";
-import type { HTMLAttributes } from "react";
+import type { CSSProperties, HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
+import styles from "./brand-wordmark.module.css";
 
 type BrandMarkProps = HTMLAttributes<HTMLSpanElement> & {
   framed?: boolean;
@@ -37,10 +38,27 @@ export function BrandMark({ className, framed = false, ...props }: BrandMarkProp
 }
 
 export function BrandWordmark({ className }: { className?: string }) {
+  let index = 0;
+  const part = (text: string, accent: boolean) =>
+    text.split("").map((char) => (
+      <span
+        key={`${char}-${index}`}
+        className={cn(styles.letter, accent && "text-(--brand-emphasis)")}
+        style={{ "--i": index++ } as CSSProperties}
+      >
+        {char}
+      </span>
+    ));
+
   return (
-    <span className={cn("relative inline-flex items-baseline text-xl font-semibold leading-none tracking-[-0.025em]", className)}>
-      <span>Novel</span>
-      <span className="text-[var(--brand-emphasis)]">Now</span>
+    <span
+      aria-label="NovelNow"
+      className={cn("relative inline-flex items-baseline text-xl font-extrabold leading-none tracking-tight", className)}
+    >
+      <span aria-hidden>
+        {part("Novel", false)}
+        {part("Now", true)}
+      </span>
     </span>
   );
 }
