@@ -52,6 +52,7 @@
 
   --bg-base: var(--neutral-100);
   --bg-elevated: #fbf8ff;
+  --dur-slide: 260ms;
   --bg-subtle: var(--neutral-100);
   --bg-recessed: var(--neutral-200);
   --border-color: var(--neutral-200);
@@ -517,6 +518,74 @@ p {
   }
 }
 
+@keyframes motion-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes motion-slide {
+  from { translate: var(--motion-slide-offset, 0); }
+  to { translate: 0; }
+}
+
+@keyframes motion-rise {
+  from { opacity: 0; translate: 0 12px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+/* Keep persistent chrome anchored while page content changes underneath it. */
+::view-transition-group(site-header),
+::view-transition-group(site-bottom-nav) {
+  z-index: 100;
+  animation: none;
+}
+
+::view-transition-old(site-header),
+::view-transition-new(site-header),
+::view-transition-old(site-bottom-nav),
+::view-transition-new(site-bottom-nav) {
+  animation: none;
+}
+
+::view-transition-old(.nav-forward) {
+  --motion-slide-offset: -32px;
+  animation: var(--dur-fast) var(--ease-out) both motion-fade reverse,
+    var(--dur-slide) var(--ease-out) both motion-slide reverse;
+}
+
+::view-transition-new(.nav-forward) {
+  --motion-slide-offset: 32px;
+  animation: var(--dur-slide) var(--ease-out) both motion-fade,
+    var(--dur-slide) var(--ease-out) both motion-slide;
+}
+
+::view-transition-old(.nav-back) {
+  --motion-slide-offset: 32px;
+  animation: var(--dur-fast) var(--ease-out) both motion-fade reverse,
+    var(--dur-slide) var(--ease-out) both motion-slide reverse;
+}
+
+::view-transition-new(.nav-back) {
+  --motion-slide-offset: -32px;
+  animation: var(--dur-slide) var(--ease-out) both motion-fade,
+    var(--dur-slide) var(--ease-out) both motion-slide;
+}
+
+.tap-target {
+  transition: transform var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.tap-target:active {
+  transform: scale(0.97);
+}
+
+.motion-sheet,
+.motion-enter {
+  animation: motion-rise var(--dur-base) var(--ease-out) both;
+}
+
 /* ==========================================================================
    Reading surface. Everything here answers to tokens.css.
    ========================================================================== */
@@ -687,5 +756,21 @@ p {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 1ms !important;
+  }
+
+  .tap-target:active {
+    transform: none;
+  }
+
+  .motion-sheet,
+  .motion-enter {
+    animation: none;
+  }
+
+  ::view-transition-old(.nav-forward),
+  ::view-transition-new(.nav-forward),
+  ::view-transition-old(.nav-back),
+  ::view-transition-new(.nav-back) {
+    animation: none;
   }
 }

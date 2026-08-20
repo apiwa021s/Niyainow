@@ -25,7 +25,7 @@ const sizes: Record<ButtonSize, string> = {
 };
 
 const base =
-  "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-[6px] font-semibold transition-[background-color,box-shadow,filter] duration-[var(--dur-fast)] ease-[var(--ease-out)] disabled:pointer-events-none disabled:opacity-50";
+  "tap-target relative inline-flex shrink-0 items-center justify-center gap-2 rounded-[6px] font-semibold transition-[background-color,box-shadow,filter,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] disabled:pointer-events-none disabled:opacity-50";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;

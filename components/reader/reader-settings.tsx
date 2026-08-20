@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Minus, Plus, RotateCcw, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
 import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import { cn } from "@/lib/utils";
 import {
@@ -142,6 +142,8 @@ export function ReaderSettings({
   const { prefs, fontSizePx, canGrow, canShrink, setPrefs, resetPrefs, stepFontSize } = useReaderPrefs({ signedIn });
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const dragStartY = useRef<number | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
 
   // focus trap อย่างง่าย + ปิดด้วย Esc (ส่วนที่ 7)
   useEffect(() => {
@@ -185,6 +187,24 @@ export function ReaderSettings({
 
   if (!open) return null;
 
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    dragStartY.current = event.clientY;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null) return;
+    setDragOffset(Math.max(0, event.clientY - dragStartY.current));
+  };
+
+  const endDrag = () => {
+    if (dragStartY.current === null) return;
+    dragStartY.current = null;
+    if (dragOffset > 96) onClose();
+    setDragOffset(0);
+  };
+
   return (
     <>
       <div
@@ -200,13 +220,21 @@ export function ReaderSettings({
         className={cn(
           "fixed z-50 flex flex-col gap-5 overflow-y-auto bg-[var(--reader-bg)] text-[var(--reader-text)] shadow-[var(--sh-3)]",
           // mobile: bottom sheet
-          "inset-x-0 bottom-0 max-h-[85vh] rounded-t-[10px] px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3",
+          "motion-sheet inset-x-0 bottom-0 max-h-[85vh] rounded-t-[10px] px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3",
           // desktop: popover มุมขวาบน
           "sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-16 sm:max-h-[80vh] sm:w-[380px] sm:rounded-[8px] sm:p-5"
         )}
+        style={{ transform: dragOffset ? `translateY(${dragOffset}px)` : undefined }}
       >
         {/* drag handle ของ bottom sheet */}
-        <div aria-hidden className="mx-auto h-1 w-10 shrink-0 rounded-full bg-current/25 sm:hidden" />
+        <div
+          aria-hidden
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          className="mx-auto h-1 w-10 shrink-0 touch-none rounded-full bg-current/25 sm:hidden"
+        />
 
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">ตั้งค่าการอ่าน</h2>

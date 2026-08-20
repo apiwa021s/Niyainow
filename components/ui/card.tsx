@@ -10,7 +10,7 @@ export function Card({
     <div
       className={cn(
         "rounded-[10px] border border-border bg-card text-card-foreground",
-        interactive && "transition-[border-color,box-shadow] duration-[var(--dur-base)] hover:border-[color-mix(in_srgb,var(--brand-primary)_28%,var(--border))] hover:shadow-[var(--sh-1)]",
+        interactive && "tap-target transition-[border-color,box-shadow,transform] duration-[var(--dur-base)] hover:border-[color-mix(in_srgb,var(--brand-primary)_28%,var(--border))] hover:shadow-[var(--sh-1)]",
         className
       )}
       {...props}

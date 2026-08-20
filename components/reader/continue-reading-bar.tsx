@@ -28,11 +28,11 @@ export function ContinueReadingBar() {
   const percent = Math.max(0, Math.min(100, Math.round(progress.progressPercent)));
 
   return (
-    <div className="border-t border-border bg-surface px-2 py-1.5">
+    <div className="motion-enter border-t border-border bg-surface px-2 py-1.5">
       <div className="flex items-center gap-2.5">
         <Link
           href={`/novel/${progress.novelSlug}/chapter/${progress.chapterNumber}`}
-          className="flex min-w-0 flex-1 items-center gap-2.5"
+          className="tap-target flex min-w-0 flex-1 items-center gap-2.5"
         >
           <span className="relative aspect-[2/3] w-8 shrink-0 overflow-hidden rounded-(--r-sm) bg-surface-recessed">
             <Image src={progress.cover} alt="" fill sizes="32px" className="object-cover" />

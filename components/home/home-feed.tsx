@@ -11,6 +11,7 @@ import {
   Trophy,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { ViewTransition } from "react";
 
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { TrendingTicker } from "@/components/home/trending-ticker";
@@ -42,7 +43,8 @@ function HomeCoverTile({ novel }: { novel: Novel }) {
 
   return (
     <article className="group min-w-0">
-      <Link href={`/novel/${novel.slug}`} className="block">
+      <Link href={`/novel/${novel.slug}`} transitionTypes={["nav-forward"]} className="block">
+        <ViewTransition name={`cover-${novel.slug}`} share="morph" default="none">
         <div className="cover-tile rounded-(--r-md)">
           <Image
             src={novel.cover}
@@ -65,6 +67,7 @@ function HomeCoverTile({ novel }: { novel: Novel }) {
             </p>
           </div>
         </div>
+        </ViewTransition>
       </Link>
     </article>
   );
@@ -145,6 +148,7 @@ function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
       <div className="relative grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:h-[clamp(240px,26vw,340px)] sm:grid-cols-[minmax(0,1fr)_clamp(128px,14vw,190px)] sm:items-center sm:gap-6 sm:p-5 lg:gap-8 lg:p-6">
         <Link
           href={`/novel/${novel.slug}`}
+          transitionTypes={["nav-forward"]}
           className="relative aspect-2/3 overflow-hidden rounded-(--r-md) bg-surface-recessed shadow-(--sh-2) ring-1 ring-black/10 sm:order-2 sm:w-full sm:ring-white/15"
         >
           <Image

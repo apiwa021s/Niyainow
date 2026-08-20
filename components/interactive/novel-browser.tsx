@@ -386,7 +386,7 @@ export function NovelBrowser({
       {sheetOpen ? (
         <div className="fixed inset-0 z-50">
           <button type="button" className="absolute inset-0 h-full w-full bg-black/50" onClick={() => setSheetOpen(false)} aria-label="ปิดตัวกรอง" />
-          <div id="browse-filter-dialog" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="browse-filter-title" className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[14px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border">
+          <div id="browse-filter-dialog" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="browse-filter-title" className="motion-sheet absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[14px] bg-background p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-20 sm:max-h-[calc(100vh-6rem)] sm:w-[520px] sm:rounded-[8px] sm:border sm:border-border">
             <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border sm:hidden" />
             <div className="mb-4 flex items-center justify-between gap-2">
               <div><h2 id="browse-filter-title" className="text-xl font-semibold">ตัวกรอง</h2><p className="text-xs text-muted-foreground">เลือกเท่าที่จำเป็นเพื่อจำกัดผลลัพธ์</p></div>

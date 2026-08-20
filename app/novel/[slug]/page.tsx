@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { ViewTransition } from "react";
 
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
 import {
@@ -74,6 +75,11 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
   const startLabel = firstChapter ? "เริ่มอ่าน" : "ดูสารบัญ";
 
   return (
+    <ViewTransition
+      enter={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "none" }}
+      exit={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "none" }}
+      default="none"
+    >
     <PageShell className="pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-24">
       <PublicViewTracker slug={novel.slug} />
       <JsonLd
@@ -162,5 +168,6 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         <SimilarNovels novels={detailSections.similar} />
       </div>
     </PageShell>
+    </ViewTransition>
   );
 }

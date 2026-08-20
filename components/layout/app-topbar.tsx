@@ -24,7 +24,10 @@ export type TopbarViewer = {
  */
 export function AppTopbar({ viewer }: { viewer: TopbarViewer | null | undefined }) {
   return (
-    <header className="sticky top-0 z-40 bg-(--bg-base)/92 backdrop-blur-md">
+    <header
+      className="sticky top-0 z-40 bg-(--bg-base)/92 backdrop-blur-md"
+      style={{ viewTransitionName: "site-header" }}
+    >
       <div className="flex h-(--topbar-h) items-center gap-2 px-3 lg:h-(--topbar-h-lg) lg:px-4">
         <Logo className="shrink-0 lg:hidden" />
 

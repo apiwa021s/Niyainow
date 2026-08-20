@@ -40,6 +40,22 @@ NiyaiNow ใช้ภาพลักษณ์แบบ **editorial reading loung
 - Cover ใช้ artwork เป็นจุดเด่น การ hover เปลี่ยนเป็น accent ring โดยไม่ scale จน layout ขยับ
 - ตรวจที่ viewport 320px และ desktop wide ก่อนส่งงานทุกครั้ง
 
+## Motion
+
+- ใช้ React View Transitions และ CSS เท่านั้น ไม่เพิ่ม motion dependency ใน UI
+- Route transition ใช้ slide ระยะสั้น 32px และไม่เกิน 260ms เพื่อบอกทิศทางโดยไม่
+	ทำให้หน้ารู้สึกหนัก
+- Header และ mobile bottom navigation เป็น spatial anchor จึงไม่เลื่อนตาม page
+- ปกนิยายสามารถใช้ shared morph ระหว่าง card และหน้า detail ได้ โดยใช้ชื่อ
+	`cover-{slug}` เดียวกัน
+- ปุ่ม, card ที่กดได้ และแถบอ่านต่อใช้ `.tap-target` สำหรับ tactile press feedback
+- Sheet ใช้ `.motion-sheet` และรองรับลากปิดใน reader settings; gesture ต้องไม่
+	แย่ง focus trap, Escape หรือการปิดผ่าน overlay
+- เนื้อหาบทอ่านไม่ใช้ entrance animation หรือ route slide ตามกฎใน
+	`docs/TYPOGRAPHY.md`
+- ทุก motion ต้องมี reduced-motion fallback และขยับด้วย `transform`/`opacity`
+	เท่านั้นเพื่อป้องกัน layout shift
+
 ## Change Checklist
 
 - [ ] แก้ token ใน `app/globals.css` ก่อนแก้ component

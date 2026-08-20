@@ -34,6 +34,7 @@ const nav = [
 /** Five slots (brief §6.1), with the floating resume bar riding above it. */
 export function MobileBottomNav() {
   const pathname = usePathname() ?? "";
+  const activeIndex = Math.max(0, nav.findIndex((item) => item.match(pathname)));
 
   return (
     <div className="sticky bottom-0 z-40 mt-auto lg:hidden">
@@ -42,7 +43,12 @@ export function MobileBottomNav() {
         aria-label="เมนูหลักบนมือถือ"
         className="bg-[var(--bg-base)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(0,0,0,0.08)]"
       >
-        <ul className="grid h-16 grid-cols-5">
+        <ul className="relative grid h-16 grid-cols-5" style={{ viewTransitionName: "site-bottom-nav" }}>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute left-0 top-0 h-1 w-1/5 rounded-full bg-accent-base transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)]"
+            style={{ transform: `translateX(${activeIndex * 100}%)` }}
+          />
           {nav.map((item) => {
             const active = item.match(pathname);
             const Icon = item.icon;
@@ -52,7 +58,7 @@ export function MobileBottomNav() {
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex h-full min-w-0 flex-col items-center justify-center gap-1 px-1 transition-colors",
+                    "tap-target relative flex h-full min-w-0 flex-col items-center justify-center gap-1 px-1 transition-colors",
                     active ? "text-accent-base" : "text-(--text-tertiary) hover:text-(--text-primary)",
                   )}
                 >

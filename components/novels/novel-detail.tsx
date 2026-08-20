@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ViewTransition } from "react";
 import { BookOpen, ListOrdered, Star } from "lucide-react";
 
 import {
@@ -59,6 +60,7 @@ export function NovelHero({
 
       <div className="relative grid gap-7 md:grid-cols-[200px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[228px_minmax(0,1fr)_248px] xl:gap-10">
         <div className="mx-auto w-[156px] sm:w-[176px] md:mx-0 md:w-full">
+          <ViewTransition name={`cover-${novel.slug}`} share="morph" default="none">
           <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted shadow-[var(--sh-2)]">
             <Image
               src={novel.cover}
@@ -69,6 +71,7 @@ export function NovelHero({
               className="object-cover"
             />
           </div>
+          </ViewTransition>
         </div>
 
         <div className="min-w-0 text-center md:text-left">
