@@ -1639,6 +1639,8 @@ export function StudioPageStateBar({
 export function StudioHomeModules() {
   const activeStories = stories.filter((story) => story.state === "writing").slice(0, 3);
   const draftStories = stories.filter((story) => story.draftTitle);
+  const heroDraft = draftStories[0];
+  const heroLatest = activeStories[0];
   const topPreference = fanPreferences[0];
 
   return (
@@ -1647,14 +1649,28 @@ export function StudioHomeModules() {
         <section className={cn(sectionCard, "overflow-hidden")}>
           <div className="bg-[linear-gradient(135deg,rgba(255,59,149,0.16),rgba(232,48,165,0.05),rgba(139,44,145,0.09))] p-5 sm:p-6">
             <p className="text-sm text-(--text-secondary)">สวัสดี {writerProfile.name} ✦</p>
-            <h2 className="mt-1 text-xl font-semibold sm:text-2xl">ทำต่อจากที่ค้างไว้</h2>
-            <p className="mt-3 text-sm font-semibold text-[var(--brand-emphasis)]">EP.39</p>
-            <p className="text-lg font-semibold">สิ่งที่เขาไม่ควรพูด</p>
-            <p className="mt-1 text-xs tabular-nums text-(--text-tertiary)">2,842 คำ</p>
-            <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/2668/edit" className="mt-4">
-              เขียนต่อ
-              <ArrowRight aria-hidden className="h-4 w-4" />
-            </ButtonLink>
+            {heroDraft ? (
+              <>
+                <h2 className="mt-1 text-xl font-semibold sm:text-2xl">ทำต่อจากที่ค้างไว้</h2>
+                <p className="mt-3 text-lg font-semibold">{heroDraft.draftTitle}</p>
+                <p className="mt-1 text-xs tabular-nums text-(--text-tertiary)">
+                  {whole.format(heroDraft.draftWords)} คำ · บันทึกล่าสุด {heroDraft.updatedAt}
+                </p>
+                <ButtonLink href={`/studio/works/${heroDraft.slug}/chapters/2668/edit`} className="mt-4">
+                  เขียนต่อ
+                  <ArrowRight aria-hidden className="h-4 w-4" />
+                </ButtonLink>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-1 text-xl font-semibold sm:text-2xl">พร้อมสำหรับตอนต่อไปแล้ว</h2>
+                {heroLatest ? <p className="mt-2 text-sm text-(--text-secondary)">ตอนล่าสุด {heroLatest.latestEp}</p> : null}
+                <ButtonLink href={heroLatest ? `/studio/works/${heroLatest.slug}/chapters/new` : "/studio/works/new"} className="mt-4">
+                  <Plus aria-hidden className="h-4 w-4" />
+                  เขียนตอนใหม่
+                </ButtonLink>
+              </>
+            )}
           </div>
         </section>
 

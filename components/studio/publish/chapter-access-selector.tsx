@@ -1,13 +1,15 @@
+import Link from "next/link";
+
 import { CHAPTER_PRICES } from "@/lib/studio/master-data";
 import { cn } from "@/lib/utils";
 
-export type ChapterAccess = "free" | "paid";
+export type ChapterAccess = "free" | "paid" | "early_access" | "members_only";
 
 /**
- * Free/paid + the coin price grid (spec §17). The "usual price" hint reads
- * off the story's own pricing default (components/studio/settings) so a
- * writer publishing their 400th chapter never has to re-decide a price
- * they've already settled on.
+ * Free / Coins / Early Access / Members-only (spec §27). Early Access and
+ * Members-only piggyback on the story's Membership settings rather than
+ * asking the writer to re-decide a price here — this picker only records
+ * which of the four rules applies to this one chapter.
  */
 export function ChapterAccessSelector({
   access,
@@ -30,6 +32,8 @@ export function ChapterAccessSelector({
           [
             { value: "free" as const, label: "อ่านฟรี", hint: "ทุกคนเปิดอ่านได้ทันที" },
             { value: "paid" as const, label: "ใช้ Coins", hint: "ผู้อ่านต้องปลดล็อกด้วยเหรียญก่อนอ่าน" },
+            { value: "early_access" as const, label: "สมาชิกก่อน", hint: "สมาชิกอ่านได้ก่อนตามจำนวนตอนที่ตั้งไว้ใน Early Access จากนั้นเปิดให้ทุกคน" },
+            { value: "members_only" as const, label: "สมาชิกเท่านั้น", hint: "เฉพาะสมาชิกของคุณเท่านั้นที่อ่านตอนนี้ได้" },
           ]
         ).map((option) => (
           <label
@@ -80,6 +84,17 @@ export function ChapterAccessSelector({
             <p className="text-xs text-(--text-tertiary)">ราคาที่ใช้เป็นประจำ · {usualPrice} Coins</p>
           ) : null}
         </div>
+      ) : null}
+
+      {access === "early_access" || access === "members_only" ? (
+        <p className="rounded-(--r-md) bg-muted/40 p-3 text-xs leading-6 text-(--text-secondary)">
+          {access === "early_access"
+            ? "จำนวนตอนที่สมาชิกอ่านก่อนใช้ค่าที่ตั้งไว้ใน Early Access"
+            : "ตอนนี้จะเป็นสิทธิพิเศษของสมาชิกแบบไม่มีกำหนดเปิดให้อ่านฟรี"}{" "}
+          <Link href="/studio/membership" className="font-medium text-[var(--brand-emphasis)] underline-offset-4 hover:underline">
+            ตั้งค่า Membership
+          </Link>
+        </p>
       ) : null}
     </div>
   );

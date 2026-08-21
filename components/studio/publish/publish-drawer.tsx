@@ -63,7 +63,14 @@ export function PublishDrawer({
   const showFreeRec = chapterNumber === 1 && access === "paid" && isNewStory && !dismissedFreeRec;
   const effectiveHeat = heatOverrideEnabled ? heatOverrideLevel ?? work.heatLevel : work.heatLevel;
 
-  const priceLabel = access === "free" ? "อ่านฟรี" : `${price} Coins`;
+  const priceLabel =
+    access === "free"
+      ? "อ่านฟรี"
+      : access === "paid"
+        ? `${price} Coins`
+        : access === "early_access"
+          ? "สมาชิกอ่านก่อน"
+          : "สมาชิกเท่านั้น";
   const heatLabel = (
     <>
       <Flame aria-hidden className="h-3.5 w-3.5" />

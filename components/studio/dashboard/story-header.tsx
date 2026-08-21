@@ -2,16 +2,17 @@
 
 import {
   ArrowLeft,
+  Archive,
   BookMarked,
   Check,
   CircleOff,
   Coins,
-  Eye,
   ExternalLink,
   MoreHorizontal,
   Pencil,
   Plus,
   Share2,
+  Trash2,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,7 @@ import type { StudioWork } from "@/components/studio/mock-data";
 import { workStatusLabels } from "@/components/studio/mock-data";
 import { StatusPill } from "@/components/studio/studio-ui";
 import { ButtonLink } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 
 const menuItems = (work: StudioWork) =>
@@ -28,11 +30,11 @@ const menuItems = (work: StudioWork) =>
     { label: "แก้ไขข้อมูลเรื่อง", href: `/studio/works/${work.slug}`, icon: Pencil },
     { label: "จัดการราคา", href: `/studio/works/${work.slug}/pricing`, icon: Coins },
     { label: "ดูรายได้", href: `/studio/works/${work.slug}/earnings`, icon: Wallet },
-    { label: "ดูตัวอย่างหน้าเรื่อง", href: `/novel/${work.slug}`, icon: Eye },
   ] as const;
 
 export function StoryHeader({ work }: { work: StudioWork }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const status = workStatusLabels[work.status];
@@ -78,6 +80,11 @@ export function StoryHeader({ work }: { work: StudioWork }) {
   function markComplete() {
     setMenuOpen(false);
     toast({ tone: "success", message: `ตั้ง "${work.title}" เป็นจบแล้ว` });
+  }
+
+  function archive() {
+    setMenuOpen(false);
+    toast({ tone: "success", message: `เก็บถาวร "${work.title}" แล้ว` });
   }
 
   return (
@@ -175,12 +182,44 @@ export function StoryHeader({ work }: { work: StudioWork }) {
                     <Check aria-hidden className="h-4 w-4 text-(--text-tertiary)" />
                     ตั้งเป็นจบแล้ว
                   </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={archive}
+                    className="flex min-h-11 w-full items-center gap-2.5 rounded-(--r-md) px-3 text-left text-sm hover:bg-muted"
+                  >
+                    <Archive aria-hidden className="h-4 w-4 text-(--text-tertiary)" />
+                    เก็บถาวร
+                  </button>
+                  <hr className="my-1 border-border" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setConfirmDelete(true);
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 rounded-(--r-md) px-3 text-left text-sm text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 aria-hidden className="h-4 w-4" />
+                    ลบเรื่อง
+                  </button>
                 </div>
               ) : null}
             </div>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => toast({ tone: "success", message: `ลบ "${work.title}" แล้ว` })}
+        title={`ลบ "${work.title}"?`}
+        description="ตอนทั้งหมดของเรื่องนี้จะหายไปถาวร และผู้อ่านจะไม่เห็นเรื่องนี้อีก"
+        confirmLabel="ลบเรื่อง"
+        tone="danger"
+      />
     </header>
   );
 }

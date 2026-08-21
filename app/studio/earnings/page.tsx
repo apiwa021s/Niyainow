@@ -8,6 +8,7 @@ import { EarningsEmptyState } from "@/components/studio/earnings/earnings-empty-
 import { EarningsSummaryCards } from "@/components/studio/earnings/earnings-summary-cards";
 import { RevenueShareCard } from "@/components/studio/earnings/revenue-share-card";
 import { StoryEarningsList } from "@/components/studio/earnings/story-earnings-list";
+import { ResumeWritingCard } from "@/components/studio/writer-studio-components";
 import {
   creatorEarningsAccount,
   creatorEarningsDaily,
@@ -76,7 +77,10 @@ export default function StudioEarningsPage() {
 
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <StoryEarningsList stories={storyEarnings} />
-                <RevenueShareCard current={currentRevenueContract} history={revenueContractHistory} />
+                <div className="grid content-start gap-4">
+                  <RevenueShareCard current={currentRevenueContract} history={revenueContractHistory} />
+                  <ResumeWritingCard compactMode />
+                </div>
               </div>
             </>
           )}
