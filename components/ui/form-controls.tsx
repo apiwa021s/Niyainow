@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import type { InputHTMLAttributes, LabelHTMLAttributes, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const fieldBase =
@@ -32,7 +32,7 @@ export function Textarea({
   className,
   invalid,
   ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & { invalid?: boolean }) {
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & { invalid?: boolean; ref?: Ref<HTMLTextAreaElement> }) {
   return (
     <textarea
       aria-invalid={invalid || undefined}
