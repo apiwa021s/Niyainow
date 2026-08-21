@@ -35,6 +35,8 @@ export function StatTile({
   unit,
   change,
   hint,
+  tone = "audience",
+  changeNote,
 }: {
   icon: LucideIcon;
   label: string;
@@ -43,9 +45,19 @@ export function StatTile({
   /** Percentage versus the previous period. Omit when there is nothing to compare. */
   change?: number;
   hint?: string;
+  /**
+   * "money" keeps the red/green reading, because a drop in income is a fact the
+   * writer needs to act on. "audience" — reads, follows, unlocks — swings with
+   * the calendar and the site's own promotion, so a red arrow there only punishes
+   * someone for something they did not do. Those go grey.
+   */
+  tone?: "money" | "audience";
+  /** Shown on hover/focus of a negative delta to explain the swing. */
+  changeNote?: string;
 }) {
   const up = (change ?? 0) >= 0;
   const Arrow = up ? ArrowUpRight : ArrowDownRight;
+  const punish = tone === "money";
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
@@ -59,9 +71,12 @@ export function StatTile({
       </p>
       {change !== undefined ? (
         <p
+          title={!up && changeNote ? changeNote : undefined}
           className={cn(
             "mt-2 inline-flex items-center gap-1 text-xs font-semibold",
-            up ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
+            up && punish && "text-emerald-600 dark:text-emerald-400",
+            !up && punish && "text-destructive",
+            !punish && "text-(--text-secondary)",
           )}
         >
           <Arrow aria-hidden className="h-3.5 w-3.5" />
@@ -70,9 +85,20 @@ export function StatTile({
           <span className="font-normal text-(--text-tertiary)">เทียบงวดก่อน</span>
         </p>
       ) : null}
+      {!up && changeNote ? <p className="mt-1.5 text-xs leading-5 text-(--text-tertiary)">{changeNote}</p> : null}
       {hint ? <p className="mt-2 text-xs leading-5 text-(--text-tertiary)">{hint}</p> : null}
     </div>
   );
+}
+
+/**
+ * Waiting on a review is not the writer's fault, so it never turns into a
+ * warning colour. Past the usual window the copy switches from a promise we
+ * can no longer keep to a plain acknowledgement that the queue has it.
+ */
+export function reviewWaitLabel(hoursWaiting: number | undefined) {
+  if (hoursWaiting === undefined) return "รอตรวจ · ปกติภายใน 24 ชม.";
+  return hoursWaiting > 24 ? "กำลังตรวจ · ทีมงานได้รับแล้ว" : "รอตรวจ · ปกติภายใน 24 ชม.";
 }
 
 export function StatusPill({ label, dot }: { label: string; dot: string }) {

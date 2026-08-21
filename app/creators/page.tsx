@@ -235,7 +235,7 @@ export default function CreatorsPage() {
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <p className="rounded-xl border border-border bg-card p-5 text-sm leading-7 text-(--text-secondary)">
-            <strong className="font-semibold text-(--text-primary)">ยอดขั้นต่ำ 500 บาท</strong> — หากไม่ถึง
+            <strong className="font-semibold text-(--text-primary)">ยอดขั้นต่ำ 100 บาท</strong> — หากไม่ถึง
             จะทบไปงวดถัดไปโดยอัตโนมัติ ไม่มีวันหมดอายุ
           </p>
           <p className="rounded-xl border border-border bg-card p-5 text-sm leading-7 text-(--text-secondary)">

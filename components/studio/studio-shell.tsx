@@ -1,20 +1,49 @@
 "use client";
 
-import { BookMarked, Coins, ExternalLink, LayoutDashboard, Menu, Settings, Wallet, X } from "lucide-react";
+import {
+  BookA,
+  BookMarked,
+  CalendarDays,
+  Coins,
+  Columns3,
+  ExternalLink,
+  GraduationCap,
+  LayoutDashboard,
+  Menu,
+  MessagesSquare,
+  Settings,
+  UsersRound,
+  Wallet,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Logo } from "@/components/layout/logo";
 import { studioProfile } from "@/components/studio/mock-data";
+import { StudioSearch } from "@/components/studio/studio-search";
 import { cn } from "@/lib/utils";
 
-const nav = [
-  { href: "/studio", label: "ภาพรวม", icon: LayoutDashboard, exact: true },
-  { href: "/studio/works", label: "ผลงานของฉัน", icon: BookMarked, exact: false },
-  { href: "/studio/earnings", label: "รายได้", icon: Coins, exact: false },
-  { href: "/studio/payouts", label: "การจ่ายเงิน", icon: Wallet, exact: false },
-  { href: "/studio/settings", label: "ตั้งค่านักเขียน", icon: Settings, exact: false },
+/** Grouped by what the writer is doing: making the work, getting paid, learning. */
+const navGroups = [
+  [
+    { href: "/studio", label: "ภาพรวม", icon: LayoutDashboard, exact: true },
+    { href: "/studio/works", label: "ผลงานของฉัน", icon: BookMarked, exact: false },
+    { href: "/studio/workroom", label: "ห้องแปล", icon: Columns3, exact: false },
+    { href: "/studio/schedule", label: "ตารางลง", icon: CalendarDays, exact: false },
+    { href: "/studio/readers", label: "ผู้อ่าน", icon: MessagesSquare, exact: false },
+    { href: "/studio/glossary", label: "คลังคำ", icon: BookA, exact: false },
+    { href: "/studio/team", label: "ทีม", icon: UsersRound, exact: false },
+  ],
+  [
+    { href: "/studio/earnings", label: "รายได้", icon: Coins, exact: false },
+    { href: "/studio/payouts", label: "การจ่ายเงิน", icon: Wallet, exact: false },
+  ],
+  [
+    { href: "/studio/academy", label: "Academy", icon: GraduationCap, exact: false },
+    { href: "/studio/settings", label: "ตั้งค่านักเขียน", icon: Settings, exact: false },
+  ],
 ] as const;
 
 function isActive(href: string, pathname: string, exact?: boolean) {
@@ -23,28 +52,35 @@ function isActive(href: string, pathname: string, exact?: boolean) {
 
 function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
-    <nav aria-label="เมนูสตูดิโอนักเขียน" className="grid gap-0.5 p-3">
-      {nav.map((item) => {
-        const active = isActive(item.href, pathname, item.exact);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex min-h-11 items-center gap-3 rounded-(--r-md) px-3 text-sm transition-colors duration-[var(--dur-fast)]",
-              active
-                ? "bg-accent-subtle font-semibold text-[var(--brand-emphasis)]"
-                : "font-medium text-(--text-secondary) hover:bg-muted hover:text-(--text-primary)",
-            )}
-          >
-            <Icon aria-hidden className="h-4.5 w-4.5 shrink-0" />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav aria-label="เมนูสตูดิโอนักเขียน" className="p-3">
+      {navGroups.map((group, index) => (
+        <div key={group[0].href}>
+          {index > 0 ? <hr className="my-2 border-border" /> : null}
+          <div className="grid gap-0.5">
+            {group.map((item) => {
+              const active = isActive(item.href, pathname, item.exact);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-11 items-center gap-3 rounded-(--r-md) px-3 text-sm transition-colors duration-[var(--dur-fast)]",
+                    active
+                      ? "bg-accent-subtle font-semibold text-[var(--brand-emphasis)]"
+                      : "font-medium text-(--text-secondary) hover:bg-muted hover:text-(--text-primary)",
+                  )}
+                >
+                  <Icon aria-hidden className="h-4.5 w-4.5 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 }
@@ -144,7 +180,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="truncate font-semibold lg:hidden">สตูดิโอนักเขียน</span>
+            <StudioSearch />
             <Link
               href="/"
               className="ml-auto inline-flex h-11 items-center gap-1.5 rounded-(--r-md) px-3 text-sm font-medium text-(--text-secondary) hover:bg-muted hover:text-(--text-primary)"

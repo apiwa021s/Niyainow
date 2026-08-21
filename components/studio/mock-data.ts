@@ -50,7 +50,7 @@ export const studioSummary = {
   followersChange: 2.6,
   nextPayoutDate: "15 กันยายน 2569",
   pendingBalance: 18_430.5,
-  minimumPayout: 500,
+  minimumPayout: 100,
 };
 
 export const studioWorks: readonly StudioWork[] = [
@@ -134,6 +134,51 @@ export const studioTasks = [
   { label: "เพิ่มเรื่องย่อให้ “บันทึกเมืองเงียบ” ก่อนส่งตรวจ", href: "/studio/works/quiet-city-diary", done: false },
   { label: "อ่านและยอมรับข้อเสนอส่วนแบ่งรายได้ v1.0", href: "/creators", done: true },
 ] as const;
+
+/**
+ * Starter mode. A brand-new writer has nothing to show in the four money
+ * tiles, and four zeroes read as a verdict on them. These four measure what
+ * they actually control this week instead.
+ */
+export const studioStarterStats = {
+  streakDays: 12,
+  charactersThisMonth: 18_400,
+  charactersChange: 22,
+  queuedChapters: 3,
+  queueCoversUntil: "24 ส.ค.",
+  latestMilestone: "มีคนอ่านจบตอนที่ 3 แล้ว",
+};
+
+/** Drives the starter-mode switch: no meaningful money and almost no audience yet. */
+export const studioIsNewCreator = studioSummary.earnings < 100 && studioSummary.followers < 10;
+
+/** Hours a work has been sitting in review, for the waiting-state copy. */
+export const studioReviewHours: Record<string, number> = {
+  "system-of-a-thousand-lives": 31,
+};
+
+export const studioSearchIndex = {
+  works: [
+    { label: "เกิดใหม่เป็นลิโป้", meta: "2,666 ตอน", href: "/studio/works/reborn-as-a-warlord" },
+    { label: "ปรุงโอสถสวรรค์ สยบสัตว์เทพ", meta: "412 ตอน", href: "/studio/works/alchemy-empress" },
+    { label: "ระบบนอบชีวิตตอนต่อไป", meta: "รอตรวจ", href: "/studio/works/system-of-a-thousand-lives" },
+    { label: "บันทึกเมืองเงียบ", meta: "ฉบับร่าง", href: "/studio/works/quiet-city-diary" },
+    { label: "ดาบเดียวข้ามภพ", meta: "ฉบับร่าง", href: "/studio/works" },
+  ],
+  chapters: [
+    { label: "ตอนที่ 2666 · ศึกชิงเมืองด่านเหนือ", meta: "เผยแพร่แล้ว", href: "/studio/works/reborn-as-a-warlord" },
+    { label: "ตอนที่ 2667 · เงาที่ประตูเมือง", meta: "ตั้งเวลา 22 ส.ค.", href: "/studio/works/reborn-as-a-warlord" },
+    { label: "ตอนที่ 2668 · (ยังไม่ตั้งชื่อ)", meta: "ร่าง", href: "/studio/works/reborn-as-a-warlord" },
+    { label: "ตอนที่ 401 · เตาหลอมกลางพายุ", meta: "เผยแพร่แล้ว", href: "/studio/works/alchemy-empress" },
+    { label: "ตอนที่ 24 · ระบบเปิดใช้งาน", meta: "รอตรวจ", href: "/studio/works/system-of-a-thousand-lives" },
+  ],
+  glossary: [
+    { label: "จ้าวหลิงเอ๋อร์ · 赵灵儿", meta: "ตัวละคร", href: "/studio/glossary" },
+    { label: "สำนักเมฆขาว · 白云宗", meta: "สถานที่", href: "/studio/glossary" },
+    { label: "วิชาฝ่ามือมังกร · 龙掌功", meta: "วิชา/พลัง", href: "/studio/glossary" },
+    { label: "ธาตุหยิน-หยาง · 阴阳", meta: "ศัพท์เฉพาะ", href: "/studio/glossary" },
+  ],
+} as const;
 
 export const workStatusLabels: Record<StudioWorkStatus, { label: string; dot: string }> = {
   draft: { label: "ฉบับร่าง", dot: "bg-[var(--text-tertiary)]" },

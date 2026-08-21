@@ -1,15 +1,18 @@
-import { ArrowRight, BookMarked, CheckCircle2, Circle, Coins, Eye, Plus, Unlock, Users } from "lucide-react";
+import { ArrowRight, BookMarked, CheckCircle2, Circle, Plus } from "lucide-react";
 import Link from "next/link";
 
+import { DashboardStats } from "@/components/studio/dashboard-stats";
 import {
   baht,
+  studioIsNewCreator,
+  studioReviewHours,
   studioSummary,
   studioTasks,
   studioWorks,
   whole,
   workStatusLabels,
 } from "@/components/studio/mock-data";
-import { StatTile, StatusPill, StudioPageHeader, StudioPanel, StudioRowLink } from "@/components/studio/studio-ui";
+import { StatusPill, StudioPageHeader, StudioPanel, StudioRowLink, reviewWaitLabel } from "@/components/studio/studio-ui";
 import { ButtonLink } from "@/components/ui/button";
 
 export default function StudioDashboardPage() {
@@ -30,36 +33,7 @@ export default function StudioDashboardPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          icon={Coins}
-          label="รายได้งวดนี้"
-          value={baht.format(studioSummary.earnings)}
-          unit="บาท"
-          change={studioSummary.earningsChange}
-        />
-        <StatTile
-          icon={Unlock}
-          label="การปลดล็อก"
-          value={whole.format(studioSummary.unlocks)}
-          unit="ครั้ง"
-          change={studioSummary.unlocksChange}
-        />
-        <StatTile
-          icon={Eye}
-          label="ยอดอ่าน"
-          value={whole.format(studioSummary.reads)}
-          unit="ครั้ง"
-          change={studioSummary.readsChange}
-        />
-        <StatTile
-          icon={Users}
-          label="ผู้ติดตาม"
-          value={whole.format(studioSummary.followers)}
-          unit="คน"
-          change={studioSummary.followersChange}
-        />
-      </div>
+      <DashboardStats isNewCreator={studioIsNewCreator} />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <StudioPanel
@@ -91,7 +65,9 @@ export default function StudioDashboardPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold">{work.title}</p>
                         <p className="mt-0.5 truncate text-xs text-(--text-tertiary)">
-                          {whole.format(work.chapters)} ตอน · แก้ไข {work.updatedAt}
+                          {work.status === "review"
+                            ? reviewWaitLabel(studioReviewHours[work.slug])
+                            : `${whole.format(work.chapters)} ตอน · แก้ไข ${work.updatedAt}`}
                         </p>
                       </div>
                       <div className="hidden text-right sm:block">

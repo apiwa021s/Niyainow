@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { BookMarked, FileText, Plus, Unlock, Users } from "lucide-react";
 
-import { baht, studioWorks, whole, workStatusLabels } from "@/components/studio/mock-data";
-import { StatusPill, StudioPageHeader, StudioRowLink } from "@/components/studio/studio-ui";
+import { baht, studioReviewHours, studioWorks, whole, workStatusLabels } from "@/components/studio/mock-data";
+import { StatusPill, StudioPageHeader, StudioRowLink, reviewWaitLabel } from "@/components/studio/studio-ui";
 import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "ผลงานของฉัน" };
@@ -66,7 +66,11 @@ export default function StudioWorksPage() {
                       <h2 className="min-w-0 truncate font-semibold">{work.title}</h2>
                       <StatusPill label={status.label} dot={status.dot} />
                     </div>
-                    <p className="mt-1 text-xs text-(--text-tertiary)">แก้ไขล่าสุด {work.updatedAt}</p>
+                    <p className="mt-1 text-xs text-(--text-tertiary)">
+                      {work.status === "review"
+                        ? reviewWaitLabel(studioReviewHours[work.slug])
+                        : `แก้ไขล่าสุด ${work.updatedAt}`}
+                    </p>
 
                     <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-(--text-secondary)">
                       <div className="inline-flex items-center gap-1.5">

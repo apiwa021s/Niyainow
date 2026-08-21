@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const CREATOR_SHARE = 0.7;
 const WITHHOLDING_TAX = 0.03;
-const MINIMUM_PAYOUT = 500;
+const MINIMUM_PAYOUT = 100;
 const PRICES = [3, 5, 10, 15] as const;
 
 const baht = new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
