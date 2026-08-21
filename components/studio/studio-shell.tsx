@@ -177,7 +177,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-(--bg-base) lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-4">
           <Logo />
-          <span className="text-sm font-semibold">NovelNow Studio</span>
+          <span className="text-sm font-semibold">Studio</span>
         </div>
         <div className="flex-1 overflow-y-auto">
           <NavList pathname={pathname} />
