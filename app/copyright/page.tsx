@@ -1,85 +1,276 @@
-import { CheckCircle2, FileSearch, ShieldAlert } from "lucide-react";
+import Link from "next/link";
 
-import { PageHeader, PageShell } from "@/components/ui/section";
-import { Logo } from "@/components/layout/logo";
+import { LegalPage, type LegalArticle } from "@/components/legal/legal-page";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด",
-  description: "นโยบายลิขสิทธิ์ ข้อมูลที่ต้องเตรียม และสถานะช่องทางรับแจ้งเนื้อหาของ NovelNow",
-  path: "/copyright"
+  description:
+    "วิธีแจ้งเนื้อหาที่ละเมิดลิขสิทธิ์บน NovelNow ข้อมูลที่ต้องเตรียม ขั้นตอนและกรอบเวลาการตรวจสอบ สิทธิ์โต้แย้งของผู้ถูกแจ้ง และนโยบายผู้ละเมิดซ้ำ",
+  path: "/copyright",
 });
 
-const steps = [
+/*
+ * TODO(legal): เมื่อจดทะเบียนนิติบุคคลแล้ว ให้เติมชื่อตามทะเบียนและที่อยู่สำหรับ
+ * รับหนังสือบอกกล่าวลงในข้อ 10 (ตอนนี้ใช้ชื่อ "NovelNow" และอีเมลไปก่อน)
+ * และให้ทนายความตรวจทานแบบฟอร์มคำแจ้งในข้อ 03 ให้ครบองค์ประกอบตาม
+ * พระราชบัญญัติลิขสิทธิ์ (ฉบับที่ 5) พ.ศ. 2565
+ */
+const NOTICE_EMAIL = "novelnow.com@outlook.com";
+
+const articles: readonly LegalArticle[] = [
   {
-    icon: FileSearch,
-    title: "ระบุเนื้อหาที่พบ",
-    body: "เก็บลิงก์ของหน้า ชื่อผลงาน ชื่อตอน และภาพหน้าจอที่ช่วยให้ระบุตำแหน่งได้ชัดเจน"
+    id: "principle",
+    title: "หลักการของเรา",
+    summary: "งานทุกชิ้นมีเจ้าของ ถ้ามีคนเอางานคุณมาลงโดยไม่ได้รับอนุญาต แจ้งเราแล้วเราจัดการ",
+    blocks: [
+      {
+        kind: "p",
+        text: "NovelNow เคารพสิทธิ์ของนักเขียน นักแปล สำนักพิมพ์ และผู้ทรงสิทธิ์ทุกฝ่าย เราไม่อนุญาตให้เผยแพร่ผลงานที่ผู้เผยแพร่ไม่มีสิทธิ์ ไม่ว่าจะเป็นต้นฉบับหรืองานแปล",
+      },
+      {
+        kind: "p",
+        text: "เราดำเนินการตามกระบวนการแจ้งเตือนและนำเนื้อหาออก (notice and takedown) ตามพระราชบัญญัติลิขสิทธิ์ ซึ่งกำหนดเงื่อนไขความรับผิดของผู้ให้บริการไว้ กระบวนการนี้ออกแบบให้ทั้งผู้แจ้งและผู้ถูกแจ้งได้ชี้แจง ไม่ใช่การตัดสินฝ่ายเดียว",
+      },
+      {
+        kind: "note",
+        text: "เราไม่ใช่ศาลและไม่ได้ตัดสินว่าใครเป็นเจ้าของลิขสิทธิ์ เราพิจารณาจากหลักฐานที่ได้รับเพื่อตัดสินใจว่าจะคงหรือระงับการเผยแพร่บนแพลตฟอร์มของเราเท่านั้น ข้อพิพาทเรื่องสิทธิ์ที่แท้จริงเป็นเรื่องระหว่างคู่กรณีตามกฎหมาย",
+      },
+    ],
   },
   {
-    icon: ShieldAlert,
-    title: "อธิบายสิทธิ์ของผู้แจ้ง",
-    body: "ระบุว่าคุณเป็นเจ้าของผลงาน สำนักพิมพ์ ผู้แปล หรือผู้ได้รับมอบอำนาจ พร้อมหลักฐานที่ตรวจสอบความเกี่ยวข้องได้"
+    id: "what-counts",
+    title: "อะไรที่ถือว่าละเมิด",
+    summary: "ลงงานคนอื่นโดยไม่ได้รับอนุญาต รวมถึงแปลงานต่างประเทศโดยไม่มีสิทธิ์แปล",
+    blocks: [
+      {
+        kind: "list",
+        items: [
+          "เผยแพร่ต้นฉบับหรือบทแปลของผู้อื่นโดยไม่ได้รับอนุญาตจากผู้ทรงสิทธิ์",
+          "คัดลอกบทแปลของนักแปลรายอื่นมาลงในชื่อตนเอง ไม่ว่าจะแก้ถ้อยคำบางส่วนหรือไม่",
+          "ใช้ภาพปกหรือภาพประกอบที่ไม่มีสิทธิ์ใช้",
+          "ตัดต่อหรือดัดแปลงผลงานของผู้อื่นแล้วเผยแพร่โดยไม่ได้รับอนุญาต",
+        ],
+      },
+      {
+        kind: "p",
+        text: "เรื่องที่เว็บนิยายแปลต้องระวังเป็นพิเศษคือสิทธิ์ในการแปล งานแปลเป็นงานดัดแปลงซึ่งต้องได้รับอนุญาตจากเจ้าของลิขสิทธิ์ต้นฉบับก่อน การที่คุณแปลเองทั้งหมดไม่ได้ทำให้คุณมีสิทธิ์เผยแพร่งานแปลนั้นโดยอัตโนมัติ",
+      },
+      {
+        kind: "p",
+        text: "ในทางกลับกัน การอ้างอิงบางส่วนอย่างสมควรเพื่อการวิจารณ์หรือแนะนำผลงาน พร้อมระบุที่มา อาจเข้าข้อยกเว้นตามกฎหมาย เราพิจารณาปริมาณและวัตถุประสงค์ประกอบกันเป็นราย ๆ ไป",
+      },
+    ],
   },
   {
-    icon: CheckCircle2,
-    title: "ตรวจสอบและจำกัดการเข้าถึง",
-    body: "เมื่อช่องทางรับเรื่องเปิดใช้งาน ทีมงานจะประเมินข้อมูล จำกัดการเข้าถึงเมื่อมีเหตุสมควร และบันทึกผลการตรวจสอบ"
-  }
-] as const;
+    id: "prepare",
+    title: "ข้อมูลที่ต้องเตรียมก่อนแจ้ง",
+    summary: "ต้องมี URL ที่ละเมิด หลักฐานว่าคุณมีสิทธิ์ ข้อมูลติดต่อ และคำรับรองว่าข้อมูลจริง",
+    blocks: [
+      {
+        kind: "p",
+        text: "คำแจ้งที่ครบองค์ประกอบจะถูกดำเนินการทันที ส่วนคำแจ้งที่ขาดข้อมูลเราจะขอเพิ่มเติมกลับไป ซึ่งทำให้ช้าลง กรุณาระบุให้ครบทุกข้อต่อไปนี้",
+      },
+      {
+        kind: "list",
+        items: [
+          "ผลงานที่ถูกละเมิด — ชื่อเรื่อง ผู้แต่ง ปีที่เผยแพร่ และลิงก์ต้นฉบับ (ถ้ามี)",
+          "ตำแหน่งที่ละเมิด — URL ของหน้าบน NovelNow ให้ครบทุกหน้า พร้อมชื่อตอนและภาพหน้าจอ",
+          "ฐานสิทธิ์ของคุณ — คุณเป็นเจ้าของลิขสิทธิ์ ผู้รับโอนสิทธิ์ ผู้ได้รับอนุญาตให้แปล หรือผู้รับมอบอำนาจ พร้อมหลักฐาน เช่น สัญญาอนุญาต หนังสือมอบอำนาจ หรือหลักฐานการเผยแพร่ครั้งแรก",
+          "ข้อมูลติดต่อกลับ — ชื่อ-นามสกุลจริง อีเมล และหมายเลขโทรศัพท์",
+          "คำรับรอง — ข้อความยืนยันว่าข้อมูลที่ให้เป็นความจริง คุณเชื่อโดยสุจริตว่าการใช้งานนั้นไม่ได้รับอนุญาต และคุณมีอำนาจดำเนินการแทนผู้ทรงสิทธิ์",
+        ],
+      },
+      {
+        kind: "note",
+        text: "กรุณาปกปิดข้อมูลที่ไม่จำเป็นในเอกสารแนบ เช่น เลขบัตรประชาชนบางส่วนหรือข้อมูลทางการเงิน เราต้องการเพียงหลักฐานที่แสดงความเชื่อมโยงกับผลงานเท่านั้น",
+      },
+    ],
+  },
+  {
+    id: "how-to-send",
+    title: "ช่องทางส่งคำแจ้ง",
+    summary: "ส่งอีเมลมาที่เรา ใช้หัวข้อว่า “แจ้งละเมิดลิขสิทธิ์” จะได้เข้าคิวถูกทาง",
+    blocks: [
+      {
+        kind: "list",
+        items: [
+          `อีเมล ${NOTICE_EMAIL} — ตั้งชื่อเรื่องว่า “แจ้งละเมิดลิขสิทธิ์” ตามด้วยชื่อผลงาน`,
+          "ไลน์ออฟฟิเชียล @novelnow — ใช้สอบถามขั้นตอนได้ แต่คำแจ้งอย่างเป็นทางการขอให้ส่งทางอีเมลเพื่อให้มีหลักฐานเป็นลายลักษณ์อักษร",
+        ],
+      },
+      {
+        kind: "note",
+        text: "เพื่อความปลอดภัยของคุณ เราจะไม่ขอเอกสารส่วนตัว รหัสผ่าน หรือรหัส OTP ผ่านช่องทางอื่นนอกจากที่ประกาศไว้ในหน้านี้ หากมีบัญชีอ้างตัวเป็นทีมงานติดต่อคุณจากช่องทางอื่น กรุณาแจ้งเราทันที",
+      },
+    ],
+  },
+  {
+    id: "process",
+    title: "ขั้นตอนและกรอบเวลาหลังได้รับคำแจ้ง",
+    summary: "ตอบรับใน 2 วันทำการ ตรวจสอบใน 7 วันทำการ และระงับเนื้อหาทันทีเมื่อหลักฐานชัด",
+    blocks: [
+      {
+        kind: "list",
+        items: [
+          "ภายใน 2 วันทำการ — เราตอบรับคำแจ้งพร้อมเลขอ้างอิงเรื่อง",
+          "ภายใน 7 วันทำการ — เราตรวจสอบหลักฐานและแจ้งผลการพิจารณา หากเรื่องซับซ้อนหรือมีหลายตอน เราจะแจ้งกรอบเวลาใหม่ให้ทราบ",
+          "เมื่อหลักฐานครบและชัดเจน — เราระงับการเข้าถึงเนื้อหาที่เกี่ยวข้องโดยไม่ชักช้า และแจ้งผู้เผยแพร่พร้อมเหตุผล",
+          "หลังระงับ — เราพักการจ่ายส่วนแบ่งรายได้ของผลงานนั้นไว้จนกว่าเรื่องจะได้ข้อยุติ",
+        ],
+      },
+      {
+        kind: "p",
+        text: "ทุกคำแจ้งและผลการพิจารณาถูกบันทึกไว้เป็นหลักฐาน หากภายหลังมีการดำเนินคดี เราสามารถส่งบันทึกให้เจ้าหน้าที่ตามคำสั่งที่ชอบด้วยกฎหมายได้",
+      },
+    ],
+  },
+  {
+    id: "counter-notice",
+    title: "สิทธิ์โต้แย้งของผู้ถูกแจ้ง",
+    summary: "ถ้าคุณถูกแจ้งแต่คุณมีสิทธิ์จริง ส่งหลักฐานโต้แย้งได้ภายใน 14 วัน",
+    blocks: [
+      {
+        kind: "p",
+        text: "หากผลงานของคุณถูกระงับและคุณเชื่อว่าคุณมีสิทธิ์เผยแพร่โดยชอบ คุณยื่นคำโต้แย้งได้ภายใน 14 วันนับแต่วันที่ได้รับแจ้ง โดยส่งมาที่ช่องทางเดียวกัน",
+      },
+      {
+        kind: "list",
+        items: [
+          "ระบุเนื้อหาที่ถูกระงับและเลขอ้างอิงเรื่องที่เราแจ้งไว้",
+          "อธิบายฐานสิทธิ์ของคุณพร้อมหลักฐาน เช่น สัญญาอนุญาตให้แปล หนังสืออนุญาตจากผู้เขียน หรือหลักฐานว่าเป็นงานที่คุณสร้างสรรค์เอง",
+          "ระบุชื่อจริงและช่องทางติดต่อกลับ",
+        ],
+      },
+      {
+        kind: "p",
+        text: "เราจะพิจารณาคำโต้แย้งและแจ้งผลให้ทั้งสองฝ่ายทราบ หากหลักฐานของคุณหนักแน่นเพียงพอ เราจะคืนการเผยแพร่และปลดการพักจ่ายส่วนแบ่ง หากทั้งสองฝ่ายยังยืนยันสิทธิ์ขัดกัน เราจะคงสถานะระงับไว้จนกว่าคู่กรณีจะตกลงกันได้หรือมีคำสั่งจากเจ้าหน้าที่หรือศาล",
+      },
+    ],
+  },
+  {
+    id: "repeat",
+    title: "นโยบายผู้ละเมิดซ้ำ",
+    summary: "ถูกยืนยันว่าละเมิดครบ 3 ครั้ง จะถูกยุติสิทธิ์เผยแพร่ถาวร",
+    blocks: [
+      {
+        kind: "list",
+        items: [
+          "ครั้งที่ 1 — เนื้อหาถูกนำออก พร้อมคำเตือนและคำอธิบายกฎ",
+          "ครั้งที่ 2 — ระงับสิทธิ์เผยแพร่ชั่วคราว และทบทวนผลงานอื่นทั้งหมดของบัญชีนั้น",
+          "ครั้งที่ 3 — ยุติสิทธิ์เผยแพร่อย่างถาวร",
+        ],
+      },
+      {
+        kind: "p",
+        text: "การนับครั้งใช้เฉพาะกรณีที่ตรวจสอบแล้วว่าละเมิดจริง คำแจ้งที่ถูกโต้แย้งสำเร็จหรือถูกถอนจะไม่ถูกนับ ส่วนแบ่งรายได้ที่เกิดจากผลงานที่ละเมิดจะไม่ถูกจ่ายออก และอาจถูกส่งคืนผู้ทรงสิทธิ์ที่แท้จริงเมื่อพิสูจน์ได้",
+      },
+    ],
+  },
+  {
+    id: "false-notice",
+    title: "การแจ้งเท็จ",
+    summary: "แจ้งเท็จเพื่อกลั่นแกล้งคู่แข่งมีความรับผิดตามกฎหมาย และเราจะตัดสิทธิ์การแจ้ง",
+    blocks: [
+      {
+        kind: "p",
+        text: "การส่งคำแจ้งอันเป็นเท็จเพื่อกลั่นแกล้งผู้อื่น ปิดกั้นการแข่งขัน หรือทำให้ผู้อื่นเสียหาย อาจเป็นความผิดตามกฎหมายและก่อความรับผิดในทางแพ่งต่อผู้ที่ได้รับความเสียหาย",
+      },
+      {
+        kind: "p",
+        text: "หากพบว่าผู้แจ้งจงใจให้ข้อมูลเท็จ เราจะยกเลิกการระงับเนื้อหา คืนสถานะให้ผู้ถูกแจ้ง และสงวนสิทธิ์ไม่รับคำแจ้งจากผู้นั้นในอนาคต",
+      },
+    ],
+  },
+  {
+    id: "creators",
+    title: "สำหรับผู้เผยแพร่บน NovelNow",
+    summary: "ก่อนลงงานแปล ตรวจให้แน่ใจว่าคุณมีสิทธิ์แปลและเผยแพร่จริง",
+    blocks: [
+      {
+        kind: "p",
+        text: "เมื่อคุณเผยแพร่ผลงานบน NovelNow คุณรับรองว่าคุณเป็นเจ้าของลิขสิทธิ์หรือได้รับอนุญาตโดยชอบด้วยกฎหมาย ทั้งสิทธิ์ในการแปลและสิทธิ์ในการเผยแพร่ต่อสาธารณะ",
+      },
+      {
+        kind: "list",
+        items: [
+          "เก็บหลักฐานการได้รับอนุญาตไว้เสมอ เช่น อีเมลตอบรับจากผู้เขียนหรือสัญญาจากสำนักพิมพ์",
+          "ระบุที่มาของต้นฉบับให้ชัดเจนในหน้าเรื่อง",
+          "หากไม่แน่ใจว่าผลงานนั้นเผยแพร่ได้หรือไม่ ให้ถามเราก่อนลง ดีกว่าถูกนำออกภายหลัง",
+        ],
+      },
+      {
+        kind: "p",
+        text: "หากคุณได้รับคำแจ้งเกี่ยวกับผลงานของคุณ อย่าเพิ่งลบหลักฐานหรือบัญชี เพราะคุณต้องใช้ประกอบการโต้แย้งตามข้อ 06",
+      },
+    ],
+  },
+  {
+    id: "contact",
+    title: "ช่องทางติดต่อ",
+    summary: "อีเมลหรือไลน์ ตอบกลับภายใน 2 วันทำการ",
+    blocks: [
+      {
+        kind: "list",
+        items: [
+          `อีเมลรับคำแจ้งละเมิดลิขสิทธิ์ ${NOTICE_EMAIL}`,
+          "ไลน์ออฟฟิเชียล @novelnow",
+          "เวลาตอบรับเบื้องต้น ภายใน 2 วันทำการ",
+          "ผู้ให้บริการ NovelNow — เมื่อจดทะเบียนนิติบุคคลแล้ว เราจะประกาศชื่อตามทะเบียนและที่อยู่สำหรับรับหนังสือบอกกล่าวไว้ในข้อนี้",
+        ],
+      },
+    ],
+  },
+];
 
 export default function CopyrightPage() {
   return (
-    <PageShell className="max-w-6xl">
-      <PageHeader
-        eyebrow="LEGAL / COPYRIGHT"
-        title="ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด"
-        description="NovelNow มีนโยบายเคารพสิทธิ์ของผู้เขียน ผู้แปล สำนักพิมพ์ และผู้สร้างสรรค์ทุกฝ่าย"
-        action={<Logo />}
-      />
+    <LegalPage
+      eyebrow="LEGAL / COPYRIGHT"
+      title="ลิขสิทธิ์และการแจ้งเนื้อหาละเมิด"
+      description="ถ้าผลงานของคุณถูกนำมาเผยแพร่บน NovelNow โดยไม่ได้รับอนุญาต หน้านี้บอกวิธีแจ้ง สิ่งที่ต้องเตรียม และสิ่งที่จะเกิดขึ้นหลังจากนั้น"
+      version="2.0"
+      effectiveDate="1 กันยายน 2569"
+      lastUpdated="21 สิงหาคม 2569"
+      articles={articles}
+      footer={
+        <div className="grid gap-4">
+          <section lang="en" className="rounded-xl border border-border bg-card p-6 sm:p-8">
+            <p className="editorial-kicker">ENGLISH NOTICE</p>
+            <h2 className="mt-2 text-lg font-semibold">Copyright infringement notice</h2>
+            <p className="mt-3 text-sm leading-7 text-(--text-secondary)">
+              NovelNow respects the rights of authors, translators, publishers, and other rights holders, and operates a
+              notice-and-takedown process under Thai copyright law. To report infringing material, email{" "}
+              <a href={`mailto:${NOTICE_EMAIL}`} className="font-semibold text-(--brand-emphasis) underline-offset-4 hover:underline">
+                {NOTICE_EMAIL}
+              </a>{" "}
+              with the subject line “Copyright notice”, including: the work concerned, every infringing URL on this site,
+              proof of your rights or authority to act, your real name and contact details, and a statement made in good
+              faith that the use is unauthorised and that the information is accurate.
+            </p>
+            <p className="mt-3 text-sm leading-7 text-(--text-secondary)">
+              We acknowledge notices within 2 business days and complete review within 7 business days. The publisher may
+              submit a counter-notice with evidence within 14 days. Accounts confirmed to have infringed three times lose
+              publishing access permanently. Knowingly false notices may carry legal liability.
+            </p>
+          </section>
 
-      <section aria-labelledby="process-title" className="mt-10">
-        <div className="max-w-3xl">
-          <p className="editorial-kicker">REPORTING PROCESS</p>
-          <h2 id="process-title" className="mt-2 text-2xl font-semibold">ข้อมูลที่ช่วยให้ตรวจสอบได้ตรงจุด</h2>
-          <p className="mt-3 leading-8 text-muted-foreground">การแจ้งที่มี URL รายละเอียดผลงาน และฐานสิทธิ์ครบถ้วนช่วยลดความคลาดเคลื่อนและทำให้ประเมินเนื้อหาได้เร็วขึ้น</p>
+          <div className="rounded-xl bg-accent-subtle p-6 sm:p-8">
+            <h2 className="text-lg font-semibold">เอกสารที่เกี่ยวข้อง</h2>
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold">
+              <Link href="/terms" className="text-(--brand-emphasis) underline-offset-4 hover:underline">
+                ข้อกำหนดการใช้บริการ
+              </Link>
+              <Link href="/privacy" className="text-(--brand-emphasis) underline-offset-4 hover:underline">
+                นโยบายความเป็นส่วนตัว
+              </Link>
+              <Link href="/creators" className="text-(--brand-emphasis) underline-offset-4 hover:underline">
+                ข้อเสนอส่วนแบ่งรายได้สำหรับผู้สร้างผลงาน
+              </Link>
+            </div>
+          </div>
         </div>
-
-        <ol className="mt-7 grid gap-2 md:grid-cols-3">
-          {steps.map((step, index) => {
-            const Icon = step.icon;
-            return (
-              <li key={step.title} className="rounded-[8px] bg-card/70 p-5">
-                <div className="flex items-center justify-between">
-                  <Icon aria-hidden className="h-5 w-5 text-[var(--brand-light-on-light)]" />
-                  <span className="tabular font-mono text-xs text-muted-foreground">0{index + 1}</span>
-                </div>
-                <h3 className="mt-4 font-semibold">{step.title}</h3>
-                <p className="mt-2 text-sm leading-7 text-muted-foreground">{step.body}</p>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
-
-      <section className="mt-10 grid gap-4 border-l-2 border-[var(--brand-emphasis)] bg-[var(--bg-subtle)] p-5 sm:p-6">
-        <h2 className="text-xl font-semibold">สถานะบริการในขณะนี้</h2>
-        <p className="max-w-3xl leading-7 text-muted-foreground">
-          ช่องทางรับคำร้องออนไลน์ที่ยืนยันตัวผู้แจ้งยังไม่เปิดใช้งาน โปรดเก็บหลักฐานไว้และกลับมาตรวจสอบหน้านี้ ซึ่งจะระบุช่องทางอย่างเป็นทางการเมื่อพร้อมใช้งาน เราจะไม่ขอเอกสารส่วนบุคคลผ่านข้อความหรือบัญชีที่ไม่ได้ประกาศบนหน้านี้
-        </p>
-        <p className="max-w-3xl text-sm leading-7 text-muted-foreground">
-          ระบบชำระเงิน กระเป๋าเหรียญ และรางวัลสำหรับการแจ้งยังไม่เปิดให้บริการ หน้านี้ไม่รับชำระเงินและไม่มีการมอบ คืน หรือแลกเหรียญ
-        </p>
-      </section>
-
-      <section lang="en" className="mt-10 border-t border-border pt-7">
-        <p className="editorial-kicker">ENGLISH NOTICE</p>
-        <h2 className="mt-2 text-xl font-semibold">Copyright reporting status</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-          NovelNow respects the rights of authors, translators, publishers, and other creators. The verified online reporting channel is not yet available. Please preserve the page URL, work details, screenshots, and evidence of authority, then return to this page for the official channel. Payments, coins, and reporting rewards are not available.
-        </p>
-      </section>
-    </PageShell>
+      }
+    />
   );
 }
-

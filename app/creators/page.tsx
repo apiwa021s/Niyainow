@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 import { InkUnderline } from "@/components/about/ink-underline";
-import { Reveal } from "@/components/creators/reveal";
+import { Reveal } from "@/components/ui/reveal";
 import { RevenueCalculator } from "@/components/creators/revenue-calculator";
 import { ButtonLink } from "@/components/ui/button";
 import { PageShell } from "@/components/ui/section";
