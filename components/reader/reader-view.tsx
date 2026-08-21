@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BookmarkButton } from "@/components/interactive/novel-actions";
 import { ChapterEnd } from "@/components/reader/chapter-end";
+import { MatureWarningGate } from "@/components/reader/mature-warning";
 import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import { createLatestTaskQueue } from "@/lib/domain/latest-task-queue";
 import { cn } from "@/lib/utils";
@@ -123,6 +124,7 @@ export function ReaderView({
   initialProgress,
   locked = false,
   lockedContent,
+  matureWarning,
 }: {
   novel: ReaderNovel;
   chapter: ChapterSummary;
@@ -137,6 +139,8 @@ export function ReaderView({
   initialProgress?: ReaderInitialProgress | null;
   locked?: boolean;
   lockedContent?: ReactNode;
+  /** Heat/warning metadata for the mature-content interstitial (brief §Module 8). */
+  matureWarning?: { heat: number; warnings: string[] };
 }) {
   const router = useRouter();
   const { prefs, stepFontSize, cycleTheme } = useReaderPrefs({ signedIn: isAuthenticated });
@@ -541,6 +545,9 @@ export function ReaderView({
     : undefined;
   return (
     <div className="min-h-screen bg-[var(--reader-bg)] text-[var(--reader-text)]">
+      {matureWarning ? (
+        <MatureWarningGate novelHref={`/novel/${novel.slug}`} heat={matureWarning.heat} warnings={matureWarning.warnings} />
+      ) : null}
       <div inert={modalOpen} aria-hidden={modalOpen ? true : undefined}>
         {/* A veil over everything dims text and ground together. That still costs
             contrast, so DIM_MAX is set where every theme stays above 4.5:1 —

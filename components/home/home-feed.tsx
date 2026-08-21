@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import { ViewTransition } from "react";
 
 import { ContentRow, RowItem } from "@/components/home/content-row";
+import { TasteDiscovery } from "@/components/home/taste-discovery";
 import { TrendingTicker } from "@/components/home/trending-ticker";
 import { UpdateFeed } from "@/components/home/update-feed";
 import { RankingNovelCard } from "@/components/novels/novel-card";
@@ -307,6 +308,7 @@ export function HomeFeed({
     <div className="flex flex-col gap-4 lg:gap-5">
       <TrendingTicker novels={data.rankings.slice(0, 16)} />
       <GenreChipRail items={data.genreShowcase} />
+      <TasteDiscovery />
 
       {children}
 

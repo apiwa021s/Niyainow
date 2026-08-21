@@ -9,8 +9,10 @@ import {
   ChapterPreview,
   NovelCommunity,
   NovelHero,
+  NovelMembershipCard,
   NovelMetaRail,
   NovelSignals,
+  NovelTasteSection,
   SimilarNovels,
 } from "@/components/novels/novel-detail";
 import { NovelResumeMobileBar } from "@/components/reader/novel-resume-actions";
@@ -155,6 +157,10 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         libraryStatus={userState?.libraryStatus}
       />
       <NovelSignals novel={novel} />
+      <div className="mt-8 grid gap-6">
+        <NovelTasteSection novel={novel} />
+        <NovelMembershipCard novel={novel} />
+      </div>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-10">

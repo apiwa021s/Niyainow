@@ -2,12 +2,21 @@
 
 import { BellOff, BookMarked, CheckCircle2, Clock3, Coins, Heart, LogOut, RotateCcw, Settings, ShieldCheck, UserRound } from "lucide-react";
 
+import { NotificationList } from "@/components/notifications/notification-list";
 import { ThemeSwitcher } from "@/components/interactive/theme-switcher";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/form-controls";
+import { useLocalMockStore } from "@/hooks/use-local-mock-store";
 import { cn } from "@/lib/utils";
 import { signOutUser } from "@/lib/auth/actions";
 import type { CurrentUser } from "@/lib/auth/dal";
+import {
+  DEFAULT_PRIVACY_PREFS,
+  readPrivacyPrefs,
+  writePrivacyPrefs,
+  type PrivacyPrefs,
+} from "@/lib/domain/reader-privacy";
+import type { NovelUpdate } from "@/services/novel-service";
 import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import {
   FONT_SIZE_MAX_INDEX,
@@ -138,6 +147,84 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
       <SettingsSection title="การแจ้งเตือน" description="ระบบยังไม่ส่งอีเมลหรือการแจ้งเตือนบนอุปกรณ์ จึงไม่มีสวิตช์ที่ทำงานไม่จริง">
         <ButtonLink href="/notifications" variant="outline">ดูสถานะการแจ้งเตือน</ButtonLink>
       </SettingsSection>
+
+      <SettingsSection title="ความเป็นส่วนตัว" description="ควบคุมว่าใครเห็นประวัติการอ่านและการแจ้งเตือนของคุณ">
+        <PrivacySettings />
+      </SettingsSection>
+    </div>
+  );
+}
+
+function PrivacySettings() {
+  const prefs = useLocalMockStore(() => readPrivacyPrefs(), () => DEFAULT_PRIVACY_PREFS);
+
+  function update(patch: Partial<PrivacyPrefs>) {
+    writePrivacyPrefs({ ...prefs, ...patch });
+  }
+
+  return (
+    <div className="grid gap-4">
+      <PrivacyToggle
+        label="ประวัติการอ่าน"
+        description="ซ่อนประวัติการอ่านจากคนอื่น"
+        checked={prefs.privateReadingHistory}
+        onChange={(value) => update({ privateReadingHistory: value })}
+      />
+      <PrivacyToggle
+        label="Library"
+        description="ซ่อนรายการในชั้นหนังสือจากคนอื่น"
+        checked={prefs.privateLibrary}
+        onChange={(value) => update({ privateLibrary: value })}
+      />
+      <PrivacyToggle
+        label="ซ่อนชื่อเรื่องจาก Notification Preview"
+        description="เมื่อเปิด การแจ้งเตือนจะไม่แสดงชื่อเรื่องที่คุณติดตาม"
+        checked={prefs.discreetNotifications}
+        onChange={(value) => update({ discreetNotifications: value })}
+      />
+    </div>
+  );
+}
+
+function PrivacyToggle({
+  label,
+  description,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-[8px] border border-border bg-card px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50",
+          checked ? "bg-[var(--brand-primary)]" : "bg-muted",
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform",
+            checked ? "translate-x-6" : "translate-x-1",
+          )}
+        />
+      </button>
     </div>
   );
 }
@@ -146,15 +233,40 @@ function SettingsSection({ title, description, children }: { title: string; desc
   return <section className="grid gap-5 py-5 sm:py-6 lg:grid-cols-[240px_1fr]"><div><h2 className="text-h2 font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p></div><div>{children}</div></section>;
 }
 
-export function NotificationsPanel({ followingCount }: { followingCount: number }) {
+export function NotificationsPanel({ followingCount, updates }: { followingCount: number; updates: NovelUpdate[] }) {
+  if (!followingCount) {
+    return (
+      <section className="flex gap-4 py-2 sm:py-3">
+        <BellOff className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
+        <div>
+          <h2 className="text-xl font-semibold">ยังไม่มีเรื่องที่ติดตาม</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            ติดตามนิยายที่สนใจ แล้วตอนใหม่จะแจ้งเตือนที่นี่
+          </p>
+          <ButtonLink href="/novels" variant="outline" className="mt-4"><Heart className="h-4 w-4" />สำรวจนิยาย</ButtonLink>
+        </div>
+      </section>
+    );
+  }
+
+  if (!updates.length) {
+    return (
+      <section className="flex gap-4 py-2 sm:py-3">
+        <BellOff className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
+        <div>
+          <h2 className="text-xl font-semibold">ยังไม่มีการแจ้งเตือนใหม่</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            คุณกำลังติดตาม {followingCount.toLocaleString("th-TH")} เรื่อง เมื่อมีตอนใหม่จะปรากฏที่นี่
+          </p>
+          <ButtonLink href="/library/following" variant="outline" className="mt-4"><Heart className="h-4 w-4" />ดูเรื่องที่ติดตาม</ButtonLink>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="flex gap-4 py-2 sm:py-3">
-      <BellOff className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
-      <div>
-        <h2 className="text-xl font-semibold">ยังไม่เปิดส่งการแจ้งเตือน</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">คุณกำลังติดตาม {followingCount.toLocaleString("th-TH")} เรื่อง ระบบเก็บรายการติดตามไว้แล้ว แต่ยังไม่ส่งอีเมลหรือการแจ้งเตือนบนอุปกรณ์</p>
-        <ButtonLink href="/library/following" variant="outline" className="mt-4"><Heart className="h-4 w-4" />ดูเรื่องที่ติดตาม</ButtonLink>
-      </div>
+    <section className="py-2 sm:py-3">
+      <NotificationList updates={updates} />
     </section>
   );
 }

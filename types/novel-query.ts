@@ -17,6 +17,11 @@ export type NovelQuery = {
   sort?: NovelSort;
   q?: string;
   page?: string | number;
+  /** New reader taxonomy (mock/presentational — see lib/domain/reader-taste.ts). */
+  relationship?: string;
+  setting?: string;
+  trope?: string;
+  heat?: string;
 };
 
 export const parseGenreParam = (value?: string) =>

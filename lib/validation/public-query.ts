@@ -1,3 +1,9 @@
+import {
+  isRelationshipValue,
+  isSettingValue,
+  parseHeatParam,
+  parseTropeParam,
+} from "@/lib/domain/reader-taste";
 import type { NovelQuery } from "@/types/novel-query";
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;
@@ -75,8 +81,33 @@ function appendNovelParams(params: URLSearchParams, query: NovelQuery) {
   if (query.chapters) params.set("chapters", String(query.chapters));
   if (query.updated) params.set("updated", String(query.updated));
   if (query.content) params.set("content", String(query.content));
+  if (query.relationship) params.set("relationship", String(query.relationship));
+  if (query.setting) params.set("setting", String(query.setting));
+  if (query.trope) params.set("trope", String(query.trope));
+  if (query.heat) params.set("heat", String(query.heat));
   if (query.sort) params.set("sort", String(query.sort));
   if (query.page && Number(query.page) > 1) params.set("page", String(query.page));
+}
+
+function normalizedRelationship(value: string | string[] | undefined) {
+  const candidate = scalar(value)?.trim().toLowerCase();
+  return isRelationshipValue(candidate) ? candidate : undefined;
+}
+
+function normalizedSetting(value: string | string[] | undefined) {
+  const candidate = scalar(value)?.trim().toLowerCase();
+  return isSettingValue(candidate) ? candidate : undefined;
+}
+
+function normalizedTrope(value: string | string[] | undefined) {
+  const parsed = parseTropeParam(scalar(value));
+  return parsed.length ? parsed.join(",") : undefined;
+}
+
+function normalizedHeat(value: string | string[] | undefined) {
+  const candidate = scalar(value);
+  const range = parseHeatParam(candidate);
+  return range ? (range.min === range.max ? String(range.min) : `${range.min}-${range.max}`) : undefined;
 }
 
 function href(pathname: string, params: URLSearchParams) {
@@ -110,6 +141,10 @@ export function canonicalizeNovelSearchParams(
   const page = normalizedPage(raw.page);
   const q = normalizedText(raw.q, MAX_QUERY_LENGTH);
   const genre = normalizedGenres(raw.genre, options.activeGenreSlugs);
+  const relationship = normalizedRelationship(raw.relationship);
+  const setting = normalizedSetting(raw.setting);
+  const trope = normalizedTrope(raw.trope);
+  const heat = normalizedHeat(raw.heat);
   const query: NovelQuery = {
     ...(q ? { q } : {}),
     ...(genre ? { genre } : {}),
@@ -119,6 +154,10 @@ export function canonicalizeNovelSearchParams(
     ...(chapters ? { chapters } : {}),
     ...(updated ? { updated } : {}),
     ...(content ? { content } : {}),
+    ...(relationship ? { relationship } : {}),
+    ...(setting ? { setting } : {}),
+    ...(trope ? { trope } : {}),
+    ...(heat ? { heat } : {}),
     ...(sort && sort !== "popular" ? { sort } : {}),
     ...(page > 1 ? { page } : {}),
   };

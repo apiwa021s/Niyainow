@@ -1,24 +1,9 @@
 import { ArrowRight, Clock3, History, LockKeyhole } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 
+import { WalletHistoryTabs } from "@/components/interactive/wallet-history-tabs";
 import { ButtonLink } from "@/components/ui/button";
 import type { WalletSnapshot } from "@/services/coin-service";
-
-const transactionLabels = {
-  TOP_UP: "เติมเหรียญ",
-  ADMIN_CREDIT: "เพิ่มเหรียญโดยทีมงาน",
-  PROMOTION: "เหรียญโปรโมชั่น",
-  CHAPTER_UNLOCK: "ปลดล็อกตอน",
-  REFUND: "คืนเหรียญ",
-  ADJUSTMENT: "ปรับยอดเหรียญ",
-} as const;
-
-const dateFormatter = new Intl.DateTimeFormat("th-TH", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Asia/Bangkok",
-});
 
 export function WalletView({ wallet }: { wallet: WalletSnapshot }) {
   return (
@@ -64,36 +49,9 @@ export function WalletView({ wallet }: { wallet: WalletSnapshot }) {
           <h2 id="wallet-history-heading" className="text-h2 font-semibold">ประวัติเหรียญ</h2>
         </div>
         {wallet.entries.length > 0 ? (
-          <ol className="mt-4 divide-y divide-border/60">
-            {wallet.entries.map((entry) => {
-              const chapterHref = entry.novelSlug && entry.chapterNumber !== null
-                ? `/novel/${entry.novelSlug}/chapter/${entry.chapterNumber}`
-                : null;
-              const detail = entry.chapterNumber !== null
-                ? `${entry.novelTitle ?? "นิยาย"} · ตอน ${entry.chapterNumber.toLocaleString("th-TH")}`
-                : null;
-              return (
-                <li key={entry.id} className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0">
-                  <div className="min-w-0">
-                    <p className="font-medium">{transactionLabels[entry.type]}</p>
-                    {detail && chapterHref ? (
-                      <Link href={chapterHref} className="mt-1 block truncate text-xs text-(--text-secondary) hover:text-(--brand-emphasis)">{detail}</Link>
-                    ) : detail ? <p className="mt-1 truncate text-xs text-(--text-secondary)">{detail}</p> : null}
-                    <time dateTime={entry.createdAt} className="mt-1 block text-xs text-(--text-tertiary)">
-                      {dateFormatter.format(new Date(entry.createdAt))}
-                    </time>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className={`inline-flex items-center gap-1.5 font-semibold tabular-nums ${entry.amount > 0 ? "text-emerald-600 dark:text-emerald-300" : "text-foreground"}`}>
-                      <Image src="/Images/Coins/nn-gold-coin.png" alt="" width={20} height={20} className="h-5 w-5 object-contain" />
-                      {entry.amount > 0 ? "+" : ""}{entry.amount.toLocaleString("th-TH")}
-                    </p>
-                    <p className="mt-1 text-xs text-(--text-tertiary)">คงเหลือ {entry.balanceAfter.toLocaleString("th-TH")}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
+          <div className="mt-4">
+            <WalletHistoryTabs entries={wallet.entries} />
+          </div>
         ) : (
           <p className="mt-4 text-sm text-(--text-secondary)">ยังไม่มีรายการเหรียญ เมื่อปลดล็อกตอนแล้วประวัติจะปรากฏที่นี่</p>
         )}

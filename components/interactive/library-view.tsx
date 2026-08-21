@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Bookmark, CheckCircle2, Clock3, Compass, Heart, LibraryBig } from "lucide-react";
+import { ArrowRight, Bookmark, CheckCircle2, Clock3, Compass, Heart, LibraryBig, Sparkles } from "lucide-react";
 
+import { LibraryMembershipList } from "@/components/interactive/library-membership-list";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/section";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import {
 } from "@/lib/validation/collection-pagination";
 import type { UserNovelListItem } from "@/services/user-service";
 
-export type LibraryMode = "reading" | "following" | "bookmarks" | "completed" | "history";
+export type LibraryMode = "reading" | "following" | "bookmarks" | "completed" | "history" | "membership";
 
 const MODE_COPY: Record<LibraryMode, { title: string; description: string; emptyTitle: string; emptyDescription: string }> = {
   reading: {
@@ -44,12 +45,19 @@ const MODE_COPY: Record<LibraryMode, { title: string; description: string; empty
     emptyTitle: "ยังไม่มีประวัติการอ่าน",
     emptyDescription: "ประวัติจะเริ่มบันทึกเมื่อคุณเปิดอ่านตอนด้วยบัญชีนี้",
   },
+  membership: {
+    title: "Membership ของฉัน",
+    description: "นักเขียนที่คุณสนับสนุน พร้อมสิทธิ์อ่านก่อนและตอนพิเศษ",
+    emptyTitle: "ยังไม่ได้เป็นสมาชิกนักเขียนคนไหน",
+    emptyDescription: "เปิดหน้านิยายที่มี Membership แล้วสมัครเพื่อรับสิทธิ์อ่านก่อนใครและตอนพิเศษ",
+  },
 };
 
 const PRIMARY_NAV_ITEMS: { mode: Exclude<LibraryMode, "completed">; href: string; label: string }[] = [
   { mode: "reading", href: "/library", label: "กำลังอ่าน" },
   { mode: "following", href: "/library/following", label: "ติดตาม" },
   { mode: "bookmarks", href: "/library/bookmarks", label: "บันทึกไว้" },
+  { mode: "membership", href: "/library/membership", label: "สมาชิก" },
   { mode: "history", href: "/history", label: "ประวัติ" },
 ];
 
@@ -59,6 +67,7 @@ const MODE_PATHS: Record<LibraryMode, string> = {
   bookmarks: "/library/bookmarks",
   completed: "/library/completed",
   history: "/history",
+  membership: "/library/membership",
 };
 
 export function LibraryView({
@@ -81,7 +90,9 @@ export function LibraryView({
 
       <LibraryNav mode={mode} />
 
-      {items.length ? (
+      {mode === "membership" ? (
+        <LibraryMembershipList />
+      ) : items.length ? (
         <>
           <div id="library-results" className="divide-y divide-border">
             {items.map((item) => (
@@ -273,6 +284,8 @@ function ModeIcon({ mode }: { mode: LibraryMode }) {
         ? Bookmark
         : mode === "completed"
           ? CheckCircle2
-          : Clock3;
+          : mode === "membership"
+            ? Sparkles
+            : Clock3;
   return <Icon className="h-7 w-7" />;
 }

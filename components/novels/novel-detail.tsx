@@ -1,17 +1,28 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ViewTransition } from "react";
-import { BookOpen, ListOrdered, Star } from "lucide-react";
+import { BookOpen, ChevronDown, Flame, ListOrdered, ShieldAlert, Star } from "lucide-react";
 
 import {
   CompleteButton,
 } from "@/components/interactive/novel-actions";
 import { RatingForm } from "@/components/interactive/rating-form";
 import { SimilarNovelCard } from "@/components/novels/novel-card";
+import { WriterFollowButton } from "@/components/novels/writer-follow-button";
 import { NovelResumeActions } from "@/components/reader/novel-resume-actions";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/section";
 import { displayTagName } from "@/lib/domain/tag";
+import {
+  getNovelTaste,
+  getWriterMembership,
+  heatDescription,
+  heatDescriptor,
+  relationshipLabel,
+  settingLabel,
+  tropeLabel,
+  warningLabel,
+} from "@/lib/domain/reader-taste";
 import { formatNumber } from "@/lib/utils";
 import type { UserNovelState } from "@/services/user-service";
 import type { ChapterSummary, Novel, Review } from "@/types/novel";
@@ -43,6 +54,7 @@ export function NovelHero({
   userState?: UserNovelState;
 }) {
   const status = statusMeta(novel.status);
+  const taste = getNovelTaste(novel);
 
   return (
     <header className="relative isolate overflow-hidden rounded-(--r-lg) bg-surface px-3 py-5 sm:px-5 sm:py-7 lg:px-6 lg:py-8">
@@ -89,6 +101,9 @@ export function NovelHero({
               </Link>
             ))}
           </div>
+          <p className="mt-2 text-xs font-medium text-muted-foreground">
+            {relationshipLabel(taste.relationship)} · {settingLabel(taste.setting)}
+          </p>
 
           <p className="editorial-kicker mt-4">NOVEL / เรื่องอ่าน</p>
           <h1 className="mt-1 text-balance text-h1 font-semibold leading-[1.25] sm:text-4xl xl:text-5xl">
@@ -98,11 +113,21 @@ export function NovelHero({
             <p className="mt-2 text-sm text-muted-foreground">{novel.title}</p>
           ) : null}
           <p className="mt-3 text-sm text-muted-foreground">
-            ผู้เขียน <span className="font-medium text-foreground">{novel.author}</span>
+            ผู้เขียน{" "}
+            {novel.authorSlug ? (
+              <Link href={`/creators/${novel.authorSlug}`} className="font-medium text-foreground underline-offset-4 hover:text-[var(--brand-emphasis)] hover:underline">
+                {novel.author}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground">{novel.author}</span>
+            )}
             {novel.translator ? (
               <> · ผู้แปล <span className="font-medium text-foreground">{novel.translator}</span></>
             ) : null}
           </p>
+          <div className="mt-2 flex justify-center md:justify-start">
+            <WriterFollowButton authorName={novel.author} />
+          </div>
 
           <p className="mt-4 line-clamp-4 text-left text-sm leading-[1.9] text-muted-foreground sm:text-base">
             {novel.synopsis}
@@ -158,6 +183,86 @@ export function NovelSignals({ novel }: { novel: Novel }) {
         <Signal label="อยู่ในคลัง" value={`${formatNumber(novel.bookmarkCount ?? 0)} คน`} />
         <Signal label="การเข้าถึง" value={novel.hasPaidChapters ? "มีตอนจำกัดการเข้าถึง" : "อ่านตอนสาธารณะได้"} />
       </dl>
+    </section>
+  );
+}
+
+/**
+ * Story taste metadata (brief §34–36): the 3–6 tropes that best describe the
+ * story, its heat level with a short description, and a compact, expandable
+ * content-warning line. Grouped in one card so the page doesn't grow a new
+ * "warning wall" — heat and warnings are metadata, not the headline.
+ */
+export function NovelTasteSection({ novel }: { novel: Novel }) {
+  const taste = getNovelTaste(novel);
+  return (
+    <section aria-labelledby="taste-title" className="grid gap-6 rounded-(--r-md) bg-surface-subtle px-4 py-5 sm:px-5">
+      <div>
+        <h2 id="taste-title" className="text-sm font-semibold">เรื่องนี้เหมาะกับคนที่ชอบ</h2>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {taste.tropes.map((trope) => (
+            <span key={trope} className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
+              {tropeLabel(trope)}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold">ระดับความเข้มข้น</h2>
+        <div className="mt-2.5 flex items-center gap-2">
+          <span aria-hidden className="flex gap-0.5">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Flame
+                key={index}
+                className={index < taste.heat ? "h-4 w-4 text-[var(--brand-emphasis)]" : "h-4 w-4 text-muted-foreground/30"}
+              />
+            ))}
+          </span>
+          <span className="text-sm font-semibold">ระดับ {taste.heat} — {heatDescriptor(taste.heat)}</span>
+        </div>
+        <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{heatDescription(taste.heat)}</p>
+      </div>
+
+      {taste.warnings.length ? (
+        <details className="group">
+          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-sm font-semibold">
+            <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            คำเตือนเนื้อหา
+            <span className="text-xs font-normal text-muted-foreground">
+              {taste.warnings.map((warning) => warningLabel(warning)).join(" · ")}
+            </span>
+            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <ul className="mt-2 grid gap-1 pl-6 text-sm text-muted-foreground">
+            {taste.warnings.map((warning) => (
+              <li key={warning}>{warningLabel(warning)}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
+/** Small membership upsell (brief §Module 6) — never larger than the hero, and skipped entirely when the writer has none. */
+export function NovelMembershipCard({ novel }: { novel: Novel }) {
+  const membership = getWriterMembership(novel);
+  if (!membership) return null;
+  return (
+    <section aria-labelledby="membership-title" className="flex flex-wrap items-center justify-between gap-4 rounded-(--r-md) border border-[var(--brand-emphasis)]/25 bg-[color-mix(in_srgb,var(--brand-primary)_6%,transparent)] px-4 py-4 sm:px-5">
+      <div className="min-w-0">
+        <p id="membership-title" className="text-sm font-semibold">✦ {membership.name}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+          สนับสนุน {novel.author} และอ่านตอนใหม่ก่อนใคร — สมาชิกอ่านก่อน {membership.earlyAccessChapters} ตอน
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="text-sm font-semibold">{membership.priceLabel}</span>
+        <ButtonLink href={`/novel/${novel.slug}/membership`} variant="outline" size="sm">
+          ดู Membership
+        </ButtonLink>
+      </div>
     </section>
   );
 }
@@ -236,6 +341,7 @@ export function NovelCommunity({
 
 export function NovelMetaRail({ novel, userState }: { novel: Novel; userState?: UserNovelState }) {
   const status = statusMeta(novel.status);
+  const taste = getNovelTaste(novel);
   return (
     <aside className="space-y-6 lg:pl-7" aria-label="ข้อมูลเพิ่มเติมของนิยาย">
       {novel.tags.length ? (
@@ -264,6 +370,9 @@ export function NovelMetaRail({ novel, userState }: { novel: Novel; userState?: 
           {novel.translator ? <InfoRow label="ผู้แปล" value={novel.translator} /> : null}
           <InfoRow label="สถานะ" value={status.label} />
           <InfoRow label="อัปเดตล่าสุด" value={novel.updatedAt} />
+          <InfoRow label="แนว" value={novel.genreNames?.[novel.genres[0]] ?? novel.genres[0] ?? "—"} />
+          <InfoRow label="คู่หลัก" value={relationshipLabel(taste.relationship)} />
+          <InfoRow label="โลก" value={settingLabel(taste.setting)} />
         </dl>
         <div className="mt-5 grid gap-2">
           <ButtonLink href={`/novel/${novel.slug}/chapters`} variant="outline" className="w-full">

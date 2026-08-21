@@ -9,6 +9,7 @@ import { NovelGrid } from "@/components/novels/novel-grid";
 import { JsonLd } from "@/components/seo/json-ld";
 import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { displayTagName } from "@/lib/domain/tag";
+import { matchesTaste } from "@/lib/domain/reader-taste";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import {
@@ -181,6 +182,12 @@ export default async function NovelsPage({ searchParams }: { searchParams: Promi
     .filter((value): value is string => Boolean(value));
   const title = browseHeading(canonicalQuery, selected, activeTag?.name);
 
+  // Relationship/setting/trope/heat aren't DB columns yet (see lib/domain/reader-taste.ts),
+  // so they're applied as a client-safe post-filter over the already-fetched page rather than
+  // touching the DB query — a deliberate "UI mock first" scope boundary for this pass.
+  const hasTasteFilters = Boolean(query.relationship || query.setting || query.trope || query.heat);
+  const visibleItems = hasTasteFilters ? result.items.filter((novel) => matchesTaste(novel, query)) : result.items;
+
   return (
     <main id="main" className="mx-auto w-full max-w-(--shell-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6">
       <JsonLd
@@ -201,13 +208,19 @@ export default async function NovelsPage({ searchParams }: { searchParams: Promi
         query={canonicalQuery}
         pagination={{ page: result.page, total: result.total, totalPages: result.totalPages, pageSize: result.pageSize }}
         facets={facets}
-        results={<NovelGrid novels={result.items} />}
+        results={<NovelGrid novels={visibleItems} />}
         emptySuggestions={<NovelGrid novels={suggestions} />}
-        hasResults={result.items.length > 0}
+        hasResults={visibleItems.length > 0}
         hasSuggestions={suggestions.length > 0}
-        resultCount={result.items.length}
+        resultCount={visibleItems.length}
         title={title}
-        description={selected.length ? `${result.total.toLocaleString("th-TH")} เรื่องในแนวที่เลือก` : "เลือกจากสถานะ คะแนน จำนวนตอน และเวลาอัปเดตได้ในที่เดียว"}
+        description={
+          hasTasteFilters
+            ? `${visibleItems.length.toLocaleString("th-TH")} เรื่องที่ตรงกับรสนิยมที่เลือกในหน้านี้`
+            : selected.length
+              ? `${result.total.toLocaleString("th-TH")} เรื่องในแนวที่เลือก`
+              : "เลือกจากสถานะ คะแนน จำนวนตอน และเวลาอัปเดตได้ในที่เดียว"
+        }
       />
     </main>
   );

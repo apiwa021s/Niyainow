@@ -10,6 +10,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { canAccessAdmin } from "@/lib/auth/permissions";
 import { parseChapterNumberSegment, splitChapterParagraphs } from "@/lib/domain/chapter";
+import { getNovelTaste } from "@/lib/domain/reader-taste";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { getAdjacentChapters, getChapterWindow, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
@@ -110,6 +111,7 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
     laterBoundary: applyAccess(chapterWindow.laterBoundary),
   };
   const paragraphs = splitChapterParagraphs(content ?? "");
+  const taste = getNovelTaste(novel);
   return (
     <>
       <PublicViewTracker slug={novel.slug} chapterNumber={chapterSummary.number} />
@@ -181,6 +183,7 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
         initialLibraryStatus={userState?.libraryStatus}
         initialFollowing={userState?.followed}
         initialProgress={userState?.progress}
+        matureWarning={{ heat: taste.heat, warnings: taste.warnings }}
       >
         <ChapterBody paragraphs={paragraphs} teaser={locked} />
       </ReaderView>

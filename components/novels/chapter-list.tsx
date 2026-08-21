@@ -9,6 +9,7 @@ import {
   ChevronDown,
   LockKeyhole,
   Search,
+  Sparkles,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -16,6 +17,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { NovelCatalogResume, useNovelResumeProgress } from "@/components/reader/novel-resume-actions";
+import { getChapterDemoAccess } from "@/lib/domain/reader-taste";
 import { cn } from "@/lib/utils";
 import { markChapterNavigation } from "@/stores/use-reader-store";
 import type {
@@ -142,6 +144,7 @@ function ChapterRows({
         const isPaid = Boolean(chapter.locked && (chapter.coinPrice ?? 0) > 0);
         const isUnlocked = isPaid && (staffAccess || Boolean(chapter.id && unlockedChapterIds.has(chapter.id)));
         const isLocked = Boolean(chapter.locked && !isUnlocked);
+        const demoAccess = latestChapterNumber ? getChapterDemoAccess(slug, chapter.number, latestChapterNumber) : null;
         return (
           <li
             key={chapter.id ?? chapter.number}
@@ -201,6 +204,16 @@ function ChapterRows({
                   )
                 ) : isLocked ? (
                     <LockKeyhole className="h-4 w-4 text-muted-foreground" aria-label="ตอนจำกัดสิทธิ์" />
+                ) : demoAccess === "early_access" ? (
+                  <span className="inline-flex items-center gap-1 text-[var(--brand-emphasis)]" title="สมาชิกอ่านก่อนใคร">
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                    <span className="hidden sm:inline">สมาชิกอ่านก่อน</span>
+                  </span>
+                ) : demoAccess === "members_only" ? (
+                  <span className="inline-flex items-center gap-1 text-[var(--brand-emphasis)]" title="สมาชิกเท่านั้น">
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                    <span className="hidden sm:inline">สมาชิกเท่านั้น</span>
+                  </span>
                 ) : null}
               </span>
             </Link>

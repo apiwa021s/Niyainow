@@ -587,6 +587,7 @@ async function hydrateNovels(rows: BaseNovelRow[], mode: "list" | "detail" = "li
         novelId: novelAuthors.novelId,
         role: novelAuthors.role,
         name: authors.name,
+        slug: authors.slug,
         sortOrder: novelAuthors.sortOrder,
       })
       .from(novelAuthors)
@@ -631,6 +632,7 @@ async function hydrateNovels(rows: BaseNovelRow[], mode: "list" | "detail" = "li
       title: row.titleOriginal ?? row.title,
       thaiTitle: row.title,
       author: primaryAuthor?.name ?? "ไม่ระบุผู้แต่ง",
+      authorSlug: primaryAuthor?.slug,
       translator: translator?.name,
       genres: novelGenresForRow.map((genre) => genre.slug),
       genreNames: Object.fromEntries(
@@ -761,6 +763,60 @@ export const getNovelBySlug = cache(async (slugInput: string) => {
   const slug = cleanText(slugInput, 180);
   return slug ? getNovelBySlugCached(slug) : undefined;
 });
+
+export type WriterProfile = {
+  id: string;
+  slug: string;
+  name: string;
+  nativeName: string | null;
+  bio: string | null;
+  avatarUrl: string;
+  novels: Novel[];
+};
+
+/** Public writer profile (brief §Module 14): real author + their published novels, no mock data needed. */
+export const getWriterProfile = cache(async (slugInput: string): Promise<WriterProfile | undefined> => {
+  const slug = cleanText(slugInput, 160);
+  if (!slug) return undefined;
+  const db = getDb();
+  const [author] = await db
+    .select({
+      id: authors.id,
+      slug: authors.slug,
+      name: authors.name,
+      nativeName: authors.nativeName,
+      bio: authors.bio,
+      avatarKey: authors.avatarKey,
+    })
+    .from(authors)
+    .where(eq(authors.slug, slug))
+    .limit(1);
+  if (!author) return undefined;
+
+  const now = new Date();
+  const authoredRows = await db
+    .select({ novelId: novelAuthors.novelId })
+    .from(novelAuthors)
+    .innerJoin(novels, and(eq(novels.id, novelAuthors.novelId), publicNovelCondition(now)))
+    .where(and(eq(novelAuthors.authorId, author.id), inArray(novelAuthors.role, PUBLIC_AUTHOR_ROLES)));
+  const novelIds = [...new Set(authoredRows.map((row) => row.novelId))];
+
+  const rows = novelIds.length
+    ? await selectBaseNovels(and(publicNovelCondition(now), inArray(novels.id, novelIds))!, orderBy("updated"), 48)
+    : [];
+  const novelList = await hydrateNovels(rows);
+
+  return {
+    id: author.id,
+    slug: author.slug,
+    name: author.name,
+    nativeName: author.nativeName,
+    bio: author.bio,
+    avatarUrl: assetUrl(author.avatarKey),
+    novels: novelList,
+  };
+});
+
 
 export const getFeaturedNovels = unstable_cache(
   async (requestedLimit = 6) => {

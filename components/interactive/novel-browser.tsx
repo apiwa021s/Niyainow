@@ -11,6 +11,7 @@ import {
 } from "@/components/browse/deferred-filter-panel";
 import { NovelGridSkeleton } from "@/components/browse/novel-grid-skeleton";
 import { Select } from "@/components/ui/form-controls";
+import { heatLabelFor, relationshipLabel, settingLabel, tropeLabel, parseTropeParam } from "@/lib/domain/reader-taste";
 import { cn } from "@/lib/utils";
 import { novelBrowseHref } from "@/lib/validation/public-query";
 import type { GenreFacet } from "@/services/novel-service";
@@ -90,7 +91,19 @@ export function NovelBrowser({
   const visibleGenres = selectedGenres.filter((slug) => slug !== fixedGenre);
   const activeGenreSlugs = facets.map((genre) => genre.slug);
   const genreLabels = new Map(facets.map((genre) => [genre.slug, genre.thaiName]));
-  const hasFilters = visibleGenres.length > 0 || Boolean((query.tag && query.tag !== fixedTag) || query.status || query.chapters || query.rating || query.updated || query.content || query.q);
+  const hasFilters = visibleGenres.length > 0 || Boolean(
+    (query.tag && query.tag !== fixedTag) ||
+      query.status ||
+      query.chapters ||
+      query.rating ||
+      query.updated ||
+      query.content ||
+      query.q ||
+      query.relationship ||
+      query.setting ||
+      query.trope ||
+      query.heat,
+  );
 
   function routeHref(next: NovelQuery) {
     const visibleQuery = { ...next };
@@ -149,6 +162,7 @@ export function NovelBrowser({
     };
   }, [sheetOpen]);
 
+  const selectedTropes = parseTropeParam(query.trope);
   const activeChips = [
     ...(query.q ? [{ key: "query", label: `ค้นหา: ${query.q}`, remove: () => update({ ...query, q: undefined, page: undefined }) }] : []),
     ...(query.tag && query.tag !== fixedTag ? [{ key: "tag", label: `แท็ก: ${query.tag}`, remove: () => update({ ...query, tag: undefined, page: undefined }) }] : []),
@@ -160,6 +174,17 @@ export function NovelBrowser({
         update({ ...query, genre: next.length ? next.join(",") : fixedGenre, page: undefined });
       },
     })),
+    ...(query.relationship ? [{ key: "relationship", label: relationshipLabel(query.relationship), remove: () => update({ ...query, relationship: undefined, page: undefined }) }] : []),
+    ...(query.setting ? [{ key: "setting", label: settingLabel(query.setting), remove: () => update({ ...query, setting: undefined, page: undefined }) }] : []),
+    ...selectedTropes.map((value) => ({
+      key: `trope-${value}`,
+      label: tropeLabel(value),
+      remove: () => {
+        const next = selectedTropes.filter((item) => item !== value);
+        update({ ...query, trope: next.length ? next.join(",") : undefined, page: undefined });
+      },
+    })),
+    ...(query.heat ? [{ key: "heat", label: heatLabelFor(query.heat), remove: () => update({ ...query, heat: undefined, page: undefined }) }] : []),
     ...(["status", "chapters", "rating", "updated", "content"] as const)
       .filter((key) => query[key])
       .map((key) => ({

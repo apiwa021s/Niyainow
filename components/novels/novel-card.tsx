@@ -1,8 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUp, BookOpen, Eye, Minus, Sparkles, Star } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, BookOpen, Eye, Flame, Minus, Sparkles, Star } from "lucide-react";
 
 import { DeferredBookmarkToggle } from "@/components/interactive/deferred-bookmark-toggle";
+import { getNovelTaste } from "@/lib/domain/reader-taste";
 import { cn, formatNumber } from "@/lib/utils";
 import type { RankingMovement } from "@/services/novel-service";
 import type { Novel } from "@/types/novel";
@@ -66,6 +67,7 @@ function GenreChip({ label }: { label: string }) {
  */
 export function NovelTile({ novel, priority = false }: { novel: Novel; priority?: boolean }) {
   const genre = genreNameOf(novel, novel.genres[0]);
+  const heat = getNovelTaste(novel).heat;
   return (
     <article className="group relative">
       {/*
@@ -106,6 +108,10 @@ export function NovelTile({ novel, priority = false }: { novel: Novel; priority?
               {genre ? <span className="hidden truncate sm:inline">{genre}</span> : null}
               {genre ? <span aria-hidden className="hidden sm:inline">·</span> : null}
               <span className="shrink-0">{novel.chapters.toLocaleString("th-TH")} ตอน</span>
+              <span className="hidden shrink-0 items-center gap-0.5 sm:inline-flex" title={`ระดับความเข้มข้น ${heat}`}>
+                <Flame className="h-3 w-3" aria-hidden />
+                {heat}
+              </span>
             </p>
           </div>
         </div>

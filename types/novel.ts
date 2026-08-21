@@ -14,6 +14,8 @@ export type Novel = {
   title: string;
   thaiTitle: string;
   author: string;
+  /** Slug of the primary author/writer, for linking to their public profile (/creators/[handle]). */
+  authorSlug?: string;
   genres: string[];
   /** Labels keyed by genre slug; keeps presentation independent from seed data. */
   genreNames?: Record<string, string>;

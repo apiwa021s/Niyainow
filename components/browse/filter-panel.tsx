@@ -1,5 +1,16 @@
 "use client";
 
+import { Flame } from "lucide-react";
+
+import {
+  HEAT_LEVELS,
+  RELATIONSHIP_OPTIONS,
+  SETTING_OPTIONS,
+  TROPE_OPTIONS,
+  parseHeatParam,
+  parseTropeParam,
+  type HeatLevel,
+} from "@/lib/domain/reader-taste";
 import { cn } from "@/lib/utils";
 import type { Genre } from "@/types/novel";
 import {
@@ -109,12 +120,37 @@ export function FilterPanel({
   compact?: boolean;
 }) {
   const selectedGenres = parseGenreParam(query.genre);
+  const selectedTropes = parseTropeParam(query.trope);
+  const heatRange = parseHeatParam(query.heat);
+  const activeHeats: HeatLevel[] = heatRange
+    ? HEAT_LEVELS.filter((level) => level >= heatRange.min && level <= heatRange.max)
+    : [];
 
   const toggleGenre = (slug: string) => {
     const next = selectedGenres.includes(slug)
       ? selectedGenres.filter((item) => item !== slug)
       : [...selectedGenres, slug].slice(0, 8);
     onChange({ ...query, genre: next.length ? next.join(",") : undefined });
+  };
+
+  const toggleTrope = (value: string) => {
+    const next = selectedTropes.includes(value)
+      ? selectedTropes.filter((item) => item !== value)
+      : [...selectedTropes, value].slice(0, 6);
+    onChange({ ...query, trope: next.length ? next.join(",") : undefined });
+  };
+
+  const toggleHeat = (level: HeatLevel) => {
+    const next = activeHeats.includes(level)
+      ? activeHeats.filter((item) => item !== level)
+      : [...activeHeats, level];
+    if (!next.length) {
+      onChange({ ...query, heat: undefined });
+      return;
+    }
+    const min = Math.min(...next);
+    const max = Math.max(...next);
+    onChange({ ...query, heat: min === max ? String(min) : `${min}-${max}` });
   };
 
   return (
@@ -134,6 +170,61 @@ export function FilterPanel({
           ))}
         </div>
       </FilterGroup> : null}
+
+      <FilterGroup label="คู่หลัก">
+        <div className="flex flex-wrap gap-1.5">
+          <OptionChip active={!query.relationship} onClick={() => onChange({ ...query, relationship: undefined })}>
+            ทั้งหมด
+          </OptionChip>
+          {RELATIONSHIP_OPTIONS.map((option) => (
+            <OptionChip
+              key={option.id}
+              active={query.relationship === option.id}
+              onClick={() => onChange({ ...query, relationship: query.relationship === option.id ? undefined : option.id })}
+            >
+              {option.nameTh}
+            </OptionChip>
+          ))}
+        </div>
+      </FilterGroup>
+
+      <FilterGroup label="โลกของเรื่อง">
+        <div className="flex flex-wrap gap-1.5">
+          <OptionChip active={!query.setting} onClick={() => onChange({ ...query, setting: undefined })}>
+            ทั้งหมด
+          </OptionChip>
+          {SETTING_OPTIONS.map((option) => (
+            <OptionChip
+              key={option.id}
+              active={query.setting === option.id}
+              onClick={() => onChange({ ...query, setting: query.setting === option.id ? undefined : option.id })}
+            >
+              {option.nameTh}
+            </OptionChip>
+          ))}
+        </div>
+      </FilterGroup>
+
+      <FilterGroup label="พล็อตที่ชอบ">
+        <div className="flex flex-wrap gap-1.5">
+          {TROPE_OPTIONS.map((option) => (
+            <OptionChip key={option.id} active={selectedTropes.includes(option.id)} onClick={() => toggleTrope(option.id)}>
+              {option.nameTh}
+            </OptionChip>
+          ))}
+        </div>
+      </FilterGroup>
+
+      <FilterGroup label="ระดับความเข้มข้น">
+        <div className="flex flex-wrap gap-1.5">
+          {HEAT_LEVELS.map((level) => (
+            <OptionChip key={level} active={activeHeats.includes(level)} onClick={() => toggleHeat(level)}>
+              <Flame className="h-3.5 w-3.5" aria-hidden />
+              {level}
+            </OptionChip>
+          ))}
+        </div>
+      </FilterGroup>
 
       <FilterGroup label="สถานะ">
         <div className="flex flex-wrap gap-1.5">
