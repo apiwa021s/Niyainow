@@ -43,6 +43,9 @@ export type StudioChapter = {
   number: number;
   title: string;
   status: "draft" | "scheduled" | "published" | "unpublished";
+  memberOnly?: boolean;
+  earlyAccessNote?: string;
+  publicReleaseNote?: string;
   price: number | null;
   unlocks: number;
   words: number;
@@ -180,6 +183,8 @@ export const studioChapters: readonly StudioChapter[] = [
     number: 2666,
     title: "ศึกชิงเมืองด่านเหนือ",
     status: "published",
+    earlyAccessNote: "สมาชิกอ่านได้แล้ว ✦",
+    publicReleaseNote: "Public อีก 3 วัน",
     price: 5,
     unlocks: 318,
     words: 3_420,
@@ -192,8 +197,9 @@ export const studioChapters: readonly StudioChapter[] = [
     heatOverride: 5,
     warningIds: ["blood_gore", "death"],
   },
-  { number: 2665, title: "คำสั่งจากวังหลวง", status: "published", price: 5, unlocks: 402, words: 3_180, views: 9_360, uniqueReaders: 7_560, likes: 964, comments: 142, updatedAt: "เมื่อวาน" },
+  { number: 2665, title: "คำสั่งจากวังหลวง", status: "published", earlyAccessNote: "สมาชิกอ่านได้แล้ว ✦", publicReleaseNote: "Public พรุ่งนี้ 20:00", price: 5, unlocks: 402, words: 3_180, views: 9_360, uniqueReaders: 7_560, likes: 964, comments: 142, updatedAt: "เมื่อวาน" },
   { number: 2664, title: "ม้าศึกกับสายฝน", status: "published", price: 5, unlocks: 455, words: 2_960, views: 10_240, uniqueReaders: 8_310, likes: 1_205, comments: 210, updatedAt: "2 วันที่แล้ว" },
+  { number: 1, title: "คืนพิเศษ", status: "published", memberOnly: true, price: null, unlocks: 122, words: 1_980, views: 640, uniqueReaders: 420, likes: 188, comments: 61, updatedAt: "3 วันที่แล้ว" },
   { number: 2667, title: "เงาที่ประตูเมือง", status: "scheduled", price: 5, unlocks: 0, words: 3_050, views: 0, uniqueReaders: 0, likes: 0, comments: 0, updatedAt: "ตั้งเวลา 22 ส.ค. 20:00" },
   { number: 2668, title: "(ยังไม่ตั้งชื่อ)", status: "draft", price: null, unlocks: 0, words: 1_240, views: 0, uniqueReaders: 0, likes: 0, comments: 0, updatedAt: "แก้ล่าสุด 14 นาทีที่แล้ว" },
 ];

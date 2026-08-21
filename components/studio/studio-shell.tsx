@@ -1,19 +1,17 @@
 "use client";
 
 import {
-  BookA,
+  Bell,
   BookMarked,
-  CalendarDays,
   Coins,
-  Columns3,
+  Crown,
   ExternalLink,
-  GraduationCap,
   LayoutDashboard,
   Menu,
-  MessagesSquare,
+  MessageSquare,
+  PenLine,
   Settings,
-  UsersRound,
-  Wallet,
+  UserRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,29 +19,29 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Logo } from "@/components/layout/logo";
-import { studioProfile } from "@/components/studio/mock-data";
-import { StudioSearch } from "@/components/studio/studio-search";
+import {
+  QuickWriteSheet,
+  StudioNotificationPanel,
+} from "@/components/studio/writer-studio-components";
+import { writerProfile } from "@/components/studio/writer-studio-mock";
 import { StudioThemeToggle } from "@/components/studio/studio-theme";
 import { cn } from "@/lib/utils";
 
-/** Grouped by what the writer is doing: making the work, getting paid, learning. */
 const navGroups = [
   [
     { href: "/studio", label: "ภาพรวม", icon: LayoutDashboard, exact: true },
-    { href: "/studio/works", label: "ผลงานของฉัน", icon: BookMarked, exact: false },
-    { href: "/studio/workroom", label: "ห้องแปล", icon: Columns3, exact: false },
-    { href: "/studio/schedule", label: "ตารางลง", icon: CalendarDays, exact: false },
-    { href: "/studio/readers", label: "ผู้อ่าน", icon: MessagesSquare, exact: false },
-    { href: "/studio/glossary", label: "คลังคำ", icon: BookA, exact: false },
-    { href: "/studio/team", label: "ทีม", icon: UsersRound, exact: false },
-  ],
-  [
+    { href: "/studio/stories", label: "ผลงานของฉัน", icon: BookMarked, exact: false },
+    { href: "/studio/fans", label: "แฟนของฉัน", icon: UserRound, exact: false },
+    { href: "/studio/posts", label: "โพสต์", icon: MessageSquare, exact: false },
+    { href: "/studio/membership", label: "Membership", icon: Crown, exact: false },
     { href: "/studio/earnings", label: "รายได้", icon: Coins, exact: false },
-    { href: "/studio/payouts", label: "การจ่ายเงิน", icon: Wallet, exact: false },
   ],
   [
-    { href: "/studio/academy", label: "Academy", icon: GraduationCap, exact: false },
-    { href: "/studio/settings", label: "ตั้งค่านักเขียน", icon: Settings, exact: false },
+    { href: "/studio/profile", label: "โปรไฟล์", icon: UserRound, exact: false },
+    { href: "/studio/settings", label: "การตั้งค่า", icon: Settings, exact: false },
+  ],
+  [
+    { href: "/", label: "กลับ NovelNow", icon: ExternalLink, exact: false },
   ],
 ] as const;
 
@@ -89,12 +87,31 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
 function ProfileCard() {
   return (
     <div className="m-3 rounded-xl bg-accent-subtle p-3">
-      <p className="truncate text-sm font-semibold">{studioProfile.penName}</p>
+      <p className="truncate text-sm font-semibold">{writerProfile.name}</p>
       <p className="truncate text-xs text-(--text-secondary)">
-        {studioProfile.role} · {studioProfile.handle}
+        นักเขียน · {writerProfile.username}
       </p>
     </div>
   );
+}
+
+const crumbMap: Record<string, string> = {
+  "/studio": "ภาพรวม",
+  "/studio/stories": "ผลงานของฉัน",
+  "/studio/fans": "แฟนของฉัน",
+  "/studio/posts": "โพสต์",
+  "/studio/membership": "Membership",
+  "/studio/earnings": "รายได้",
+  "/studio/profile": "โปรไฟล์นักเขียน",
+  "/studio/settings": "การตั้งค่า",
+};
+
+function getBreadcrumb(pathname: string) {
+  const direct = crumbMap[pathname];
+  if (direct) return `Studio / ${direct}`;
+  const hit = Object.entries(crumbMap).find(([path]) => path !== "/studio" && pathname.startsWith(`${path}/`));
+  if (hit) return `Studio / ${hit[1]}`;
+  return "Studio";
 }
 
 /**
@@ -118,12 +135,16 @@ function isEditorRoute(pathname: string) {
 export function StudioShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [quickWriteOpen, setQuickWriteOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
   const editorRoute = isEditorRoute(pathname);
+  const breadcrumb = getBreadcrumb(pathname);
 
   if (pathname !== lastPath) {
     setLastPath(pathname);
     setDrawerOpen(false);
+    setNotificationsOpen(false);
   }
 
   useEffect(() => {
@@ -156,12 +177,20 @@ export function StudioShell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-(--bg-base) lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-4">
           <Logo />
-          <span className="rounded-[6px] bg-accent-subtle px-1.5 py-0.5 text-[10px] font-bold text-[var(--brand-emphasis)]">
-            STUDIO
-          </span>
+          <span className="text-sm font-semibold">NovelNow Studio</span>
         </div>
         <div className="flex-1 overflow-y-auto">
           <NavList pathname={pathname} />
+        </div>
+        <div className="px-3">
+          <button
+            type="button"
+            onClick={() => setQuickWriteOpen(true)}
+            className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-(--r-md) bg-[var(--brand-primary)] px-3 text-sm font-semibold text-white shadow-[var(--sh-brand)]"
+          >
+            <PenLine className="h-4 w-4" />
+            + เขียนตอนใหม่
+          </button>
         </div>
         <ProfileCard />
       </aside>
@@ -206,16 +235,32 @@ export function StudioShell({ children }: { children: ReactNode }) {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <StudioSearch />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">NovelNow Studio</p>
+              <p className="truncate text-xs text-(--text-tertiary)">{breadcrumb}</p>
+            </div>
             <div className="ml-auto flex shrink-0 items-center gap-1">
-              <StudioThemeToggle />
-              <Link
-                href="/"
-                className="inline-flex h-11 items-center gap-1.5 rounded-(--r-md) px-3 text-sm font-medium text-(--text-secondary) hover:bg-muted hover:text-(--text-primary)"
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(true)}
+                className="grid h-11 w-11 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-muted"
+                aria-label="การแจ้งเตือน"
               >
-                <ExternalLink aria-hidden className="h-4 w-4" />
-                <span className="hidden sm:inline">กลับหน้าเว็บ</span>
-              </Link>
+                <Bell className="h-4.5 w-4.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickWriteOpen(true)}
+                className="hidden h-11 items-center gap-2 rounded-(--r-md) bg-[var(--brand-primary)] px-3 text-sm font-semibold text-white shadow-[var(--sh-brand)] sm:inline-flex"
+              >
+                <PenLine className="h-4 w-4" />
+                + เขียนตอนใหม่
+              </button>
+              <StudioThemeToggle />
+              <span className="inline-flex h-11 items-center gap-2 rounded-(--r-md) px-2 text-sm font-semibold">
+                <span className="grid h-8 w-8 place-items-center rounded-full border border-border bg-muted/40 text-xs">{writerProfile.avatar}</span>
+                <span className="hidden sm:inline">{writerProfile.name}</span>
+              </span>
             </div>
           </div>
         </header>
@@ -224,6 +269,9 @@ export function StudioShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+
+      <StudioNotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+      <QuickWriteSheet open={quickWriteOpen} onClose={() => setQuickWriteOpen(false)} />
     </div>
   );
 }

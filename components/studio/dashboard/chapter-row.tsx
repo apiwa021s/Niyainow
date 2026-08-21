@@ -105,6 +105,7 @@ export function ChapterRow({
   }
 
   const isUnpublished = chapter.status === "unpublished";
+  const labelPrefix = chapter.memberOnly ? "BONUS" : label;
 
   return (
     <li className={cn("flex flex-wrap items-center justify-between gap-3 px-5 py-4", isUnpublished && "opacity-60")}>
@@ -112,10 +113,17 @@ export function ChapterRow({
         {reorder ? <ReorderControl reorder={reorder} label={label} /> : null}
         <div className="min-w-0">
           <p className="font-medium">
-            <span className="tabular-nums text-(--text-tertiary)">{label}</span> · {chapter.title}
+            <span className="tabular-nums text-(--text-tertiary)">{labelPrefix}</span> · {chapter.title}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-(--text-secondary)">
             <ChapterStatusBadge status={chapter.status} />
+            {chapter.memberOnly ? (
+              <span className="inline-flex items-center rounded-full border border-border bg-accent-subtle px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-emphasis)]">
+                ✦ สมาชิกเท่านั้น
+              </span>
+            ) : null}
+            {chapter.earlyAccessNote ? <span className="text-[var(--brand-emphasis)]">{chapter.earlyAccessNote}</span> : null}
+            {chapter.publicReleaseNote ? <span>{chapter.publicReleaseNote}</span> : null}
             <span className="inline-flex items-center gap-1 tabular-nums">
               <Eye aria-hidden className="h-3.5 w-3.5" /> {whole.format(chapter.views)}
             </span>
@@ -134,6 +142,10 @@ export function ChapterRow({
         {isUnpublished ? (
           <ButtonLink href={`/studio/works/${storySlug}/chapters/${chapter.number}/edit`} variant="outline" size="sm">
             เผยแพร่อีกครั้ง
+          </ButtonLink>
+        ) : chapter.memberOnly ? (
+          <ButtonLink href={`/studio/works/${storySlug}/chapters/${chapter.number}/edit`} variant="outline" size="sm">
+            แก้ไขตอน
           </ButtonLink>
         ) : (
           <>
