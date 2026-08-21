@@ -184,6 +184,37 @@ export const CHAPTER_ACCESS_TYPES = [
 /** Coin price tiers a writer can pick from for a paid chapter. */
 export const CHAPTER_PRICES = [1, 2, 3, 5, 7] as const;
 
+/** How a creator's revenue-share contract came about — drives the label shown next to their % (spec §5–6). */
+export const CREATOR_REVENUE_CONTRACT_TYPES = master([
+  { id: "standard", nameTh: "นักเขียนทั่วไป", nameEn: "Standard Creator" },
+  { id: "founding_author", nameTh: "นักเขียนเปิดตัว", nameEn: "Founding Author" },
+  { id: "exclusive", nameTh: "นักเขียนเอ็กซ์คลูซีฟ", nameEn: "Exclusive Creator" },
+  { id: "custom", nameTh: "กำหนดเอง", nameEn: "Custom" },
+]);
+
+/**
+ * Balance states a ledger entry can sit in (spec §13). `reserved` and
+ * `settled` exist only so the payout system has states to land in later —
+ * nothing in this scope moves a row into either of them yet. Plain array,
+ * not `master()` — the writer-facing UI never needs an English label for
+ * these, per spec §42.
+ */
+export const CREATOR_EARNING_STATUS = [
+  { id: "pending", nameTh: "กำลังตรวจสอบ" },
+  { id: "available", nameTh: "พร้อมรับเงิน" },
+  { id: "reserved", nameTh: "อยู่ระหว่างดำเนินการ" },
+  { id: "settled", nameTh: "ดำเนินการแล้ว" },
+  { id: "reversed", nameTh: "ปรับปรุงรายการ" },
+] as const;
+
+/** What kind of ledger movement a transaction row represents (spec §23). */
+export const CREATOR_TRANSACTION_TYPES = [
+  { id: "chapter_unlock", nameTh: "รายได้จากการปลดล็อกตอน" },
+  { id: "creator_bonus", nameTh: "โบนัสจาก NovelNow" },
+  { id: "adjustment", nameTh: "รายการปรับปรุง" },
+  { id: "refund_reversal", nameTh: "ปรับปรุงจากการคืนเงิน" },
+] as const;
+
 /** Product rules — one place, so the form, the counters and the review step agree. */
 export const STORY_LIMITS = {
   titleMax: 120,

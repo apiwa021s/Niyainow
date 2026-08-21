@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Share2,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -26,6 +27,7 @@ const menuItems = (work: StudioWork) =>
   [
     { label: "แก้ไขข้อมูลเรื่อง", href: `/studio/works/${work.slug}`, icon: Pencil },
     { label: "จัดการราคา", href: `/studio/works/${work.slug}/pricing`, icon: Coins },
+    { label: "ดูรายได้", href: `/studio/works/${work.slug}/earnings`, icon: Wallet },
     { label: "ดูตัวอย่างหน้าเรื่อง", href: `/novel/${work.slug}`, icon: Eye },
   ] as const;
 

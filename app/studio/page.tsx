@@ -12,6 +12,7 @@ import {
   whole,
   workStatusLabels,
 } from "@/components/studio/mock-data";
+import { creatorEarningsAccount } from "@/components/studio/mock-earnings";
 import { StatusPill, StudioPageHeader, StudioPanel, StudioRowLink, reviewWaitLabel } from "@/components/studio/studio-ui";
 import { ButtonLink } from "@/components/ui/button";
 
@@ -85,13 +86,13 @@ export default function StudioDashboardPage() {
 
         <div className="grid content-start gap-4">
           <section className="rounded-xl bg-accent-subtle p-5">
-            <p className="text-xs font-semibold text-[var(--brand-emphasis)]">ยอดรอโอนงวดถัดไป</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums">{baht.format(studioSummary.pendingBalance)}</p>
+            <p className="text-xs font-semibold text-[var(--brand-emphasis)]">รายได้เดือนนี้</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums">{baht.format(creatorEarningsAccount.monthlyEarnings)}</p>
             <p className="mt-1 text-xs text-(--text-secondary)">
-              โอนภายใน {studioSummary.nextPayoutDate} · ขั้นต่ำ {whole.format(studioSummary.minimumPayout)} บาท
+              พร้อมรับเงิน {baht.format(creatorEarningsAccount.availableAmount)} บาท
             </p>
-            <ButtonLink href="/studio/payouts" variant="outline" className="mt-4 w-full">
-              ดูรายละเอียดการจ่ายเงิน
+            <ButtonLink href="/studio/earnings" variant="outline" className="mt-4 w-full">
+              ดูรายได้
             </ButtonLink>
           </section>
 
