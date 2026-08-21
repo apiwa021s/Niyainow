@@ -97,14 +97,27 @@ function ProfileCard() {
 }
 
 /**
- * Studio chrome. Deliberately not the admin shell: this is a reader-facing
- * surface with the site's own palette, so a writer never feels dropped into a
- * back office. Navigation lives in one place and the drawer mirrors it exactly.
+ * A chapter editor route hides the dashboard chrome entirely (spec §9/§15) —
+ * writing is the only thing on screen. The preview route gets the same
+ * treatment: it opens in its own tab specifically to show the chapter the
+ * way a reader will see it, and the studio sidebar has no place in that.
+ */
+function isEditorRoute(pathname: string) {
+  return /\/chapters\/(new|[^/]+\/edit|[^/]+\/preview)(\/|$)/.test(pathname);
+}
+
+/**
+ * Studio chrome. Deliberately not the admin shell: this is a writer-focused
+ * surface with its own always-dark palette (`data-studio-theme`, see
+ * globals.css), so a writer never feels dropped into a back office — or into
+ * whatever light/dark mode the reader side happens to be in. Navigation lives
+ * in one place and the drawer mirrors it exactly.
  */
 export function StudioShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
+  const editorRoute = isEditorRoute(pathname);
 
   if (pathname !== lastPath) {
     setLastPath(pathname);
@@ -125,8 +138,19 @@ export function StudioShell({ children }: { children: ReactNode }) {
     };
   }, [drawerOpen]);
 
+  if (editorRoute) {
+    // The chapter editor renders its own minimal header (back link + autosave
+    // status) — the dashboard sidebar, search, and account chrome would only
+    // compete with the writing surface, so none of it mounts on this route.
+    return (
+      <div data-studio-theme className="min-h-dvh bg-(--bg-base)">
+        {children}
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-(--bg-subtle)">
+    <div data-studio-theme className="min-h-screen bg-(--bg-subtle)">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-(--bg-base) lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-4">
           <Logo />

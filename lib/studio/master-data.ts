@@ -176,6 +176,14 @@ export const CONTENT_ORIGINS = master([
   { id: "licensed_adaptation", nameTh: "งานดัดแปลงที่ได้รับอนุญาต", nameEn: "Licensed Adaptation" },
 ]);
 
+export const CHAPTER_ACCESS_TYPES = [
+  { id: "free", nameTh: "อ่านฟรี", nameEn: "Free" },
+  { id: "paid", nameTh: "ใช้ Coins", nameEn: "Paid" },
+] as const;
+
+/** Coin price tiers a writer can pick from for a paid chapter. */
+export const CHAPTER_PRICES = [1, 2, 3, 5, 7] as const;
+
 /** Product rules — one place, so the form, the counters and the review step agree. */
 export const STORY_LIMITS = {
   titleMax: 120,

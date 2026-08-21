@@ -213,6 +213,44 @@
   color-scheme: dark;
 }
 
+/*
+ * NovelNow Studio — the writer's tools get their own always-dark sub-brand,
+ * distinct from the reader-facing site's light/dark toggle, so a writer never
+ * lands on a bright page mid-session. Scoped to one attribute on the Studio
+ * shell root; every existing component already reads --bg-base/--brand-primary/
+ * etc. as live custom properties, so nothing else needs to change to pick this
+ * up — only genuinely new tokens get declared here.
+ */
+[data-studio-theme] {
+  color-scheme: dark;
+  --bg-base: #050507;
+  --bg-elevated: #0d0d12;
+  --bg-subtle: #15151d;
+  --bg-recessed: #1b1b24;
+  --border-color: rgb(255 255 255 / 0.08);
+  --text-primary: #f7f7f8;
+  --text-secondary: #92929d;
+  --text-tertiary: #6b6b75;
+
+  --accent-base: #ff2f8e;
+  --accent-hover: #ff57a3;
+  --accent-pressed: #e01f78;
+  --accent-subtle: color-mix(in srgb, #ff2f8e 14%, transparent);
+  --accent-on: #ffffff;
+
+  --brand-primary: var(--accent-base);
+  --brand-hover: var(--accent-hover);
+  --brand-emphasis: #e832a6;
+  --brand-light-on-light: var(--accent-base);
+  --brand-pink-on-light: var(--accent-base);
+
+  /* Status-only — not part of the shared token set, so it lives here. */
+  --studio-purple: #922d9b;
+
+  --destructive: #f04438;
+  --sh-brand: 0 8px 24px rgb(255 47 142 / 0.25);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -266,6 +304,7 @@
   --color-brand-light: var(--brand-light);
   --color-brand-pink: var(--brand-pink);
   --color-brand-blue: var(--brand-blue);
+  --color-studio-purple: var(--studio-purple, var(--brand-blue));
   --color-reader-bg: var(--reader-bg);
   --color-reader-text: var(--reader-text);
 

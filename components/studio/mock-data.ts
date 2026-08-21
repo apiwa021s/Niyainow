@@ -6,9 +6,19 @@
 
 export type StudioWorkStatus = "draft" | "review" | "published" | "hiatus" | "completed";
 
+/** Story-readiness checklist behind the "ความพร้อมของเรื่อง" card. */
+export type StoryHealth = {
+  hasCover: boolean;
+  hasTagline: boolean;
+  hasGenre: boolean;
+  hasMaturitySettings: boolean;
+  hasFreeIntroChapter: boolean;
+};
+
 export type StudioWork = {
   slug: string;
   title: string;
+  genreLabel: string;
   cover: string | null;
   status: StudioWorkStatus;
   chapters: number;
@@ -18,16 +28,33 @@ export type StudioWork = {
   unlocks: number;
   earnings: number;
   updatedAt: string;
+  /** Default heat level for the story — a chapter without its own override inherits this. */
+  heatLevel: number;
+  health: StoryHealth;
+  defaultAccess: "free" | "paid";
+  defaultPrice: number;
+  /** How many opening chapters read free regardless of the default price. */
+  freeIntroChapterCount: number;
+  /** Percent change vs. the previous period, per metric — omitted where there's nothing to compare yet. */
+  change?: { reads: number; unlocks: number; earnings: number; followers: number };
 };
 
 export type StudioChapter = {
   number: number;
   title: string;
-  status: "draft" | "scheduled" | "published";
+  status: "draft" | "scheduled" | "published" | "unpublished";
   price: number | null;
   unlocks: number;
   words: number;
+  views: number;
+  uniqueReaders: number;
+  likes: number;
+  comments: number;
   updatedAt: string;
+  /** Present only when this chapter's rating differs from the story default. */
+  heatOverride?: number;
+  /** Present only when this chapter adds warnings beyond the story default. */
+  warningIds?: string[];
 };
 
 export const studioProfile = {
@@ -53,10 +80,19 @@ export const studioSummary = {
   minimumPayout: 100,
 };
 
+const defaultHealth: StoryHealth = {
+  hasCover: true,
+  hasTagline: true,
+  hasGenre: true,
+  hasMaturitySettings: true,
+  hasFreeIntroChapter: false,
+};
+
 export const studioWorks: readonly StudioWork[] = [
   {
     slug: "reborn-as-a-warlord",
     title: "เกิดใหม่เป็นลิโป้",
+    genreLabel: "ย้อนยุค · สงคราม",
     cover: null,
     status: "published",
     chapters: 2_666,
@@ -66,10 +102,17 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 4_120,
     earnings: 14_420,
     updatedAt: "2 ชั่วโมงที่แล้ว",
+    heatLevel: 3,
+    health: { ...defaultHealth, hasFreeIntroChapter: true },
+    defaultAccess: "paid",
+    defaultPrice: 5,
+    freeIntroChapterCount: 5,
+    change: { reads: 12.8, unlocks: 9.4, earnings: 12.4, followers: 3.1 },
   },
   {
     slug: "alchemy-empress",
     title: "ปรุงโอสถสวรรค์ สยบสัตว์เทพ",
+    genreLabel: "แฟนตาซี · ย้อนยุค",
     cover: null,
     status: "published",
     chapters: 412,
@@ -79,10 +122,17 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 980,
     earnings: 3_430,
     updatedAt: "เมื่อวาน",
+    heatLevel: 2,
+    health: { ...defaultHealth, hasFreeIntroChapter: true },
+    defaultAccess: "paid",
+    defaultPrice: 3,
+    freeIntroChapterCount: 3,
+    change: { reads: 4.2, unlocks: 6.5, earnings: 5.9, followers: 1.8 },
   },
   {
     slug: "system-of-a-thousand-lives",
     title: "ระบบนอบชีวิตตอนต่อไป",
+    genreLabel: "ไซไฟ · แฟนตาซี",
     cover: null,
     status: "review",
     chapters: 24,
@@ -92,10 +142,16 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 166,
     earnings: 580.5,
     updatedAt: "3 วันที่แล้ว",
+    heatLevel: 1,
+    health: { ...defaultHealth, hasFreeIntroChapter: true },
+    defaultAccess: "paid",
+    defaultPrice: 3,
+    freeIntroChapterCount: 3,
   },
   {
     slug: "quiet-city-diary",
     title: "บันทึกเมืองเงียบ",
+    genreLabel: "ร่วมสมัย",
     cover: null,
     status: "draft",
     chapters: 0,
@@ -105,15 +161,41 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 0,
     earnings: 0,
     updatedAt: "1 สัปดาห์ที่แล้ว",
+    heatLevel: 1,
+    health: {
+      hasCover: false,
+      hasTagline: false,
+      hasGenre: true,
+      hasMaturitySettings: true,
+      hasFreeIntroChapter: false,
+    },
+    defaultAccess: "free",
+    defaultPrice: 3,
+    freeIntroChapterCount: 3,
   },
 ];
 
 export const studioChapters: readonly StudioChapter[] = [
-  { number: 2666, title: "ศึกชิงเมืองด่านเหนือ", status: "published", price: 5, unlocks: 318, words: 3_420, updatedAt: "2 ชม. ที่แล้ว" },
-  { number: 2665, title: "คำสั่งจากวังหลวง", status: "published", price: 5, unlocks: 402, words: 3_180, updatedAt: "เมื่อวาน" },
-  { number: 2664, title: "ม้าศึกกับสายฝน", status: "published", price: 5, unlocks: 455, words: 2_960, updatedAt: "2 วันที่แล้ว" },
-  { number: 2667, title: "เงาที่ประตูเมือง", status: "scheduled", price: 5, unlocks: 0, words: 3_050, updatedAt: "ตั้งเวลา 22 ส.ค. 20:00" },
-  { number: 2668, title: "(ยังไม่ตั้งชื่อ)", status: "draft", price: null, unlocks: 0, words: 1_240, updatedAt: "แก้ล่าสุด 1 ชม. ที่แล้ว" },
+  {
+    number: 2666,
+    title: "ศึกชิงเมืองด่านเหนือ",
+    status: "published",
+    price: 5,
+    unlocks: 318,
+    words: 3_420,
+    views: 8_420,
+    uniqueReaders: 6_830,
+    likes: 1_082,
+    comments: 186,
+    updatedAt: "2 ชม. ที่แล้ว",
+    // Battle chapter — reads more intense than the story's own Heat 3 default.
+    heatOverride: 5,
+    warningIds: ["blood_gore", "death"],
+  },
+  { number: 2665, title: "คำสั่งจากวังหลวง", status: "published", price: 5, unlocks: 402, words: 3_180, views: 9_360, uniqueReaders: 7_560, likes: 964, comments: 142, updatedAt: "เมื่อวาน" },
+  { number: 2664, title: "ม้าศึกกับสายฝน", status: "published", price: 5, unlocks: 455, words: 2_960, views: 10_240, uniqueReaders: 8_310, likes: 1_205, comments: 210, updatedAt: "2 วันที่แล้ว" },
+  { number: 2667, title: "เงาที่ประตูเมือง", status: "scheduled", price: 5, unlocks: 0, words: 3_050, views: 0, uniqueReaders: 0, likes: 0, comments: 0, updatedAt: "ตั้งเวลา 22 ส.ค. 20:00" },
+  { number: 2668, title: "(ยังไม่ตั้งชื่อ)", status: "draft", price: null, unlocks: 0, words: 1_240, views: 0, uniqueReaders: 0, likes: 0, comments: 0, updatedAt: "แก้ล่าสุด 14 นาทีที่แล้ว" },
 ];
 
 export const studioPayouts = [
@@ -188,11 +270,50 @@ export const workStatusLabels: Record<StudioWorkStatus, { label: string; dot: st
   completed: { label: "จบแล้ว", dot: "bg-[var(--brand-blue)]" },
 };
 
+/** Draft = neutral, Scheduled = purple, Published = success, Error = red — never all pink. */
 export const chapterStatusLabels = {
-  draft: { label: "ร่าง", dot: "bg-[var(--text-tertiary)]" },
-  scheduled: { label: "ตั้งเวลา", dot: "bg-amber-500" },
-  published: { label: "เผยแพร่", dot: "bg-emerald-500" },
+  draft: { label: "ฉบับร่าง", dot: "bg-[var(--text-tertiary)]" },
+  scheduled: { label: "ตั้งเวลา", dot: "bg-studio-purple" },
+  published: { label: "เผยแพร่แล้ว", dot: "bg-emerald-500" },
+  unpublished: { label: "นำออกจากการเผยแพร่", dot: "bg-destructive" },
 } as const;
+
+/**
+ * A 90-day daily series per metric, generated once with a fixed seed derived
+ * from the story's own totals (never Math.random — that would compute a
+ * different value on the server render vs. the client and desync hydration).
+ * The 7/30 day chart ranges are just the tail slice of this same array,
+ * matching how a real analytics endpoint would actually shape the response.
+ */
+export type DailyMetric = { day: number; reads: number; unlocks: number; revenue: number };
+
+function generateDailyPerformance(seedValue: number, days = 90): readonly DailyMetric[] {
+  let seed = Math.max(1, Math.round(seedValue));
+  const next = () => {
+    seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+    return seed / 2_147_483_648;
+  };
+  const dailyBase = Math.max(20, seedValue / 90);
+  return Array.from({ length: days }, (_, index) => {
+    const day = index + 1;
+    const weekly = Math.sin((day / 7) * Math.PI * 2) * 0.15 + 1;
+    const trend = 1 + index * 0.006;
+    const noise = 0.85 + next() * 0.3;
+    const reads = Math.round(dailyBase * weekly * trend * noise);
+    const unlocks = Math.round(reads * (0.045 + next() * 0.01));
+    const revenue = Math.round(unlocks * 3.5 * 100) / 100;
+    return { day, reads, unlocks, revenue };
+  });
+}
+
+/** Flagship demo story's series, kept as a named export for direct use. */
+export const studioDailyPerformance: readonly DailyMetric[] = generateDailyPerformance(270_800);
+
+/** Any other work gets its own deterministic series, scaled off its own totals. */
+export function getStudioDailyPerformance(work: StudioWork): readonly DailyMetric[] {
+  if (work.slug === "reborn-as-a-warlord") return studioDailyPerformance;
+  return generateDailyPerformance(work.reads || 900);
+}
 
 export const baht = new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const whole = new Intl.NumberFormat("th-TH");

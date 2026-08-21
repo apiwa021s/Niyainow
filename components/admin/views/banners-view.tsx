@@ -6,7 +6,7 @@ import { useState, type FormEvent } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
 import { AssetUpload } from "@/components/admin/asset-upload";
-import { ConfirmDialog, Modal } from "@/components/admin/modal";
+import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form-controls";

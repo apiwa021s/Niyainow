@@ -1,6 +1,6 @@
 "use client";
 
-import { Bold, ExternalLink, Flame, Italic, Pilcrow, Quote } from "lucide-react";
+import { Bold, ExternalLink, Italic, Pilcrow, Quote } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 
@@ -14,11 +14,11 @@ import {
 import { HeatBadge, StoryPreview } from "@/components/studio/create-story/story-preview";
 import type { StepErrors, StoryDraft } from "@/components/studio/create-story/use-story-draft";
 import { QuestionBlock } from "@/components/studio/create-story/wizard-chrome";
+import { ContentWarningPicker } from "@/components/studio/shared/content-warning-picker";
+import { HeatLevelPicker } from "@/components/studio/shared/heat-level-picker";
 import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
 import {
   CONTENT_ORIGINS,
-  CONTENT_WARNINGS,
-  HEAT_LEVELS,
   PRIMARY_GENRES,
   RELATIONSHIP_TYPES,
   STORY_LIMITS,
@@ -26,7 +26,6 @@ import {
   STORY_STATUSES,
   STORY_TYPES,
   TROPES,
-
 } from "@/lib/studio/master-data";
 import { cn } from "@/lib/utils";
 
@@ -323,8 +322,6 @@ export function GenreAndStyleForm({ draft, errors, update }: StepProps) {
 /* ── Step 3 ─────────────────────────────────────────────────────────── */
 
 export function MatureContentForm({ draft, errors, update }: StepProps) {
-  const selectedHeat = HEAT_LEVELS.find((item) => item.level === draft.heatLevel);
-
   function toggleWarning(id: string) {
     if (draft.noContentWarnings) return;
     update(
@@ -349,55 +346,7 @@ export function MatureContentForm({ draft, errors, update }: StepProps) {
         description="เลือกระดับที่ตรงกับเรื่องมากที่สุด หนึ่งระดับ"
         error={errors.heatLevel}
       >
-        <div role="radiogroup" aria-label="ระดับความเข้มข้น" className="grid grid-cols-5 gap-2">
-          {HEAT_LEVELS.map((item) => {
-            const selected = draft.heatLevel === item.level;
-            return (
-              <button
-                key={item.level}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-label={`ระดับ ${item.level} ${item.nameTh}`}
-                onClick={() => update("heatLevel", item.level)}
-                className={cn(
-                  "tap-target grid min-h-24 place-items-center gap-1 rounded-xl border px-1 py-3 transition-colors duration-[var(--dur-fast)]",
-                  selected
-                    ? "border-[var(--brand-emphasis)] bg-accent-subtle shadow-[var(--sh-brand)]"
-                    : "border-border bg-card hover:border-[var(--brand-emphasis)]",
-                )}
-              >
-                <span aria-hidden className="flex">
-                  {Array.from({ length: item.level }).map((_, index) => (
-                    <Flame
-                      key={index}
-                      className={cn("h-3.5 w-3.5", selected ? "text-[var(--brand-emphasis)]" : "text-(--text-tertiary)")}
-                    />
-                  ))}
-                </span>
-                <span className={cn("text-sm font-bold tabular-nums", selected && "text-[var(--brand-emphasis)]")}>
-                  {item.level}
-                </span>
-                <span className="text-[11px] text-(--text-tertiary)">{item.shortTh}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div aria-live="polite" className="rounded-xl bg-muted/50 p-4">
-          {selectedHeat ? (
-            <>
-              <p className="text-sm font-semibold">
-                ระดับ {selectedHeat.level} · {selectedHeat.nameTh}
-              </p>
-              <p className="mt-1 text-sm leading-7 text-(--text-secondary)">{selectedHeat.descriptionTh}</p>
-            </>
-          ) : (
-            <p className="text-sm leading-7 text-(--text-secondary)">
-              แตะที่ระดับด้านบนเพื่อดูคำอธิบาย เลือกตามเนื้อเรื่องจริง ไม่ต้องเลือกให้สูงหรือต่ำกว่าที่เป็น
-            </p>
-          )}
-        </div>
+        <HeatLevelPicker value={draft.heatLevel} onChange={(level) => update("heatLevel", level)} />
       </QuestionBlock>
 
       <QuestionBlock
@@ -417,17 +366,11 @@ export function MatureContentForm({ draft, errors, update }: StepProps) {
           <span className="text-sm font-medium">ไม่มีคำเตือนเพิ่มเติม</span>
         </label>
 
-        <div className={cn("flex flex-wrap gap-2", draft.noContentWarnings && "pointer-events-none opacity-40")}>
-          {CONTENT_WARNINGS.map((warning) => (
-            <SelectableChip
-              key={warning.id}
-              label={warning.nameTh}
-              selected={draft.contentWarningIds.includes(warning.id)}
-              disabled={draft.noContentWarnings}
-              onToggle={() => toggleWarning(warning.id)}
-            />
-          ))}
-        </div>
+        <ContentWarningPicker
+          selected={draft.contentWarningIds}
+          disabled={draft.noContentWarnings}
+          onToggle={toggleWarning}
+        />
         <p className="text-xs leading-6 text-(--text-tertiary)">
           คำเตือนไม่ได้ทำให้เรื่องถูกลดการมองเห็น แต่ช่วยให้คนที่พร้อมอ่านเจอเรื่องคุณ และคนที่ไม่พร้อมได้เลือกเอง
         </p>
