@@ -1,5 +1,6 @@
 import { Check, Share2 } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { Button, ButtonLink } from "@/components/ui/button";
 
@@ -13,7 +14,7 @@ export function PublishConfirmationSummary({
   chapterLabel: string;
   chapterTitle: string;
   priceLabel: string;
-  heatLabel: string;
+  heatLabel: ReactNode;
   scheduleLabel: string;
 }) {
   return (
@@ -25,7 +26,7 @@ export function PublishConfirmationSummary({
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-(--text-secondary)">
         <span>{priceLabel}</span>
-        <span>{heatLabel}</span>
+        <span className="inline-flex items-center gap-1">{heatLabel}</span>
       </div>
       <p className="text-sm font-medium">{scheduleLabel}</p>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CheckCircle2, Plus } from "lucide-react";
 
 import {
   MembershipEmptyState,
@@ -62,7 +63,7 @@ export default function StudioMembershipPage() {
                   toast({
                     tone: "success",
                     message: "Membership เปิดแล้ว",
-                    action: { label: "+ เขียนตอนใหม่", onClick: () => {} },
+                    action: { label: "เขียนตอนใหม่", onClick: () => {} },
                   });
                 }}
               />
@@ -72,9 +73,15 @@ export default function StudioMembershipPage() {
 
             {enabled ? (
               <section className="rounded-xl border border-border bg-card p-5">
-                <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-500">✓ Membership เปิดแล้ว</p>
+                <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-500">
+                  <CheckCircle2 aria-hidden className="h-4 w-4" />
+                  Membership เปิดแล้ว
+                </p>
                 <p className="mt-2 text-sm text-(--text-secondary)">ต่อไปคุณสามารถสร้างตอนสำหรับสมาชิกหรือ Early Access ได้</p>
-                <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/new" className="mt-4">+ เขียนตอนใหม่</ButtonLink>
+                <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/new" className="mt-4">
+                  <Plus aria-hidden className="h-4 w-4" />
+                  เขียนตอนใหม่
+                </ButtonLink>
               </section>
             ) : null}
           </div>

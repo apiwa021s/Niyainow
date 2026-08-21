@@ -189,7 +189,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
             className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-(--r-md) bg-[var(--brand-primary)] px-3 text-sm font-semibold text-white shadow-[var(--sh-brand)]"
           >
             <PenLine className="h-4 w-4" />
-            + เขียนตอนใหม่
+            เขียนตอนใหม่
           </button>
         </div>
         <ProfileCard />
@@ -254,7 +254,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
                 className="hidden h-11 items-center gap-2 rounded-(--r-md) bg-[var(--brand-primary)] px-3 text-sm font-semibold text-white shadow-[var(--sh-brand)] sm:inline-flex"
               >
                 <PenLine className="h-4 w-4" />
-                + เขียนตอนใหม่
+                เขียนตอนใหม่
               </button>
               <StudioThemeToggle />
               <span className="inline-flex h-11 items-center gap-2 rounded-(--r-md) px-2 text-sm font-semibold">
@@ -269,6 +269,15 @@ export function StudioShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setQuickWriteOpen(true)}
+        className="fixed inset-x-3 bottom-3 z-30 flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white shadow-[var(--sh-brand)] sm:hidden"
+      >
+        <PenLine className="h-4 w-4" />
+        เขียนตอนใหม่
+      </button>
 
       <StudioNotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
       <QuickWriteSheet open={quickWriteOpen} onClose={() => setQuickWriteOpen(false)} />

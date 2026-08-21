@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Flame, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ChapterAccessSelector, type ChapterAccess } from "@/components/studio/publish/chapter-access-selector";
@@ -64,7 +64,12 @@ export function PublishDrawer({
   const effectiveHeat = heatOverrideEnabled ? heatOverrideLevel ?? work.heatLevel : work.heatLevel;
 
   const priceLabel = access === "free" ? "อ่านฟรี" : `${price} Coins`;
-  const heatLabel = `🔥 ระดับ ${effectiveHeat}`;
+  const heatLabel = (
+    <>
+      <Flame aria-hidden className="h-3.5 w-3.5" />
+      ระดับ {effectiveHeat}
+    </>
+  );
   const scheduleLabel =
     timing === "now"
       ? "เผยแพร่ทันที"

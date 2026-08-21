@@ -1,6 +1,6 @@
 "use client";
 
-import { Bold, ExternalLink, Italic, Pilcrow, Quote } from "lucide-react";
+import { AlertTriangle, Bold, ExternalLink, Flame, Italic, Pilcrow, Quote } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 
@@ -110,8 +110,9 @@ export function StoryBasicInfoForm({ draft, errors, update }: StepProps) {
           placeholder="เช่น รักที่ไม่ควรถูกเปิดเผย"
         />
         {errors.title ? (
-          <p id="story-title-error" role="alert" className="text-sm font-medium text-destructive">
-            ⚠ {errors.title}
+          <p id="story-title-error" role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+            <AlertTriangle aria-hidden className="h-4 w-4 shrink-0" />
+            {errors.title}
           </p>
         ) : null}
       </div>
@@ -342,7 +343,12 @@ export function MatureContentForm({ draft, errors, update }: StepProps) {
       </header>
 
       <QuestionBlock
-        question="🔥 ระดับความเข้มข้น"
+        question={
+          <span className="inline-flex items-center gap-1.5">
+            <Flame aria-hidden className="h-4 w-4 text-brand-primary" />
+            ระดับความเข้มข้น
+          </span>
+        }
         description="เลือกระดับที่ตรงกับเรื่องมากที่สุด หนึ่งระดับ"
         error={errors.heatLevel}
       >

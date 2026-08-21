@@ -1,14 +1,28 @@
 "use client";
 
 import {
+  ArrowRight,
   Bell,
+  BookMarked,
+  Check,
   ChevronRight,
+  Circle,
   CircleAlert,
+  CircleDot,
+  Coins,
+  Crown,
   Ellipsis,
+  Eye,
+  FileText,
+  Flame,
+  Heart,
   ImagePlus,
+  MessageCircle,
+  PenLine,
   Plus,
   Search,
   Sparkles,
+  UserPlus,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -38,6 +52,7 @@ import {
   type PostVisibility,
   type StoryState,
 } from "@/components/studio/writer-studio-mock";
+import { EmptyState, StatTile, StatusPill, StudioPanel, StudioRowLink } from "@/components/studio/studio-ui";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
@@ -56,13 +71,14 @@ export function StudioHeader() {
 
 export function ResumeWritingCard({ compactMode = false }: { compactMode?: boolean }) {
   return (
-    <section className={cn(sectionCard, compactMode ? "p-4" : "p-5")}> 
+    <section className={cn(sectionCard, compactMode ? "p-4" : "p-5")}>
       <p className="text-xs font-semibold text-(--text-tertiary)">เขียนต่อจากที่ค้างไว้</p>
       <p className="mt-1 text-base font-semibold">EP.39</p>
       <p className="text-sm text-(--text-secondary)">สิ่งที่เขาไม่ควรพูด</p>
       <p className="mt-1 text-xs text-(--text-tertiary) tabular-nums">2,842 คำ</p>
       <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/2668/edit" variant="outline" className="mt-4 w-full sm:w-auto">
-        เขียนต่อ →
+        เขียนต่อ
+        <ArrowRight aria-hidden className="h-4 w-4" />
       </ButtonLink>
     </section>
   );
@@ -97,9 +113,9 @@ export function QuickWriteSheet({ open, onClose }: { open: boolean; onClose: () 
 function TinyBars({ values }: { values: number[] }) {
   const max = Math.max(...values, 1);
   return (
-    <div className="mt-3 flex h-28 items-end gap-1.5">
+    <div className="relative mt-3 flex h-28 items-end gap-1.5 border-b border-border/70 pb-px">
       {values.map((value, index) => (
-        <div key={`${value}-${index}`} className="flex-1 rounded-t bg-[linear-gradient(180deg,#FF3B95_0%,#E830A5_48%,#8B2C91_100%)]/70" style={{ height: `${(value / max) * 100}%` }} />
+        <div key={`${value}-${index}`} className="flex-1 rounded-t bg-[linear-gradient(180deg,#ff3b95_0%,#e830a5_48%,#8b2c91_100%)]" style={{ height: `${Math.max((value / max) * 100, 4)}%` }} />
       ))}
     </div>
   );
@@ -192,7 +208,10 @@ export function FanSourceList() {
             </div>
           </div>
         ))}
-        <p className="rounded-lg bg-muted/35 p-3 text-sm leading-7 text-(--text-secondary)">{fanSourceInsight}</p>
+        <p className="flex items-start gap-2 rounded-lg bg-muted/35 p-3 text-sm leading-7 text-(--text-secondary)">
+          <Sparkles aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-emphasis)]" />
+          {fanSourceInsight}
+        </p>
       </div>
     </section>
   );
@@ -226,8 +245,11 @@ export function FanPreferenceInsights() {
         </div>
         <ul className="grid gap-3 px-4 py-4 sm:px-5">
           {intensityPreference.map((item) => (
-            <li key={item.label} className="flex items-center justify-between rounded-lg bg-muted/35 px-3 py-3">
-              <span className="text-sm">{item.label}</span>
+            <li key={item.level} className="flex items-center justify-between rounded-lg bg-muted/35 px-3 py-3">
+              <span className="inline-flex items-center gap-1.5 text-sm">
+                <Flame aria-hidden className="h-4 w-4 text-brand-primary" />
+                ระดับ {item.level}
+              </span>
               <span className="text-sm font-semibold tabular-nums">{item.value}%</span>
             </li>
           ))}
@@ -247,7 +269,7 @@ export function FanRow({ fan }: { fan: (typeof latestFans)[number] }) {
         <div className="min-w-0">
           <p className="truncate font-semibold">
             {fan.name}
-            {fan.isMember ? <span className="ml-1 text-[var(--brand-emphasis)]">✦</span> : null}
+            {fan.isMember ? <Crown aria-hidden className="ml-1 inline h-3.5 w-3.5 align-text-top text-[var(--brand-emphasis)]" /> : null}
           </p>
           {fan.isMember ? (
             <p className="text-xs text-(--text-secondary)">สมาชิกมา {fan.memberMonths} เดือน · ติดตามมา {fan.monthsFollow >= 12 ? "1 ปี" : `${fan.monthsFollow} เดือน`}</p>
@@ -261,11 +283,12 @@ export function FanRow({ fan }: { fan: (typeof latestFans)[number] }) {
   );
 }
 
-export function FanList() {
+export function FanList({ empty = false }: { empty?: boolean }) {
   const [filter, setFilter] = useState<FanFilter>("all");
   const [query, setQuery] = useState("");
 
   const rows = useMemo(() => {
+    if (empty) return [];
     const term = query.trim().toLowerCase();
     return latestFans.filter((fan) => {
       if (filter === "followers" && fan.isMember) return false;
@@ -273,7 +296,7 @@ export function FanList() {
       if (!term) return true;
       return fan.name.toLowerCase().includes(term);
     });
-  }, [filter, query]);
+  }, [empty, filter, query]);
 
   return (
     <section className={sectionCard}>
@@ -311,12 +334,12 @@ export function FanList() {
       </div>
 
       {rows.length === 0 ? (
-        <div className="grid justify-items-center gap-3 px-6 py-12 text-center">
-          <Sparkles className="h-6 w-6 text-[var(--brand-emphasis)]" />
-          <h3 className="font-semibold">แฟนคนแรกกำลังรอพบเรื่องของคุณ ✦</h3>
-          <p className="max-w-sm text-sm leading-7 text-(--text-secondary)">เผยแพร่ตอนใหม่และแชร์ผลงาน เพื่อเริ่มสร้างฐานคนอ่านของคุณ</p>
-          <ButtonLink href="/studio/stories" variant="outline">ดูผลงานของฉัน</ButtonLink>
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          title="แฟนคนแรกกำลังรอพบเรื่องของคุณ"
+          description="เผยแพร่ตอนใหม่และแชร์ผลงาน เพื่อเริ่มสร้างฐานคนอ่านของคุณ"
+          action={<ButtonLink href="/studio/stories" variant="outline">ดูผลงานของฉัน</ButtonLink>}
+        />
       ) : (
         <ul className="divide-y divide-border">
           {rows.map((fan) => (
@@ -461,8 +484,8 @@ export function WriterPostCard({
       ) : null}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4 text-sm text-(--text-secondary)">
-          <span>♡ {whole.format(post.likes)}</span>
-          <span>💬 {whole.format(post.comments)}</span>
+          <span className="inline-flex items-center gap-1"><Heart aria-hidden className="h-4 w-4" /> {whole.format(post.likes)}</span>
+          <span className="inline-flex items-center gap-1"><MessageCircle aria-hidden className="h-4 w-4" /> {whole.format(post.comments)}</span>
         </div>
         <p className="text-xs text-(--text-tertiary)">{visibilityLabel(post.visibility)}เห็นโพสต์นี้</p>
       </div>
@@ -513,10 +536,13 @@ export function WriterPostList() {
       </div>
 
       {visible.length === 0 ? (
-        <section className={sectionCard + " grid justify-items-center gap-3 px-6 py-14 text-center"}>
-          <h3 className="font-semibold">ยังไม่มีโพสต์</h3>
-          <p className="max-w-sm text-sm leading-7 text-(--text-secondary)">ลองบอกแฟนว่าคุณกำลังเขียนอะไรอยู่ หรือแชร์ข่าวตอนใหม่ที่กำลังจะมา ✦</p>
-          <Button onClick={() => setComposerOpen(true)}>สร้างโพสต์แรก</Button>
+        <section className={sectionCard}>
+          <EmptyState
+            icon={MessageCircle}
+            title="ยังไม่มีโพสต์"
+            description="ลองบอกแฟนว่าคุณกำลังเขียนอะไรอยู่ หรือแชร์ข่าวตอนใหม่ที่กำลังจะมา ✦"
+            action={<Button onClick={() => setComposerOpen(true)}>สร้างโพสต์แรก</Button>}
+          />
         </section>
       ) : (
         <div className="grid gap-3">
@@ -577,7 +603,10 @@ export function MembershipBenefitCard({
         selected ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card hover:bg-muted/35",
       )}
     >
-      <p className="font-semibold">{selected ? "✓ " : ""}{benefit.title}</p>
+      <p className="inline-flex items-center gap-1.5 font-semibold">
+        {selected ? <Check aria-hidden className="h-4 w-4 shrink-0 text-[var(--brand-emphasis)]" /> : null}
+        {benefit.title}
+      </p>
       <p className="mt-1 text-xs leading-6 text-(--text-secondary)">{benefit.description}</p>
     </button>
   );
@@ -596,15 +625,24 @@ export function MembershipPreviewCard({
 }) {
   return (
     <section className="rounded-2xl border border-border bg-[linear-gradient(160deg,rgba(255,47,142,0.12),rgba(232,50,166,0.06),rgba(146,45,155,0.08))] p-5">
-      <p className="text-lg font-semibold">✦ {name}</p>
+      <p className="inline-flex items-center gap-1.5 text-lg font-semibold">
+        <Crown aria-hidden className="h-4.5 w-4.5 text-[var(--brand-emphasis)]" />
+        {name}
+      </p>
       <p className="mt-2 text-sm text-(--text-secondary)">{description.split("\n")[0]}</p>
       <p className="mt-3 text-xl font-semibold tabular-nums">฿{price} <span className="text-sm font-medium text-(--text-secondary)">/ เดือน</span></p>
       <ul className="mt-3 grid gap-1.5 text-sm">
         {benefits.map((item) => (
-          <li key={item}>✓ {item}</li>
+          <li key={item} className="inline-flex items-center gap-1.5">
+            <Check aria-hidden className="h-4 w-4 shrink-0 text-[var(--brand-emphasis)]" />
+            {item}
+          </li>
         ))}
       </ul>
-      <Button className="mt-4 w-full">เป็นสมาชิก</Button>
+      <Button className="mt-4 w-full">
+        <Crown aria-hidden className="h-4 w-4" />
+        เป็นสมาชิก
+      </Button>
     </section>
   );
 }
@@ -613,7 +651,10 @@ export function MembershipEmptyState({ onStart }: { onStart: () => void }) {
   return (
     <section className={sectionCard + " overflow-hidden"}>
       <div className="border-b border-border bg-[linear-gradient(150deg,rgba(255,59,149,0.18),rgba(232,48,165,0.06),rgba(139,44,145,0.1))] px-5 py-8 sm:px-8">
-        <h2 className="text-2xl font-semibold">สร้างพื้นที่พิเศษสำหรับแฟนของคุณ ✦</h2>
+        <span className="grid h-11 w-11 place-items-center rounded-full bg-accent-subtle text-[var(--brand-emphasis)]">
+          <Crown aria-hidden className="h-5 w-5" />
+        </span>
+        <h2 className="mt-3 text-2xl font-semibold">สร้างพื้นที่พิเศษสำหรับแฟนของคุณ</h2>
         <p className="mt-3 max-w-xl text-sm leading-7 text-(--text-secondary)">ให้คนอ่านที่อยากสนับสนุนคุณมากขึ้นได้รับสิทธิพิเศษ เช่น อ่านตอนใหม่ก่อนใคร ตอนพิเศษ และโพสต์สำหรับสมาชิก</p>
         <Button className="mt-5" onClick={onStart}>เปิด Membership</Button>
       </div>
@@ -670,10 +711,10 @@ export function MembershipSetupWizard({ onEnable }: { onEnable: () => void }) {
                   key={plan}
                   type="button"
                   onClick={() => setPrice(plan)}
-                  className={cn("rounded-lg border px-3 py-3 text-sm font-semibold", price === plan ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
+                  className={cn("flex items-center justify-center gap-1.5 rounded-lg border px-3 py-3 text-sm font-semibold", price === plan ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
                 >
                   ฿{plan}
-                  {price === plan ? " ✓" : ""}
+                  {price === plan ? <Check aria-hidden className="h-3.5 w-3.5" /> : null}
                 </button>
               ))}
             </div>
@@ -748,9 +789,13 @@ export function EarlyAccessSettingsModal({
               key={item}
               type="button"
               onClick={() => setChapters(item)}
-              className={cn("rounded-lg border px-3 py-3 text-left", chapters === item ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
+              className={cn("flex items-center gap-2 rounded-lg border px-3 py-3 text-left", chapters === item ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
             >
-              {chapters === item ? "● " : "○ "}
+              {chapters === item ? (
+                <CircleDot aria-hidden className="h-4 w-4 shrink-0 text-[var(--brand-emphasis)]" />
+              ) : (
+                <Circle aria-hidden className="h-4 w-4 shrink-0 text-(--text-tertiary)" />
+              )}
               {item} ตอน
             </button>
           ))}
@@ -761,17 +806,25 @@ export function EarlyAccessSettingsModal({
           <button
             type="button"
             onClick={() => setNextPolicy("normal")}
-            className={cn("rounded-lg border px-3 py-3 text-left", nextPolicy === "normal" ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
+            className={cn("flex items-center gap-2 rounded-lg border px-3 py-3 text-left", nextPolicy === "normal" ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
           >
-            {nextPolicy === "normal" ? "● " : "○ "}
+            {nextPolicy === "normal" ? (
+              <CircleDot aria-hidden className="h-4 w-4 shrink-0 text-[var(--brand-emphasis)]" />
+            ) : (
+              <Circle aria-hidden className="h-4 w-4 shrink-0 text-(--text-tertiary)" />
+            )}
             ใช้ราคาปกติของตอน
           </button>
           <button
             type="button"
             onClick={() => setNextPolicy("free")}
-            className={cn("rounded-lg border px-3 py-3 text-left", nextPolicy === "free" ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
+            className={cn("flex items-center gap-2 rounded-lg border px-3 py-3 text-left", nextPolicy === "free" ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
           >
-            {nextPolicy === "free" ? "● " : "○ "}
+            {nextPolicy === "free" ? (
+              <CircleDot aria-hidden className="h-4 w-4 shrink-0 text-[var(--brand-emphasis)]" />
+            ) : (
+              <Circle aria-hidden className="h-4 w-4 shrink-0 text-(--text-tertiary)" />
+            )}
             เปิดให้อ่านฟรี
           </button>
         </div>
@@ -820,7 +873,10 @@ export function MembershipOverview() {
           <div>
             <p className="text-sm text-(--text-secondary)">Membership</p>
             <h2 className="mt-1 text-xl font-semibold">{defaultMembership.name}</h2>
-            <p className="mt-1 inline-flex items-center gap-1 text-sm text-emerald-500">● เปิดใช้งาน</p>
+            <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-emerald-500">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              เปิดใช้งาน
+            </p>
             <p className="mt-2 text-sm text-(--text-secondary)">฿{defaultMembership.price} / เดือน</p>
           </div>
         </div>
@@ -896,12 +952,19 @@ export function ProfileCompletionCard({
   return (
     <section className={sectionCard + " p-4"}>
       <p className="text-sm font-semibold">โปรไฟล์ของคุณพร้อม {progress}%</p>
-      <ul className="mt-3 grid gap-1 text-sm text-(--text-secondary)">
-        <li>✓ รูปโปรไฟล์</li>
-        <li>✓ Bio</li>
-        <li>✓ แนวที่เขียน</li>
-        <li>✓ Username</li>
-        <li className={featuredSelected ? "" : "text-amber-500"}>{featuredSelected ? "✓" : "!"} ยังไม่ได้เลือกเรื่องแนะนำ</li>
+      <ul className="mt-3 grid gap-1.5 text-sm text-(--text-secondary)">
+        <li className="inline-flex items-center gap-1.5"><Check aria-hidden className="h-4 w-4 shrink-0 text-emerald-500" /> รูปโปรไฟล์</li>
+        <li className="inline-flex items-center gap-1.5"><Check aria-hidden className="h-4 w-4 shrink-0 text-emerald-500" /> Bio</li>
+        <li className="inline-flex items-center gap-1.5"><Check aria-hidden className="h-4 w-4 shrink-0 text-emerald-500" /> แนวที่เขียน</li>
+        <li className="inline-flex items-center gap-1.5"><Check aria-hidden className="h-4 w-4 shrink-0 text-emerald-500" /> Username</li>
+        <li className={cn("inline-flex items-center gap-1.5", !featuredSelected && "text-amber-500")}>
+          {featuredSelected ? (
+            <Check aria-hidden className="h-4 w-4 shrink-0 text-emerald-500" />
+          ) : (
+            <CircleAlert aria-hidden className="h-4 w-4 shrink-0" />
+          )}
+          ยังไม่ได้เลือกเรื่องแนะนำ
+        </li>
       </ul>
       {!featuredSelected ? <Button className="mt-3" variant="outline">เลือกเรื่องแนะนำ</Button> : null}
     </section>
@@ -927,7 +990,14 @@ export function FeaturedStorySelector({
             className={cn("rounded-lg border p-3 text-left", selectedSlug === story.slug ? "border-[var(--brand-emphasis)] bg-accent-subtle" : "border-border bg-card")}
           >
             <p className="font-semibold">{story.title}</p>
-            <p className="text-xs text-(--text-secondary)">{selectedSlug === story.slug ? "● เลือกเป็นเรื่องแนะนำ" : "○ เลือกเป็นเรื่องแนะนำ"}</p>
+            <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-(--text-secondary)">
+              {selectedSlug === story.slug ? (
+                <CircleDot aria-hidden className="h-3.5 w-3.5 shrink-0 text-[var(--brand-emphasis)]" />
+              ) : (
+                <Circle aria-hidden className="h-3.5 w-3.5 shrink-0 text-(--text-tertiary)" />
+              )}
+              เลือกเป็นเรื่องแนะนำ
+            </p>
           </button>
         ))}
       </div>
@@ -965,8 +1035,14 @@ export function WriterProfilePreview({
         </div>
 
         <div className="mt-4 flex gap-2">
-          <Button size="sm">+ ติดตาม</Button>
-          <Button size="sm" variant="outline">✦ เป็นสมาชิก</Button>
+          <Button size="sm">
+            <UserPlus aria-hidden className="h-4 w-4" />
+            ติดตาม
+          </Button>
+          <Button size="sm" variant="outline">
+            <Crown aria-hidden className="h-4 w-4" />
+            เป็นสมาชิก
+          </Button>
         </div>
 
         <div className="mt-5 border-t border-border pt-4">
@@ -1041,7 +1117,7 @@ export function WriterProfileEditor() {
                   )}
                 >
                   {genre}
-                  {selectedTags.includes(genre) ? " ✓" : ""}
+                  {selectedTags.includes(genre) ? <Check aria-hidden className="ml-1 inline h-3.5 w-3.5" /> : null}
                 </button>
               ))}
             </div>
@@ -1078,12 +1154,15 @@ function stateLabel(state: StoryState) {
   return "ฉบับร่าง";
 }
 
+const stateDotClass: Record<StoryState, string> = {
+  writing: "bg-emerald-500",
+  completed: "bg-[var(--brand-blue)]",
+  draft: "bg-(--text-tertiary)",
+  paused: "bg-amber-500",
+};
+
 export function StoryStatusBadge({ state }: { state: StoryState }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-border bg-muted/35 px-2.5 py-1 text-xs font-semibold text-(--text-secondary)">
-      {stateLabel(state)}
-    </span>
-  );
+  return <StatusPill label={stateLabel(state)} dot={stateDotClass[state]} />;
 }
 
 export function StoryQuickActions({
@@ -1096,7 +1175,7 @@ export function StoryQuickActions({
   return (
     <div className="relative">
       <details>
-        <summary className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-(--text-secondary) hover:bg-muted">
+        <summary className="grid h-10 w-10 cursor-pointer list-none place-items-center rounded-lg text-(--text-secondary) hover:bg-muted [&::-webkit-details-marker]:hidden">
           <Ellipsis className="h-4 w-4" />
         </summary>
         <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-border bg-card p-1.5 shadow-[var(--sh-2)]">
@@ -1137,58 +1216,70 @@ export function MyStoryCard({
 }) {
   return (
     <article className={sectionCard + " p-4 sm:p-5"}>
-      <div className="flex items-start gap-3">
-        <span className="grid h-20 w-14 shrink-0 place-items-center rounded-lg border border-border bg-muted/40 text-xs text-(--text-secondary)">COVER</span>
+      <div className="flex items-start gap-4">
+        <span aria-hidden className="grid h-24 w-16 shrink-0 place-items-center rounded-[8px] bg-muted/50 text-brand-primary">
+          <BookMarked className="h-6 w-6" />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate font-semibold">{story.title}</h3>
+            <h3 className="min-w-0 truncate font-semibold">{story.title}</h3>
             <StoryStatusBadge state={story.state} />
           </div>
-          <p className="mt-1 text-xs text-(--text-tertiary)">{story.genre}</p>
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-(--text-secondary) sm:grid-cols-4">
-            <div>
-              <dt>ตอน</dt>
-              <dd className="tabular-nums">{whole.format(story.chapters)}</dd>
+          <p className="mt-1 text-xs text-(--text-tertiary)">{story.genre} · อัปเดตล่าสุด {story.updatedAt}</p>
+
+          <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-(--text-secondary)">
+            <div className="inline-flex items-center gap-1.5">
+              <FileText aria-hidden className="h-3.5 w-3.5 text-(--text-tertiary)" />
+              <dt className="sr-only">จำนวนตอน</dt>
+              <dd className="tabular-nums">{whole.format(story.chapters)} ตอน</dd>
             </div>
-            <div>
-              <dt>ยอดอ่าน</dt>
+            <div className="inline-flex items-center gap-1.5">
+              <Eye aria-hidden className="h-3.5 w-3.5 text-(--text-tertiary)" />
+              <dt className="sr-only">ยอดอ่าน</dt>
               <dd className="tabular-nums">{compact.format(story.reads)}</dd>
             </div>
-            <div>
-              <dt>รายได้เดือนนี้</dt>
-              <dd className="tabular-nums">฿{money.format(story.monthlyRevenue)}</dd>
-            </div>
-            <div>
-              <dt>อัปเดตล่าสุด</dt>
-              <dd>{story.updatedAt}</dd>
+            <div className="inline-flex items-center gap-1.5">
+              <Coins aria-hidden className="h-3.5 w-3.5 text-(--text-tertiary)" />
+              <dt className="sr-only">รายได้เดือนนี้</dt>
+              <dd className="tabular-nums">฿{money.format(story.monthlyRevenue)} เดือนนี้</dd>
             </div>
           </dl>
 
           {story.earlyAccessChapters > 0 ? (
-            <p className="mt-3 inline-flex items-center rounded-full border border-border bg-accent-subtle px-2.5 py-1 text-xs text-[var(--brand-emphasis)]">
+            <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-[var(--brand-emphasis)]/35 px-2.5 py-1 text-xs font-medium text-[var(--brand-emphasis)]">
+              <Sparkles aria-hidden className="h-3 w-3" />
               Early Access · สมาชิกอ่านก่อน {story.earlyAccessChapters} ตอน
             </p>
           ) : null}
 
           {story.draftTitle ? (
-            <div className="mt-3 rounded-lg border border-border bg-muted/30 p-3">
-              <p className="text-xs font-semibold text-[var(--brand-emphasis)]">มีฉบับร่าง</p>
-              <p className="mt-1 text-sm">{story.draftTitle}</p>
-              <p className="text-xs text-(--text-secondary) tabular-nums">{whole.format(story.draftWords)} คำ</p>
-              <ButtonLink href={`/studio/works/${story.slug}/chapters/2668/edit`} className="mt-2" size="sm">
-                เขียนต่อ
-              </ButtonLink>
+            <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-border bg-muted/30 p-3">
+              <PenLine aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-emphasis)]" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[var(--brand-emphasis)]">มีฉบับร่างค้างอยู่</p>
+                <p className="mt-0.5 truncate text-sm">{story.draftTitle}</p>
+                <p className="text-xs text-(--text-tertiary) tabular-nums">{whole.format(story.draftWords)} คำ</p>
+              </div>
             </div>
           ) : null}
         </div>
+
         <StoryQuickActions onComplete={onMarkComplete} onPause={onPause} />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <ButtonLink href={`/studio/works/${story.slug}`} variant="outline" size="sm">จัดการเรื่อง</ButtonLink>
-        <ButtonLink href={`/studio/works/${story.slug}/chapters/new`} size="sm">
-          + เขียนตอน
-        </ButtonLink>
+        {story.draftTitle ? (
+          <ButtonLink href={`/studio/works/${story.slug}/chapters/2668/edit`} size="sm">
+            เขียนต่อ
+            <ArrowRight aria-hidden className="h-4 w-4" />
+          </ButtonLink>
+        ) : (
+          <ButtonLink href={`/studio/works/${story.slug}/chapters/new`} size="sm">
+            <Plus aria-hidden className="h-4 w-4" />
+            เขียนตอน
+          </ButtonLink>
+        )}
       </div>
     </article>
   );
@@ -1214,8 +1305,8 @@ export function MyStoriesGrid() {
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1.5 rounded-full border border-border bg-muted/25 p-1">
+      <div className="grid gap-3">
+        <div className="flex gap-1.5 overflow-x-auto rounded-full border border-border bg-muted/25 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             ["all", "ทั้งหมด"],
             ["writing", "กำลังเขียน"],
@@ -1227,20 +1318,20 @@ export function MyStoriesGrid() {
               key={id}
               type="button"
               onClick={() => setTab(id as "all" | "writing" | "completed" | "draft" | "paused")}
-              className={cn("rounded-full px-3 py-1.5 text-xs font-semibold", tab === id ? "bg-[var(--brand-primary)] text-white" : "text-(--text-secondary)")}
+              className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold", tab === id ? "bg-[var(--brand-primary)] text-white" : "text-(--text-secondary)")}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="grid gap-2 sm:flex sm:items-center">
-          <div className="relative">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative sm:flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--text-tertiary)" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="ค้นหาชื่อเรื่อง..."
-              className="h-10 w-full rounded-full border border-border bg-card pl-9 pr-3 text-sm placeholder:text-(--text-tertiary) sm:w-56"
+              className="h-10 w-full rounded-full border border-border bg-card pl-9 pr-3 text-sm placeholder:text-(--text-tertiary)"
             />
           </div>
           <Select value={sort} onChange={(event) => setSort(event.target.value as (typeof storySorts)[number])} className="sm:w-40">
@@ -1252,10 +1343,18 @@ export function MyStoriesGrid() {
       </div>
 
       {filtered.length === 0 ? (
-        <section className={sectionCard + " grid justify-items-center gap-3 px-6 py-14 text-center"}>
-          <h3 className="font-semibold">เรื่องแรกของคุณเริ่มได้จากตรงนี้ ✦</h3>
-          <p className="max-w-sm text-sm leading-7 text-(--text-secondary)">สร้างเรื่องใหม่ และเริ่มพาคนอ่านเข้าสู่โลกที่คุณกำลังเขียน</p>
-          <ButtonLink href="/studio/works/new">+ สร้างเรื่องแรก</ButtonLink>
+        <section className={sectionCard}>
+          <EmptyState
+            icon={BookMarked}
+            title="เรื่องแรกของคุณเริ่มได้จากตรงนี้"
+            description="สร้างเรื่องใหม่ และเริ่มพาคนอ่านเข้าสู่โลกที่คุณกำลังเขียน"
+            action={
+              <ButtonLink href="/studio/works/new">
+                <Plus aria-hidden className="h-4 w-4" />
+                สร้างเรื่องแรก
+              </ButtonLink>
+            }
+          />
         </section>
       ) : (
         <div className="grid gap-3">
@@ -1386,8 +1485,8 @@ export function WriterSettingsLayout() {
           <SettingsSelect label="จำนวนตอนฟรีเริ่มต้น" options={["3 ตอน", "5 ตอน", "7 ตอน"]} defaultValue="5 ตอน" />
           <div className="rounded-lg border border-border bg-card px-3 py-3 text-sm">
             <p className="mb-2">ระดับความเข้มข้นของตอน</p>
-            <p>● ใช้ตามเรื่อง</p>
-            <p className="text-(--text-secondary)">○ ถามทุกครั้ง</p>
+            <p className="inline-flex items-center gap-1.5"><CircleDot aria-hidden className="h-4 w-4 text-[var(--brand-emphasis)]" /> ใช้ตามเรื่อง</p>
+            <p className="mt-1 inline-flex items-center gap-1.5 text-(--text-secondary)"><Circle aria-hidden className="h-4 w-4" /> ถามทุกครั้ง</p>
           </div>
           <SettingsToggle label="เปิด Preview ก่อนเผยแพร่" defaultChecked />
         </SettingsSection>
@@ -1415,8 +1514,8 @@ export function WriterSettingsLayout() {
         <SettingsSection title="NovelNow Studio">
           <div className="rounded-lg border border-border bg-card px-3 py-3 text-sm">
             <p className="mb-2">ธีม</p>
-            <p>● Dark</p>
-            <p className="text-(--text-secondary)">○ System</p>
+            <p className="inline-flex items-center gap-1.5"><CircleDot aria-hidden className="h-4 w-4 text-[var(--brand-emphasis)]" /> Dark</p>
+            <p className="mt-1 inline-flex items-center gap-1.5 text-(--text-secondary)"><Circle aria-hidden className="h-4 w-4" /> System</p>
           </div>
         </SettingsSection>
       </div>
@@ -1519,67 +1618,111 @@ export function StudioPageStateBar({
     ["no-data", "No Data"],
   ];
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs text-(--text-tertiary)">Mock UI State:</span>
-      {labels.map(([key, label]) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => onStateChange(key)}
-          className={cn("rounded-full border px-3 py-1 text-xs font-semibold", state === key ? "border-transparent bg-accent-subtle text-[var(--brand-emphasis)]" : "border-border text-(--text-secondary)")}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <details className="mb-4 rounded-lg border border-dashed border-border/70 bg-muted/15 px-3 py-2 text-xs text-(--text-tertiary)">
+      <summary className="cursor-pointer select-none font-semibold">ตัวอย่างสถานะสำหรับการทดสอบ</summary>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {labels.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onStateChange(key)}
+            className={cn("rounded-full border px-3 py-1 text-xs font-semibold", state === key ? "border-transparent bg-accent-subtle text-[var(--brand-emphasis)]" : "border-border text-(--text-secondary)")}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 
 export function StudioHomeModules() {
+  const activeStories = stories.filter((story) => story.state === "writing").slice(0, 3);
+  const draftStories = stories.filter((story) => story.draftTitle);
+  const topPreference = fanPreferences[0];
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="grid content-start gap-4">
-        <section className={sectionCard + " p-5"}>
-          <p className="text-sm text-(--text-secondary)">สวัสดี Luna ✦</p>
-          <h2 className="mt-1 text-xl font-semibold">ทำต่อจากที่ค้างไว้</h2>
-          <p className="mt-2 font-semibold">EP.39</p>
-          <p className="text-sm text-(--text-secondary)">สิ่งที่เขาไม่ควรพูด</p>
-          <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/2668/edit" className="mt-4">เขียนต่อ</ButtonLink>
+        <section className={cn(sectionCard, "overflow-hidden")}>
+          <div className="bg-[linear-gradient(135deg,rgba(255,59,149,0.16),rgba(232,48,165,0.05),rgba(139,44,145,0.09))] p-5 sm:p-6">
+            <p className="text-sm text-(--text-secondary)">สวัสดี {writerProfile.name} ✦</p>
+            <h2 className="mt-1 text-xl font-semibold sm:text-2xl">ทำต่อจากที่ค้างไว้</h2>
+            <p className="mt-3 text-sm font-semibold text-[var(--brand-emphasis)]">EP.39</p>
+            <p className="text-lg font-semibold">สิ่งที่เขาไม่ควรพูด</p>
+            <p className="mt-1 text-xs tabular-nums text-(--text-tertiary)">2,842 คำ</p>
+            <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/2668/edit" className="mt-4">
+              เขียนต่อ
+              <ArrowRight aria-hidden className="h-4 w-4" />
+            </ButtonLink>
+          </div>
         </section>
 
-        <section className={sectionCard + " p-5"}>
-          <h3 className="font-semibold">วันนี้</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              ["ยอดอ่าน", "12.4K"],
-              ["ผู้ติดตามใหม่", "+142"],
-              ["สมาชิกใหม่", "+18"],
-              ["รายได้", "฿840"],
-            ].map(([label, value]) => (
-              <article key={label} className="rounded-lg border border-border bg-card px-3 py-3">
-                <p className="text-xs text-(--text-secondary)">{label}</p>
-                <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
-              </article>
+        <section aria-label="สรุปวันนี้" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatTile icon={Eye} label="ยอดอ่านวันนี้" value="12.4K" />
+          <StatTile icon={UserPlus} label="ผู้ติดตามใหม่" value="142" />
+          <StatTile icon={Crown} label="สมาชิกใหม่" value="18" />
+          <StatTile icon={Coins} label="รายได้วันนี้" value="840" unit="บาท" tone="money" />
+        </section>
+
+        <StudioPanel
+          title="ผลงานของคุณ"
+          description="เรื่องที่กำลังเขียนอยู่ตอนนี้"
+          action={
+            <Link
+              href="/studio/stories"
+              className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--brand-emphasis)] underline-offset-4 hover:underline"
+            >
+              ดูทั้งหมด
+              <ArrowRight aria-hidden className="h-4 w-4" />
+            </Link>
+          }
+        >
+          <ul className="divide-y divide-border">
+            {activeStories.map((story) => (
+              <li key={story.slug}>
+                <StudioRowLink href={`/studio/works/${story.slug}`}>
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden className="grid h-12 w-9 shrink-0 place-items-center rounded-[6px] bg-accent-subtle text-brand-primary">
+                      <BookMarked className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">{story.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-(--text-tertiary)">ล่าสุด {story.latestEp} · แก้ไข{story.updatedAt}</p>
+                    </div>
+                    <span className="hidden shrink-0 text-xs font-semibold text-[var(--brand-emphasis)] sm:inline">เขียนต่อ</span>
+                  </div>
+                </StudioRowLink>
+              </li>
             ))}
-          </div>
-        </section>
-
-        <section className={sectionCard + " p-5"}>
-          <h3 className="font-semibold">ผลงานของคุณ</h3>
-          <div className="mt-3 rounded-lg border border-border bg-card p-3">
-            <p className="font-semibold">รักที่ไม่ควรถูกเปิดเผย</p>
-            <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/new" className="mt-3" size="sm">+ เขียนตอนใหม่</ButtonLink>
-          </div>
-        </section>
+          </ul>
+        </StudioPanel>
       </div>
 
       <div className="grid content-start gap-4">
-        <ResumeWritingCard compactMode />
-        <section className={sectionCard + " p-4"}>
-          <h3 className="font-semibold">ทางลัดการเติบโต</h3>
-          <p className="mt-2 text-sm text-(--text-secondary)">Dark Romance กำลังโตในแฟนของคุณ ลองวางฉากพีคใน 2 ตอนถัดไป</p>
+        <section className={cn(sectionCard, "p-4")}>
+          <p className="text-xs font-semibold text-(--text-tertiary)">แนวที่กำลังมาแรงกับแฟนของคุณ</p>
+          <p className="mt-2 inline-flex items-center gap-1.5 text-lg font-semibold">
+            <Flame aria-hidden className="h-4 w-4 text-brand-primary" />
+            {topPreference.label}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-(--text-secondary)">แฟน {topPreference.value}% ชอบแนวนี้ ลองวางฉากพีคใน 2 ตอนถัดไป</p>
           <ButtonLink href="/studio/fans" variant="outline" className="mt-3 w-full">ดูแฟนของฉัน</ButtonLink>
         </section>
+
+        {draftStories.length > 0 ? (
+          <section className={cn(sectionCard, "p-4")}>
+            <p className="text-xs font-semibold text-(--text-tertiary)">ฉบับร่างที่ค้างอยู่</p>
+            <ul className="mt-2 grid gap-2">
+              {draftStories.map((story) => (
+                <li key={story.slug} className="rounded-lg border border-border bg-card p-3">
+                  <p className="truncate text-sm font-semibold">{story.draftTitle}</p>
+                  <p className="mt-0.5 truncate text-xs text-(--text-tertiary)">{story.title} · {whole.format(story.draftWords)} คำ</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
     </div>
   );

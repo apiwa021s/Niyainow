@@ -51,9 +51,9 @@ export const fanPreferences = [
 ];
 
 export const intensityPreference = [
-  { label: "🔥 3", value: 18 },
-  { label: "🔥 4", value: 52 },
-  { label: "🔥 5", value: 30 },
+  { level: 3, value: 18 },
+  { level: 4, value: 52 },
+  { level: 5, value: 30 },
 ];
 
 export const latestFans = [
@@ -199,7 +199,7 @@ export const notificationItems = [
   { id: "n5", category: "แฟน", title: "มีผู้ติดตามใหม่ 42 คนวันนี้", detail: "สรุปแบบรวมรายวัน", day: "วันนี้" },
 ];
 
-export const fanSourceInsight = "✦ Dark Romance เป็นหมวดที่พาคนอ่านใหม่เข้ามาที่โปรไฟล์ของคุณมากที่สุด";
+export const fanSourceInsight = "Dark Romance เป็นหมวดที่พาคนอ่านใหม่เข้ามาที่โปรไฟล์ของคุณมากที่สุด";
 
 export const whole = new Intl.NumberFormat("th-TH");
 export const compact = new Intl.NumberFormat("th-TH", { notation: "compact", maximumFractionDigits: 1 });

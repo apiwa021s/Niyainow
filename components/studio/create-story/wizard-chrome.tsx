@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, Cloud, CloudCheck, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, Cloud, CloudCheck, Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -158,7 +158,7 @@ export function QuestionBlock({
   children,
   action,
 }: {
-  question: string;
+  question: ReactNode;
   description?: string;
   error?: string;
   children: ReactNode;
@@ -176,7 +176,7 @@ export function QuestionBlock({
       {children}
       {error ? (
         <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive">
-          <span aria-hidden>⚠</span>
+          <AlertTriangle aria-hidden className="h-4 w-4 shrink-0" />
           {error}
         </p>
       ) : null}

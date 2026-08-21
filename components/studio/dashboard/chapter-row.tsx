@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Eye, Heart, MoreHorizontal, Unlock } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, Heart, MoreHorizontal, Sparkles, Unlock } from "lucide-react";
 import Link from "next/link";
 
 import { ChapterStatusBadge } from "@/components/studio/dashboard/chapter-status-badge";
@@ -118,11 +118,17 @@ export function ChapterRow({
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-(--text-secondary)">
             <ChapterStatusBadge status={chapter.status} />
             {chapter.memberOnly ? (
-              <span className="inline-flex items-center rounded-full border border-border bg-accent-subtle px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-emphasis)]">
-                ✦ สมาชิกเท่านั้น
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-accent-subtle px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-emphasis)]">
+                <Sparkles aria-hidden className="h-3 w-3" />
+                สมาชิกเท่านั้น
               </span>
             ) : null}
-            {chapter.earlyAccessNote ? <span className="text-[var(--brand-emphasis)]">{chapter.earlyAccessNote}</span> : null}
+            {chapter.earlyAccessNote ? (
+              <span className="inline-flex items-center gap-1 text-[var(--brand-emphasis)]">
+                <Sparkles aria-hidden className="h-3 w-3" />
+                {chapter.earlyAccessNote}
+              </span>
+            ) : null}
             {chapter.publicReleaseNote ? <span>{chapter.publicReleaseNote}</span> : null}
             <span className="inline-flex items-center gap-1 tabular-nums">
               <Eye aria-hidden className="h-3.5 w-3.5" /> {whole.format(chapter.views)}

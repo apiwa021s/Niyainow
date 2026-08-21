@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Plus } from "lucide-react";
 
 import {
   MyStoriesGrid,
@@ -21,7 +22,12 @@ export default function StudioStoriesPage() {
         eyebrow="Studio / ผลงานของฉัน"
         title="ผลงานของฉัน"
         description="จัดการทุกเรื่องของคุณในมุมมองเดียว แล้วกลับไปเขียนต่อได้ทันที"
-        action={<ButtonLink href="/studio/works/new">+ สร้างเรื่องใหม่</ButtonLink>}
+        action={
+          <ButtonLink href="/studio/works/new">
+            <Plus aria-hidden className="h-4 w-4" />
+            สร้างเรื่องใหม่
+          </ButtonLink>
+        }
       />
 
       <StudioPageStateBar state={state} onStateChange={setState} />
@@ -37,9 +43,12 @@ export default function StudioStoriesPage() {
 
       {state === "empty" ? (
         <section className="rounded-xl border border-border bg-card p-6 text-center">
-          <h2 className="font-semibold">เรื่องแรกของคุณเริ่มได้จากตรงนี้ ✦</h2>
+          <h2 className="font-semibold">เรื่องแรกของคุณเริ่มได้จากตรงนี้</h2>
           <p className="mt-2 text-sm text-(--text-secondary)">สร้างเรื่องใหม่ และเริ่มพาคนอ่านเข้าสู่โลกที่คุณกำลังเขียน</p>
-          <ButtonLink href="/studio/works/new" className="mt-4">+ สร้างเรื่องแรก</ButtonLink>
+          <ButtonLink href="/studio/works/new" className="mt-4">
+            <Plus aria-hidden className="h-4 w-4" />
+            สร้างเรื่องแรก
+          </ButtonLink>
         </section>
       ) : null}
 

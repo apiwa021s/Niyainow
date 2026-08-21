@@ -38,7 +38,7 @@ export default function StudioFansPage() {
 
       {state === "error" ? <StudioPageError onRetry={() => setState("normal")} /> : null}
 
-      {state === "empty" ? <FanList /> : null}
+      {state === "empty" ? <FanList empty /> : null}
 
       {state === "no-data" ? (
         <section className="rounded-xl border border-border bg-card p-5">
