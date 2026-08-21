@@ -74,7 +74,10 @@ export function StatTile({
           title={!up && changeNote ? changeNote : undefined}
           className={cn(
             "mt-2 inline-flex items-center gap-1 text-xs font-semibold",
-            up && punish && "text-emerald-600 dark:text-emerald-400",
+            // Plain, not `dark:` — Studio's Light/Dark is its own toggle
+            // (data-studio-theme), independent of the site's `.dark` class
+            // that the `dark:` variant is keyed to.
+            up && punish && "text-emerald-500",
             !up && punish && "text-destructive",
             !punish && "text-(--text-secondary)",
           )}

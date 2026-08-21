@@ -98,9 +98,9 @@ export type GlossaryKind = "character" | "place" | "skill" | "term" | "other";
 
 export const glossaryKindLabels: Record<GlossaryKind, { label: string; className: string }> = {
   character: { label: "ตัวละคร", className: "bg-accent-subtle text-(--brand-emphasis)" },
-  place: { label: "สถานที่", className: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300" },
-  skill: { label: "วิชา/พลัง", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
-  term: { label: "ศัพท์เฉพาะ", className: "bg-sky-500/12 text-sky-700 dark:text-sky-300" },
+  place: { label: "สถานที่", className: "bg-emerald-500/12 text-emerald-700 studio-dark:text-emerald-300" },
+  skill: { label: "วิชา/พลัง", className: "bg-amber-500/15 text-amber-700 studio-dark:text-amber-300" },
+  term: { label: "ศัพท์เฉพาะ", className: "bg-sky-500/12 text-sky-700 studio-dark:text-sky-300" },
   other: { label: "อื่น ๆ", className: "bg-muted text-(--text-secondary)" },
 };
 

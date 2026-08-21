@@ -9,6 +9,7 @@ import { ChapterEditorToolbar, handleToolbarShortcut } from "@/components/studio
 import { DraftRecoveryDialog } from "@/components/studio/editor/draft-recovery-dialog";
 import { useChapterDraft } from "@/components/studio/editor/use-chapter-draft";
 import { PublishDrawer } from "@/components/studio/publish/publish-drawer";
+import { StudioThemeToggle } from "@/components/studio/studio-theme";
 import type { StudioWork } from "@/components/studio/mock-data";
 import { whole } from "@/components/studio/mock-data";
 import { Button } from "@/components/ui/button";
@@ -55,8 +56,9 @@ export function ChapterEditor({
             <ArrowLeft aria-hidden className="h-4 w-4 shrink-0" />
             <span className="truncate">{work.title}</span>
           </Link>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1.5">
             <AutosaveIndicator state={draft.saveState} />
+            <StudioThemeToggle />
             <button
               type="button"
               onClick={() => setFocusMode(true)}

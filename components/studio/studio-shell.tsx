@@ -23,6 +23,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "@/components/layout/logo";
 import { studioProfile } from "@/components/studio/mock-data";
 import { StudioSearch } from "@/components/studio/studio-search";
+import { StudioThemeToggle } from "@/components/studio/studio-theme";
 import { cn } from "@/lib/utils";
 
 /** Grouped by what the writer is doing: making the work, getting paid, learning. */
@@ -108,10 +109,11 @@ function isEditorRoute(pathname: string) {
 
 /**
  * Studio chrome. Deliberately not the admin shell: this is a writer-focused
- * surface with its own always-dark palette (`data-studio-theme`, see
- * globals.css), so a writer never feels dropped into a back office — or into
- * whatever light/dark mode the reader side happens to be in. Navigation lives
- * in one place and the drawer mirrors it exactly.
+ * surface with its own sub-brand (`data-studio-theme`, see globals.css) and
+ * its own Light/Dark switch (components/studio/studio-theme.tsx), so a
+ * writer never feels dropped into a back office — or into whatever
+ * light/dark mode the reader side happens to be in. Navigation lives in one
+ * place and the drawer mirrors it exactly.
  */
 export function StudioShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
@@ -143,14 +145,14 @@ export function StudioShell({ children }: { children: ReactNode }) {
     // status) — the dashboard sidebar, search, and account chrome would only
     // compete with the writing surface, so none of it mounts on this route.
     return (
-      <div data-studio-theme className="min-h-dvh bg-(--bg-base)">
+      <div className="min-h-dvh bg-(--bg-base) text-(--text-primary)">
         {children}
       </div>
     );
   }
 
   return (
-    <div data-studio-theme className="min-h-screen bg-(--bg-subtle)">
+    <div className="min-h-screen bg-(--bg-subtle) text-(--text-primary)">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-(--bg-base) lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-4">
           <Logo />
@@ -205,13 +207,16 @@ export function StudioShell({ children }: { children: ReactNode }) {
               <Menu className="h-5 w-5" />
             </button>
             <StudioSearch />
-            <Link
-              href="/"
-              className="ml-auto inline-flex h-11 items-center gap-1.5 rounded-(--r-md) px-3 text-sm font-medium text-(--text-secondary) hover:bg-muted hover:text-(--text-primary)"
-            >
-              <ExternalLink aria-hidden className="h-4 w-4" />
-              <span className="hidden sm:inline">กลับหน้าเว็บ</span>
-            </Link>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <StudioThemeToggle />
+              <Link
+                href="/"
+                className="inline-flex h-11 items-center gap-1.5 rounded-(--r-md) px-3 text-sm font-medium text-(--text-secondary) hover:bg-muted hover:text-(--text-primary)"
+              >
+                <ExternalLink aria-hidden className="h-4 w-4" />
+                <span className="hidden sm:inline">กลับหน้าเว็บ</span>
+              </Link>
+            </div>
           </div>
         </header>
 

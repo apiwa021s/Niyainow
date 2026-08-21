@@ -6,6 +6,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
+ * Studio's Light/Dark is its own toggle (components/studio/studio-theme.tsx),
+ * independent of the site's `.dark` class — so a Studio component that needs
+ * a genuinely different color per mode (not just a token that already
+ * flips) reaches for `studio-dark:`, never the site's `dark:`.
+ */
+@custom-variant studio-dark (&:where([data-studio-theme="dark"], [data-studio-theme="dark"] *));
+
+/*
  * NiyaiNow — token layer.
  *
  * Two personalities, one token set (brief §1):
@@ -214,14 +222,30 @@
 }
 
 /*
- * NovelNow Studio — the writer's tools get their own always-dark sub-brand,
- * distinct from the reader-facing site's light/dark toggle, so a writer never
- * lands on a bright page mid-session. Scoped to one attribute on the Studio
- * shell root; every existing component already reads --bg-base/--brand-primary/
- * etc. as live custom properties, so nothing else needs to change to pick this
- * up — only genuinely new tokens get declared here.
+ * NovelNow Studio — the writer's tools get their own sub-brand, distinct from
+ * the reader-facing site's light/dark toggle (a writer's Light/Dark choice
+ * here is set with its own control and stored separately — see
+ * components/studio/studio-theme.tsx — so opening Studio never inherits
+ * whatever the public site happens to be set to). The attribute lives on
+ * `<html>` (set by an inline pre-paint script, same technique as
+ * components/reader/reader-prefs-script.tsx — see studio-theme-script.tsx),
+ * not on a React-rendered element, specifically so there is nothing for
+ * React's hydration diff to ever disagree with.
+ *
+ * Every *derived* token (`--card`, `--muted`, `--popover`, `--border`, ...)
+ * is re-declared here explicitly, not left to "just inherit" from
+ * --bg-elevated/--text-primary/etc. changing. `--card: var(--bg-elevated)`
+ * only *looks* like a live reference — inheritance carries the value that
+ * was already substituted at the nearest ancestor that declared the
+ * property, and the site's own `.dark` block declares `--card` at `<html>`
+ * too. Without re-declaring it here as well, `--card` at this scope would
+ * keep whatever the site's `.dark`/`:root` block already pinned it to,
+ * regardless of `--bg-elevated` changing right above it — which is exactly
+ * the half-themed panel bug this fixes. Accent stays the same
+ * pink/magenta/purple in both modes; only surface, text, and these
+ * derived tokens flip.
  */
-[data-studio-theme] {
+[data-studio-theme="dark"] {
   color-scheme: dark;
   --bg-base: #050507;
   --bg-elevated: #0d0d12;
@@ -249,6 +273,74 @@
 
   --destructive: #f04438;
   --sh-brand: 0 8px 24px rgb(255 47 142 / 0.25);
+
+  /* Derived tokens — see comment above for why these must be explicit. */
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
+  --secondary: var(--bg-subtle);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-recessed);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--brand-primary);
+  --accent-foreground: #ffffff;
+  --border: var(--border-color);
+  --input: var(--border-color);
+  --ring: var(--brand-emphasis);
+}
+
+[data-studio-theme="light"] {
+  color-scheme: light;
+  --bg-base: #f7f7f9;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #f1f1f4;
+  --bg-recessed: #e7e7ec;
+  --border-color: rgb(0 0 0 / 0.08);
+  --text-primary: #15151d;
+  --text-secondary: #5b5b66;
+  --text-tertiary: #8a8a94;
+
+  --accent-base: #ff2f8e;
+  --accent-hover: #ff57a3;
+  --accent-pressed: #e01f78;
+  --accent-subtle: color-mix(in srgb, #ff2f8e 10%, transparent);
+  --accent-on: #ffffff;
+
+  --brand-primary: var(--accent-base);
+  --brand-hover: var(--accent-hover);
+  /* Deeper than the dark-mode magenta on purpose — #e832a6 reads as text
+     directly on white and falls short of AA contrast at that lightness. */
+  --brand-emphasis: #b01c7d;
+  --brand-light-on-light: var(--brand-emphasis);
+  --brand-pink-on-light: var(--brand-emphasis);
+
+  --studio-purple: #922d9b;
+
+  --destructive: #d92d20;
+  --sh-brand: 0 8px 20px rgb(255 47 142 / 0.18);
+
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
+  --secondary: var(--bg-subtle);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-recessed);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--brand-primary);
+  --accent-foreground: #ffffff;
+  --border: var(--border-color);
+  --input: var(--border-color);
+  --ring: var(--brand-emphasis);
 }
 
 @theme inline {
