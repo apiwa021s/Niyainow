@@ -39,7 +39,7 @@ async function PersonalizedTopbar() {
  *
  * The content column takes every pixel the other two do not — no centred
  * max-width gutter on the sides, because empty margin is lost content
- * (brief §5.6). Each chrome piece hides itself on reader and admin routes via
+ * (brief §5.6). Each chrome piece hides itself on reader, admin, and studio routes via
  * SiteChrome, so the reader keeps its own quiet chrome untouched.
  *
  * Every chrome piece reads the URL (SiteChrome to decide whether to render at
@@ -47,7 +47,7 @@ async function PersonalizedTopbar() {
  * at request time. Each one therefore sits behind its own Suspense boundary so
  * the route around it still prerenders — `children` is never held back by the
  * chrome. Fallbacks are null rather than sized skeletons on purpose: on reader
- * and admin routes the chrome resolves to nothing, and a placeholder that
+ * admin, and studio routes the chrome resolves to nothing, and a placeholder that
  * reserved space would collapse and shift the page.
  */
 export function AppShell({ children }: { children: ReactNode }) {

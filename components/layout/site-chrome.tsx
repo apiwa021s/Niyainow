@@ -13,8 +13,13 @@ export function isAdminRoute(pathname: string | null) {
   return /^\/admin(\/|$)/.test(pathname ?? "");
 }
 
+/** สตูดิโอนักเขียนมี shell ของตัวเอง — ไม่ต้องมี topbar/footer/rail ของฝั่งผู้อ่านซ้อน */
+export function isStudioRoute(pathname: string | null) {
+  return /^\/studio(\/|$)/.test(pathname ?? "");
+}
+
 export function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  if (isReaderRoute(pathname) || isAdminRoute(pathname)) return null;
+  if (isReaderRoute(pathname) || isAdminRoute(pathname) || isStudioRoute(pathname)) return null;
   return <>{children}</>;
 }
