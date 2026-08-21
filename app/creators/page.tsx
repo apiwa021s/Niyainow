@@ -352,11 +352,15 @@ export default function CreatorsPage() {
             ฝ่ายพันธมิตรนักเขียนและนักแปลตอบกลับภายใน 2 วันทำการ
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <ButtonLink href="mailto:novelnow.com@outlook.com" variant="primary">
+            <ButtonLink href="/creators/apply" variant="primary">
+              สมัครเป็นนักเขียนหรือนักแปล
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </ButtonLink>
+            <ButtonLink href="mailto:novelnow.com@outlook.com" variant="outline">
               <Mail className="h-4 w-4" aria-hidden />
               novelnow.com@outlook.com
             </ButtonLink>
-            <ButtonLink href="https://line.me/R/ti/p/@novelnow" variant="outline">
+            <ButtonLink href="https://line.me/R/ti/p/@novelnow" variant="ghost">
               <MessageCircle className="h-4 w-4" aria-hidden />
               ไลน์ออฟฟิเชียล @novelnow
             </ButtonLink>
