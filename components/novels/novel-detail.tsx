@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ViewTransition } from "react";
-import { BookOpen, ChevronDown, Flame, ListOrdered, ShieldAlert, Star } from "lucide-react";
+import { BookOpen, ChevronDown, Flame, ListOrdered, ShieldAlert, Sparkles, Star } from "lucide-react";
 
 import {
   CompleteButton,
@@ -252,7 +252,10 @@ export function NovelMembershipCard({ novel }: { novel: Novel }) {
   return (
     <section aria-labelledby="membership-title" className="flex flex-wrap items-center justify-between gap-4 rounded-(--r-md) border border-[var(--brand-emphasis)]/25 bg-[color-mix(in_srgb,var(--brand-primary)_6%,transparent)] px-4 py-4 sm:px-5">
       <div className="min-w-0">
-        <p id="membership-title" className="text-sm font-semibold">✦ {membership.name}</p>
+        <p id="membership-title" className="inline-flex items-center gap-1.5 text-sm font-semibold">
+          <Sparkles className="h-4 w-4 text-[var(--brand-emphasis)]" aria-hidden />
+          {membership.name}
+        </p>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
           สนับสนุน {novel.author} และอ่านตอนใหม่ก่อนใคร — สมาชิกอ่านก่อน {membership.earlyAccessChapters} ตอน
         </p>
