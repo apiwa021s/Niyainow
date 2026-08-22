@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { canAccessAdmin, isActiveUser } from "@/lib/auth/permissions";
-import { safeRedirectPath } from "@/lib/auth/redirects";
+import { safeLoginCallback, safeRedirectPath } from "@/lib/auth/redirects";
 
 describe("authorization policy", () => {
   it("requires an active account for every privileged role", () => {
@@ -23,5 +23,11 @@ describe("safeRedirectPath", () => {
     expect(safeRedirectPath("https://attacker.example", "/profile")).toBe("/profile");
     expect(safeRedirectPath("//attacker.example/path", "/profile")).toBe("/profile");
     expect(safeRedirectPath("javascript:alert(1)", "/profile")).toBe("/profile");
+  });
+
+  it("prevents login callback loops", () => {
+    expect(safeLoginCallback("/login?error=OAuth", "/profile")).toBe("/profile");
+    expect(safeLoginCallback("/admin/login", "/admin")).toBe("/admin");
+    expect(safeLoginCallback("/studio/works", "/profile")).toBe("/studio/works");
   });
 });

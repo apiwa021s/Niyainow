@@ -83,13 +83,15 @@ export function StoryBasicInfoForm({ draft, errors, update }: StepProps) {
       <QuestionBlock question="ปกนิยาย" description="ปกคือสิ่งแรกที่คนเห็นในหน้าแรกและผลค้นหา">
         <CoverUploader
           previewUrl={draft.coverUrl}
-          onChange={(url, name) => {
+          onChange={(url, name, objectKey) => {
             update("coverUrl", url);
             update("coverName", name);
+            update("coverKey", objectKey ?? null);
           }}
           onUsePlaceholder={() => {
             update("coverUrl", null);
             update("coverName", "ปกชั่วคราว");
+            update("coverKey", null);
           }}
         />
       </QuestionBlock>

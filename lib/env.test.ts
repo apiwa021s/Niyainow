@@ -20,6 +20,21 @@ describe("environment helpers", () => {
     ).toContain("postgresql://");
   });
 
+  it("requires Turnstile client and server keys together", () => {
+    expect(() => getRuntimeEnv({
+      NODE_ENV: "test",
+      TURNSTILE_SECRET_KEY: "turnstile-secret",
+    })).toThrow(EnvironmentConfigurationError);
+    expect(getRuntimeEnv({
+      NODE_ENV: "test",
+      TURNSTILE_SECRET_KEY: "turnstile-secret",
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "turnstile-site-key",
+    })).toMatchObject({
+      TURNSTILE_SECRET_KEY: "turnstile-secret",
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "turnstile-site-key",
+    });
+  });
+
   it("parses the discrete Redis feature flags without requiring credentials", () => {
     const redis = getRedisRuntimeEnv({
       NODE_ENV: "test",

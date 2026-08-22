@@ -18,8 +18,12 @@ export function isStudioRoute(pathname: string | null) {
   return /^\/studio(\/|$)/.test(pathname ?? "");
 }
 
+export function isAuthRoute(pathname: string | null) {
+  return pathname === "/login";
+}
+
 export function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  if (isReaderRoute(pathname) || isAdminRoute(pathname) || isStudioRoute(pathname)) return null;
+  if (isReaderRoute(pathname) || isAdminRoute(pathname) || isStudioRoute(pathname) || isAuthRoute(pathname)) return null;
   return <>{children}</>;
 }

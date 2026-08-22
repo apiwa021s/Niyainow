@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, PenLine, Save, Sparkles } from "lucide-react";
+import { ArrowRight, Check, CircleAlert, PenLine, Save, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -31,7 +31,9 @@ export function CreateStoryWizard() {
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState<StepErrors>({});
   const [created, setCreated] = useState(false);
+  const [createdSlug, setCreatedSlug] = useState("");
   const [creating, setCreating] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [resumable, setResumable] = useState(() => readResumableDraft());
 
   function goTo(next: number) {
@@ -41,7 +43,7 @@ export function CreateStoryWizard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function handleNext() {
+  async function handleNext() {
     const found = validateStep(step, draft);
     if (Object.keys(found).length > 0) {
       setErrors(found);
@@ -53,11 +55,44 @@ export function CreateStoryWizard() {
     }
 
     setCreating(true);
-    window.setTimeout(() => {
+    setSubmitError("");
+    try {
+      const response = await fetch("/api/studio/stories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: draft.title.trim(),
+          tagline: draft.tagline.trim() || null,
+          synopsis: draft.synopsis.trim(),
+          coverKey: draft.coverKey,
+          primaryGenreId: draft.primaryGenreId,
+          secondaryGenreIds: draft.secondaryGenreIds,
+          relationshipIds: draft.relationshipIds,
+          settingIds: draft.settingIds,
+          tropeIds: draft.tropeIds,
+          heatLevel: draft.heatLevel,
+          contentWarningIds: draft.contentWarningIds,
+          storyType: draft.storyType,
+          storyStatus: draft.status === "hiatus" ? "paused" : draft.status,
+          originType: draft.originType,
+          originalTitle: draft.originalTitle.trim() || null,
+          rightsHolder: draft.rightsHolder.trim() || null,
+          rightsNote: draft.rightsDetail.trim() || null,
+          rightsDocumentReference: null,
+          rightsConfirmed: draft.rightsConfirmed,
+          contentPolicyConfirmed: draft.contentPolicyConfirmed,
+        }),
+      });
+      const payload = await response.json() as { data?: { slug: string }; error?: { message?: string } };
+      if (!response.ok || !payload.data) throw new Error(payload.error?.message || "สร้างเรื่องไม่สำเร็จ");
       clearResumableDraft();
-      setCreating(false);
+      setCreatedSlug(payload.data.slug);
       setCreated(true);
-    }, 900);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "สร้างเรื่องไม่สำเร็จ กรุณาลองอีกครั้ง");
+    } finally {
+      setCreating(false);
+    }
   }
 
   if (created) {
@@ -71,7 +106,7 @@ export function CreateStoryWizard() {
           “{draft.title}” พร้อมแล้ว ต่อไปมาเริ่มเขียนตอนแรกกัน
         </p>
         <div className="mt-2 grid w-full gap-2 sm:w-auto sm:grid-flow-col">
-          <ButtonLink href="/studio/works/reborn-as-a-warlord/chapters/new" variant="primary">
+          <ButtonLink href={`/studio/works/${createdSlug}/chapters/new`} variant="primary">
             <PenLine aria-hidden className="h-4 w-4" />
             เขียนตอนแรก
           </ButtonLink>
@@ -136,6 +171,13 @@ export function CreateStoryWizard() {
           {step === 3 ? <MatureContentForm draft={draft} errors={errors} update={update} /> : null}
           {step === 4 ? (
             <ReviewAndRightsForm draft={draft} errors={errors} update={update} onEditStep={goTo} />
+          ) : null}
+
+          {submitError ? (
+            <p role="alert" className="mt-4 flex items-start gap-2 rounded-[6px] border border-destructive/30 bg-destructive/5 p-3 text-sm leading-6 text-destructive">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              {submitError}
+            </p>
           ) : null}
 
           <StickyWizardNavigation

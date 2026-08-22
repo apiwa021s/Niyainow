@@ -19,18 +19,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Logo } from "@/components/layout/logo";
-import {
-  QuickWriteSheet,
-  StudioNotificationPanel,
-} from "@/components/studio/writer-studio-components";
-import { writerProfile } from "@/components/studio/writer-studio-mock";
 import { StudioThemeToggle } from "@/components/studio/studio-theme";
 import { cn } from "@/lib/utils";
 
 const navGroups = [
   [
     { href: "/studio", label: "ภาพรวม", icon: LayoutDashboard, exact: true },
-    { href: "/studio/stories", label: "ผลงานของฉัน", icon: BookMarked, exact: false },
+    { href: "/studio/works", label: "ผลงานของฉัน", icon: BookMarked, exact: false },
     { href: "/studio/fans", label: "แฟนของฉัน", icon: UserRound, exact: false },
     { href: "/studio/posts", label: "โพสต์", icon: MessageSquare, exact: false },
     { href: "/studio/membership", label: "Membership", icon: Crown, exact: false },
@@ -84,12 +79,14 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
   );
 }
 
-function ProfileCard() {
+type StudioViewer = { displayName: string; username: string | null; initial: string };
+
+function ProfileCard({ viewer }: { viewer: StudioViewer }) {
   return (
     <div className="m-3 rounded-xl bg-accent-subtle p-3">
-      <p className="truncate text-sm font-semibold">{writerProfile.name}</p>
+      <p className="truncate text-sm font-semibold">{viewer.displayName}</p>
       <p className="truncate text-xs text-(--text-secondary)">
-        นักเขียน · {writerProfile.username}
+        {viewer.username ? `นักเขียน · @${viewer.username}` : "ตั้งค่าโปรไฟล์นักเขียน"}
       </p>
     </div>
   );
@@ -97,7 +94,7 @@ function ProfileCard() {
 
 const crumbMap: Record<string, string> = {
   "/studio": "ภาพรวม",
-  "/studio/stories": "ผลงานของฉัน",
+  "/studio/works": "ผลงานของฉัน",
   "/studio/fans": "แฟนของฉัน",
   "/studio/posts": "โพสต์",
   "/studio/membership": "Membership",
@@ -132,11 +129,9 @@ function isEditorRoute(pathname: string) {
  * light/dark mode the reader side happens to be in. Navigation lives in one
  * place and the drawer mirrors it exactly.
  */
-export function StudioShell({ children }: { children: ReactNode }) {
+export function StudioShell({ children, viewer }: { children: ReactNode; viewer: StudioViewer }) {
   const pathname = usePathname() ?? "";
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [quickWriteOpen, setQuickWriteOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
   const editorRoute = isEditorRoute(pathname);
   const breadcrumb = getBreadcrumb(pathname);
@@ -144,7 +139,6 @@ export function StudioShell({ children }: { children: ReactNode }) {
   if (pathname !== lastPath) {
     setLastPath(pathname);
     setDrawerOpen(false);
-    setNotificationsOpen(false);
   }
 
   useEffect(() => {
@@ -183,16 +177,15 @@ export function StudioShell({ children }: { children: ReactNode }) {
           <NavList pathname={pathname} />
         </div>
         <div className="px-3">
-          <button
-            type="button"
-            onClick={() => setQuickWriteOpen(true)}
+          <Link
+            href="/studio/works"
             className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-(--r-md) bg-[var(--brand-primary)] px-3 text-sm font-semibold text-white shadow-[var(--sh-brand)]"
           >
             <PenLine className="h-4 w-4" />
             เขียนตอนใหม่
-          </button>
+          </Link>
         </div>
-        <ProfileCard />
+        <ProfileCard viewer={viewer} />
       </aside>
 
       {drawerOpen ? (
@@ -218,7 +211,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
             <div className="flex-1 overflow-y-auto">
               <NavList pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
             </div>
-            <ProfileCard />
+            <ProfileCard viewer={viewer} />
           </div>
         </div>
       ) : null}
@@ -240,26 +233,24 @@ export function StudioShell({ children }: { children: ReactNode }) {
               <p className="truncate text-xs text-(--text-tertiary)">{breadcrumb}</p>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setNotificationsOpen(true)}
+              <Link
+                href="/notifications"
                 className="grid h-11 w-11 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-muted"
                 aria-label="การแจ้งเตือน"
               >
                 <Bell className="h-4.5 w-4.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setQuickWriteOpen(true)}
+              </Link>
+              <Link
+                href="/studio/works"
                 className="hidden h-11 items-center gap-2 rounded-(--r-md) bg-[var(--brand-primary)] px-3 text-sm font-semibold text-white shadow-[var(--sh-brand)] sm:inline-flex"
               >
                 <PenLine className="h-4 w-4" />
                 เขียนตอนใหม่
-              </button>
+              </Link>
               <StudioThemeToggle />
               <span className="inline-flex h-11 items-center gap-2 rounded-(--r-md) px-2 text-sm font-semibold">
-                <span className="grid h-8 w-8 place-items-center rounded-full border border-border bg-muted/40 text-xs">{writerProfile.avatar}</span>
-                <span className="hidden sm:inline">{writerProfile.name}</span>
+                <span className="grid h-8 w-8 place-items-center rounded-full border border-border bg-muted/40 text-xs">{viewer.initial}</span>
+                <span className="hidden sm:inline">{viewer.displayName}</span>
               </span>
             </div>
           </div>
@@ -270,17 +261,13 @@ export function StudioShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setQuickWriteOpen(true)}
+      <Link
+        href="/studio/works"
         className="fixed inset-x-3 bottom-3 z-30 flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white shadow-[var(--sh-brand)] sm:hidden"
       >
         <PenLine className="h-4 w-4" />
         เขียนตอนใหม่
-      </button>
-
-      <StudioNotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
-      <QuickWriteSheet open={quickWriteOpen} onClose={() => setQuickWriteOpen(false)} />
+      </Link>
     </div>
   );
 }

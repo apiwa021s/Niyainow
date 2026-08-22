@@ -31,7 +31,7 @@ const uploadVerificationSchema = z.object({
 
 const uploadActorSchema = z.object({
   id: z.uuid(),
-  role: z.enum(["EDITOR", "ADMIN"]),
+  role: z.enum(["READER", "EDITOR", "ADMIN"]),
   status: z.literal("ACTIVE"),
 });
 

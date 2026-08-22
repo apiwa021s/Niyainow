@@ -205,3 +205,12 @@ export async function cancelReaderMembership(readerId: string, membershipId: str
   }).where(eq(readerMemberships.id, membership.id)).returning();
   return updated;
 }
+
+export async function getWriterMembershipEditorData(userId: string) {
+  const [plan, availableBenefits] = await Promise.all([
+    getWriterMembershipPlanForUser(userId),
+    getDb().select({ id: membershipBenefits.id, slug: membershipBenefits.slug, nameTh: membershipBenefits.nameTh, nameEn: membershipBenefits.nameEn })
+      .from(membershipBenefits).where(eq(membershipBenefits.isActive, true)).orderBy(membershipBenefits.sortOrder),
+  ]);
+  return { plan, availableBenefits };
+}

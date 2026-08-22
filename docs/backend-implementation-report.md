@@ -51,7 +51,8 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 
 ## 7. Known technical debt
 
-- Studio UI still contains mock/in-memory state and is not fully wired to these APIs
+- Frozen Writer Studio routes are wired to authenticated PostgreSQL-backed services; hidden out-of-scope legacy Studio routes retain their existing mock data and remain outside navigation
+- Chapter editor keeps a local browser recovery copy in addition to versioned server autosave; local recovery is not a source of truth
 - Scheduled publishing and outbox processing are idempotent commands, but deployment still needs cron/worker invocations
 - Fan taxonomy preferences query the operational database directly; a summary table may be needed at larger scale
 - Featured-story ownership is service-validated rather than enforced by a circular database foreign key

@@ -1,91 +1,19 @@
 import type { Metadata } from "next";
+import { ArrowRight, CircleDollarSign, Clock3, Landmark, WalletCards } from "lucide-react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { EarningsBalanceCard } from "@/components/studio/earnings/earnings-balance-card";
-import { EarningsChart } from "@/components/studio/earnings/earnings-chart";
-import { EarningsEmptyState } from "@/components/studio/earnings/earnings-empty-state";
-import { EarningsSummaryCards } from "@/components/studio/earnings/earnings-summary-cards";
-import { RevenueShareCard } from "@/components/studio/earnings/revenue-share-card";
-import { StoryEarningsList } from "@/components/studio/earnings/story-earnings-list";
-import { ResumeWritingCard } from "@/components/studio/writer-studio-components";
-import {
-  creatorEarningsAccount,
-  creatorEarningsDaily,
-  creatorEarningsHeroTotal,
-  currentRevenueContract,
-  hasAnyPaidChapters,
-  hasAnyUnlocks,
-  revenueContractHistory,
-  storyEarnings,
-} from "@/components/studio/mock-earnings";
-import { StudioPageHeader } from "@/components/studio/studio-ui";
+import { StatTile, StudioPageHeader } from "@/components/studio/studio-ui";
+import { requireActiveUser } from "@/lib/auth/dal";
+import { getStudioEarnings, getStudioRevenueShare, listStudioEarningsByStory } from "@/services/studio-analytics-service";
+import { getWriterProfileForUser } from "@/services/studio-service";
 
 export const metadata: Metadata = { title: "รายได้" };
+const money = new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", maximumFractionDigits: 2 });
 
-/**
- * The writer never has to read "ledger," "settlement," or "revenue
- * attribution" here (spec §42) — every label on this page is the plain word
- * a creator would actually use: รายได้, กำลังตรวจสอบ, พร้อมรับเงิน,
- * ส่วนแบ่งของคุณ.
- */
-export default function StudioEarningsPage() {
-  return (
-    <>
-      <StudioPageHeader
-        eyebrow={`งวดปัจจุบัน · ${creatorEarningsAccount.currentPeriodLabel}`}
-        title="รายได้"
-        description="รายได้ทุกบาทมาจากตอนที่มีคนปลดล็อกจริง คำนวณตามส่วนแบ่งรายได้ของคุณ ตรวจสอบย้อนกลับได้ทุกรายการ"
-        action={
-          <Link
-            href="/studio/earnings/transactions"
-            className="tap-target inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--brand-emphasis)] underline-offset-4 hover:underline"
-          >
-            ดูรายการรายได้ทั้งหมด
-            <ArrowRight aria-hidden className="h-4 w-4" />
-          </Link>
-        }
-      />
-
-      {!hasAnyPaidChapters ? (
-        <EarningsEmptyState hasPaidChapters={false} />
-      ) : (
-        <div className="grid gap-4">
-          <EarningsBalanceCard
-            heroTotal={creatorEarningsHeroTotal}
-            monthlyEarnings={creatorEarningsAccount.monthlyEarnings}
-            monthlyEarningsChange={creatorEarningsAccount.monthlyEarningsChange}
-            pendingAmount={creatorEarningsAccount.pendingAmount}
-            availableAmount={creatorEarningsAccount.availableAmount}
-            lifetimeEarnings={creatorEarningsAccount.lifetimeEarnings}
-          />
-
-          {!hasAnyUnlocks ? (
-            <EarningsEmptyState hasPaidChapters />
-          ) : (
-            <>
-              <EarningsSummaryCards
-                monthlyEarnings={creatorEarningsAccount.monthlyEarnings}
-                monthlyEarningsChange={creatorEarningsAccount.monthlyEarningsChange}
-                monthlyUnlocks={creatorEarningsAccount.monthlyUnlocks}
-                monthlyUnlocksChange={creatorEarningsAccount.monthlyUnlocksChange}
-                uniqueBuyers={creatorEarningsAccount.uniqueBuyers}
-                lifetimeEarnings={creatorEarningsAccount.lifetimeEarnings}
-              />
-
-              <EarningsChart daily={creatorEarningsDaily} />
-
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <StoryEarningsList stories={storyEarnings} />
-                <div className="grid content-start gap-4">
-                  <RevenueShareCard current={currentRevenueContract} history={revenueContractHistory} />
-                  <ResumeWritingCard compactMode />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </>
-  );
+export default async function StudioEarningsPage() {
+  const user = await requireActiveUser("/studio/earnings");
+  if (!(await getWriterProfileForUser(user.id))) redirect("/studio/profile");
+  const [earnings, contract, stories] = await Promise.all([getStudioEarnings(user.id), getStudioRevenueShare(user.id), listStudioEarningsByStory(user.id)]);
+  return <><StudioPageHeader eyebrow="EARNINGS" title="รายได้" description="ยอดทั้งหมดคำนวณจาก Creator Ledger ที่ตรวจสอบย้อนกลับได้" action={<Link href="/studio/earnings/transactions" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--brand-emphasis)] hover:underline">ดูทุกรายการ<ArrowRight className="h-4 w-4" aria-hidden /></Link>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatTile icon={Clock3} label="กำลังตรวจสอบ" value={money.format(earnings.pendingMinor / 100)} tone="money" /><StatTile icon={WalletCards} label="พร้อมรับเงิน" value={money.format(earnings.availableMinor / 100)} tone="money" /><StatTile icon={Landmark} label="สำรอง" value={money.format(earnings.reservedMinor / 100)} tone="money" /><StatTile icon={CircleDollarSign} label="รายได้สะสม" value={money.format(earnings.lifetimeEarningsMinor / 100)} tone="money" /></div><div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"><section className="overflow-hidden rounded-[8px] border border-border bg-card"><div className="border-b border-border px-5 py-4"><h2 className="font-semibold">รายได้ตามเรื่อง</h2></div>{stories.length ? <ul className="divide-y divide-border">{stories.map((story) => <li key={story.storyId} className="flex items-center justify-between gap-4 px-5 py-4"><div className="min-w-0"><p className="truncate font-semibold">{story.storyTitle}</p><p className="mt-1 text-xs text-(--text-tertiary)">{story.transactionCount} รายการ</p></div><p className="font-semibold tabular-nums">{money.format(story.amountMinor / 100)}</p></li>)}</ul> : <p className="p-6 text-sm text-(--text-secondary)">ยังไม่มีรายได้ เมื่อมีการปลดล็อกตอนหรือสมัคร Membership รายการจะปรากฏที่นี่</p>}</section><aside className="rounded-[8px] border border-border bg-card p-5"><p className="editorial-kicker">REVENUE SHARE</p>{contract ? <><p className="mt-3 text-2xl font-semibold">{(contract.creatorShareBasisPoints / 100).toFixed(0)}%</p><p className="mt-1 text-sm text-(--text-secondary)">ส่วนแบ่งของคุณ · {contract.type}</p><p className="mt-4 text-xs leading-5 text-(--text-tertiary)">รายการรายได้จะ snapshot อัตรานี้ ณ เวลาที่เกิดธุรกรรม</p></> : <p className="mt-3 text-sm leading-6 text-(--text-secondary)">ยังไม่มีสัญญาแบ่งรายได้ที่เปิดใช้งาน ตอนแบบ Paid จะเผยแพร่ไม่ได้จนกว่าทีมงานกำหนดสัญญา</p>}</aside></div></>;
 }

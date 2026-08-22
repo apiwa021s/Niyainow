@@ -40,6 +40,7 @@ import {
   reviews,
   tags,
   users,
+  writerProfiles,
 } from "@/db/schema";
 import { PUBLIC_CACHE_TTL } from "@/lib/cache/public-cache-profiles";
 import { toPublicChapterCachePayload } from "@/lib/domain/chapter-cache";
@@ -779,6 +780,34 @@ export const getWriterProfile = cache(async (slugInput: string): Promise<WriterP
   const slug = cleanText(slugInput, 160);
   if (!slug) return undefined;
   const db = getDb();
+  const [writer] = await db
+    .select({
+      id: writerProfiles.id,
+      username: writerProfiles.username,
+      displayName: writerProfiles.displayName,
+      bio: writerProfiles.bio,
+      avatarKey: writerProfiles.avatarKey,
+    })
+    .from(writerProfiles)
+    .where(and(eq(writerProfiles.username, slug.toLowerCase()), eq(writerProfiles.status, "ACTIVE")))
+    .limit(1);
+  if (writer) {
+    const rows = await selectBaseNovels(
+      and(publicNovelCondition(new Date()), eq(novels.writerId, writer.id))!,
+      orderBy("updated"),
+      48,
+    );
+    return {
+      id: writer.id,
+      slug: writer.username,
+      name: writer.displayName,
+      nativeName: null,
+      bio: writer.bio,
+      avatarUrl: assetUrl(writer.avatarKey),
+      novels: await hydrateNovels(rows),
+    };
+  }
+
   const [author] = await db
     .select({
       id: authors.id,

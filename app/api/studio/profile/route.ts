@@ -1,9 +1,9 @@
 import { handleUserRoute } from "@/app/api/me/_shared";
 import { parseJson } from "@/lib/http/api-response";
-import { createWriterProfile, getWriterProfileForUser, updateWriterProfile, writerProfileInputSchema } from "@/services/studio-service";
+import { createWriterProfile, getWriterProfileEditorData, updateWriterProfile, writerProfileInputSchema } from "@/services/studio-service";
 
 export async function GET(request: Request) {
-  return handleUserRoute(request, { scope: "studio-profile" }, getWriterProfileForUser);
+  return handleUserRoute(request, { scope: "studio-profile" }, getWriterProfileEditorData);
 }
 
 export async function POST(request: Request) {

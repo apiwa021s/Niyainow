@@ -38,6 +38,7 @@ export const config = {
     "/notifications/:path*",
     "/profile/:path*",
     "/settings/:path*",
+    "/studio/:path*",
     "/wallet/:path*",
   ],
 };

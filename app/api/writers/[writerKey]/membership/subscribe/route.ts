@@ -10,11 +10,11 @@ const inputSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(128),
 }).strict();
 
-type Context = { params: Promise<{ writerId: string }> };
+type Context = { params: Promise<{ writerKey: string }> };
 
 export async function POST(request: Request, context: Context) {
   return handleUserRoute(request, { mutation: true, scope: "membership-subscribe", rateLimit: { limit: 5, windowMs: 60_000 } }, async (userId) => {
     const input = await parseJson(request, inputSchema);
-    return subscribeToWriterMembership(userId, (await context.params).writerId, input.planId, input.returnUrl, input.idempotencyKey);
+    return subscribeToWriterMembership(userId, (await context.params).writerKey, input.planId, input.returnUrl, input.idempotencyKey);
   });
 }

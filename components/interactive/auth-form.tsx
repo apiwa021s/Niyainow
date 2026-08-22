@@ -1,69 +1,77 @@
 "use client";
 
+import { CircleAlert, LockKeyhole, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 
 import { signInWithGoogle } from "@/lib/auth/actions";
-import { Button, type ButtonSize } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TurnstileGate } from "@/components/interactive/turnstile-widget";
 
-function GoogleMark() {
-  return (
-    <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-      <path d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.91h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.4Z" />
-      <path d="M12 22c2.7 0 4.98-.9 6.63-2.43l-3.24-2.54c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.77-5.61-4.14H3.04v2.62A10 10 0 0 0 12 22Z" opacity=".85" />
-      <path d="M6.39 13.85A6.02 6.02 0 0 1 6.07 12c0-.64.11-1.27.32-1.85V7.53H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.47l3.35-2.62Z" opacity=".7" />
-      <path d="M12 6.01c1.47 0 2.79.51 3.83 1.5l2.87-2.88A9.65 9.65 0 0 0 12 2a10 10 0 0 0-8.96 5.53l3.35 2.62C7.18 7.78 9.39 6.01 12 6.01Z" opacity=".55" />
-    </svg>
-  );
-}
+const errorMessages: Record<string, string> = {
+  captcha: "การตรวจสอบความปลอดภัยหมดอายุหรือไม่สำเร็จ กรุณาตรวจสอบใหม่แล้วลองอีกครั้ง",
+  rate_limited: "มีการพยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่",
+  AccountDisabled: "บัญชีนี้ถูกระงับหรือปิดใช้งาน กรุณาติดต่อทีม NovelNow",
+  AccessDenied: "บัญชี Google นี้ไม่ผ่านเงื่อนไขการเข้าสู่ระบบ กรุณาเลือกบัญชีอื่น",
+  OAuthAccountNotLinked: "อีเมลนี้เชื่อมกับบัญชีอื่นอยู่แล้ว กรุณาใช้บัญชี Google เดิม",
+  Configuration: "ระบบเข้าสู่ระบบยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง",
+};
 
-export function GoogleSignInButton({
-  label = "ดำเนินการต่อด้วย Google",
-  size = "lg",
-  className,
-  disabled,
+export function AuthForm({
+  callbackUrl = "/",
+  error,
+  intent = "reader",
+  guestHref = "/",
 }: {
-  label?: string;
-  size?: ButtonSize;
-  className?: string;
-  disabled?: boolean;
+  callbackUrl?: string;
+  error?: string;
+  intent?: "reader" | "writer";
+  guestHref?: string;
 }) {
-  const { pending } = useFormStatus();
+  const writer = intent === "writer";
+  const errorMessage = error
+    ? errorMessages[error] ?? "ไม่สามารถเข้าสู่ระบบได้ กรุณาลองอีกครั้งหรือลองใช้บัญชี Google อื่น"
+    : null;
 
   return (
-    <Button type="submit" size={size} className={className} loading={pending} disabled={disabled}>
-      <GoogleMark />
-      {label}
-    </Button>
-  );
-}
-
-export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; error?: string }) {
-  return (
-    <Card className="w-full max-w-lg shadow-[var(--sh-1)]">
-      <CardHeader>
-        <p className="editorial-kicker">READER ACCOUNT</p>
-        <CardTitle className="text-2xl">ซิงก์พื้นที่อ่านของคุณ</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
-          ใช้บัญชี Google เพื่อเก็บชั้นหนังสือ ประวัติ และความคืบหน้าไว้ข้ามอุปกรณ์ การอ่านเนื้อหาสาธารณะไม่จำเป็นต้องเข้าสู่ระบบ
+    <Card className="w-full max-w-lg overflow-hidden rounded-[8px] border-[color-mix(in_srgb,var(--brand-primary)_20%,var(--border))] shadow-[var(--sh-2)]">
+      <div aria-hidden className="h-1 bg-[var(--brand-primary)]" />
+      <CardHeader className="gap-2 p-5 pb-4 sm:p-6 sm:pb-4">
+        <p className="editorial-kicker">{writer ? "WRITER ACCESS" : "NOVELNOW ACCOUNT"}</p>
+        <CardTitle className="text-xl sm:text-2xl">
+          {writer ? "เข้าสู่สตูดิโอนักเขียน" : "เข้าสู่พื้นที่ของคุณ"}
+        </CardTitle>
+        <p className="text-sm leading-6 text-muted-foreground">
+          {writer
+            ? "ใช้บัญชี Google เดียวกับพื้นที่อ่าน จากนั้นสร้างโปรไฟล์นักเขียนและเริ่มผลงานแรกได้ทันที"
+            : "ซิงก์ชั้นหนังสือ ความคืบหน้า Coins และการติดตามไว้ข้ามอุปกรณ์"}
         </p>
-
-        {error ? (
-          <p role="alert" className="mb-4 rounded-[6px] border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive">
-            ไม่สามารถเข้าสู่ระบบได้ โปรดลองอีกครั้งหรือตรวจสอบสิทธิ์ของบัญชี Google
-          </p>
+      </CardHeader>
+      <CardContent className="p-5 pt-0 sm:p-6 sm:pt-0">
+        {errorMessage ? (
+          <div
+            id="login-error"
+            role="alert"
+            className="mb-4 flex gap-2.5 rounded-[6px] border border-destructive/30 bg-destructive/6 p-3 text-sm leading-6 text-destructive"
+          >
+            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>{errorMessage}</span>
+          </div>
         ) : null}
 
         <form className="grid gap-4" action={signInWithGoogle}>
           <input type="hidden" name="callbackUrl" value={callbackUrl} />
-          <TurnstileGate className="w-full" />
+          <TurnstileGate
+            className="w-full"
+            label={writer ? "เข้าสู่สตูดิโอด้วย Google" : "เข้าสู่ระบบด้วย Google"}
+          />
         </form>
 
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+        <div id="auth-provider-note" className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--success)]" aria-hidden />
+          <p>Google OAuth เท่านั้น NovelNow ไม่เห็นหรือจัดเก็บรหัสผ่าน Google ของคุณ</p>
+        </div>
+
+        <p className="mt-4 text-xs leading-5 text-muted-foreground">
           เมื่อดำเนินการต่อ แสดงว่าคุณยอมรับ{" "}
           <Link href="/terms" className="font-medium text-foreground hover:underline">
             ข้อกำหนดการใช้งาน
@@ -75,9 +83,15 @@ export function AuthForm({ callbackUrl = "/", error }: { callbackUrl?: string; e
           ของ NovelNow
         </p>
 
-        <Link href={callbackUrl} className="mt-4 flex min-h-11 items-center justify-center rounded-[6px] text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground">
-          อ่านต่อโดยไม่เข้าสู่ระบบ
-        </Link>
+        <div className="mt-5 border-t border-border pt-3">
+          <Link
+            href={guestHref}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-[6px] text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <LockKeyhole className="h-4 w-4" aria-hidden />
+            {writer ? "กลับไปหน้าอ่านนิยาย" : "ใช้งานต่อโดยไม่เข้าสู่ระบบ"}
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );

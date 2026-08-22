@@ -565,3 +565,50 @@ export async function setWriterStoryStatus(userId: string, storyId: string, stat
     .where(eq(novels.id, story.id)).returning();
   return updated;
 }
+
+export async function getWriterProfileEditorData(userId: string) {
+  const profile = await getWriterProfileForUser(userId);
+  const db = getDb();
+  const [availableTags, ownedStories, selectedTags] = await Promise.all([
+    db.select({ id: tags.id, name: tags.name, slug: tags.slug })
+      .from(tags)
+      .where(eq(tags.isActive, true))
+      .orderBy(desc(tags.usageCount), asc(tags.name))
+      .limit(30),
+    profile
+      ? db.select({ id: novels.id, title: novels.title, slug: novels.slug })
+          .from(novels)
+          .where(and(eq(novels.writerId, profile.id), isNull(novels.deletedAt)))
+          .orderBy(desc(novels.updatedAt))
+      : Promise.resolve([]),
+    profile
+      ? db.select({ id: tags.id, name: tags.name, slug: tags.slug })
+          .from(writerProfileTags)
+          .innerJoin(tags, eq(tags.id, writerProfileTags.tagId))
+          .where(eq(writerProfileTags.writerId, profile.id))
+          .orderBy(asc(writerProfileTags.sortOrder))
+      : Promise.resolve([]),
+  ]);
+  return { profile, selectedTags, availableTags, ownedStories };
+}
+
+export async function getWriterStoryBySlug(userId: string, slug: string) {
+  const writer = await requireWriterProfileForUser(userId);
+  const [story] = await getDb().select().from(novels).where(and(
+    eq(novels.slug, slug),
+    eq(novels.writerId, writer.id),
+    isNull(novels.deletedAt),
+  )).limit(1);
+  if (!story) throw new ApiError(404, "STORY_NOT_FOUND", "ไม่พบผลงานนี้");
+  return story;
+}
+
+export async function getWriterChapterEditorData(userId: string, chapterId: string) {
+  const chapter = await getWriterChapter(userId, chapterId);
+  const warnings = chapter.inheritStoryWarnings
+    ? []
+    : await getDb().select({ slug: contentWarnings.slug }).from(chapterContentWarnings)
+        .innerJoin(contentWarnings, eq(contentWarnings.id, chapterContentWarnings.contentWarningId))
+        .where(eq(chapterContentWarnings.chapterId, chapter.id));
+  return { ...chapter, contentWarningIds: warnings.map((warning) => warning.slug) };
+}

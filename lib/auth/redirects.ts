@@ -17,3 +17,12 @@ export function safeRedirectPath(value: FormDataEntryValue | string | null | und
     return fallback;
   }
 }
+
+export function safeLoginCallback(
+  value: FormDataEntryValue | string | null | undefined,
+  fallback: string,
+) {
+  const path = safeRedirectPath(value, fallback);
+  if (/^\/(?:login|admin\/login)(?:\/|$|\?)/u.test(path)) return fallback;
+  return path;
+}

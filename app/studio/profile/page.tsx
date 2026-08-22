@@ -1,58 +1,26 @@
-"use client";
+import type { Metadata } from "next";
 
-import { useState } from "react";
-
-import {
-  ResumeWritingCard,
-  StudioPageError,
-  StudioPageSkeleton,
-  StudioPageStateBar,
-  WriterProfileEditor,
-} from "@/components/studio/writer-studio-components";
+import { WriterProfileForm } from "@/components/studio/profile/writer-profile-form";
 import { StudioPageHeader } from "@/components/studio/studio-ui";
+import { requireActiveUser } from "@/lib/auth/dal";
+import { getWriterProfileEditorData } from "@/services/studio-service";
 
-export default function StudioProfilePage() {
-  const [state, setState] = useState<"normal" | "loading" | "error" | "empty" | "no-data">("normal");
+export const metadata: Metadata = { title: "โปรไฟล์นักเขียน" };
+
+export default async function StudioProfilePage() {
+  const user = await requireActiveUser("/studio/profile");
+  const data = await getWriterProfileEditorData(user.id);
 
   return (
     <div>
       <StudioPageHeader
         eyebrow="Studio / โปรไฟล์นักเขียน"
-        title="โปรไฟล์นักเขียน"
-        description="นี่คือพื้นที่ที่คนอ่านใช้ทำความรู้จักคุณและผลงานของคุณ"
+        title={data.profile ? "โปรไฟล์นักเขียน" : "เริ่มต้นสตูดิโอของคุณ"}
+        description={data.profile
+          ? "ข้อมูลนี้คือสิ่งที่คนอ่านใช้ทำความรู้จักคุณและผลงานของคุณ"
+          : "สร้างโปรไฟล์นักเขียนด้วยบัญชี NovelNow เดิม แล้วเริ่มผลงานแรกได้ทันที"}
       />
-
-      <StudioPageStateBar state={state} onStateChange={setState} />
-
-      {state === "loading" ? (
-        <div className="grid gap-3">
-          <StudioPageSkeleton />
-          <StudioPageSkeleton />
-        </div>
-      ) : null}
-
-      {state === "error" ? <StudioPageError onRetry={() => setState("normal")} /> : null}
-
-      {state === "empty" ? (
-        <section className="rounded-xl border border-border bg-card p-5 text-center">
-          <h2 className="font-semibold">ยังไม่มีข้อมูลโปรไฟล์</h2>
-          <p className="mt-2 text-sm text-(--text-secondary)">เริ่มจากเพิ่มรูปโปรไฟล์และ Bio เพื่อให้คนอ่านรู้จักคุณมากขึ้น</p>
-        </section>
-      ) : null}
-
-      {state === "no-data" ? (
-        <section className="rounded-xl border border-border bg-card p-5 text-center">
-          <h2 className="font-semibold">ยังไม่มีเรื่องสำหรับแนะนำ</h2>
-          <p className="mt-2 text-sm text-(--text-secondary)">สร้างหรือเผยแพร่เรื่องแรกก่อน แล้วค่อยเลือกเป็นเรื่องแนะนำ</p>
-        </section>
-      ) : null}
-
-      {state === "normal" ? (
-        <div className="grid gap-4">
-          <WriterProfileEditor />
-          <ResumeWritingCard />
-        </div>
-      ) : null}
+      <WriterProfileForm initialData={data} />
     </div>
   );
 }

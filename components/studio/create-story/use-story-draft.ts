@@ -10,6 +10,7 @@ export type StoryDraft = {
   synopsis: string;
   coverUrl: string | null;
   coverName: string | null;
+  coverKey: string | null;
   primaryGenreId: string | null;
   secondaryGenreIds: string[];
   relationshipIds: string[];
@@ -35,6 +36,7 @@ export const emptyDraft: StoryDraft = {
   synopsis: "",
   coverUrl: null,
   coverName: null,
+  coverKey: null,
   primaryGenreId: null,
   secondaryGenreIds: [],
   relationshipIds: [],

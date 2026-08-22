@@ -88,7 +88,15 @@ const runtimeEnvSchema = z.object({
   STRIPE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().trim().startsWith("sk_").optional()),
   STRIPE_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().trim().startsWith("whsec_").optional()),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "silent"]).default("info"),
-});
+  }).superRefine((env, context) => {
+    if (Boolean(env.TURNSTILE_SECRET_KEY) !== Boolean(env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)) {
+      context.addIssue({
+        code: "custom",
+        path: ["TURNSTILE_SECRET_KEY"],
+        message: "TURNSTILE_SECRET_KEY and NEXT_PUBLIC_TURNSTILE_SITE_KEY must be configured together",
+      });
+    }
+  });
 
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export type RequiredDatabaseEnv = Pick<RuntimeEnv, "DATABASE_URL" | "DATABASE_MAX_CONNECTIONS"> & {

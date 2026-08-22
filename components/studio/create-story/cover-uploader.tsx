@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Sparkles, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -19,13 +19,14 @@ export function CoverUploader({
   onUsePlaceholder,
 }: {
   previewUrl: string | null;
-  onChange: (url: string | null, fileName: string | null) => void;
+  onChange: (url: string | null, fileName: string | null, objectKey?: string | null) => void;
   onUsePlaceholder: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  function pick(file: File | undefined) {
+  async function pick(file: File | undefined) {
     if (!file) return;
     if (!ACCEPT.split(",").includes(file.type)) {
       setError("รองรับเฉพาะไฟล์ JPG, PNG และ WEBP");
@@ -36,7 +37,34 @@ export function CoverUploader({
       return;
     }
     setError(null);
-    onChange(URL.createObjectURL(file), file.name);
+    setUploading(true);
+    const preview = URL.createObjectURL(file);
+    onChange(preview, file.name, null);
+    try {
+      const presignResponse = await fetch("/api/studio/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetType: "cover", originalFileName: file.name, contentType: file.type, contentLength: file.size }),
+      });
+      const signed = await presignResponse.json() as { data?: { objectKey: string; uploadUrl: string; requiredHeaders: Record<string, string> }; error?: { message?: string } };
+      if (!presignResponse.ok || !signed.data) throw new Error(signed.error?.message || "เตรียมอัปโหลดไม่สำเร็จ");
+      const uploadResponse = await fetch(signed.data.uploadUrl, { method: "PUT", headers: signed.data.requiredHeaders, body: file });
+      if (!uploadResponse.ok) throw new Error("อัปโหลดไฟล์ไม่สำเร็จ");
+      const completeResponse = await fetch("/api/studio/uploads/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectKey: signed.data.objectKey, contentType: file.type, contentLength: file.size }),
+      });
+      const completed = await completeResponse.json() as { data?: { objectKey: string }; error?: { message?: string } };
+      if (!completeResponse.ok || !completed.data) throw new Error(completed.error?.message || "ตรวจสอบไฟล์ไม่สำเร็จ");
+      onChange(preview, file.name, completed.data.objectKey);
+    } catch (reason) {
+      onChange(null, null, null);
+      URL.revokeObjectURL(preview);
+      setError(reason instanceof Error ? reason.message : "อัปโหลดปกไม่สำเร็จ");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -66,16 +94,16 @@ export function CoverUploader({
           accept={ACCEPT}
           className="sr-only"
           aria-label="เลือกไฟล์ปกนิยาย"
-          onChange={(event) => pick(event.target.files?.[0])}
+          onChange={(event) => void pick(event.target.files?.[0])}
         />
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
-            <ImagePlus aria-hidden className="h-4 w-4" />
-            อัปโหลดปก
+          <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}>
+            {uploading ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : <ImagePlus aria-hidden className="h-4 w-4" />}
+            {uploading ? "กำลังอัปโหลด…" : "อัปโหลดปก"}
           </Button>
           {previewUrl ? (
-            <Button type="button" variant="ghost" onClick={() => onChange(null, null)}>
+            <Button type="button" variant="ghost" onClick={() => onChange(null, null, null)} disabled={uploading}>
               <Trash2 aria-hidden className="h-4 w-4" />
               เอาปกออก
             </Button>

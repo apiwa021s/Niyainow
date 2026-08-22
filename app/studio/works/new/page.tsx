@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { CreateStoryWizard } from "@/components/studio/create-story/create-story-wizard";
+import { requireActiveUser } from "@/lib/auth/dal";
+import { getWriterProfileForUser } from "@/services/studio-service";
 
 export const metadata: Metadata = { title: "สร้างเรื่องใหม่" };
 
-export default function NewWorkPage() {
+export default async function NewWorkPage() {
+  const user = await requireActiveUser("/studio/works/new");
+  if (!(await getWriterProfileForUser(user.id))) redirect("/studio/profile");
+
   return (
     <div className="mx-auto w-full max-w-[1200px]">
       <Link

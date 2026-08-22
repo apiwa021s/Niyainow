@@ -39,4 +39,17 @@ describe("Proxy access policy", () => {
       }),
     ).toEqual({ kind: "redirect", login: "reader", error: "AccountDisabled" });
   });
+
+  it("protects Studio for writers without requiring an admin role", () => {
+    expect(decideProxyAccess("/studio/works", null)).toEqual({
+      kind: "redirect",
+      login: "reader",
+    });
+    expect(
+      decideProxyAccess("/studio/works", {
+        role: "READER",
+        status: "ACTIVE",
+      }),
+    ).toEqual({ kind: "allow" });
+  });
 });
