@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "npm run db:deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit --incremental false",
@@ -17,6 +18,8 @@
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:migrate": "tsx db/migrate.ts",
+    "db:check-auth": "node --conditions=react-server --import tsx db/check-auth-schema.ts",
+    "db:deploy": "npm run db:migrate && npm run db:seed-master && npm run db:check-auth",
     "db:seed-master": "tsx db/seed-master-data.ts",
     "db:publish-scheduled": "tsx db/publish-scheduled.ts",
     "db:process-outbox": "tsx db/process-outbox.ts",

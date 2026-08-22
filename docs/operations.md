@@ -9,6 +9,30 @@
 5. Deploy application; seed ใช้เฉพาะ disposable development/staging และต้อง opt in ด้วย `ALLOW_DEVELOPMENT_SEED=true`
 6. Smoke test anonymous, Google user และ admin ตาม `production-checklist.md`
 
+### Vercel
+
+`package.json` defines `vercel-build` as `npm run db:deploy && next build`. Vercel
+uses this automatically when the project Build Command is left at the framework
+default. `db:deploy` applies committed migrations, seeds idempotent product
+master data, and verifies every Auth.js table/column before the application
+artifact is produced.
+
+The Preview and Production environments must each point `DATABASE_URL` at their
+intended database. A deployment must fail during build if migration access is
+missing; do not deploy an artifact and defer migration until the first OAuth
+request.
+
+To diagnose Auth.js `Failed query` errors without printing credentials:
+
+```powershell
+npm.cmd run db:check-auth
+```
+
+An out-of-date schema reports exact names such as
+`users.age_gate_accepted_at`. A connection/permission problem remains a database
+error and should be fixed at the provider or role level rather than bypassed in
+the Auth.js adapter.
+
 ห้ามใช้ `drizzle-kit push` กับ production; schema เปลี่ยนผ่าน migration ที่ review และ commit เท่านั้น
 
 `NEXT_PUBLIC_APP_URL` และ `NEXT_PUBLIC_ASSET_URL` เป็น build-time contract ทั้งคู่ ต้องเป็น HTTPS URL ของ production ก่อนรัน `npm run build`; การ inject หลังสร้าง artifact จะสายเกินไป Production build ตั้งใจ fail หากขาดหรือเป็น URL ที่ไม่ปลอดภัย CI ใช้โดเมน `.invalid` เพื่อ compile/check เท่านั้นและไม่ควรนำ artifact ของ CI ไป deploy

@@ -4,6 +4,7 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 
 import { getDb } from "@/db";
+import { assertAuthSchemaReady } from "@/db/auth-schema-readiness";
 import { accounts, authenticators, sessions, users, verificationTokens } from "@/db/schema";
 import type { UserRole, UserStatus } from "@/lib/auth/permissions";
 import { requireAuthEnv } from "@/lib/env";
@@ -20,10 +21,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
     verificationTokensTable: verificationTokens,
     authenticatorsTable: authenticators,
   });
+  const adapterGetUserByAccount = adapter.getUserByAccount?.bind(adapter);
+  const adapterGetSessionAndUser = adapter.getSessionAndUser?.bind(adapter);
+
+  adapter.getUserByAccount = async (providerAccount) => {
+    await assertAuthSchemaReady();
+    return adapterGetUserByAccount ? adapterGetUserByAccount(providerAccount) : null;
+  };
+  adapter.getSessionAndUser = async (sessionToken) => {
+    await assertAuthSchemaReady();
+    return adapterGetSessionAndUser ? adapterGetSessionAndUser(sessionToken) : null;
+  };
 
   // The database enforces case-insensitive email uniqueness. Match that same
   // identity rule when Auth.js looks up a pre-provisioned account.
   adapter.getUserByEmail = async (email) => {
+    await assertAuthSchemaReady();
     const [user] = await database
       .select()
       .from(users)
