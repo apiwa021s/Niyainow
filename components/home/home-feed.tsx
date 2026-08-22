@@ -1,25 +1,22 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  BellRing,
-  BookMarked,
-  BookOpen,
-  Clock3,
-  Compass,
-  LibraryBig,
-  Trophy,
-} from "lucide-react";
+import { BellRing, BookMarked, Eye, Heart, LibraryBig } from "lucide-react";
 import type { ReactNode } from "react";
 import { ViewTransition } from "react";
 
+import { BannerCarousel, type BannerSlide } from "@/components/home/banner-carousel";
+import { CategoryIconRail } from "@/components/home/category-icon-rail";
 import { ContentRow, RowItem } from "@/components/home/content-row";
+import { RankingTabs } from "@/components/home/ranking-tabs";
 import { TasteDiscovery } from "@/components/home/taste-discovery";
 import { TrendingTicker } from "@/components/home/trending-ticker";
 import { UpdateFeed } from "@/components/home/update-feed";
-import { RankingNovelCard } from "@/components/novels/novel-card";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
-import { SectionHeader } from "@/components/ui/section-header";
+import {
+  getNovelTaste,
+  type NovelTaste,
+} from "@/lib/domain/reader-taste";
+import { cn, formatNumber } from "@/lib/utils";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { HomePersonalization } from "@/services/user-service";
 import type { Genre, Novel } from "@/types/novel";
@@ -29,16 +26,18 @@ export type HomeData = {
   recommended: Novel[];
   completed: Novel[];
   rankings: Novel[];
+  rankingsDaily: Novel[];
+  rankingsMonthly: Novel[];
   updates: NovelUpdate[];
   genreShowcase: { genre: Genre; covers: string[] }[];
 };
 
-const HOME_CAROUSEL_ITEM_CLASS = "w-[84px] shrink-0 sm:w-[96px] lg:w-[108px] xl:w-[118px]";
+const HOME_CAROUSEL_ITEM_CLASS = "w-[128px] shrink-0 sm:w-[144px] lg:w-[160px] xl:w-[172px]";
 
 const genreNameOf = (novel: Novel, slug?: string) =>
   slug ? (novel.genreNames?.[slug] ?? slug) : "";
 
-function HomeCoverTile({ novel }: { novel: Novel }) {
+function HomeGridCard({ novel }: { novel: Novel }) {
   const badge = novel.isNew ? "ใหม่" : novel.status === "completed" ? "จบ" : null;
   const genre = genreNameOf(novel, novel.genres[0]);
 
@@ -46,167 +45,40 @@ function HomeCoverTile({ novel }: { novel: Novel }) {
     <article className="group min-w-0">
       <Link href={`/novel/${novel.slug}`} transitionTypes={["nav-forward"]} className="block">
         <ViewTransition name={`cover-${novel.slug}`} share="morph" default="none">
-        <div className="cover-tile rounded-(--r-md)">
+        <div className="cover-tile rounded-2xl shadow-sm">
           <Image
             src={novel.cover}
             alt=""
             fill
-            sizes="(max-width: 640px) 84px, (max-width: 1024px) 96px, (max-width: 1280px) 108px, 118px"
+            sizes="(max-width: 640px) 128px, (max-width: 1024px) 144px, (max-width: 1280px) 160px, 172px"
             className="object-cover"
           />
           {badge ? (
-            <span className="absolute left-1 top-1 z-20 rounded-[4px] bg-black/78 px-1.5 py-0.5 text-xs font-semibold text-white">
+            <span className={cn(
+              "absolute left-2 top-2 z-20 rounded-full px-2 py-0.5 text-xs font-bold text-white shadow-sm",
+              badge === "ใหม่" ? "bg-linear-to-r from-rose-500 to-fuchsia-500" : "bg-emerald-600",
+            )}>
               {badge}
             </span>
           ) : null}
-          <div className="absolute inset-x-0 bottom-0 z-20 p-1.5">
-            <h3 className="line-clamp-2 text-xs font-semibold leading-[1.35] text-white drop-shadow-sm">
-              {novel.thaiTitle}
-            </h3>
-            <p className="tabular mt-0.5 truncate text-xs text-white/75">
-              {genre ? `${genre} · ` : ""}{novel.chapters.toLocaleString("th-TH")} ตอน
-            </p>
-          </div>
         </div>
         </ViewTransition>
       </Link>
-    </article>
-  );
-}
-
-/**
- * Hero. One real featured novel — its own backdrop, its own synopsis, its own
- * chapter count — and a single primary action. No carousel: a rotating hero
- * costs the fold and buys nothing measurable.
- */
-function Hero({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
-  if (!novel && !banner) return null;
-
-  if (!novel && banner) {
-    return (
-      <section className="overflow-hidden rounded-(--r-lg) border border-border bg-surface sm:relative">
-        <div className="relative aspect-3/2 w-full sm:h-[clamp(240px,26vw,340px)] sm:aspect-auto">
-          <Image src={banner.image} alt="" fill sizes="100vw" preload className="object-cover" />
-          <div
-            aria-hidden
-            className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent sm:bg-linear-to-r sm:from-black/85 sm:via-black/55 sm:to-transparent"
-          />
-        </div>
-        <div className="flex flex-col gap-2 p-3 sm:absolute sm:inset-y-0 sm:left-0 sm:max-w-[min(560px,72%)] sm:justify-center sm:p-5">
-          <h2 className="text-h2 font-semibold sm:text-h1 sm:text-white">{banner.title}</h2>
-          {banner.subtitle ? (
-            <p className="line-clamp-2 text-body text-(--text-secondary) sm:text-white/80">{banner.subtitle}</p>
-          ) : null}
-          {banner.linkUrl ? (
-            <Link
-              href={banner.linkUrl}
-              className="mt-0.5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent-base px-5 font-semibold text-accent-on hover:bg-accent-hover sm:mt-1 sm:w-fit"
-            >
-              {banner.ctaLabel ?? "อ่านเลย"}
-            </Link>
-          ) : null}
-        </div>
-      </section>
-    );
-  }
-
-  if (!novel) return null;
-
-  const meta = (
-    <p className="tabular flex flex-wrap items-center gap-x-2 text-sm text-(--text-secondary) sm:text-white/60">
-      <span className="truncate">{novel.author}</span>
-      <span aria-hidden>·</span>
-      <span className="shrink-0">{novel.chapters.toLocaleString("th-TH")} ตอน</span>
-      {(novel.ratingCount ?? 0) > 0 ? (
-        <>
-          <span aria-hidden>·</span>
-          <span className="shrink-0">{novel.rating.toFixed(1)} คะแนน</span>
-        </>
-      ) : null}
-    </p>
-  );
-
-  /*
-   * One responsive composition keeps the fold compact on mobile while giving
-   * the cover room to lead on desktop. The same cover drives both the crisp
-   * foreground artwork and the blurred colour field behind it.
-   */
-  return (
-    <section className="relative isolate overflow-hidden rounded-(--r-lg) border border-border bg-surface">
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <Image
-          src={novel.cover}
-          alt=""
-          fill
-          sizes="(min-width: 1280px) calc(100vw - 364px), 100vw"
-          fetchPriority="high"
-          className="scale-125 object-cover object-center opacity-45 blur-3xl saturate-150 sm:opacity-65"
-        />
-        <div className="absolute inset-0 bg-linear-to-r from-surface/96 via-surface/92 to-surface/82 sm:from-black/92 sm:via-black/70 sm:to-black/35" />
-        <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-surface/55 sm:to-black/60" />
-      </div>
-
-      <div className="relative grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-2.5 sm:h-[clamp(240px,26vw,340px)] sm:grid-cols-[minmax(0,1fr)_clamp(128px,14vw,190px)] sm:items-center sm:gap-6 sm:p-5 lg:gap-8 lg:p-6">
-        <Link
-          href={`/novel/${novel.slug}`}
-          transitionTypes={["nav-forward"]}
-          className="relative aspect-2/3 overflow-hidden rounded-(--r-md) bg-surface-recessed shadow-(--sh-2) ring-1 ring-black/10 sm:order-2 sm:w-full sm:ring-white/15"
-        >
-          <Image
-            src={novel.cover}
-            alt={`ปกนิยาย ${novel.thaiTitle}`}
-            fill
-            sizes="(max-width: 639px) 84px, (max-width: 1023px) 150px, 190px"
-            className="object-cover transition-transform duration-300 hover:scale-[1.02]"
-          />
+      <div className="mt-1.5 min-w-0">
+        <Link href={`/novel/${novel.slug}`} className="block">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-[1.35] group-hover:text-[var(--brand-emphasis)]">
+            {novel.thaiTitle}
+          </h3>
         </Link>
-
-        <div className="flex min-w-0 flex-col gap-1 sm:order-1 sm:max-w-[650px] sm:gap-2">
-          <p className="text-xs font-semibold text-accent-base">เรื่องเด่นประจำสัปดาห์</p>
-          <h2 className="line-clamp-2 text-h2 font-semibold sm:text-h1 sm:text-white lg:text-display">{novel.thaiTitle}</h2>
-          <p className="hidden text-body text-white/75 sm:line-clamp-2">{novel.synopsis}</p>
-          {meta}
-          <Link
-            href={`/novel/${novel.slug}`}
-            className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-full bg-accent-base px-4 text-sm font-semibold text-accent-on transition-colors hover:bg-accent-hover sm:mt-1.5 sm:h-11 sm:w-fit sm:px-5 sm:text-base"
-          >
-            <BookOpen className="h-4 w-4" aria-hidden />
-            เริ่มอ่าน
-          </Link>
-        </div>
+        <p className="tabular mt-1 truncate text-xs text-(--text-tertiary)">
+          {genre ? `${genre} · ` : ""}{novel.chapters.toLocaleString("th-TH")} ตอน
+        </p>
+        <p className="tabular mt-1 flex items-center gap-3 text-xs text-(--text-tertiary)">
+          <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" aria-hidden />{formatNumber(novel.views)}</span>
+          <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" aria-hidden />{formatNumber(novel.bookmarkCount ?? 0)}</span>
+        </p>
       </div>
-    </section>
-  );
-}
-
-function ShortcutCard({
-  href,
-  label,
-  description,
-  icon,
-}: {
-  href: string;
-  label: string;
-  description: string;
-  icon: ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex min-h-14 items-center gap-2.5 rounded-(--r-md) border border-border bg-card p-2.5 transition-colors hover:border-accent-base hover:bg-surface-subtle"
-    >
-      <span
-        aria-hidden
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-(--r-md) bg-accent-subtle text-accent-base"
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold transition-colors group-hover:text-accent-base">{label}</span>
-        <span className="mt-0.5 block truncate text-xs leading-[1.35] text-(--text-secondary)">{description}</span>
-      </span>
-      <ArrowRight className="h-4 w-4 shrink-0 text-(--text-tertiary) transition-colors group-hover:text-accent-base" />
-    </Link>
+    </article>
   );
 }
 
@@ -227,72 +99,73 @@ function HomeNovelCarousel({
     <ContentRow title={title} description={description} href={href} bleed={false} className="render-deferred">
       {novels.map((novel) => (
         <RowItem key={novel.slug} className={HOME_CAROUSEL_ITEM_CLASS}>
-          <HomeCoverTile novel={novel} />
+          <HomeGridCard novel={novel} />
         </RowItem>
       ))}
     </ContentRow>
   );
 }
 
-/**
- * The hero and its shortcuts need only the spotlight novel and the active
- * banner — a small, fast query pair — so this is fetched and streamed in on
- * its own, ahead of the six-query feed below it. See app/page.tsx.
- */
-export function HomeHeroSection({ novel, banner }: { novel?: Novel; banner?: PromoBannerItem }) {
-  return (
-    <section aria-label="ศูนย์เริ่มอ่าน" className="grid gap-3">
-      <Hero novel={novel} banner={banner} />
+function bannerSlideFromNovel(novel: Novel, kicker: string): BannerSlide {
+  return {
+    id: novel.slug,
+    image: novel.backdrop || novel.cover,
+    kicker,
+    title: novel.thaiTitle,
+    subtitle: novel.synopsis,
+    href: `/novel/${novel.slug}`,
+    ctaLabel: "อ่านเลย",
+  };
+}
 
-      <div className="hidden min-w-0 gap-3 xl:grid">
-        <nav aria-label="ทางลัดเริ่มอ่าน" className="grid min-w-0 grid-cols-3 gap-2">
-          <ShortcutCard
-            href="/novels?sort=popular"
-            label="ยอดนิยม"
-            description="เรื่องที่คนอ่านกำลังเปิดมากที่สุด"
-            icon={<Trophy className="h-4 w-4" />}
-          />
-          <ShortcutCard
-            href="/updates"
-            label="ตอนใหม่ล่าสุด"
-            description="กลับมาเช็กจังหวะอัปเดตของคลัง"
-            icon={<Clock3 className="h-4 w-4" />}
-          />
-          <ShortcutCard
-            href="/genres"
-            label="เลือกตามแนว"
-            description="เริ่มจากอารมณ์หรือโลกที่อยากอ่าน"
-            icon={<Compass className="h-4 w-4" />}
-          />
-        </nav>
-      </div>
+function bannerSlideFromPromo(banner: PromoBannerItem): BannerSlide {
+  return {
+    id: banner.id,
+    image: banner.image,
+    kicker: "โปรโมชัน",
+    title: banner.title,
+    subtitle: banner.subtitle ?? undefined,
+    href: banner.linkUrl ?? "/novels",
+    ctaLabel: banner.ctaLabel ?? undefined,
+  };
+}
+
+const MIN_BANNER_SLIDES = 3;
+
+/**
+ * The hero and its banners need only a handful of small queries, so this is
+ * fetched and streamed in on its own, ahead of the six-query feed below it.
+ * See app/page.tsx. Real promo banners lead; feature novels pad the strip up
+ * to a minimum of 3 so the carousel never looks empty.
+ */
+export function HomeHeroSection({ banners, featuredNovels }: { banners: PromoBannerItem[]; featuredNovels: Novel[] }) {
+  const slides: BannerSlide[] = [
+    ...banners.map(bannerSlideFromPromo),
+    ...featuredNovels.map((novel) => bannerSlideFromNovel(novel, "แนะนำ")),
+  ].slice(0, Math.max(MIN_BANNER_SLIDES, banners.length));
+
+  return (
+    <section aria-label="แบนเนอร์แนะนำ">
+      <BannerCarousel slides={slides} />
     </section>
   );
 }
 
-/** Genre chips, straight from the taxonomy with their real novel counts. */
-function GenreChipRail({ items }: { items: { genre: Genre; covers: string[] }[] }) {
-  if (items.length === 0) return null;
-  return (
-    <nav aria-label="เลือกตามแนวนิยาย" className="rail-scroll -mx-1 flex gap-2 px-1">
-      {items.map(({ genre }) => (
-        <Link
-          key={genre.slug}
-          href={`/genre/${genre.slug}`}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 text-sm font-medium text-(--text-secondary) transition-colors hover:border-accent-base hover:text-accent-base"
-        >
-          {genre.thaiName || genre.name}
-          <span className="tabular text-xs text-(--text-tertiary)">{genre.count.toLocaleString("th-TH")}</span>
-        </Link>
-      ))}
-      <Link
-        href="/genres"
-        className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-semibold text-accent-base"
-      >
-        ทั้งหมด
-      </Link>
-    </nav>
-  );
+/** Dedup pool across the already-fetched home shelves — no extra DB query. */
+function pooledNovels(data: HomeData): Novel[] {
+  const map = new Map<string, Novel>();
+  for (const novel of [...data.recommended, ...data.newThisWeek, ...data.completed, ...data.rankings]) {
+    if (!map.has(novel.slug)) map.set(novel.slug, novel);
+  }
+  return [...map.values()];
+}
+
+/** A taste shelf only earns its place on Home once it has enough real matches (brief §13: "ไม่จำเป็นต้องมีทุก Section"). */
+const MIN_TASTE_SHELF_SIZE = 4;
+
+function tasteShelf(pool: Novel[], predicate: (taste: NovelTaste) => boolean, limit = 12): Novel[] {
+  const matches = pool.filter((novel) => predicate(getNovelTaste(novel))).slice(0, limit);
+  return matches.length >= MIN_TASTE_SHELF_SIZE ? matches : [];
 }
 
 export function HomeFeed({
@@ -304,54 +177,77 @@ export function HomeFeed({
   children?: ReactNode;
   signupSlot?: ReactNode;
 }) {
+  const pool = pooledNovels(data);
+  const darkRomance = tasteShelf(pool, (taste) => taste.heat >= 4);
+  const blTrending = tasteShelf(pool, (taste) => taste.relationship === "mm");
+  const omegaverse = tasteShelf(pool, (taste) => taste.setting === "omegaverse");
+  const possessive = tasteShelf(pool, (taste) => taste.tropes.includes("possessive"));
+
   return (
     <div className="flex flex-col gap-4 lg:gap-5">
       <TrendingTicker novels={data.rankings.slice(0, 16)} />
-      <GenreChipRail items={data.genreShowcase} />
       <TasteDiscovery />
+      <CategoryIconRail items={data.genreShowcase} />
 
       {children}
+
+      <HomeNovelCarousel
+        title="สำหรับคุณ"
+        description="คัดจากคะแนนและกิจกรรมการอ่านของคลัง"
+        novels={data.recommended}
+        href="/novels?sort=rating"
+      />
+
+      <HomeNovelCarousel
+        title="เรื่องใหม่ที่น่าจับตา"
+        novels={data.newThisWeek}
+        href="/novels?sort=new"
+      />
+
+      <RankingTabs daily={data.rankingsDaily} weekly={data.rankings} monthly={data.rankingsMonthly} />
+
+      <HomeNovelCarousel
+        title="Dark Romance"
+        description="เรื่องระดับความเข้มข้นสูง สำหรับคืนที่อยากอ่านอะไรจริงจัง"
+        novels={darkRomance}
+        href="/novels?heat=4-5"
+      />
+
+      <HomeNovelCarousel
+        title="BL ที่กำลังมาแรง"
+        novels={blTrending}
+        href="/novels?relationship=mm"
+      />
+
+      <HomeNovelCarousel
+        title="Omegaverse"
+        novels={omegaverse}
+        href="/novels?setting=omegaverse"
+      />
+
+      <HomeNovelCarousel
+        title="คลั่งรัก / หวงแรง"
+        novels={possessive}
+        href="/novels?trope=possessive"
+      />
+
+      <HomeNovelCarousel
+        title="อ่านรวดเดียวจบ"
+        description="เรื่องที่เผยแพร่ครบแล้ว เก็บไว้อ่านยาวได้ทีเดียว"
+        novels={data.completed}
+        href="/novels?status=completed"
+      />
 
       {data.updates.length ? (
         <div className="xl:hidden">
           <UpdateFeed
-            title="ตอนใหม่ล่าสุด"
+            title="อัปเดตล่าสุด"
             description="รายการอัปเดตแบบ live feed สำหรับคนที่กลับมาเช็กทุกวัน"
             href="/updates"
             items={data.updates}
           />
         </div>
       ) : null}
-
-      <HomeNovelCarousel
-        title="ผู้อ่านให้คะแนนสูง"
-        novels={data.recommended}
-        href="/novels?sort=rating"
-      />
-
-      <HomeNovelCarousel
-        title="มาใหม่สัปดาห์นี้"
-        novels={data.newThisWeek}
-        href="/novels?sort=new"
-      />
-
-      {data.rankings.length ? (
-        <section className="render-deferred">
-          <SectionHeader title="อันดับความนิยม 7 วัน" href="/rankings" />
-          {/* Ranks read as a list, never a grid — a card hides the ordinal (brief §5.3). */}
-          <div className="grid lg:grid-cols-2 lg:gap-x-6">
-            {data.rankings.slice(0, 14).map((novel, index) => (
-              <RankingNovelCard key={novel.slug} novel={novel} rank={index + 1} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <HomeNovelCarousel
-        title="เรื่องจบแล้ว"
-        novels={data.completed}
-        href="/novels?status=completed"
-      />
 
       {signupSlot}
     </div>

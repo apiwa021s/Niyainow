@@ -74,12 +74,12 @@ async function CachedHomeHero() {
   cacheTag("public-novels", "public-banners");
 
   const [banners, featured, recommendedFallback] = await Promise.all([
-    getActiveBanners(),
-    getFeaturedNovels(1),
-    getRecommendedNovels(1),
+    getActiveBanners(6),
+    getFeaturedNovels(6),
+    getRecommendedNovels(6),
   ]);
 
-  return <HomeHeroSection novel={featured[0] ?? recommendedFallback[0]} banner={banners[0]} />;
+  return <HomeHeroSection banners={banners} featuredNovels={featured.length ? featured : recommendedFallback} />;
 }
 
 async function CachedHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
@@ -87,15 +87,17 @@ async function CachedHomeFeed({ children, signupSlot }: { children: ReactNode; s
   cacheLife(PUBLIC_CACHE_LIFE.live);
   cacheTag("public-novels", "public-chapters", "public-rankings", "public-taxonomy");
 
-  const [newThisWeek, recommended, completed, rankings, updates, genreShowcase] = await Promise.all([
+  const [newThisWeek, recommended, completed, rankings, rankingsDaily, rankingsMonthly, updates, genreShowcase] = await Promise.all([
     getNewThisWeek(12),
     getRecommendedNovels(12),
     getCompletedNovels(12),
     getRankings("WEEKLY", 16),
+    getRankings("DAILY", 10),
+    getRankings("MONTHLY", 10),
     getUpdates("all", undefined, 15),
     getGenreShowcase(10),
   ]);
-  const data: HomeData = { newThisWeek, recommended, completed, rankings, updates, genreShowcase };
+  const data: HomeData = { newThisWeek, recommended, completed, rankings, rankingsDaily, rankingsMonthly, updates, genreShowcase };
 
   return (
     <HomeFeed data={data} signupSlot={signupSlot}>
