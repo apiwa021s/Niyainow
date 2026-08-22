@@ -1,25 +1,18 @@
-import { cacheLife, cacheTag } from "next/cache";
 import { Suspense, ViewTransition, type ReactNode } from "react";
 
 import { HomeFeed, HomeHeroSection, HomePersonalizedSections, HomeSignup, type HomeData } from "@/components/home/home-feed";
 import { HomeFeedSkeleton, HomeHeroSkeleton } from "@/components/home/home-skeletons";
 import { GuestContinueReading } from "@/components/reader/guest-continue-reading";
+import {
+  studioHomeBanners,
+  studioHomeData,
+  studioHomePersonalization,
+  studioHomePublishedNovels,
+  studioHomeUpdates,
+} from "@/data/studio-reader-home";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { PUBLIC_CACHE_LIFE } from "@/lib/cache/public-cache-profiles";
 import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
-import {
-  getActiveBanners,
-  getCompletedNovels,
-  getFeaturedNovels,
-  getGenreShowcase,
-  getNewThisWeek,
-  getRankings,
-  getRecommendedNovels,
-  getUpdates,
-  getUpdatesForNovels,
-} from "@/services/novel-service";
-import { getHomePersonalization } from "@/services/user-service";
 
 export const metadata = pageMetadata({
   title: siteConfig.title,
@@ -33,16 +26,9 @@ async function HomeReaderSections() {
     return <GuestContinueReading />;
   }
 
-  const personalization = await getHomePersonalization(currentUser.id);
-  const followedUpdates = personalization.followedNovelSlugs.length
-    ? await getUpdatesForNovels(personalization.followedNovelSlugs, 10)
-    : [];
-  const renderedAccountSlugs = personalization.continueReading
+  const renderedAccountSlugs = studioHomePersonalization.continueReading
     .slice(0, 5)
     .map((item) => item.novel.slug);
-  const hasPersonalizedSections = Boolean(
-    personalization.continueReading.length || personalization.followedNovelSlugs.length,
-  );
 
   return (
     <>
@@ -50,9 +36,10 @@ async function HomeReaderSections() {
         excludeSlugs={renderedAccountSlugs}
         title="อ่านต่อจากอุปกรณ์นี้"
       />
-      {hasPersonalizedSections ? (
-        <HomePersonalizedSections personalization={personalization} followedUpdates={followedUpdates} />
-      ) : null}
+      <HomePersonalizedSections
+        personalization={studioHomePersonalization}
+        followedUpdates={studioHomeUpdates}
+      />
     </>
   );
 }
@@ -62,43 +49,12 @@ async function HomeGuestSignup() {
   return currentUser?.status === "ACTIVE" ? null : <HomeSignup />;
 }
 
-/**
- * The hero is the first thing on screen and only ever needs two small
- * queries, so it gets its own cache/Suspense boundary instead of sharing the
- * six-query one below — otherwise it would wait on the slowest of all eight,
- * which is what made the whole page feel stalled on first paint.
- */
-async function CachedHomeHero() {
-  "use cache";
-  cacheLife(PUBLIC_CACHE_LIFE.live);
-  cacheTag("public-novels", "public-banners");
-
-  const [banners, featured, recommendedFallback] = await Promise.all([
-    getActiveBanners(6),
-    getFeaturedNovels(6),
-    getRecommendedNovels(6),
-  ]);
-
-  return <HomeHeroSection banners={banners} featuredNovels={featured.length ? featured : recommendedFallback} />;
+async function MockHomeHero() {
+  return <HomeHeroSection banners={studioHomeBanners} featuredNovels={studioHomePublishedNovels} />;
 }
 
-async function CachedHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
-  "use cache";
-  cacheLife(PUBLIC_CACHE_LIFE.live);
-  cacheTag("public-novels", "public-chapters", "public-rankings", "public-taxonomy");
-
-  const [newThisWeek, recommended, completed, rankings, rankingsDaily, rankingsMonthly, updates, genreShowcase] = await Promise.all([
-    getNewThisWeek(12),
-    getRecommendedNovels(12),
-    getCompletedNovels(12),
-    getRankings("WEEKLY", 16),
-    getRankings("DAILY", 10),
-    getRankings("MONTHLY", 10),
-    getUpdates("all", undefined, 15),
-    getGenreShowcase(10),
-  ]);
-  const data: HomeData = { newThisWeek, recommended, completed, rankings, rankingsDaily, rankingsMonthly, updates, genreShowcase };
-
+async function MockHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
+  const data: HomeData = studioHomeData;
   return (
     <HomeFeed data={data} signupSlot={signupSlot}>
       {children}
@@ -117,11 +73,11 @@ export default function HomePage() {
       <h1 className="sr-only">อ่านนิยายออนไลน์และนิยายแปลไทย อัปเดตตอนใหม่ทุกวัน</h1>
       <div className="flex flex-col gap-4 lg:gap-5">
         <Suspense fallback={<HomeHeroSkeleton />}>
-          <CachedHomeHero />
+          <MockHomeHero />
         </Suspense>
 
         <Suspense fallback={<HomeFeedSkeleton />}>
-          <CachedHomeFeed
+          <MockHomeFeed
             signupSlot={
               <Suspense key="home-signup" fallback={null}>
                 <HomeGuestSignup />
@@ -131,7 +87,7 @@ export default function HomePage() {
             <Suspense fallback={<GuestContinueReading />}>
               <HomeReaderSections />
             </Suspense>
-          </CachedHomeFeed>
+          </MockHomeFeed>
         </Suspense>
       </div>
     </main>

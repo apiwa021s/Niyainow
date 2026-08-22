@@ -20,6 +20,9 @@ import type { Genre } from "@/types/novel";
 
 const GENRE_STYLE: Record<string, { icon: LucideIcon; gradient: string }> = {
   romance: { icon: Heart, gradient: "from-rose-400 to-pink-600" },
+  historical: { icon: Sword, gradient: "from-amber-400 to-orange-600" },
+  war: { icon: Swords, gradient: "from-red-500 to-rose-700" },
+  contemporary: { icon: Heart, gradient: "from-pink-400 to-fuchsia-600" },
   fantasy: { icon: Sword, gradient: "from-violet-400 to-purple-600" },
   action: { icon: Swords, gradient: "from-red-400 to-orange-600" },
   system: { icon: Cpu, gradient: "from-sky-400 to-blue-600" },

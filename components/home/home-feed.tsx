@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { BellRing, BookMarked, Eye, Heart, LibraryBig } from "lucide-react";
 import type { ReactNode } from "react";
-import { ViewTransition } from "react";
 
 import { BannerCarousel, type BannerSlide } from "@/components/home/banner-carousel";
 import { CategoryIconRail } from "@/components/home/category-icon-rail";
@@ -44,7 +43,6 @@ function HomeGridCard({ novel }: { novel: Novel }) {
   return (
     <article className="group min-w-0">
       <Link href={`/novel/${novel.slug}`} transitionTypes={["nav-forward"]} className="block">
-        <ViewTransition name={`cover-${novel.slug}`} share="morph" default="none">
         <div className="cover-tile rounded-2xl shadow-sm">
           <Image
             src={novel.cover}
@@ -62,7 +60,6 @@ function HomeGridCard({ novel }: { novel: Novel }) {
             </span>
           ) : null}
         </div>
-        </ViewTransition>
       </Link>
       <div className="mt-1.5 min-w-0">
         <Link href={`/novel/${novel.slug}`} className="block">
@@ -151,7 +148,7 @@ export function HomeHeroSection({ banners, featuredNovels }: { banners: PromoBan
   );
 }
 
-/** Dedup pool across the already-fetched home shelves — no extra DB query. */
+/** Dedup the shared Studio mock across Home shelves. */
 function pooledNovels(data: HomeData): Novel[] {
   const map = new Map<string, Novel>();
   for (const novel of [...data.recommended, ...data.newThisWeek, ...data.completed, ...data.rankings]) {
