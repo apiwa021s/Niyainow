@@ -11,16 +11,16 @@
 
 ### Vercel
 
-`package.json` defines `vercel-build` as `npm run db:deploy && next build`. Vercel
-uses this automatically when the project Build Command is left at the framework
-default. `db:deploy` applies committed migrations, seeds idempotent product
-master data, and verifies every Auth.js table/column before the application
-artifact is produced.
+`package.json` defines `vercel-build` as `next build`. Vercel uses this
+automatically when the project Build Command is left at the framework default.
+Run `npm run db:deploy` from a trusted release job against the target database
+before promoting the deployment to production traffic. This applies committed
+migrations, seeds idempotent product master data, and verifies every Auth.js
+table/column independently from artifact compilation.
 
 The Preview and Production environments must each point `DATABASE_URL` at their
-intended database. A deployment must fail during build if migration access is
-missing; do not deploy an artifact and defer migration until the first OAuth
-request.
+intended database. Do not promote a built artifact until the release job has
+completed `db:deploy`; migrations must never run from request handlers.
 
 To diagnose Auth.js `Failed query` errors without printing credentials:
 
