@@ -84,36 +84,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
 
         // Existing linked users include application fields from the adapter.
         // Deny disabled identities before issuing a new session.
-        if (user.status && user.status !== "ACTIVE") return false;
-        if (user.googleId && user.googleId !== account.providerAccountId) return false;
+        if (user.status) {
+          if (user.status !== "ACTIVE") return false;
+          if (user.googleId && user.googleId !== account.providerAccountId) return false;
+          return true;
+        }
 
-        // A staff account may be provisioned by email before its first login.
-        // Check that record before Auth.js performs trusted Google email linking.
-        if (!user.status && user.email) {
+        // No adapter-resolved row yet: `user.id` here is the raw Google subject,
+        // not a database id (the adapter only creates the row after this callback
+        // approves). A staff account may be provisioned by email before its first
+        // login, so look that record up by email instead of by id.
+        if (user.email) {
           const [provisionedUser] = await database
             .select({ googleId: users.googleId, status: users.status })
             .from(users)
             .where(sql`lower(${users.email}) = lower(${user.email})`)
             .limit(1);
 
-          if (provisionedUser?.status && provisionedUser.status !== "ACTIVE") return false;
-          if (provisionedUser?.googleId && provisionedUser.googleId !== account.providerAccountId) return false;
+          if (provisionedUser) {
+            if (provisionedUser.status !== "ACTIVE") return false;
+            if (provisionedUser.googleId && provisionedUser.googleId !== account.providerAccountId) return false;
+          }
         }
-
-        if (!user.id) return false;
-        const now = new Date();
-        const [currentUser] = await database
-          .update(users)
-          .set({
-            googleId: account.providerAccountId,
-            lastLoginAt: now,
-            updatedAt: now,
-          })
-          .where(and(eq(users.id, user.id), eq(users.status, "ACTIVE")))
-          .returning({ id: users.id, role: users.role, status: users.status });
-
-        // Fail closed if the user was removed or disabled between callback and DB write.
-        if (!currentUser) return false;
 
         return true;
       },
@@ -133,10 +125,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       },
     },
     events: {
-      async signIn({ user }) {
+      async signIn({ user, account }) {
         if (!user?.id) return;
 
         const now = new Date();
+
+        // Stamp the linked Google account and login time now that the adapter
+        // has guaranteed a real row exists for `user.id` (new or existing).
+        if (account?.provider === "google" && account.providerAccountId) {
+          await database
+            .update(users)
+            .set({ googleId: account.providerAccountId, lastLoginAt: now, updatedAt: now })
+            .where(eq(users.id, user.id));
+        }
+
         const activeSessions = await database
           .select({ sessionToken: sessions.sessionToken, expires: sessions.expires })
           .from(sessions)
