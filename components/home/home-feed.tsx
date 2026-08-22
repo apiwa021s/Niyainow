@@ -157,12 +157,10 @@ function pooledNovels(data: HomeData): Novel[] {
   return [...map.values()];
 }
 
-/** A taste shelf only earns its place on Home once it has enough real matches (brief §13: "ไม่จำเป็นต้องมีทุก Section"). */
-const MIN_TASTE_SHELF_SIZE = 4;
-
 function tasteShelf(pool: Novel[], predicate: (taste: NovelTaste) => boolean, limit = 12): Novel[] {
-  const matches = pool.filter((novel) => predicate(getNovelTaste(novel))).slice(0, limit);
-  return matches.length >= MIN_TASTE_SHELF_SIZE ? matches : [];
+  const matches = pool.filter((novel) => predicate(getNovelTaste(novel)));
+  const fallback = pool.filter((novel) => !matches.some((match) => match.slug === novel.slug));
+  return [...matches, ...fallback].slice(0, limit);
 }
 
 export function HomeFeed({
@@ -179,6 +177,7 @@ export function HomeFeed({
   const blTrending = tasteShelf(pool, (taste) => taste.relationship === "mm");
   const omegaverse = tasteShelf(pool, (taste) => taste.setting === "omegaverse");
   const possessive = tasteShelf(pool, (taste) => taste.tropes.includes("possessive"));
+  const bingeReading = data.completed.length ? data.completed : [...pool].sort((a, b) => b.chapters - a.chapters);
 
   return (
     <div className="flex flex-col gap-4 lg:gap-5">
@@ -193,6 +192,13 @@ export function HomeFeed({
         description="คัดจากคะแนนและกิจกรรมการอ่านของคลัง"
         novels={data.recommended}
         href="/novels?sort=rating"
+      />
+
+      <HomeNovelCarousel
+        title="กำลังมาแรงคืนนี้"
+        description="เรื่องที่นักอ่านกำลังเปิดอ่านและติดตามมากที่สุด"
+        novels={data.rankings}
+        href="/rankings"
       />
 
       <HomeNovelCarousel
@@ -230,13 +236,13 @@ export function HomeFeed({
 
       <HomeNovelCarousel
         title="อ่านรวดเดียวจบ"
-        description="เรื่องที่เผยแพร่ครบแล้ว เก็บไว้อ่านยาวได้ทีเดียว"
-        novels={data.completed}
+        description={data.completed.length ? "เรื่องที่เผยแพร่ครบแล้ว เก็บไว้อ่านยาวได้ทีเดียว" : "เรื่องตอนยาวจาก Studio สำหรับอ่านต่อเนื่อง"}
+        novels={bingeReading}
         href="/novels?status=completed"
       />
 
       {data.updates.length ? (
-        <div className="xl:hidden">
+        <div>
           <UpdateFeed
             title="อัปเดตล่าสุด"
             description="รายการอัปเดตแบบ live feed สำหรับคนที่กลับมาเช็กทุกวัน"
