@@ -60,13 +60,13 @@ export function StatTile({
   const punish = tone === "money";
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 2xl:p-6">
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-medium text-(--text-secondary)">{label}</span>
         <Icon aria-hidden className="h-4 w-4 shrink-0 text-brand-primary" />
       </div>
       <p className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-2xl font-semibold tabular-nums">{value}</span>
+        <span className="text-2xl font-semibold tabular-nums 2xl:text-3xl">{value}</span>
         {unit ? <span className="text-xs text-(--text-tertiary)">{unit}</span> : null}
       </p>
       {change !== undefined ? (

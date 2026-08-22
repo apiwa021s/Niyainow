@@ -168,7 +168,7 @@ export function StudioShell({ children, viewer }: { children: ReactNode; viewer:
 
   return (
     <div className="min-h-screen bg-(--bg-subtle) text-(--text-primary)">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-(--bg-base) lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-(--bg-base) lg:flex 2xl:w-72">
         <div className="flex h-16 items-center gap-2 border-b border-border px-4">
           <Logo />
           <span className="text-sm font-semibold">Studio</span>
@@ -216,9 +216,9 @@ export function StudioShell({ children, viewer }: { children: ReactNode; viewer:
         </div>
       ) : null}
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 2xl:pl-72">
         <header className="sticky top-0 z-30 border-b border-border bg-(--bg-base)/92 backdrop-blur-md">
-          <div className="flex h-16 items-center gap-2 px-3 sm:px-5">
+          <div className="flex h-16 items-center gap-2 px-3 sm:px-5 lg:px-8 2xl:px-10">
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
@@ -256,7 +256,10 @@ export function StudioShell({ children, viewer }: { children: ReactNode; viewer:
           </div>
         </header>
 
-        <main id="main" className="mx-auto w-full max-w-6xl px-3 py-5 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-5 lg:pb-8">
+        <main
+          id="main"
+          className="mx-auto w-full max-w-6xl px-3 py-5 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-5 lg:px-8 lg:pb-8 xl:max-w-7xl 2xl:max-w-[1600px] 2xl:px-10"
+        >
           {children}
         </main>
       </div>
