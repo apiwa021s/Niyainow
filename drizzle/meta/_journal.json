@@ -36,6 +36,20 @@
       "when": 1787362577303,
       "tag": "20260822013617_rapid_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787363855156,
+      "tag": "20260822015735_easy_kylun",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787364151718,
+      "tag": "20260822020231_lonely_timeslip",
+      "breakpoints": true
     }
   ]
 }

@@ -52,17 +52,16 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 ## 7. Known technical debt
 
 - Studio UI still contains mock/in-memory state and is not fully wired to these APIs
-- Scheduled publishing is an idempotent command but deployment still needs a cron/worker invocation
-- Notification fan-out/outbox delivery is not yet connected to publish transitions
-- Fan preferences/growth/source endpoints currently return privacy-safe aggregate summaries; detailed taxonomy cohorts need aggregation jobs and a minimum sample threshold
-- Writer featured-story foreign key and writer-tag maximum are not yet enforced by dedicated relations
+- Scheduled publishing and outbox processing are idempotent commands, but deployment still needs cron/worker invocations
+- Fan taxonomy preferences query the operational database directly; a summary table may be needed at larger scale
+- Featured-story ownership is service-validated rather than enforced by a circular database foreign key
 - Several PostgreSQL auto-generated FK names are truncated to 63 characters; behavior is correct but naming can be cleaned up
 
 ## 8. Production risks
 
 - No approved coin top-up or membership billing provider is configured
-- No transactional outbox/durable queue is configured for publish notifications
-- Full authenticated API/concurrency E2E tests do not yet have a disposable database/session harness in this repository
+- Transactional outbox is implemented, but no continuously running production worker/queue deployment is configured
+- Authenticated HTTP session E2E still requires a browser/session harness; ownership and concurrency are covered at the service/database boundary
 - Existing `.env` uses a non-production public URL; production builds require a credential-free HTTPS `NEXT_PUBLIC_APP_URL`
 - Revenue attribution depends on trusted top-up adapters supplying paid monetary value and currency to `creditCoins`
 
@@ -71,7 +70,7 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 - Approved `CoinTopupProvider` implementation and signed webhook route
 - Approved `MembershipBillingProvider` implementation and signed webhook route
 - Production scheduler invoking `npm run db:publish-scheduled`
-- Durable queue/outbox worker for notification fan-out
+- Production worker invoking `npm run db:process-outbox`
 - Production HTTPS app URL and provider credentials
 
 ## 10. Test results for core scenarios
@@ -90,6 +89,12 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 	- Purchased access returned `PURCHASED`
 	- Insufficient balance remained unchanged and created no purchase
 	- 85% contract snapshot produced 255 minor units of creator revenue
+	- Refund restored the exact coin buckets/value, revoked access, and created one immutable negative revenue/creator-ledger reversal
+	- Writer B was denied access to Writer A's story at the ownership service boundary
+	- Scheduled chapter remained private before its timestamp and transitioned exactly once afterward
+	- Transactional outbox delivered privacy-aware notifications once, including retry deduplication
+	- Active and cancel-at-period-end membership access remained valid until the exclusive period-end boundary
+	- Studio story taxonomy creation and free chapter publish/access passed
 - Next.js production build: passed with a temporary HTTPS public URL override
 
-Not yet proven by automated end-to-end tests: authenticated Writer A versus Writer B route calls, payment webhook activation, membership billing/cancellation, refund reversal, and publish-notification outbox delivery. These remain acceptance blockers rather than being reported as passed.
+Not yet proven by automated end-to-end tests: authenticated browser/session HTTP calls and real approved payment-provider checkout/webhook flows. Provider-state membership events are tested, but billing itself remains an external acceptance blocker rather than being reported as passed.

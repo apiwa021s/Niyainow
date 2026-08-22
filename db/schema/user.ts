@@ -130,6 +130,8 @@ export const chapterUnlocks = pgTable(
     ledgerEntryId: uuid("ledger_entry_id").notNull(),
     pricePaid: integer("price_paid").notNull(),
     unlockedAt: timestamp("unlocked_at", timestampConfig).defaultNow().notNull(),
+    refundedAt: timestamp("refunded_at", timestampConfig),
+    refundLedgerEntryId: uuid("refund_ledger_entry_id").references(() => coinLedgerEntries.id, { onDelete: "restrict" }),
   },
   (table) => [
     primaryKey({ name: "chapter_unlocks_pk", columns: [table.userId, table.chapterId] }),
@@ -144,9 +146,11 @@ export const chapterUnlocks = pgTable(
       foreignColumns: [coinLedgerEntries.chapterId, coinLedgerEntries.id],
     }).onDelete("restrict"),
     uniqueIndex("chapter_unlocks_ledger_entry_uidx").on(table.ledgerEntryId),
+    uniqueIndex("chapter_unlocks_refund_ledger_entry_uidx").on(table.refundLedgerEntryId).where(sql`${table.refundLedgerEntryId} is not null`),
     index("chapter_unlocks_chapter_idx").on(table.chapterId, table.userId),
     index("chapter_unlocks_user_recent_idx").on(table.userId, table.unlockedAt.desc(), table.chapterId),
     check("chapter_unlocks_price_positive", sql`${table.pricePaid} > 0`),
+    check("chapter_unlocks_refund_state_valid", sql`(${table.refundedAt} is null and ${table.refundLedgerEntryId} is null) or (${table.refundedAt} is not null and ${table.refundLedgerEntryId} is not null)`),
   ],
 );
 

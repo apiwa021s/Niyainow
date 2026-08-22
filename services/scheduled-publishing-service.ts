@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull, lte } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { chapters, novels } from "@/db/schema";
+import { chapters, domainOutboxEvents, novels } from "@/db/schema";
 
 export async function publishDueChapters(now = new Date(), limit = 100) {
   return getDb().transaction(async (tx) => {
@@ -30,6 +30,13 @@ export async function publishDueChapters(now = new Date(), limit = 100) {
       });
       if (!chapter) continue;
       await tx.update(novels).set({ latestChapterAt: now, updatedAt: now }).where(eq(novels.id, chapter.novelId));
+      await tx.insert(domainOutboxEvents).values({
+        type: "chapter_published",
+        aggregateType: "chapter",
+        aggregateId: chapter.id,
+        dedupeKey: `chapter-published:${chapter.id}`,
+        payload: { chapterId: chapter.id, novelId: chapter.novelId },
+      }).onConflictDoNothing();
       published.push(chapter);
     }
     return published;

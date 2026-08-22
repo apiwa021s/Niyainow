@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
-import { chapters, novels } from "./content";
+import { chapters, novels, tags } from "./content";
 import {
   creatorLedgerTypeEnum,
   membershipPlanStatusEnum,
@@ -31,6 +31,31 @@ export const writerFollows = pgTable("writer_follows", {
   index("writer_follows_writer_created_idx").on(table.writerId, table.createdAt.desc(), table.userId),
 ]);
 
+export const writerProfileTags = pgTable("writer_profile_tags", {
+  writerId: uuid("writer_id").notNull().references(() => writerProfiles.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id").notNull().references(() => tags.id, { onDelete: "restrict" }),
+  sortOrder: integer("sort_order").default(0).notNull(),
+}, (table) => [
+  primaryKey({ name: "writer_profile_tags_pk", columns: [table.writerId, table.tagId] }),
+  index("writer_profile_tags_tag_writer_idx").on(table.tagId, table.writerId),
+  check("writer_profile_tags_sort_nonnegative", sql`${table.sortOrder} >= 0`),
+]);
+
+export const membershipBenefits = pgTable("membership_benefits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  slug: varchar("slug", { length: 80 }).notNull(),
+  nameTh: varchar("name_th", { length: 160 }).notNull(),
+  nameEn: varchar("name_en", { length: 160 }).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", timestampConfig).defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex("membership_benefits_slug_uidx").on(table.slug),
+  index("membership_benefits_active_order_idx").on(table.isActive, table.sortOrder),
+  check("membership_benefits_slug_format", sql`${table.slug} ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$'`),
+]);
+
 export const writerMembershipPlans = pgTable("writer_membership_plans", {
   id: uuid("id").defaultRandom().primaryKey(),
   writerId: uuid("writer_id").notNull().references(() => writerProfiles.id, { onDelete: "restrict" }),
@@ -46,6 +71,14 @@ export const writerMembershipPlans = pgTable("writer_membership_plans", {
   uniqueIndex("writer_membership_plans_one_active_uidx").on(table.writerId).where(sql`${table.status} = 'ACTIVE'`),
   check("writer_membership_plans_price_positive", sql`${table.priceMinor} > 0`),
   check("writer_membership_plans_early_count_nonnegative", sql`${table.earlyAccessChapterCount} >= 0`),
+]);
+
+export const writerMembershipPlanBenefits = pgTable("writer_membership_plan_benefits", {
+  membershipPlanId: uuid("membership_plan_id").notNull().references(() => writerMembershipPlans.id, { onDelete: "cascade" }),
+  benefitId: uuid("benefit_id").notNull().references(() => membershipBenefits.id, { onDelete: "restrict" }),
+}, (table) => [
+  primaryKey({ name: "writer_membership_plan_benefits_pk", columns: [table.membershipPlanId, table.benefitId] }),
+  index("writer_membership_plan_benefits_benefit_idx").on(table.benefitId, table.membershipPlanId),
 ]);
 
 export const readerMemberships = pgTable("reader_memberships", {
@@ -116,10 +149,12 @@ export const creatorRevenueEvents = pgTable("creator_revenue_events", {
   currency: varchar("currency", { length: 3 }).notNull(),
   revenueRuleVersion: varchar("revenue_rule_version", { length: 80 }).notNull(),
   revenueContractId: uuid("revenue_contract_id").references(() => creatorRevenueContracts.id, { onDelete: "restrict" }),
+  reversalOfRevenueEventId: uuid("reversal_of_revenue_event_id"),
   status: revenueStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("creator_revenue_events_reader_transaction_uidx").on(table.readerTransactionId).where(sql`${table.readerTransactionId} is not null`),
+  uniqueIndex("creator_revenue_events_one_reversal_uidx").on(table.reversalOfRevenueEventId).where(sql`${table.reversalOfRevenueEventId} is not null`),
   index("creator_revenue_events_writer_created_idx").on(table.writerId, table.createdAt.desc(), table.id),
   check("creator_revenue_events_split_valid", sql`${table.eligibleRevenueMinor} = ${table.creatorRevenueMinor} + ${table.platformRevenueMinor}`),
 ]);
@@ -150,9 +185,33 @@ export const notifications = pgTable("notifications", {
   body: text("body").notNull(),
   entityType: varchar("entity_type", { length: 80 }),
   entityId: uuid("entity_id"),
+  dedupeKey: varchar("dedupe_key", { length: 255 }),
   isRead: boolean("is_read").default(false).notNull(),
   createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
-}, (table) => [index("notifications_user_created_idx").on(table.userId, table.createdAt.desc(), table.id)]);
+}, (table) => [
+  index("notifications_user_created_idx").on(table.userId, table.createdAt.desc(), table.id),
+  uniqueIndex("notifications_user_dedupe_uidx").on(table.userId, table.dedupeKey).where(sql`${table.dedupeKey} is not null`),
+]);
+
+export const domainOutboxEvents = pgTable("domain_outbox_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  type: varchar("type", { length: 80 }).notNull(),
+  aggregateType: varchar("aggregate_type", { length: 80 }).notNull(),
+  aggregateId: uuid("aggregate_id").notNull(),
+  dedupeKey: varchar("dedupe_key", { length: 255 }).notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
+  status: varchar("status", { length: 32 }).default("PENDING").notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  availableAt: timestamp("available_at", timestampConfig).defaultNow().notNull(),
+  processedAt: timestamp("processed_at", timestampConfig),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("domain_outbox_events_dedupe_uidx").on(table.dedupeKey),
+  index("domain_outbox_events_pending_idx").on(table.status, table.availableAt, table.createdAt),
+  check("domain_outbox_events_status_valid", sql`${table.status} in ('PENDING', 'PROCESSING', 'PROCESSED', 'FAILED')`),
+  check("domain_outbox_events_attempts_nonnegative", sql`${table.attempts} >= 0`),
+]);
 
 export const contentReports = pgTable("content_reports", {
   id: uuid("id").defaultRandom().primaryKey(),

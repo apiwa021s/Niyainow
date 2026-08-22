@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
@@ -9,6 +9,7 @@ import {
   chapters,
   contentWarnings,
   creatorRevenueContracts,
+  domainOutboxEvents,
   genres,
   novelContentWarnings,
   novelGenres,
@@ -18,7 +19,9 @@ import {
   novels,
   relationshipTypes,
   storySettings,
+  tags,
   tropes,
+  writerProfileTags,
   writerProfiles,
 } from "@/db/schema";
 import { ApiError } from "@/lib/http/api-response";
@@ -32,6 +35,8 @@ export const writerProfileInputSchema = z.object({
   bio: z.string().trim().max(2_000).optional().nullable(),
   avatarKey: z.string().trim().max(500).optional().nullable(),
   coverKey: z.string().trim().max(500).optional().nullable(),
+  featuredStoryId: z.string().uuid().optional().nullable(),
+  tagIds: z.array(z.string().uuid()).max(5).default([]),
 }).strict();
 
 export const studioStoryInputSchema = z.object({
@@ -153,15 +158,54 @@ export async function requireWriterProfileForUser(userId: string) {
 
 export async function createWriterProfile(userId: string, input: z.infer<typeof writerProfileInputSchema>) {
   try {
-    const [profile] = await getDb().insert(writerProfiles).values({ userId, ...input }).returning();
-    if (!profile) throw new Error("writer_profile_write_failed");
-    return profile;
+    return await getDb().transaction(async (tx) => {
+      const { tagIds, featuredStoryId: _featuredStoryId, ...profileInput } = input;
+      const tagRows = tagIds.length
+        ? await tx.select({ id: tags.id }).from(tags).where(and(inArray(tags.id, tagIds), eq(tags.isActive, true)))
+        : [];
+      if (tagRows.length !== new Set(tagIds).size) throw new ApiError(400, "INVALID_WRITER_TAGS", "มีแท็กนักเขียนที่ไม่ถูกต้องหรือปิดใช้งานแล้ว");
+      const [profile] = await tx.insert(writerProfiles).values({ userId, ...profileInput }).returning();
+      if (!profile) throw new Error("writer_profile_write_failed");
+      if (tagRows.length) await tx.insert(writerProfileTags).values(tagRows.map((tag, index) => ({ writerId: profile.id, tagId: tag.id, sortOrder: index })));
+      return profile;
+    });
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && error.code === "23505") {
       throw new ApiError(409, "WRITER_PROFILE_CONFLICT", "Username นี้ถูกใช้งานแล้ว หรือบัญชีมีโปรไฟล์นักเขียนอยู่แล้ว");
     }
     throw error;
   }
+}
+
+export async function updateWriterProfile(userId: string, input: z.infer<typeof writerProfileInputSchema>) {
+  const writer = await requireWriterProfileForUser(userId);
+  return getDb().transaction(async (tx) => {
+    const uniqueTagIds = [...new Set(input.tagIds)];
+    const tagRows = uniqueTagIds.length
+      ? await tx.select({ id: tags.id }).from(tags).where(and(inArray(tags.id, uniqueTagIds), eq(tags.isActive, true)))
+      : [];
+    if (tagRows.length !== uniqueTagIds.length) throw new ApiError(400, "INVALID_WRITER_TAGS", "มีแท็กนักเขียนที่ไม่ถูกต้องหรือปิดใช้งานแล้ว");
+    if (input.featuredStoryId) {
+      const [featured] = await tx.select({ id: novels.id }).from(novels).where(and(
+        eq(novels.id, input.featuredStoryId),
+        eq(novels.writerId, writer.id),
+        isNull(novels.deletedAt),
+      )).limit(1);
+      if (!featured) throw new ApiError(400, "INVALID_FEATURED_STORY", "เรื่องแนะนำต้องเป็นผลงานของนักเขียนคนนี้");
+    }
+    const [updated] = await tx.update(writerProfiles).set({
+      username: input.username,
+      displayName: input.displayName,
+      bio: input.bio,
+      avatarKey: input.avatarKey,
+      coverKey: input.coverKey,
+      featuredNovelId: input.featuredStoryId,
+      updatedAt: new Date(),
+    }).where(and(eq(writerProfiles.id, writer.id), eq(writerProfiles.userId, userId))).returning();
+    await tx.delete(writerProfileTags).where(eq(writerProfileTags.writerId, writer.id));
+    if (tagRows.length) await tx.insert(writerProfileTags).values(tagRows.map((tag, index) => ({ writerId: writer.id, tagId: tag.id, sortOrder: index })));
+    return updated;
+  });
 }
 
 export async function listWriterStories(userId: string) {
@@ -384,9 +428,23 @@ async function requirePublishableChapter(userId: string, chapterId: string) {
 export async function publishWriterChapter(userId: string, chapterId: string) {
   const row = await requirePublishableChapter(userId, chapterId);
   const now = new Date();
-  const [chapter] = await getDb().update(chapters).set({ status: "PUBLISHED", publishedAt: now, scheduledFor: null, updatedAt: now })
-    .where(eq(chapters.id, row.chapterId)).returning();
-  return chapter;
+  return getDb().transaction(async (tx) => {
+    const [chapter] = await tx.update(chapters).set({ status: "PUBLISHED", publishedAt: now, scheduledFor: null, updatedAt: now })
+      .where(and(eq(chapters.id, row.chapterId), ne(chapters.status, "PUBLISHED"))).returning();
+    if (!chapter) {
+      const [existing] = await tx.select().from(chapters).where(eq(chapters.id, row.chapterId)).limit(1);
+      return existing;
+    }
+    await tx.update(novels).set({ latestChapterAt: now, updatedAt: now }).where(eq(novels.id, chapter.novelId));
+    await tx.insert(domainOutboxEvents).values({
+      type: "chapter_published",
+      aggregateType: "chapter",
+      aggregateId: chapter.id,
+      dedupeKey: `chapter-published:${chapter.id}`,
+      payload: { chapterId: chapter.id, novelId: chapter.novelId },
+    }).onConflictDoNothing();
+    return chapter;
+  });
 }
 
 export async function scheduleWriterChapter(userId: string, chapterId: string, scheduledAt: Date) {

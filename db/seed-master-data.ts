@@ -14,7 +14,7 @@ import {
 } from "@/lib/studio/master-data";
 
 import { closeDbConnection, getDb } from "./index";
-import { contentWarnings, genres, relationshipTypes, storySettings, tropes } from "./schema";
+import { contentWarnings, genres, membershipBenefits, relationshipTypes, storySettings, tropes } from "./schema";
 
 loadEnvConfig(process.cwd());
 
@@ -79,6 +79,21 @@ export async function seedMasterData() {
     await upsertNormalizedMaster(tx, storySettings, STORY_SETTINGS);
     await upsertNormalizedMaster(tx, tropes, TROPES);
     await upsertNormalizedMaster(tx, contentWarnings, CONTENT_WARNINGS);
+    await tx.insert(membershipBenefits).values([
+      { slug: "early_access", nameTh: "อ่านตอนใหม่ก่อน", nameEn: "Early Access", sortOrder: 1 },
+      { slug: "member_posts", nameTh: "โพสต์สำหรับสมาชิก", nameEn: "Member Posts", sortOrder: 2 },
+      { slug: "bonus_chapters", nameTh: "ตอนพิเศษสำหรับสมาชิก", nameEn: "Bonus Chapters", sortOrder: 3 },
+      { slug: "member_badge", nameTh: "ตราสมาชิก", nameEn: "Member Badge", sortOrder: 4 },
+    ]).onConflictDoUpdate({
+      target: membershipBenefits.slug,
+      set: {
+        nameTh: sql`excluded.name_th`,
+        nameEn: sql`excluded.name_en`,
+        sortOrder: sql`excluded.sort_order`,
+        isActive: true,
+        updatedAt: new Date(),
+      },
+    });
   });
 
   return {
@@ -87,6 +102,7 @@ export async function seedMasterData() {
     settings: STORY_SETTINGS.length,
     tropes: TROPES.length,
     contentWarnings: CONTENT_WARNINGS.length,
+    membershipBenefits: 4,
   };
 }
 

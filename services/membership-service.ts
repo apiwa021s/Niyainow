@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { readerMemberships, writerMembershipPlans, writerProfiles } from "@/db/schema";
+import { membershipBenefits, readerMemberships, writerMembershipPlanBenefits, writerMembershipPlans, writerProfiles } from "@/db/schema";
 import { ApiError } from "@/lib/http/api-response";
 
 import { requireWriterProfileForUser } from "./studio-service";
@@ -22,12 +22,49 @@ export function configureMembershipBillingProvider(provider: MembershipBillingPr
   billingProvider = provider;
 }
 
+export const membershipProviderEventSchema = z.object({
+  provider: z.string().trim().min(1).max(80),
+  providerSubscriptionId: z.string().trim().min(1).max(255),
+  readerId: z.string().uuid(),
+  writerId: z.string().uuid(),
+  membershipPlanId: z.string().uuid(),
+  status: z.enum(["active", "cancel_at_period_end", "expired", "past_due", "cancelled"]),
+  currentPeriodStart: z.coerce.date(),
+  currentPeriodEnd: z.coerce.date(),
+  cancelAtPeriodEnd: z.boolean(),
+}).strict().superRefine((input, context) => {
+  if (input.currentPeriodStart >= input.currentPeriodEnd) context.addIssue({ code: "custom", path: ["currentPeriodEnd"], message: "Invalid membership period" });
+});
+
+/** Trusted webhook primitive. The provider adapter must verify the webhook signature first. */
+export async function applyMembershipProviderEvent(input: z.infer<typeof membershipProviderEventSchema>) {
+  const [plan] = await getDb().select({ writerId: writerMembershipPlans.writerId }).from(writerMembershipPlans)
+    .where(eq(writerMembershipPlans.id, input.membershipPlanId)).limit(1);
+  if (!plan || plan.writerId !== input.writerId) throw new ApiError(400, "MEMBERSHIP_PLAN_MISMATCH", "Membership plan ไม่ตรงกับนักเขียน");
+  const [membership] = await getDb().insert(readerMemberships).values(input).onConflictDoUpdate({
+    target: [readerMemberships.provider, readerMemberships.providerSubscriptionId],
+    set: {
+      readerId: input.readerId,
+      writerId: input.writerId,
+      membershipPlanId: input.membershipPlanId,
+      status: input.status,
+      currentPeriodStart: input.currentPeriodStart,
+      currentPeriodEnd: input.currentPeriodEnd,
+      cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+      updatedAt: new Date(),
+    },
+  }).returning();
+  if (!membership) throw new Error("membership_provider_event_write_failed");
+  return membership;
+}
+
 export const membershipPlanInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(2_000).optional().nullable(),
   priceMinor: z.number().int().positive().max(100_000_000),
   currency: z.string().regex(/^[A-Z]{3}$/u).default("THB"),
   earlyAccessChapterCount: z.number().int().min(0).max(100),
+  benefitIds: z.array(z.string().uuid()).max(4).default([]),
   active: z.boolean().default(false),
 }).strict();
 
@@ -36,12 +73,27 @@ export async function getWriterMembershipPlanForUser(userId: string) {
   const [plan] = await getDb().select().from(writerMembershipPlans)
     .where(eq(writerMembershipPlans.writerId, writer.id))
     .orderBy(desc(writerMembershipPlans.updatedAt)).limit(1);
-  return plan ?? null;
+  if (!plan) return null;
+  const benefits = await getDb().select({
+    id: membershipBenefits.id,
+    slug: membershipBenefits.slug,
+    nameTh: membershipBenefits.nameTh,
+    nameEn: membershipBenefits.nameEn,
+  }).from(writerMembershipPlanBenefits)
+    .innerJoin(membershipBenefits, eq(membershipBenefits.id, writerMembershipPlanBenefits.benefitId))
+    .where(eq(writerMembershipPlanBenefits.membershipPlanId, plan.id));
+  return { ...plan, benefits };
 }
 
 export async function saveWriterMembershipPlan(userId: string, input: z.infer<typeof membershipPlanInputSchema>) {
   const writer = await requireWriterProfileForUser(userId);
   return getDb().transaction(async (tx) => {
+    const uniqueBenefitIds = [...new Set(input.benefitIds)];
+    const benefitRows = uniqueBenefitIds.length
+      ? await tx.select({ id: membershipBenefits.id }).from(membershipBenefits)
+          .where(and(inArray(membershipBenefits.id, uniqueBenefitIds), eq(membershipBenefits.isActive, true)))
+      : [];
+    if (benefitRows.length !== uniqueBenefitIds.length) throw new ApiError(400, "INVALID_MEMBERSHIP_BENEFITS", "มีสิทธิประโยชน์ที่ไม่ถูกต้องหรือปิดใช้งานแล้ว");
     const [existing] = await tx.select({ id: writerMembershipPlans.id }).from(writerMembershipPlans)
       .where(eq(writerMembershipPlans.writerId, writer.id)).orderBy(desc(writerMembershipPlans.updatedAt)).limit(1);
     if (input.active) {
@@ -58,6 +110,9 @@ export async function saveWriterMembershipPlan(userId: string, input: z.infer<ty
         status: input.active ? "ACTIVE" : "DRAFT",
         updatedAt: new Date(),
       }).where(eq(writerMembershipPlans.id, existing.id)).returning();
+      if (!plan) throw new Error("membership_plan_update_failed");
+      await tx.delete(writerMembershipPlanBenefits).where(eq(writerMembershipPlanBenefits.membershipPlanId, plan.id));
+      if (benefitRows.length) await tx.insert(writerMembershipPlanBenefits).values(benefitRows.map((benefit) => ({ membershipPlanId: plan.id, benefitId: benefit.id })));
       return plan;
     }
     const [plan] = await tx.insert(writerMembershipPlans).values({
@@ -69,6 +124,8 @@ export async function saveWriterMembershipPlan(userId: string, input: z.infer<ty
       earlyAccessChapterCount: input.earlyAccessChapterCount,
       status: input.active ? "ACTIVE" : "DRAFT",
     }).returning();
+    if (!plan) throw new Error("membership_plan_write_failed");
+    if (benefitRows.length) await tx.insert(writerMembershipPlanBenefits).values(benefitRows.map((benefit) => ({ membershipPlanId: plan.id, benefitId: benefit.id })));
     return plan;
   });
 }
@@ -84,7 +141,16 @@ export async function getPublicWriterMembershipPlan(writerId: string) {
     earlyAccessChapterCount: writerMembershipPlans.earlyAccessChapterCount,
   }).from(writerMembershipPlans).innerJoin(writerProfiles, eq(writerProfiles.id, writerMembershipPlans.writerId))
     .where(and(eq(writerMembershipPlans.writerId, writerId), eq(writerMembershipPlans.status, "ACTIVE"), eq(writerProfiles.status, "ACTIVE"))).limit(1);
-  return plan ?? null;
+  if (!plan) return null;
+  const benefits = await getDb().select({
+    id: membershipBenefits.id,
+    slug: membershipBenefits.slug,
+    nameTh: membershipBenefits.nameTh,
+    nameEn: membershipBenefits.nameEn,
+  }).from(writerMembershipPlanBenefits)
+    .innerJoin(membershipBenefits, eq(membershipBenefits.id, writerMembershipPlanBenefits.benefitId))
+    .where(eq(writerMembershipPlanBenefits.membershipPlanId, plan.id));
+  return { ...plan, benefits };
 }
 
 export async function listReaderMemberships(readerId: string) {

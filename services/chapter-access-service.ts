@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { chapterUnlocks, chapters, novels, readerMemberships } from "@/db/schema";
@@ -68,7 +68,7 @@ export async function canReadChapter(
       db
         .select({ chapterId: chapterUnlocks.chapterId })
         .from(chapterUnlocks)
-        .where(and(eq(chapterUnlocks.userId, userId), eq(chapterUnlocks.chapterId, chapterId)))
+        .where(and(eq(chapterUnlocks.userId, userId), eq(chapterUnlocks.chapterId, chapterId), isNull(chapterUnlocks.refundedAt)))
         .limit(1),
       chapter.writerId
         ? db

@@ -109,7 +109,7 @@ export async function getUnlockedChapterIds(userId: string, chapterIds: string[]
   const rows = await getDb()
     .select({ chapterId: chapterUnlocks.chapterId })
     .from(chapterUnlocks)
-    .where(and(eq(chapterUnlocks.userId, userId), inArray(chapterUnlocks.chapterId, ids)));
+    .where(and(eq(chapterUnlocks.userId, userId), inArray(chapterUnlocks.chapterId, ids), isNull(chapterUnlocks.refundedAt)));
   return rows.map((row) => row.chapterId);
 }
 
@@ -126,7 +126,7 @@ export async function listPurchasedChapters(userId: string, limit = 50) {
   }).from(chapterUnlocks)
     .innerJoin(chapters, eq(chapters.id, chapterUnlocks.chapterId))
     .innerJoin(novels, eq(novels.id, chapters.novelId))
-    .where(eq(chapterUnlocks.userId, userId))
+    .where(and(eq(chapterUnlocks.userId, userId), isNull(chapterUnlocks.refundedAt)))
     .orderBy(desc(chapterUnlocks.unlockedAt), desc(chapterUnlocks.chapterId))
     .limit(Math.min(Math.max(limit, 1), 100));
 }
@@ -143,6 +143,7 @@ export async function getUnlockedPublishedChapterContent(userId: string, chapter
       and(
         eq(chapterUnlocks.userId, userId),
         eq(chapterUnlocks.chapterId, chapterId),
+        isNull(chapterUnlocks.refundedAt),
         publicNovelAndChapterCondition(now),
       ),
     )
@@ -251,10 +252,11 @@ export async function unlockChapterWithCoins(input: {
     }
 
     const [existing] = await tx
-      .select({ chapterId: chapterUnlocks.chapterId })
+      .select({ chapterId: chapterUnlocks.chapterId, refundedAt: chapterUnlocks.refundedAt })
       .from(chapterUnlocks)
       .where(and(eq(chapterUnlocks.userId, input.userId), eq(chapterUnlocks.chapterId, target.id)))
       .limit(1);
+    if (existing?.refundedAt) return { kind: "not-purchasable" };
     const decision = evaluateChapterUnlock({
       isFree: false,
       alreadyUnlocked: Boolean(existing),
