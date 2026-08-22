@@ -28,6 +28,18 @@ To diagnose Auth.js `Failed query` errors without printing credentials:
 npm.cmd run db:check-auth
 ```
 
+If a legacy database already contains the baseline schema but its Drizzle
+migration ledger cannot replay the baseline, repair only the required Auth.js
+compatibility columns and verify them with:
+
+```powershell
+npm.cmd run db:repair-auth
+```
+
+This command is idempotent and does not mark unrelated migrations as applied.
+It is a recovery command, not a replacement for the normal `db:deploy` release
+step.
+
 An out-of-date schema reports exact names such as
 `users.age_gate_accepted_at`. A connection/permission problem remains a database
 error and should be fixed at the provider or role level rather than bypassed in
