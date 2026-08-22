@@ -1,16 +1,18 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
 import { membershipBenefits, readerMemberships, writerMembershipPlanBenefits, writerMembershipPlans, writerProfiles } from "@/db/schema";
 import { ApiError } from "@/lib/http/api-response";
+import { hasStripeConfiguration } from "@/lib/env";
+import { stripeMembershipBillingProvider } from "@/services/stripe-provider";
 
 import { requireWriterProfileForUser } from "./studio-service";
 
 export interface MembershipBillingProvider {
-  subscribe(input: { readerId: string; planId: string; returnUrl: string }): Promise<{ redirectUrl: string }>;
+  subscribe(input: { readerId: string; planId: string; returnUrl: string; idempotencyKey: string }): Promise<{ redirectUrl: string }>;
   cancel(input: { providerSubscriptionId: string; atPeriodEnd: boolean }): Promise<void>;
   getStatus(providerSubscriptionId: string): Promise<string>;
   handleWebhook(request: Request): Promise<void>;
@@ -168,21 +170,34 @@ export async function listReaderMemberships(readerId: string) {
     .where(eq(readerMemberships.readerId, readerId)).orderBy(desc(readerMemberships.updatedAt));
 }
 
-export async function subscribeToWriterMembership(readerId: string, planId: string, returnUrl: string) {
-  if (!billingProvider) throw new ApiError(503, "MEMBERSHIP_BILLING_NOT_CONFIGURED", "ระบบสมัคร Membership ยังไม่เปิดใช้งาน");
+export async function subscribeToWriterMembership(readerId: string, writerId: string, planId: string, returnUrl: string, idempotencyKey: string) {
+  const provider = billingProvider ?? (hasStripeConfiguration() ? stripeMembershipBillingProvider : null);
+  if (!provider) throw new ApiError(503, "MEMBERSHIP_BILLING_NOT_CONFIGURED", "ระบบสมัคร Membership ยังไม่เปิดใช้งาน");
   const [plan] = await getDb().select({ id: writerMembershipPlans.id }).from(writerMembershipPlans)
     .where(and(eq(writerMembershipPlans.id, planId), eq(writerMembershipPlans.status, "ACTIVE"))).limit(1);
   if (!plan) throw new ApiError(404, "MEMBERSHIP_PLAN_NOT_FOUND", "ไม่พบ Membership plan นี้");
-  return billingProvider.subscribe({ readerId, planId, returnUrl });
+  const [ownedPlan] = await getDb().select({ id: writerMembershipPlans.id }).from(writerMembershipPlans)
+    .where(and(eq(writerMembershipPlans.id, planId), eq(writerMembershipPlans.writerId, writerId))).limit(1);
+  if (!ownedPlan) throw new ApiError(404, "MEMBERSHIP_PLAN_NOT_FOUND", "ไม่พบ Membership plan ของนักเขียนนี้");
+  const now = new Date();
+  const [existing] = await getDb().select({ id: readerMemberships.id }).from(readerMemberships).where(and(
+    eq(readerMemberships.readerId, readerId),
+    eq(readerMemberships.writerId, writerId),
+    inArray(readerMemberships.status, ["active", "cancel_at_period_end"]),
+    sql`${readerMemberships.currentPeriodEnd} > ${now}`,
+  )).limit(1);
+  if (existing) throw new ApiError(409, "MEMBERSHIP_ALREADY_ACTIVE", "คุณเป็นสมาชิกของนักเขียนนี้อยู่แล้ว");
+  return provider.subscribe({ readerId, planId, returnUrl, idempotencyKey });
 }
 
 export async function cancelReaderMembership(readerId: string, membershipId: string) {
-  if (!billingProvider) throw new ApiError(503, "MEMBERSHIP_BILLING_NOT_CONFIGURED", "ระบบยกเลิก Membership ยังไม่เปิดใช้งาน");
+  const provider = billingProvider ?? (hasStripeConfiguration() ? stripeMembershipBillingProvider : null);
+  if (!provider) throw new ApiError(503, "MEMBERSHIP_BILLING_NOT_CONFIGURED", "ระบบยกเลิก Membership ยังไม่เปิดใช้งาน");
   const [membership] = await getDb().select().from(readerMemberships)
     .where(and(eq(readerMemberships.id, membershipId), eq(readerMemberships.readerId, readerId))).limit(1);
   if (!membership) throw new ApiError(404, "MEMBERSHIP_NOT_FOUND", "ไม่พบ Membership นี้");
   if (!membership.providerSubscriptionId) throw new ApiError(409, "MEMBERSHIP_PROVIDER_REFERENCE_MISSING", "Membership นี้ไม่มีข้อมูลผู้ให้บริการชำระเงิน");
-  await billingProvider.cancel({ providerSubscriptionId: membership.providerSubscriptionId, atPeriodEnd: true });
+  await provider.cancel({ providerSubscriptionId: membership.providerSubscriptionId, atPeriodEnd: true });
   const [updated] = await getDb().update(readerMemberships).set({
     status: "cancel_at_period_end",
     cancelAtPeriodEnd: true,

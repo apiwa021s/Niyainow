@@ -149,12 +149,14 @@ export const creatorRevenueEvents = pgTable("creator_revenue_events", {
   currency: varchar("currency", { length: 3 }).notNull(),
   revenueRuleVersion: varchar("revenue_rule_version", { length: 80 }).notNull(),
   revenueContractId: uuid("revenue_contract_id").references(() => creatorRevenueContracts.id, { onDelete: "restrict" }),
+  externalReference: varchar("external_reference", { length: 255 }),
   reversalOfRevenueEventId: uuid("reversal_of_revenue_event_id"),
   status: revenueStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("creator_revenue_events_reader_transaction_uidx").on(table.readerTransactionId).where(sql`${table.readerTransactionId} is not null`),
-  uniqueIndex("creator_revenue_events_one_reversal_uidx").on(table.reversalOfRevenueEventId).where(sql`${table.reversalOfRevenueEventId} is not null`),
+  uniqueIndex("creator_revenue_events_external_reference_uidx").on(table.externalReference).where(sql`${table.externalReference} is not null`),
+  index("creator_revenue_events_reversal_idx").on(table.reversalOfRevenueEventId).where(sql`${table.reversalOfRevenueEventId} is not null`),
   index("creator_revenue_events_writer_created_idx").on(table.writerId, table.createdAt.desc(), table.id),
   check("creator_revenue_events_split_valid", sql`${table.eligibleRevenueMinor} = ${table.creatorRevenueMinor} + ${table.platformRevenueMinor}`),
 ]);

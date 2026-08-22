@@ -159,7 +159,14 @@ export async function requireWriterProfileForUser(userId: string) {
 export async function createWriterProfile(userId: string, input: z.infer<typeof writerProfileInputSchema>) {
   try {
     return await getDb().transaction(async (tx) => {
-      const { tagIds, featuredStoryId: _featuredStoryId, ...profileInput } = input;
+      const { tagIds } = input;
+      const profileInput = {
+        username: input.username,
+        displayName: input.displayName,
+        bio: input.bio,
+        avatarKey: input.avatarKey,
+        coverKey: input.coverKey,
+      };
       const tagRows = tagIds.length
         ? await tx.select({ id: tags.id }).from(tags).where(and(inArray(tags.id, tagIds), eq(tags.isActive, true)))
         : [];

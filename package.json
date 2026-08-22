@@ -21,6 +21,7 @@
     "db:publish-scheduled": "tsx db/publish-scheduled.ts",
     "db:process-outbox": "tsx db/process-outbox.ts",
     "db:verify-core": "node --conditions=react-server --import tsx db/verify-core-backend.ts",
+    "db:verify-stripe": "node --conditions=react-server --import tsx db/verify-stripe-backend.ts",
     "db:seed": "tsx db/seed.ts",
     "db:import-translated-novels": "tsx db/import-translated-novels.ts",
     "db:reconcile-engagement": "tsx db/reconcile-engagement.ts",
@@ -45,6 +46,7 @@
     "react-hook-form": "^7.62.0",
     "redis": "^6.2.1",
     "server-only": "^0.0.1",
+    "stripe": "^22.5.0",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.0.17",
     "zustand": "^5.0.15"

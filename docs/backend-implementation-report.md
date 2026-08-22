@@ -59,7 +59,7 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 
 ## 8. Production risks
 
-- No approved coin top-up or membership billing provider is configured
+- Stripe Checkout and signed webhook adapters are implemented, but live credentials and explicit Stripe approval for NovelNow's actual mature-fiction business category are still required
 - Transactional outbox is implemented, but no continuously running production worker/queue deployment is configured
 - Authenticated HTTP session E2E still requires a browser/session harness; ownership and concurrency are covered at the service/database boundary
 - Existing `.env` uses a non-production public URL; production builds require a credential-free HTTPS `NEXT_PUBLIC_APP_URL`
@@ -67,8 +67,9 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 
 ## 9. Missing provider/configuration
 
-- Approved `CoinTopupProvider` implementation and signed webhook route
-- Approved `MembershipBillingProvider` implementation and signed webhook route
+- Live `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the deployment secret manager
+- Stripe Dashboard webhook registration for the events documented in `docs/stripe-setup.md`
+- Explicit Stripe approval for NovelNow's actual business/content category
 - Production scheduler invoking `npm run db:publish-scheduled`
 - Production worker invoking `npm run db:process-outbox`
 - Production HTTPS app URL and provider credentials
@@ -76,7 +77,7 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 ## 10. Test results for core scenarios
 
 - TypeScript: passed
-- Vitest: 36 files, 187 tests passed
+- Vitest: 38 files, 192 tests passed
 - Chapter access policy: free, purchased, paid-required, early-access member/non-member/public release, members-only, unpublished
 - Membership period boundary: active and cancel-at-period-end behavior passed
 - Creator revenue allocation/split: stored monetary value and basis-point snapshot calculations passed
@@ -96,5 +97,7 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 	- Active and cancel-at-period-end membership access remained valid until the exclusive period-end boundary
 	- Studio story taxonomy creation and free chapter publish/access passed
 - Next.js production build: passed with a temporary HTTPS public URL override
+- Signed Stripe webhook verification: passed for valid raw bodies and rejected changed bodies/wrong secrets
+- Stripe PostgreSQL verification: duplicate coin Checkout, subscription updates, paid invoice revenue, and partial/full Credit Note reversal passed
 
-Not yet proven by automated end-to-end tests: authenticated browser/session HTTP calls and real approved payment-provider checkout/webhook flows. Provider-state membership events are tested, but billing itself remains an external acceptance blocker rather than being reported as passed.
+Not yet proven against Stripe's live network: real hosted Checkout redirects, real card/payment-method behavior, and live webhook delivery. Signed Stripe event processing and database effects are tested locally, but provider approval and live credentials remain external acceptance blockers rather than being reported as passed.

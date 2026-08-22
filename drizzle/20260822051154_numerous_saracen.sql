@@ -1,0 +1,4 @@
+DROP INDEX "creator_revenue_events_one_reversal_uidx";--> statement-breakpoint
+ALTER TABLE "creator_revenue_events" ADD COLUMN "external_reference" varchar(255);--> statement-breakpoint
+CREATE UNIQUE INDEX "creator_revenue_events_external_reference_uidx" ON "creator_revenue_events" USING btree ("external_reference") WHERE "creator_revenue_events"."external_reference" is not null;--> statement-breakpoint
+CREATE INDEX "creator_revenue_events_reversal_idx" ON "creator_revenue_events" USING btree ("reversal_of_revenue_event_id") WHERE "creator_revenue_events"."reversal_of_revenue_event_id" is not null;

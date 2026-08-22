@@ -85,6 +85,8 @@ const runtimeEnvSchema = z.object({
   ),
   R2_PUBLIC_URL: optionalUrl,
   R2_UPLOAD_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
+  STRIPE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().trim().startsWith("sk_").optional()),
+  STRIPE_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().trim().startsWith("whsec_").optional()),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "silent"]).default("info"),
 });
 
@@ -124,6 +126,7 @@ export type RequiredR2Env = Required<
     | "R2_UPLOAD_URL_TTL_SECONDS"
   >
 >;
+export type RequiredStripeEnv = Required<Pick<RuntimeEnv, "NEXT_PUBLIC_APP_URL" | "STRIPE_SECRET_KEY" | "STRIPE_WEBHOOK_SECRET">>;
 
 export class EnvironmentConfigurationError extends Error {
   readonly missing: readonly string[];
@@ -212,6 +215,17 @@ export function requireR2Env(source: NodeJS.ProcessEnv = process.env): RuntimeEn
     ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET_NAME"],
     "Cloudflare R2",
   );
+  return env;
+}
+
+export function hasStripeConfiguration(source: NodeJS.ProcessEnv = process.env) {
+  const env = getRuntimeEnv(source);
+  return Boolean(env.NEXT_PUBLIC_APP_URL && env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET);
+}
+
+export function requireStripeEnv(source: NodeJS.ProcessEnv = process.env): RuntimeEnv & RequiredStripeEnv {
+  const env = getRuntimeEnv(source);
+  requireKeys(env, ["NEXT_PUBLIC_APP_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"], "Stripe payments");
   return env;
 }
 
