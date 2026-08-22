@@ -11,6 +11,7 @@ import {
   smallint,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -30,6 +31,11 @@ export const coinWallets = pgTable(
       .primaryKey()
       .references(() => users.id, { onDelete: "restrict" }),
     balance: integer("balance").default(0).notNull(),
+    paidBalance: integer("paid_balance").default(0).notNull(),
+    bonusBalance: integer("bonus_balance").default(0).notNull(),
+    promoBalance: integer("promo_balance").default(0).notNull(),
+    paidValueMinor: integer("paid_value_minor").default(0).notNull(),
+    paidValueCurrency: varchar("paid_value_currency", { length: 3 }),
     lifetimeCredited: integer("lifetime_credited").default(0).notNull(),
     lifetimeSpent: integer("lifetime_spent").default(0).notNull(),
     createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
@@ -43,6 +49,8 @@ export const coinWallets = pgTable(
       "coin_wallets_amounts_nonnegative",
       sql`${table.balance} >= 0 and ${table.lifetimeCredited} >= 0 and ${table.lifetimeSpent} >= 0`,
     ),
+    check("coin_wallets_bucket_sum_valid", sql`${table.balance} = ${table.paidBalance} + ${table.bonusBalance} + ${table.promoBalance}`),
+    check("coin_wallets_paid_value_valid", sql`${table.paidValueMinor} >= 0 and (${table.paidBalance} > 0 or ${table.paidValueMinor} = 0) and ((${table.paidValueMinor} = 0 and ${table.paidValueCurrency} is null) or (${table.paidValueMinor} > 0 and ${table.paidValueCurrency} ~ '^[A-Z]{3}$'))`),
   ],
 );
 
@@ -56,6 +64,11 @@ export const coinLedgerEntries = pgTable(
       .references(() => users.id, { onDelete: "restrict" }),
     type: coinLedgerTypeEnum("type").notNull(),
     amount: integer("amount").notNull(),
+    paidAmount: integer("paid_amount").default(0).notNull(),
+    bonusAmount: integer("bonus_amount").default(0).notNull(),
+    promoAmount: integer("promo_amount").default(0).notNull(),
+    eligibleRevenueMinor: integer("eligible_revenue_minor").default(0).notNull(),
+    revenueCurrency: varchar("revenue_currency", { length: 3 }),
     balanceAfter: integer("balance_after").notNull(),
     chapterId: uuid("chapter_id").references(() => chapters.id, { onDelete: "restrict" }),
     idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
@@ -64,14 +77,16 @@ export const coinLedgerEntries = pgTable(
   },
   (table) => [
     uniqueIndex("coin_ledger_entries_idempotency_uidx").on(table.idempotencyKey),
-    uniqueIndex("coin_ledger_entries_user_id_uidx").on(table.userId, table.id),
-    uniqueIndex("coin_ledger_entries_chapter_id_uidx").on(table.chapterId, table.id),
+    unique("coin_ledger_entries_user_id_unique").on(table.userId, table.id),
+    unique("coin_ledger_entries_chapter_id_unique").on(table.chapterId, table.id),
     uniqueIndex("coin_ledger_entries_external_reference_uidx")
       .on(table.externalReference)
       .where(sql`${table.externalReference} is not null`),
     index("coin_ledger_entries_user_created_idx").on(table.userId, table.createdAt.desc(), table.id.desc()),
     index("coin_ledger_entries_chapter_idx").on(table.chapterId, table.userId),
     check("coin_ledger_entries_amount_nonzero", sql`${table.amount} <> 0`),
+    check("coin_ledger_entries_bucket_sum_valid", sql`${table.amount} = ${table.paidAmount} + ${table.bonusAmount} + ${table.promoAmount}`),
+    check("coin_ledger_entries_revenue_valid", sql`${table.eligibleRevenueMinor} >= 0 and ((${table.eligibleRevenueMinor} = 0 and ${table.revenueCurrency} is null) or (${table.eligibleRevenueMinor} > 0 and ${table.revenueCurrency} ~ '^[A-Z]{3}$'))`),
     check("coin_ledger_entries_balance_nonnegative", sql`${table.balanceAfter} >= 0`),
     check(
       "coin_ledger_entries_direction_valid",
@@ -79,6 +94,26 @@ export const coinLedgerEntries = pgTable(
         or (${table.type} in ('TOP_UP', 'ADMIN_CREDIT', 'PROMOTION', 'REFUND') and ${table.amount} > 0)
         or (${table.type} = 'ADJUSTMENT' and ${table.amount} <> 0)`,
     ),
+  ],
+);
+
+export const coinPackages = pgTable(
+  "coin_packages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    coinAmount: integer("coin_amount").notNull(),
+    bonusCoinAmount: integer("bonus_coin_amount").default(0).notNull(),
+    priceMinor: integer("price_minor").notNull(),
+    currency: varchar("currency", { length: 3 }).default("THB").notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", timestampConfig).defaultNow().$onUpdate(() => new Date()).notNull(),
+  },
+  (table) => [
+    index("coin_packages_active_order_idx").on(table.isActive, table.sortOrder),
+    check("coin_packages_amounts_valid", sql`${table.coinAmount} > 0 and ${table.bonusCoinAmount} >= 0 and ${table.priceMinor} > 0`),
+    check("coin_packages_currency_format", sql`${table.currency} ~ '^[A-Z]{3}$'`),
   ],
 );
 

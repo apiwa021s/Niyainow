@@ -218,6 +218,7 @@ export async function seedDevelopmentData() {
         wordCount: countWords(content),
         status: "PUBLISHED" as const,
         isFree,
+        accessMode: isFree ? "free" as const : "paid" as const,
         coinPrice: isFree ? 0 : (chapter.coinPrice ?? 15),
         publishedAt: now,
       };
@@ -236,6 +237,7 @@ export async function seedDevelopmentData() {
           wordCount: sql`excluded.word_count`,
           status: "PUBLISHED",
           isFree: sql`excluded.is_free`,
+          accessMode: sql`excluded.access_mode`,
           coinPrice: sql`excluded.coin_price`,
           publishedAt: sql`coalesce(${chapters.publishedAt}, excluded.published_at)`,
           updatedAt: now,

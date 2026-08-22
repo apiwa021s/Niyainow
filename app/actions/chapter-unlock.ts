@@ -42,6 +42,9 @@ export async function unlockChapterAction(
     if (result.kind === "not-found") {
       return { status: "error", message: "ไม่พบตอนที่เผยแพร่แล้ว กรุณารีเฟรชหน้า" };
     }
+    if (result.kind === "not-purchasable") {
+      return { status: "error", message: "ตอนนี้ไม่เปิดให้ปลดล็อกด้วย Coins" };
+    }
     if (result.kind === "price-changed") {
       return {
         status: "price-changed",

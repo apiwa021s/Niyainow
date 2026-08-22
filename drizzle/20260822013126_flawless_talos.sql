@@ -1,0 +1,6 @@
+ALTER TABLE "coin_ledger_entries" ADD COLUMN "eligible_revenue_minor" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "coin_ledger_entries" ADD COLUMN "revenue_currency" varchar(3);--> statement-breakpoint
+ALTER TABLE "coin_wallets" ADD COLUMN "paid_value_minor" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "coin_wallets" ADD COLUMN "paid_value_currency" varchar(3);--> statement-breakpoint
+ALTER TABLE "coin_ledger_entries" ADD CONSTRAINT "coin_ledger_entries_revenue_valid" CHECK ("coin_ledger_entries"."eligible_revenue_minor" >= 0 and (("coin_ledger_entries"."eligible_revenue_minor" = 0 and "coin_ledger_entries"."revenue_currency" is null) or ("coin_ledger_entries"."eligible_revenue_minor" > 0 and "coin_ledger_entries"."revenue_currency" ~ '^[A-Z]{3}$')));--> statement-breakpoint
+ALTER TABLE "coin_wallets" ADD CONSTRAINT "coin_wallets_paid_value_valid" CHECK ("coin_wallets"."paid_value_minor" >= 0 and ("coin_wallets"."paid_balance" > 0 or "coin_wallets"."paid_value_minor" = 0) and (("coin_wallets"."paid_value_minor" = 0 and "coin_wallets"."paid_value_currency" is null) or ("coin_wallets"."paid_value_minor" > 0 and "coin_wallets"."paid_value_currency" ~ '^[A-Z]{3}$')));

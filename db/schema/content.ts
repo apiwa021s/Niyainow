@@ -11,6 +11,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -19,11 +20,17 @@ import {
 import { users } from "./auth";
 import {
   authorRoleEnum,
+  chapterAccessModeEnum,
   chapterStatusEnum,
+  contentOriginTypeEnum,
   contentRatingEnum,
   novelStatusEnum,
+  publicAccessModeEnum,
   publicationStatusEnum,
+  storyTypeEnum,
 } from "./enums";
+import { writerProfiles } from "./identity";
+import { contentWarnings, relationshipTypes, storySettings, tropes } from "./taxonomy";
 
 const timestampConfig = { mode: "date", withTimezone: true } as const;
 
@@ -71,7 +78,7 @@ export const genres = pgTable(
     uniqueIndex("genres_slug_uidx").on(table.slug),
     uniqueIndex("genres_name_lower_uidx").on(sql`lower(${table.name})`),
     index("genres_active_order_idx").on(table.isActive, table.sortOrder),
-    check("genres_slug_format", sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+    check("genres_slug_format", sql`${table.slug} ~ '^[a-z0-9]+(?:[-_][a-z0-9]+)*$'`),
   ],
 );
 
@@ -103,8 +110,10 @@ export const novels = pgTable(
   "novels",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    writerId: uuid("writer_id").references(() => writerProfiles.id, { onDelete: "restrict" }),
     slug: varchar("slug", { length: 180 }).notNull(),
     title: text("title").notNull(),
+    tagline: varchar("tagline", { length: 200 }),
     titleOriginal: text("title_original"),
     synopsis: text("synopsis").notNull(),
     synopsisOriginal: text("synopsis_original"),
@@ -115,6 +124,14 @@ export const novels = pgTable(
     status: novelStatusEnum("status").default("ONGOING").notNull(),
     publicationStatus: publicationStatusEnum("publication_status").default("DRAFT").notNull(),
     contentRating: contentRatingEnum("content_rating").default("TEEN").notNull(),
+    heatLevel: integer("heat_level"),
+    storyType: storyTypeEnum("story_type").default("serial").notNull(),
+    originType: contentOriginTypeEnum("origin_type").default("original").notNull(),
+    rightsHolder: text("rights_holder"),
+    rightsNote: text("rights_note"),
+    rightsDocumentReference: text("rights_document_reference"),
+    rightsConfirmedAt: timestamp("rights_confirmed_at", timestampConfig),
+    contentPolicyConfirmedAt: timestamp("content_policy_confirmed_at", timestampConfig),
     isFeatured: boolean("is_featured").default(false).notNull(),
     latestChapterAt: timestamp("latest_chapter_at", timestampConfig),
     scheduledFor: timestamp("scheduled_for", timestampConfig),
@@ -130,6 +147,7 @@ export const novels = pgTable(
   },
   (table) => [
     uniqueIndex("novels_slug_uidx").on(table.slug),
+    index("novels_writer_updated_idx").on(table.writerId, table.updatedAt.desc(), table.id),
     index("novels_public_latest_idx").on(table.publicationStatus, table.latestChapterAt.desc(), table.id),
     index("novels_latest_published_idx")
       .on(table.latestChapterAt.desc(), table.id)
@@ -143,6 +161,11 @@ export const novels = pgTable(
     ),
     check("novels_cover_key_is_object_key", sql`${table.coverKey} is null or (${table.coverKey} !~ '://' and left(${table.coverKey}, 1) <> '/')`),
     check("novels_banner_key_is_object_key", sql`${table.bannerKey} is null or (${table.bannerKey} !~ '://' and left(${table.bannerKey}, 1) <> '/')`),
+    check("novels_heat_level_range", sql`${table.heatLevel} is null or ${table.heatLevel} between 1 and 5`),
+    check(
+      "novels_rights_confirmation_valid",
+      sql`${table.originType} = 'original' or (${table.rightsConfirmedAt} is not null and length(btrim(coalesce(${table.rightsHolder}, ''))) > 0)`,
+    ),
     check(
       "novels_publication_dates_valid",
       sql`(${table.publicationStatus} <> 'PUBLISHED' or ${table.publishedAt} is not null) and (${table.publicationStatus} <> 'SCHEDULED' or ${table.scheduledFor} is not null)`,
@@ -223,6 +246,54 @@ export const novelTags = pgTable(
   ],
 );
 
+export const novelRelationships = pgTable(
+  "novel_relationships",
+  {
+    novelId: uuid("novel_id").notNull().references(() => novels.id, { onDelete: "cascade" }),
+    relationshipTypeId: uuid("relationship_type_id").notNull().references(() => relationshipTypes.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({ name: "novel_relationships_pk", columns: [table.novelId, table.relationshipTypeId] }),
+    index("novel_relationships_type_novel_idx").on(table.relationshipTypeId, table.novelId),
+  ],
+);
+
+export const novelSettings = pgTable(
+  "novel_settings",
+  {
+    novelId: uuid("novel_id").notNull().references(() => novels.id, { onDelete: "cascade" }),
+    settingId: uuid("setting_id").notNull().references(() => storySettings.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({ name: "novel_settings_pk", columns: [table.novelId, table.settingId] }),
+    index("novel_settings_setting_novel_idx").on(table.settingId, table.novelId),
+  ],
+);
+
+export const novelTropes = pgTable(
+  "novel_tropes",
+  {
+    novelId: uuid("novel_id").notNull().references(() => novels.id, { onDelete: "cascade" }),
+    tropeId: uuid("trope_id").notNull().references(() => tropes.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({ name: "novel_tropes_pk", columns: [table.novelId, table.tropeId] }),
+    index("novel_tropes_trope_novel_idx").on(table.tropeId, table.novelId),
+  ],
+);
+
+export const novelContentWarnings = pgTable(
+  "novel_content_warnings",
+  {
+    novelId: uuid("novel_id").notNull().references(() => novels.id, { onDelete: "cascade" }),
+    contentWarningId: uuid("content_warning_id").notNull().references(() => contentWarnings.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({ name: "novel_content_warnings_pk", columns: [table.novelId, table.contentWarningId] }),
+    index("novel_content_warnings_warning_novel_idx").on(table.contentWarningId, table.novelId),
+  ],
+);
+
 /**
  * Denormalized search projection maintained by content write transactions.
  * `pg_trgm` supports Thai/Latin substring search across titles, aliases, authors,
@@ -262,7 +333,16 @@ export const chapters = pgTable(
     wordCount: integer("word_count").default(0).notNull(),
     status: chapterStatusEnum("status").default("DRAFT").notNull(),
     isFree: boolean("is_free").default(true).notNull(),
+    accessMode: chapterAccessModeEnum("access_mode").default("free").notNull(),
     coinPrice: integer("coin_price").default(0).notNull(),
+    inheritStoryHeatLevel: boolean("inherit_story_heat_level").default(true).notNull(),
+    heatLevel: integer("heat_level"),
+    inheritStoryWarnings: boolean("inherit_story_warnings").default(true).notNull(),
+    memberAvailableAt: timestamp("member_available_at", timestampConfig),
+    publicAvailableAt: timestamp("public_available_at", timestampConfig),
+    publicAccessModeAfterEarlyAccess: publicAccessModeEnum("public_access_mode_after_early_access"),
+    publicCoinPrice: integer("public_coin_price"),
+    version: integer("version").default(1).notNull(),
     scheduledFor: timestamp("scheduled_for", timestampConfig),
     publishedAt: timestamp("published_at", timestampConfig),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -278,7 +358,7 @@ export const chapters = pgTable(
     uniqueIndex("chapters_novel_number_uidx").on(table.novelId, table.chapterNumber),
     uniqueIndex("chapters_novel_sort_order_uidx").on(table.novelId, table.sortOrder),
     uniqueIndex("chapters_novel_slug_uidx").on(table.novelId, table.slug),
-    uniqueIndex("chapters_novel_id_uidx").on(table.novelId, table.id),
+    unique("chapters_novel_id_unique").on(table.novelId, table.id),
     index("chapters_public_navigation_idx").on(table.novelId, table.status, table.sortOrder),
     index("chapters_published_navigation_idx")
       .on(table.novelId, table.sortOrder)
@@ -292,9 +372,21 @@ export const chapters = pgTable(
     check("chapters_sort_order_positive", sql`${table.sortOrder} > 0`),
     check("chapters_word_count_nonnegative", sql`${table.wordCount} >= 0`),
     check("chapters_coin_price_nonnegative", sql`${table.coinPrice} >= 0`),
+    check("chapters_version_positive", sql`${table.version} > 0`),
+    check("chapters_heat_level_valid", sql`(${table.inheritStoryHeatLevel} and ${table.heatLevel} is null) or (not ${table.inheritStoryHeatLevel} and ${table.heatLevel} between 1 and 5)`),
+    check("chapters_warning_override_valid", sql`${table.inheritStoryWarnings} or not ${table.inheritStoryWarnings}`),
     check(
       "chapters_free_price_consistent",
-      sql`(${table.isFree} and ${table.coinPrice} = 0) or (not ${table.isFree} and ${table.coinPrice} > 0)`,
+      sql`(${table.accessMode} = 'free' and ${table.isFree} and ${table.coinPrice} = 0)
+        or (${table.accessMode} = 'paid' and not ${table.isFree} and ${table.coinPrice} > 0)
+        or (${table.accessMode} in ('early_access', 'members_only') and not ${table.isFree} and ${table.coinPrice} = 0)`,
+    ),
+    check(
+      "chapters_early_access_valid",
+      sql`(${table.accessMode} <> 'early_access' and ${table.publicAvailableAt} is null and ${table.publicAccessModeAfterEarlyAccess} is null and ${table.publicCoinPrice} is null)
+        or (${table.accessMode} = 'early_access' and ${table.publicAvailableAt} is not null and ${table.publicAccessModeAfterEarlyAccess} is not null
+          and ((${table.publicAccessModeAfterEarlyAccess} = 'free' and ${table.publicCoinPrice} is null)
+            or (${table.publicAccessModeAfterEarlyAccess} = 'paid' and ${table.publicCoinPrice} > 0)))`,
     ),
     check(
       "chapters_publication_dates_valid",
@@ -302,6 +394,18 @@ export const chapters = pgTable(
     ),
     check("chapters_published_content_not_blank", sql`${table.status} <> 'PUBLISHED' or length(btrim(${table.content})) > 0`),
     check("chapters_slug_format", sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+  ],
+);
+
+export const chapterContentWarnings = pgTable(
+  "chapter_content_warnings",
+  {
+    chapterId: uuid("chapter_id").notNull().references(() => chapters.id, { onDelete: "cascade" }),
+    contentWarningId: uuid("content_warning_id").notNull().references(() => contentWarnings.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({ name: "chapter_content_warnings_pk", columns: [table.chapterId, table.contentWarningId] }),
+    index("chapter_content_warnings_warning_chapter_idx").on(table.contentWarningId, table.chapterId),
   ],
 );
 

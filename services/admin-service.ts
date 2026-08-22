@@ -60,7 +60,7 @@ const MAX_CHAPTER_UTF8_BYTES = 4_000_000;
 const MAX_CHAPTER_PARAGRAPHS = 5_000;
 
 const publicationStatusSchema = z.enum(["DRAFT", "IN_REVIEW", "SCHEDULED", "PUBLISHED", "ARCHIVED"]);
-const chapterStatusSchema = z.enum(["DRAFT", "SCHEDULED", "PUBLISHED", "ARCHIVED"]);
+const chapterStatusSchema = z.enum(["DRAFT", "SCHEDULED", "PUBLISHED", "UNPUBLISHED", "ARCHIVED"]);
 const storyStatusSchema = z.enum(["ONGOING", "COMPLETED", "HIATUS", "CANCELLED"]);
 const contentRatingSchema = z.enum(["EVERYONE", "TEEN", "MATURE", "ADULT"]);
 const reviewStatusSchema = z.enum(["PENDING", "PUBLISHED", "HIDDEN", "REJECTED"]);

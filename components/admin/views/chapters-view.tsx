@@ -11,6 +11,7 @@ const statusMeta: Record<ChapterStatus, { label: string; tone: "neutral" | "info
   DRAFT: { label: "ฉบับร่าง", tone: "neutral" },
   SCHEDULED: { label: "ตั้งเวลา", tone: "info" },
   PUBLISHED: { label: "เผยแพร่", tone: "success" },
+  UNPUBLISHED: { label: "ถอนเผยแพร่", tone: "neutral" },
   ARCHIVED: { label: "เก็บถาวร", tone: "neutral" },
 };
 

@@ -30,6 +30,10 @@ export const users = pgTable(
     avatarKey: text("avatar_key"),
     role: userRoleEnum("role").default("READER").notNull(),
     status: userStatusEnum("status").default("ACTIVE").notNull(),
+    ageGateAcceptedAt: timestamp("age_gate_accepted_at", timestampConfig),
+    readingHistoryPrivate: boolean("reading_history_private").default(true).notNull(),
+    libraryPrivate: boolean("library_private").default(true).notNull(),
+    hideStoryTitleInNotification: boolean("hide_story_title_in_notification").default(true).notNull(),
     lastLoginAt: timestamp("last_login_at", timestampConfig),
     /**
      * Reading display preferences (theme, size, face, measure). Presentation

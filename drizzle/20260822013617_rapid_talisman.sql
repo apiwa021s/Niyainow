@@ -1,0 +1,1 @@
+ALTER TYPE "public"."chapter_status" ADD VALUE 'UNPUBLISHED' BEFORE 'ARCHIVED';
