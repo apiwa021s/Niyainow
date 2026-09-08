@@ -1,0 +1,3 @@
+ALTER TABLE "translation_ai_models" ADD COLUMN "selection_priority" integer DEFAULT 100 NOT NULL;--> statement-breakpoint
+ALTER TABLE "translation_ai_models" ADD COLUMN "supported_language_pairs" jsonb DEFAULT '["*"]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "translation_ai_models" ADD CONSTRAINT "translation_ai_models_priority_valid" CHECK ("translation_ai_models"."selection_priority" between 0 and 1000);

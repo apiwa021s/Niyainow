@@ -96,4 +96,4 @@ The migration creates:
 
 The cover workflow also records the R2 object in `media_assets` and stores its object key and upload status on `novel_import_sources`.
 
-`linked_novel_id` and `linked_chapter_id` are nullable review-time links to the public catalog. Importing alone never creates public content.
+`linked_novel_id` and `linked_chapter_id` are nullable links to the public catalog. Importing alone never creates public content; the first approved Translation Studio publication creates and links those records automatically.

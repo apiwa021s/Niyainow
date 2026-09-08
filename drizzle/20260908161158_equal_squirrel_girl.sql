@@ -1,0 +1,2 @@
+ALTER TABLE "translation_versions" ADD CONSTRAINT "translation_versions_parent_fk" FOREIGN KEY ("parent_version_id") REFERENCES "public"."translation_versions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "translation_versions_one_approved_uidx" ON "translation_versions" USING btree ("translation_chapter_id") WHERE "translation_versions"."status" = 'APPROVED';

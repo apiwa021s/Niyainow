@@ -8,7 +8,7 @@ import { cache } from "react";
 import { auth } from "@/auth";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
-import { canAccessAdmin, isActiveUser } from "@/lib/auth/permissions";
+import { can, canAccessAdmin, isActiveUser, type TranslationPermission } from "@/lib/auth/permissions";
 import { safeRedirectPath } from "@/lib/auth/redirects";
 
 export type CurrentUser = {
@@ -102,5 +102,13 @@ export async function assertAdmin(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) throw new AuthenticationRequiredError();
   if (!canAccessAdmin(user)) throw new AuthorizationDeniedError();
+  return user;
+}
+
+/** DB-authoritative capability check for sensitive translation mutations. */
+export async function assertTranslationPermission(permission: TranslationPermission): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) throw new AuthenticationRequiredError();
+  if (!can(user, permission)) throw new AuthorizationDeniedError();
   return user;
 }

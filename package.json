@@ -24,6 +24,7 @@
     "db:seed-master": "tsx db/seed-master-data.ts",
     "db:publish-scheduled": "tsx db/publish-scheduled.ts",
     "db:process-outbox": "tsx db/process-outbox.ts",
+    "db:process-translations": "node --conditions=react-server --import tsx db/process-translation-jobs.ts",
     "db:verify-core": "node --conditions=react-server --import tsx db/verify-core-backend.ts",
     "db:verify-stripe": "node --conditions=react-server --import tsx db/verify-stripe-backend.ts",
     "db:seed": "tsx db/seed.ts",

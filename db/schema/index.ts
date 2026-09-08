@@ -8,4 +8,5 @@ export * from "./identity";
 export * from "./import";
 export * from "./relations";
 export * from "./taxonomy";
+export * from "./translation";
 export * from "./user";

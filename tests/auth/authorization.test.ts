@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canAccessAdmin, isActiveUser } from "@/lib/auth/permissions";
+import { can, canAccessAdmin, isActiveUser } from "@/lib/auth/permissions";
 import { safeLoginCallback, safeRedirectPath } from "@/lib/auth/redirects";
 
 describe("authorization policy", () => {
@@ -11,6 +11,27 @@ describe("authorization policy", () => {
     expect(canAccessAdmin({ role: "ADMIN", status: "SUSPENDED" })).toBe(false);
     expect(canAccessAdmin({ role: "EDITOR", status: "BANNED" })).toBe(false);
     expect(isActiveUser({ status: "DELETED" })).toBe(false);
+  });
+});
+
+describe("translation permissions", () => {
+  it("lets editors translate and approve but not publish or manage models", () => {
+    const editor = { role: "EDITOR", status: "ACTIVE" } as const;
+    expect(can(editor, "translation.run")).toBe(true);
+    expect(can(editor, "translation.approve")).toBe(true);
+    expect(can(editor, "translation.publish")).toBe(false);
+    expect(can(editor, "translation.manage_models")).toBe(false);
+  });
+
+  it("lets active admins perform every translation operation", () => {
+    const admin = { role: "ADMIN", status: "ACTIVE" } as const;
+    expect(can(admin, "translation.publish")).toBe(true);
+    expect(can(admin, "translation.cancel_job")).toBe(true);
+    expect(can(admin, "translation.manage_models")).toBe(true);
+  });
+
+  it("denies inactive staff", () => {
+    expect(can({ role: "ADMIN", status: "SUSPENDED" }, "translation.view")).toBe(false);
   });
 });
 

@@ -10,7 +10,8 @@ export function CookieConsentBanner() {
 
   useEffect(() => {
     const consent = getCookieConsent();
-    setVisible(consent === null);
+    const frame = window.requestAnimationFrame(() => setVisible(consent === null));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const accept = useCallback(() => {

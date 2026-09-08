@@ -163,10 +163,6 @@ export const novels = pgTable(
     check("novels_banner_key_is_object_key", sql`${table.bannerKey} is null or (${table.bannerKey} !~ '://' and left(${table.bannerKey}, 1) <> '/')`),
     check("novels_heat_level_range", sql`${table.heatLevel} is null or ${table.heatLevel} between 1 and 5`),
     check(
-      "novels_rights_confirmation_valid",
-      sql`${table.originType} = 'original' or (${table.rightsConfirmedAt} is not null and length(btrim(coalesce(${table.rightsHolder}, ''))) > 0)`,
-    ),
-    check(
       "novels_publication_dates_valid",
       sql`(${table.publicationStatus} <> 'PUBLISHED' or ${table.publishedAt} is not null) and (${table.publicationStatus} <> 'SCHEDULED' or ${table.scheduledFor} is not null)`,
     ),

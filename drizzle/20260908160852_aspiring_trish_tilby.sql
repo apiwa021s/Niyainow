@@ -1,0 +1,2 @@
+ALTER TABLE "translation_job_items" ADD COLUMN "source_snapshot_id" uuid NOT NULL;--> statement-breakpoint
+ALTER TABLE "translation_job_items" ADD CONSTRAINT "translation_job_items_source_snapshot_id_translation_source_snapshots_id_fk" FOREIGN KEY ("source_snapshot_id") REFERENCES "public"."translation_source_snapshots"("id") ON DELETE restrict ON UPDATE no action;

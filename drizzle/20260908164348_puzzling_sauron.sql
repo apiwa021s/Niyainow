@@ -1,0 +1,1 @@
+ALTER TABLE "novels" DROP CONSTRAINT "novels_rights_confirmation_valid";
