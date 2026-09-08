@@ -6,8 +6,9 @@ The admin studio translates immutable snapshots of private imported chapters. It
 
 1. Deploy the Drizzle migrations with `npm run db:deploy` before sending traffic to the new application build.
 2. Add `AI_TRANSLATION_API_KEY` to the server/Vercel and GitHub `production` environments. `AI_TRANSLATION_BASE_URL` is optional and defaults to `https://api.openai.com/v1`.
-3. Create a workspace from an imported source and choose only the target language. The system bootstraps the managed model presets and prompt, builds its initial profile from the imported title and synopsis, snapshots the source, and queues the first 100 chapters automatically.
-4. The `Process translation jobs` workflow claims queued items with `FOR UPDATE SKIP LOCKED`. A completed batch automatically creates the next batch until no `READY` or `STALE` chapters remain. A local worker can be run with `npm run db:process-translations -- --limit=10`.
+3. Create a workspace from an imported source and choose the target language. The system analyzes the imported title and synopsis, bootstraps the managed model presets and prompt, builds a draft Default Profile, and snapshots the source without queueing chapters.
+4. Review and save the Default Profile, then search, filter, and select up to 100 eligible chapters for the first translation job. Only the selected chapters are queued.
+5. The `Process translation jobs` workflow claims queued items with `FOR UPDATE SKIP LOCKED`. A completed batch stops at the review stage; an editor explicitly selects the next batch. A local worker can be run with `npm run db:process-translations -- --limit=10`.
 
 The worker retries an item three times with backoff. It stores provider request identifiers, token counts, latency, and calculated cost, but never logs source text, translated text, prompts, or credentials.
 

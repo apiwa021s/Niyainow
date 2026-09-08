@@ -1,20 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { Bot, RefreshCw, Save, XCircle } from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, ChevronDown, ListChecks, RefreshCw, Save, Search, Sparkles, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
 import { AiTranslationProgress } from "@/components/admin/ai-translation-visual";
 import { StatusPill } from "@/components/admin/status-pill";
+import { TranslationSetupSteps } from "@/components/admin/translation-setup-steps";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Textarea } from "@/components/ui/form-controls";
+import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
 import type { getTranslationWorkspace } from "@/services/translation-service";
 
 type Data = NonNullable<Awaited<ReturnType<typeof getTranslationWorkspace>>>;
 type Glossary = Data["glossary"][number];
 type Character = Data["characters"][number];
+type WizardStep = 2 | 3;
+
+const ELIGIBLE_STATUSES = new Set(["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]);
 
 async function mutate(url: string, method: "POST" | "PATCH", body?: unknown) {
   const response = await fetch(url, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -25,12 +29,17 @@ async function mutate(url: string, method: "POST" | "PATCH", body?: unknown) {
 
 export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; canCancelJobs: boolean }) {
   const router = useRouter();
+  const needsProfileReview = data.workspace.status === "SETUP" || (data.profile?.version ?? 1) <= 1;
+  const [step, setStep] = useState<WizardStep>(needsProfileReview ? 2 : 3);
+  const [profileConfirmed, setProfileConfirmed] = useState(!needsProfileReview);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [glossary, setGlossary] = useState<Glossary[]>(data.glossary);
   const [characters, setCharacters] = useState<Character[]>(data.characters);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [chapterQuery, setChapterQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const activeJobs = data.jobs.some((job) => job.status === "QUEUED" || job.status === "RUNNING");
   const activeJob = data.jobs.find((job) => job.status === "RUNNING") ?? data.jobs.find((job) => job.status === "QUEUED");
 
@@ -40,33 +49,74 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     return () => window.clearInterval(timer);
   }, [activeJobs, router]);
 
-  const translatableIds = useMemo(() => data.chapters.filter((chapter) => chapter.status !== "PUBLISHED").map((chapter) => chapter.id), [data.chapters]);
-  const allSelected = translatableIds.length > 0 && translatableIds.every((id) => selected.has(id));
+  const eligibleChapters = useMemo(() => data.chapters.filter((chapter) => ELIGIBLE_STATUSES.has(chapter.status)), [data.chapters]);
+  const visibleChapters = useMemo(() => {
+    const query = chapterQuery.trim().toLocaleLowerCase();
+    return data.chapters.filter((chapter) => {
+      if (statusFilter !== "ALL" && chapter.status !== statusFilter) return false;
+      if (!query) return true;
+      return String(chapter.chapterNumber).includes(query) || (chapter.sourceTitle ?? "").toLocaleLowerCase().includes(query);
+    });
+  }, [chapterQuery, data.chapters, statusFilter]);
+  const visibleEligible = visibleChapters.filter((chapter) => ELIGIBLE_STATUSES.has(chapter.status));
+  const allVisibleSelected = visibleEligible.length > 0 && visibleEligible.slice(0, 100).every((chapter) => selected.has(chapter.id));
 
   async function perform(key: string, work: () => Promise<unknown>, success: string) {
     setBusy(key); setError(""); setMessage("");
-    try { await work(); setMessage(success); router.refresh(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "ดำเนินการไม่สำเร็จ"); }
-    finally { setBusy(""); }
+    try {
+      await work();
+      setMessage(success);
+      router.refresh();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ดำเนินการไม่สำเร็จ");
+      return false;
+    } finally {
+      setBusy("");
+    }
   }
 
   async function saveConfiguration(formData: FormData) {
-    await perform("save", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}`, "PATCH", {
+    const saved = await perform("save", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}`, "PATCH", {
       expectedVersion: data.workspace.version,
       profile: {
         name: formData.get("profileName"), styleGuide: formData.get("styleGuide"), instructions: formData.get("instructions"), preserveParagraphs: formData.get("preserveParagraphs") === "on",
       },
-      glossary: glossary.map(({ sourceTerm, targetTerm, note, isLocked }) => ({ sourceTerm, targetTerm, note, isLocked })),
-      characters: characters.map(({ sourceName, targetName, aliases, description, speakingStyle, isLocked }) => ({ sourceName, targetName, aliases, description, speakingStyle, isLocked })),
-    }), "บันทึกการตั้งค่าแล้ว");
+      glossary: glossary.filter((entry) => entry.sourceTerm.trim() && entry.targetTerm.trim()).map(({ sourceTerm, targetTerm, note, isLocked }) => ({ sourceTerm, targetTerm, note, isLocked })),
+      characters: characters.filter((character) => character.sourceName.trim() && character.targetName.trim()).map(({ sourceName, targetName, aliases, description, speakingStyle, isLocked }) => ({ sourceName, targetName, aliases, description, speakingStyle, isLocked })),
+    }), "บันทึก Default Profile แล้ว เลือกตอนที่ต้องการแปลได้เลย");
+    if (saved) {
+      setProfileConfirmed(true);
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   async function enqueue() {
     if (!selected.size) { setError("เลือกอย่างน้อย 1 ตอน"); return; }
-    await perform("enqueue", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/jobs`, "POST", {
+    if (activeJobs) { setError("มีงานแปลกำลังทำงานอยู่ กรุณารอให้งานปัจจุบันเสร็จก่อน"); return; }
+    const queued = await perform("enqueue", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/jobs`, "POST", {
       chapterIds: [...selected], idempotencyKey: `${data.workspace.id}:${crypto.randomUUID()}`,
-    }), "เพิ่มงานแปลลงคิวแล้ว");
-    setSelected(new Set());
+    }), `เพิ่ม ${selected.size.toLocaleString("th-TH")} ตอนลงคิวแปลแล้ว`);
+    if (queued) setSelected(new Set());
+  }
+
+  function selectFirst(count: number) {
+    setSelected(new Set(eligibleChapters.slice(0, count).map((chapter) => chapter.id)));
+  }
+
+  function toggleVisible() {
+    const candidates = visibleEligible.slice(0, 100);
+    setSelected(allVisibleSelected ? new Set() : new Set(candidates.map((chapter) => chapter.id)));
+  }
+
+  function toggleChapter(chapterId: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(chapterId)) next.delete(chapterId);
+      else if (next.size < 100) next.add(chapterId);
+      return next;
+    });
   }
 
   return <div className="grid gap-5">
@@ -74,57 +124,116 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     {message ? <div role="status" className="rounded-[12px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">{message}</div> : null}
     {activeJob ? <AiTranslationProgress completed={activeJob.completedItems + activeJob.failedItems} total={activeJob.totalItems} label={activeJob.status === "QUEUED" ? "AI กำลังเตรียมคิวแปล" : "AI กำลังแปลนิยาย"} /> : null}
 
-    <form action={saveConfiguration} className="grid gap-5">
-      <Panel title="Translation Profile" description={`เวอร์ชัน ${data.profile?.version ?? 1}`}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="ชื่อ Profile"><Input name="profileName" required defaultValue={data.profile?.name ?? "Default"} /></Field>
-          <div className="rounded-[10px] bg-muted px-3 py-2 text-sm text-muted-foreground">Public novel: {data.workspace.novelId ? "สร้างแล้ว" : "ระบบจะสร้างให้อัตโนมัติเมื่อ Publish ครั้งแรก"}</div>
-          <div className="md:col-span-2"><Field label="Style guide"><Textarea name="styleGuide" className="min-h-32" defaultValue={data.profile?.styleGuide ?? ""} /></Field></div>
-          <div className="md:col-span-2"><Field label="คำสั่งเพิ่มเติม"><Textarea name="instructions" className="min-h-28" defaultValue={data.profile?.instructions ?? ""} /></Field></div>
-          <label className="flex items-center gap-2 text-sm"><input name="preserveParagraphs" type="checkbox" defaultChecked={data.profile?.preserveParagraphs ?? true} /> รักษาการแบ่งย่อหน้าต้นฉบับ</label>
-        </div>
-      </Panel>
+    <TranslationSetupSteps activeStep={step} completedThrough={step === 2 ? 1 : 2} />
 
-      <Panel title="Glossary" description="คำที่ล็อกไว้จะถูกเลือกเข้า context เฉพาะเมื่อพบในตอนนั้น">
-        <div className="grid gap-3">
-          {glossary.map((entry, index) => <div key={entry.id ?? index} className="grid gap-2 md:grid-cols-[1fr_1fr_1.4fr_auto_auto]">
-            <Input aria-label="คำต้นฉบับ" value={entry.sourceTerm} placeholder="คำต้นฉบับ" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, sourceTerm: event.target.value } : row))} />
-            <Input aria-label="คำแปล" value={entry.targetTerm} placeholder="คำแปลที่กำหนด" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, targetTerm: event.target.value } : row))} />
-            <Input aria-label="หมายเหตุ" value={entry.note ?? ""} placeholder="หมายเหตุ" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, note: event.target.value } : row))} />
-            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={entry.isLocked} onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, isLocked: event.target.checked } : row))} />ล็อก</label>
-            <Button type="button" variant="ghost" size="icon" aria-label="ลบคำศัพท์" onClick={() => setGlossary((rows) => rows.filter((_, i) => i !== index))}><XCircle className="h-4 w-4" /></Button>
-          </div>)}
-          <Button type="button" variant="outline" className="justify-self-start" onClick={() => setGlossary((rows) => [...rows, { id: crypto.randomUUID(), workspaceId: data.workspace.id, sourceTerm: "", targetTerm: "", note: null, isLocked: true, version: 1, createdBy: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }])}>เพิ่มคำศัพท์</Button>
-        </div>
-      </Panel>
+    {step === 2 ? (
+      <form action={saveConfiguration} className="grid gap-5">
+        <Panel title="ผลวิเคราะห์ต้นฉบับ" description="Default Profile นี้สร้างจากชื่อเรื่องและเรื่องย่อเท่านั้น คุณตรวจและแก้ได้ก่อนส่งตอนให้ AI">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="rounded-[12px] border border-border bg-muted/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" />ข้อมูลที่ใช้วิเคราะห์</p>
+              <h3 className="mt-2 font-semibold">{data.source.title}</h3>
+              <p className="mt-2 max-h-36 overflow-auto text-sm leading-relaxed text-muted-foreground">{data.source.synopsis?.trim() || "ไม่มีเรื่องย่อจากต้นฉบับ ระบบจึงสร้างกฎแปลแบบทั่วไปให้ตรวจแก้"}</p>
+            </div>
+            <dl className="grid content-start gap-2 rounded-[12px] border border-border p-4 text-sm">
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ต้นทาง</dt><dd className="font-semibold">{data.workspace.sourceLanguage}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ปลายทาง</dt><dd className="font-semibold">{data.workspace.targetLanguage}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ต้นฉบับ</dt><dd className="max-w-40 truncate font-semibold">{data.source.provider}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ตอนที่พร้อม</dt><dd className="font-semibold">{eligibleChapters.length.toLocaleString("th-TH")}</dd></div>
+            </dl>
+          </div>
+        </Panel>
 
-      <Panel title="Characters" description="ชื่อและลักษณะการพูดจะเข้า context เฉพาะตอนที่พบตัวละคร">
-        <div className="grid gap-3">
-          {characters.map((character, index) => <div key={character.id ?? index} className="grid gap-2 rounded-[10px] border border-border p-3 md:grid-cols-2">
-            <Input aria-label="ชื่อต้นฉบับ" value={character.sourceName} placeholder="ชื่อต้นฉบับ" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, sourceName: event.target.value } : row))} />
-            <Input aria-label="ชื่อแปล" value={character.targetName} placeholder="ชื่อแปล" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, targetName: event.target.value } : row))} />
-            <Input aria-label="ชื่อเรียกอื่น" value={character.aliases.join(", ")} placeholder="ชื่อเรียกอื่น คั่นด้วย comma" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, aliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) } : row))} />
-            <Input aria-label="ลักษณะการพูด" value={character.speakingStyle ?? ""} placeholder="ลักษณะการพูด" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, speakingStyle: event.target.value } : row))} />
-            <div className="flex items-center gap-3 md:col-span-2"><label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={character.isLocked} onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, isLocked: event.target.checked } : row))} />ล็อก</label><Button type="button" variant="ghost" size="sm" onClick={() => setCharacters((rows) => rows.filter((_, i) => i !== index))}>ลบ</Button></div>
-          </div>)}
-          <Button type="button" variant="outline" className="justify-self-start" onClick={() => setCharacters((rows) => [...rows, { id: crypto.randomUUID(), workspaceId: data.workspace.id, sourceName: "", targetName: "", aliases: [], description: null, speakingStyle: null, isLocked: true, version: 1, createdBy: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }])}>เพิ่มตัวละคร</Button>
-        </div>
-      </Panel>
-      <Button type="submit" loading={busy === "save"} className="justify-self-start"><Save className="h-4 w-4" />บันทึก Profile และ Context Data</Button>
-    </form>
+        <Panel title="2. ตรวจ Default Profile" description={`เวอร์ชัน ${data.profile?.version ?? 1} · บันทึกขั้นตอนนี้ก่อนเลือกตอน`}>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="ชื่อ Profile" hint="ใช้แยก Profile เมื่อมีหลายแนวการแปล"><Input name="profileName" required defaultValue={data.profile?.name ?? "Default"} /></Field>
+            <div className="rounded-[10px] bg-muted px-3 py-2 text-sm text-muted-foreground">นิยายสาธารณะ: {data.workspace.novelId ? "สร้างแล้ว" : "จะสร้างเป็น Draft เมื่ออนุมัติตอนแรก"}</div>
+            <div className="md:col-span-2"><Field label="Style guide" hint="กฎน้ำเสียง สำนวน ชื่อเฉพาะ และรูปแบบการเขียน"><Textarea name="styleGuide" className="min-h-48" defaultValue={data.profile?.styleGuide ?? ""} /></Field></div>
+            <div className="md:col-span-2"><Field label="บริบทและคำสั่งเพิ่มเติม" hint="ตรวจว่าชื่อเรื่องและเรื่องย่อถูกต้องก่อนบันทึก"><Textarea name="instructions" className="min-h-40" defaultValue={data.profile?.instructions ?? ""} /></Field></div>
+            <label className="flex items-center gap-2 text-sm"><input name="preserveParagraphs" type="checkbox" defaultChecked={data.profile?.preserveParagraphs ?? true} /> รักษาการแบ่งย่อหน้าต้นฉบับ</label>
+          </div>
+        </Panel>
 
-    <Panel title="Automatic translation" description="ระบบเลือก active model ที่รองรับคู่ภาษาและมี priority เหมาะสมที่สุด พร้อมใช้ prompt ล่าสุดให้อัตโนมัติ">
-      <form action={enqueue} className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">งานแปลหลักใช้ GPT-5.6 Sol; ระบบจะ bootstrap model และ prompt ให้เอง</p>
-        <Button type="submit" loading={busy === "enqueue"}><Bot className="h-4 w-4" />แปลตอนที่เลือก {selected.size} ตอน</Button>
+        <details className="group rounded-[16px] border border-border bg-card shadow-[var(--sh-1)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-semibold">Glossary เริ่มต้น <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">{glossary.length} คำ <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary>
+          <div className="grid gap-3 border-t border-border p-5">
+            <p className="text-sm text-muted-foreground">เพิ่มเฉพาะคำที่ต้องล็อกตั้งแต่ตอนแรก รายการนี้แก้เพิ่มภายหลังได้</p>
+            {glossary.map((entry, index) => <div key={entry.id ?? index} className="grid gap-2 md:grid-cols-[1fr_1fr_1.4fr_auto_auto]">
+              <Input aria-label="คำต้นฉบับ" value={entry.sourceTerm} placeholder="คำต้นฉบับ" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, sourceTerm: event.target.value } : row))} />
+              <Input aria-label="คำแปล" value={entry.targetTerm} placeholder="คำแปลที่กำหนด" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, targetTerm: event.target.value } : row))} />
+              <Input aria-label="หมายเหตุ" value={entry.note ?? ""} placeholder="หมายเหตุ" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, note: event.target.value } : row))} />
+              <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={entry.isLocked} onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, isLocked: event.target.checked } : row))} />ล็อก</label>
+              <Button type="button" variant="ghost" size="icon" aria-label="ลบคำศัพท์" onClick={() => setGlossary((rows) => rows.filter((_, i) => i !== index))}><XCircle className="h-4 w-4" /></Button>
+            </div>)}
+            <Button type="button" variant="outline" className="justify-self-start" onClick={() => setGlossary((rows) => [...rows, { id: crypto.randomUUID(), workspaceId: data.workspace.id, sourceTerm: "", targetTerm: "", note: null, isLocked: true, version: 1, createdBy: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }])}>เพิ่มคำศัพท์</Button>
+          </div>
+        </details>
+
+        <details className="group rounded-[16px] border border-border bg-card shadow-[var(--sh-1)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-semibold">ตัวละครเริ่มต้น <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">{characters.length} คน <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary>
+          <div className="grid gap-3 border-t border-border p-5">
+            <p className="text-sm text-muted-foreground">กำหนดชื่อและลักษณะการพูดที่ต้องคงเส้นคงวา สามารถเพิ่มระหว่าง Review ได้</p>
+            {characters.map((character, index) => <div key={character.id ?? index} className="grid gap-2 rounded-[10px] border border-border p-3 md:grid-cols-2">
+              <Input aria-label="ชื่อต้นฉบับ" value={character.sourceName} placeholder="ชื่อต้นฉบับ" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, sourceName: event.target.value } : row))} />
+              <Input aria-label="ชื่อแปล" value={character.targetName} placeholder="ชื่อแปล" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, targetName: event.target.value } : row))} />
+              <Input aria-label="ชื่อเรียกอื่น" value={character.aliases.join(", ")} placeholder="ชื่อเรียกอื่น คั่นด้วย comma" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, aliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) } : row))} />
+              <Input aria-label="ลักษณะการพูด" value={character.speakingStyle ?? ""} placeholder="ลักษณะการพูด" onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, speakingStyle: event.target.value } : row))} />
+              <div className="flex items-center gap-3 md:col-span-2"><label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={character.isLocked} onChange={(event) => setCharacters((rows) => rows.map((row, i) => i === index ? { ...row, isLocked: event.target.checked } : row))} />ล็อก</label><Button type="button" variant="ghost" size="sm" onClick={() => setCharacters((rows) => rows.filter((_, i) => i !== index))}>ลบ</Button></div>
+            </div>)}
+            <Button type="button" variant="outline" className="justify-self-start" onClick={() => setCharacters((rows) => [...rows, { id: crypto.randomUUID(), workspaceId: data.workspace.id, sourceName: "", targetName: "", aliases: [], description: null, speakingStyle: null, isLocked: true, version: 1, createdBy: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }])}>เพิ่มตัวละคร</Button>
+          </div>
+        </details>
+
+        <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--brand-primary)]/25 bg-card/95 p-3 shadow-[var(--sh-2)] backdrop-blur">
+          <p className="text-sm text-muted-foreground"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-600" />ตรวจ Profile แล้วจึงไปเลือกตอน</p>
+          <Button type="submit" loading={busy === "save"}><Save className="h-4 w-4" />บันทึกและไปเลือกตอน</Button>
+        </div>
       </form>
-    </Panel>
+    ) : (
+      <div className="grid gap-5">
+        <Panel
+          title="3. เลือกตอนที่จะแปล"
+          description="ค้นหา กรอง และเลือกได้สูงสุด 100 ตอนต่อหนึ่งคิว"
+          action={<Button type="button" variant="outline" loading={busy === "sync"} onClick={() => perform("sync", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/sync`, "POST"), "ซิงก์ต้นฉบับแล้ว")}><RefreshCw className="h-4 w-4" />ซิงก์ต้นฉบับ</Button>}
+        >
+          <div className="grid gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-muted/50 p-3">
+              <div><p className="text-sm font-semibold">Profile พร้อมใช้งาน</p><p className="text-xs text-muted-foreground">{data.profile?.name ?? "Default"} · เวอร์ชัน {data.profile?.version ?? 1}</p></div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setStep(2)}><ArrowLeft className="h-4 w-4" />กลับไปแก้ Profile</Button>
+            </div>
 
-    <Panel title={`ตอนทั้งหมด (${data.chapters.length.toLocaleString("th-TH")})`} action={<Button type="button" variant="outline" loading={busy === "sync"} onClick={() => perform("sync", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/sync`, "POST"), "ซิงก์ต้นฉบับแล้ว")}><RefreshCw className="h-4 w-4" />ซิงก์ต้นฉบับ</Button>} bodyClassName="p-0">
-      <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[720px] text-sm"><thead className="sticky top-0 bg-muted"><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-4 py-3"><input type="checkbox" checked={allSelected} aria-label="เลือกทุกตอน" onChange={() => setSelected(allSelected ? new Set() : new Set(translatableIds.slice(0, 100)))} /></th><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อต้นฉบับ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">Revision</th><th className="px-4 py-3">QA</th><th className="px-4 py-3" /></tr></thead><tbody>{data.chapters.map((chapter) => <tr key={chapter.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-3"><input type="checkbox" disabled={chapter.status === "PUBLISHED"} checked={selected.has(chapter.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(chapter.id)) next.delete(chapter.id); else if (next.size < 100) next.add(chapter.id); return next; })} /></td><td className="px-4 py-3 font-semibold tabular">{chapter.chapterNumber}</td><td className="max-w-md truncate px-4 py-3">{chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</td><td className="px-4 py-3"><StatusPill label={chapter.status} tone={chapter.status === "PUBLISHED" || chapter.status === "APPROVED" ? "success" : chapter.status === "FAILED" || chapter.status === "QA_FAILED" ? "danger" : chapter.status === "TRANSLATING" || chapter.status === "QUEUED" ? "info" : "neutral"} /></td><td className="px-4 py-3 tabular">{chapter.revision}</td><td className="px-4 py-3">{chapter.criticalIssues ? <span className="text-destructive">{chapter.criticalIssues} critical</span> : "ผ่าน"}</td><td className="px-4 py-3 text-right"><Link className="font-semibold text-[var(--brand-light-on-light)] hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>แก้ไข</Link></td></tr>)}</tbody></table></div>
-      <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">หนึ่งงานเลือกได้สูงสุด 100 ตอน เพื่อให้ retry และติดตามผลได้ละเอียด</p>
-    </Panel>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_190px]">
+              <div className="relative"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={chapterQuery} onChange={(event) => setChapterQuery(event.target.value)} placeholder="ค้นหาเลขตอนหรือชื่อตอน" aria-label="ค้นหาตอน" /></div>
+              <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="กรองสถานะ"><option value="ALL">ทุกสถานะ</option>{[...new Set(data.chapters.map((chapter) => chapter.status))].sort().map((status) => <option key={status} value={status}>{status}</option>)}</Select>
+            </div>
 
-    <Panel title="Job history" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">Progress</th><th className="px-4 py-3">ผิดพลาด</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-3 whitespace-nowrap">{new Date(job.createdAt).toLocaleString("th-TH")}</td><td className="px-4 py-3"><StatusPill label={job.status} tone={job.status === "COMPLETED" ? "success" : job.status === "FAILED" ? "danger" : "info"} /></td><td className="px-4 py-3 tabular">{job.completedItems + job.failedItems} / {job.totalItems}</td><td className="max-w-sm truncate px-4 py-3 text-xs text-destructive">{job.lastError}</td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" onClick={() => perform(`cancel-${job.id}`, () => mutate(`/api/admin/translation/jobs/${job.id}/cancel`, "POST"), "ส่งคำสั่งยกเลิกแล้ว")}>ยกเลิก</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">ยังไม่มีงานแปล</td></tr> : null}</tbody></table></div></Panel>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-xs font-semibold text-muted-foreground">เลือกด่วน</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => selectFirst(10)}>10 ตอนแรก</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => selectFirst(50)}>50 ตอนแรก</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => selectFirst(100)}>100 ตอนแรก</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set())}>ล้างที่เลือก</Button>
+              <span className="ml-auto rounded-full bg-[var(--brand-primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--brand-emphasis)]">เลือกแล้ว {selected.size} / 100</span>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title={`ตอนทั้งหมด (${data.chapters.length.toLocaleString("th-TH")})`} description={`แสดง ${visibleChapters.length.toLocaleString("th-TH")} ตอน · พร้อมเลือก ${visibleEligible.length.toLocaleString("th-TH")} ตอน`} bodyClassName="p-0">
+          <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[760px] text-sm"><thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} aria-label="เลือกตอนที่แสดง สูงสุด 100 ตอน" onChange={toggleVisible} /></th><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อต้นฉบับ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">Revision</th><th className="px-4 py-3">QA</th><th className="px-4 py-3" /></tr></thead><tbody>
+            {visibleChapters.map((chapter) => {
+              const eligible = ELIGIBLE_STATUSES.has(chapter.status);
+              return <tr key={chapter.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-3"><input type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={`เลือกตอน ${chapter.chapterNumber}`} onChange={() => toggleChapter(chapter.id)} /></td><td className="px-4 py-3 font-semibold tabular">{chapter.chapterNumber}</td><td className="max-w-md truncate px-4 py-3">{chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</td><td className="px-4 py-3"><StatusPill label={chapter.status} tone={chapter.status === "PUBLISHED" || chapter.status === "APPROVED" ? "success" : chapter.status === "FAILED" || chapter.status === "QA_FAILED" ? "danger" : chapter.status === "TRANSLATING" || chapter.status === "QUEUED" ? "info" : "neutral"} /></td><td className="px-4 py-3 tabular">{chapter.revision}</td><td className="px-4 py-3">{chapter.criticalIssues ? <span className="text-destructive">{chapter.criticalIssues} critical</span> : "ผ่าน"}</td><td className="px-4 py-3 text-right"><Link className="font-semibold text-[var(--brand-light-on-light)] hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>เปิด</Link></td></tr>;
+            })}
+            {!visibleChapters.length ? <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">ไม่พบตอนที่ตรงกับตัวกรอง</td></tr> : null}
+          </tbody></table></div>
+          <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
+            <p className="text-sm text-muted-foreground"><ListChecks className="mr-1 inline h-4 w-4" />เลือก {selected.size.toLocaleString("th-TH")} ตอน {activeJobs ? "· มีงานแปลกำลังทำงาน" : "· พร้อมสร้างคิว"}</p>
+            <Button type="button" loading={busy === "enqueue"} disabled={!profileConfirmed || !selected.size || activeJobs} onClick={enqueue}><Bot className="h-4 w-4" />เริ่มแปลตอนที่เลือก</Button>
+          </div>
+        </Panel>
+
+        <Panel title="ประวัติงานแปล" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">Progress</th><th className="px-4 py-3">ผิดพลาด</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 last:border-0"><td className="whitespace-nowrap px-4 py-3">{new Date(job.createdAt).toLocaleString("th-TH")}</td><td className="px-4 py-3"><StatusPill label={job.status} tone={job.status === "COMPLETED" ? "success" : job.status === "FAILED" ? "danger" : "info"} /></td><td className="px-4 py-3 tabular">{job.completedItems + job.failedItems} / {job.totalItems}</td><td className="max-w-sm truncate px-4 py-3 text-xs text-destructive">{job.lastError}</td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" onClick={() => perform(`cancel-${job.id}`, () => mutate(`/api/admin/translation/jobs/${job.id}/cancel`, "POST"), "ส่งคำสั่งยกเลิกแล้ว")}>ยกเลิก</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">ยังไม่มีงานแปล เลือกตอนด้านบนเพื่อสร้างคิวแรก</td></tr> : null}</tbody></table></div></Panel>
+      </div>
+    )}
   </div>;
 }

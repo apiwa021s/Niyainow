@@ -152,31 +152,6 @@ async function refreshJob(jobId: string) {
     const status = cancelled > 0 ? "CANCELLED" : failed > 0 && completed > 0 ? "PARTIAL" : failed > 0 ? "FAILED" : "COMPLETED";
     await tx.update(translationJobs).set({ status, completedItems: completed, failedItems: failed, finishedAt: now, lastError: failedItems[0]?.lastError ?? null, updatedAt: now }).where(eq(translationJobs.id, jobId));
 
-    if (status === "COMPLETED" && !job.cancelRequestedAt) {
-      const nextChapters = await tx.select({ id: translationChapters.id, sourceSnapshotId: translationChapters.sourceSnapshotId })
-        .from(translationChapters)
-        .where(and(eq(translationChapters.workspaceId, job.workspaceId), inArray(translationChapters.status, ["READY", "STALE"])))
-        .orderBy(asc(translationChapters.chapterNumber))
-        .limit(100)
-        .for("update", { skipLocked: true });
-      if (nextChapters.length) {
-        const [nextJob] = await tx.insert(translationJobs).values({
-          workspaceId: job.workspaceId,
-          modelId: job.modelId,
-          promptVersionId: job.promptVersionId,
-          status: "QUEUED",
-          idempotencyKey: `job-auto-next:${job.id}`,
-          requestedBy: job.requestedBy,
-          totalItems: nextChapters.length,
-        }).onConflictDoNothing().returning();
-        if (nextJob) {
-          await tx.insert(translationJobItems).values(nextChapters.map((chapter) => ({ jobId: nextJob.id, translationChapterId: chapter.id, sourceSnapshotId: chapter.sourceSnapshotId })));
-          await tx.update(translationChapters).set({ status: "QUEUED", updatedAt: now }).where(inArray(translationChapters.id, nextChapters.map((chapter) => chapter.id)));
-          await tx.update(translationWorkspaces).set({ status: "TRANSLATING", updatedAt: now }).where(eq(translationWorkspaces.id, job.workspaceId));
-          return;
-        }
-      }
-    }
     await tx.update(translationWorkspaces).set({ status: "REVIEW", updatedAt: now }).where(eq(translationWorkspaces.id, job.workspaceId));
   });
 }

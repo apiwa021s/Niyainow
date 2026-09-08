@@ -35,9 +35,9 @@ import {
   AUTOMATIC_TRANSLATION_MODELS,
   AUTOMATIC_TRANSLATION_SYSTEM_PROMPT,
   automaticModelNameForTask,
-  type AutomaticTranslationTask,
 } from "@/lib/domain/translation-ai-routing";
 import { countWords, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
+import { buildDefaultTranslationProfile } from "@/lib/domain/translation-profile";
 import { ApiError } from "@/lib/http/api-response";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
@@ -151,6 +151,16 @@ function serializeWorkspace(row: typeof translationWorkspaces.$inferSelect) {
   return { id: row.id, importSourceId: row.importSourceId, novelId: row.novelId, sourceLanguage: row.sourceLanguage, targetLanguage: row.targetLanguage, status: row.status, version: row.version };
 }
 
+function defaultProfileValues(input: { title: string; synopsis: string | null; sourceLanguage: string; targetLanguage: string }) {
+  const analyzed = buildDefaultTranslationProfile(input);
+  return {
+    name: analyzed.name,
+    styleGuide: analyzed.styleGuide,
+    instructions: analyzed.instructions,
+    preserveParagraphs: analyzed.preserveParagraphs,
+  };
+}
+
 async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
   const baseUrl = (process.env.AI_TRANSLATION_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
   if (!isSafeProviderUrl(baseUrl)) throw new ApiError(500, "AI_BASE_URL_INVALID", "AI_TRANSLATION_BASE_URL ต้องเป็น public HTTPS URL");
@@ -199,20 +209,6 @@ async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
       createdBy: actor.id,
     }).onConflictDoNothing();
   });
-}
-
-async function getAutomaticAiConfig(sourceLanguage: string, targetLanguage: string, task: AutomaticTranslationTask = "MAIN_TRANSLATION") {
-  const db = getDb();
-  const [models, prompts] = await Promise.all([
-    db.select().from(translationAiModels).where(eq(translationAiModels.isActive, true))
-      .orderBy(desc(translationAiModels.selectionPriority), asc(sql`${translationAiModels.inputCostMicrosPerMillion} + ${translationAiModels.outputCostMicrosPerMillion}`), desc(translationAiModels.updatedAt)),
-    db.select().from(translationPromptVersions).where(eq(translationPromptVersions.isActive, true))
-      .orderBy(desc(translationPromptVersions.createdAt)).limit(1),
-  ]);
-  const preferredModelName = automaticModelNameForTask(task);
-  const preferred = models.find((model) => model.modelName === preferredModelName);
-  const model = selectBestTranslationModel(preferred ? [preferred] : models, sourceLanguage, targetLanguage);
-  return model && prompts[0] ? { model, prompt: prompts[0] } : null;
 }
 
 /** Pulls new/changed imported chapters into immutable source snapshots without touching old translations. */
@@ -302,7 +298,11 @@ export async function syncTranslationWorkspaceSources(workspaceId: string) {
       }
     }
     if (added || changed) {
-      await tx.update(translationWorkspaces).set({ status: workspace.status === "TRANSLATING" ? "TRANSLATING" : "READY", version: workspace.version + 1, updatedAt: new Date() }).where(eq(translationWorkspaces.id, workspace.id));
+      await tx.update(translationWorkspaces).set({
+        status: workspace.status === "SETUP" ? "SETUP" : workspace.status === "TRANSLATING" ? "TRANSLATING" : "READY",
+        version: workspace.version + 1,
+        updatedAt: new Date(),
+      }).where(eq(translationWorkspaces.id, workspace.id));
       await writeAudit(tx, actor, "translation.sources.sync", "translation_workspace", workspace.id, null, { added, changed, total: usable.length });
     }
   });
@@ -326,10 +326,7 @@ export async function createTranslationWorkspace(input: z.infer<typeof createTra
     eq(novelImportSourceTexts.language, source.sourceLanguage),
   )).limit(1);
   if (!sourceText) throw new ApiError(409, "IMPORT_METADATA_MISSING", "เรื่องที่นำเข้ายังไม่มีชื่อเรื่องต้นฉบับ");
-  const automaticConfig = await getAutomaticAiConfig(source.sourceLanguage, input.targetLanguage, "MAIN_TRANSLATION");
-  if (!automaticConfig) throw new ApiError(409, "AI_CONFIG_UNAVAILABLE", "ไม่พบ AI model ที่รองรับคู่ภาษานี้หรือยังไม่มี active prompt");
-
-  const workspace = await db.transaction(async (tx) => {
+  const createdWorkspace = await db.transaction(async (tx) => {
     const [created] = await tx.insert(translationWorkspaces).values({
       importSourceId: source.id,
       novelId: null,
@@ -337,29 +334,56 @@ export async function createTranslationWorkspace(input: z.infer<typeof createTra
       targetLanguage: input.targetLanguage,
       createdBy: actor.id,
       assignedEditorId: actor.id,
+    }).onConflictDoNothing({
+      target: [translationWorkspaces.importSourceId, translationWorkspaces.targetLanguage],
     }).returning();
-    const synopsis = sourceText.synopsis?.trim() || "ไม่มีเรื่องย่อ";
-    const profile = {
-      name: sourceText.title.slice(0, 160),
-      styleGuide: `แปลนิยายเรื่อง “${sourceText.title}” จากภาษา ${source.sourceLanguage} เป็นภาษา ${input.targetLanguage} ให้เป็นธรรมชาติ อ่านลื่น และรักษาน้ำเสียงของต้นฉบับ รักษาชื่อเฉพาะตาม Glossary และรักษาการแบ่งย่อหน้า`,
-      instructions: `ใช้เรื่องย่อนี้เป็นบริบทระดับเรื่องโดยห้ามแต่งเหตุการณ์เพิ่ม:\n${synopsis}`.slice(0, 20_000),
-      preserveParagraphs: true,
-    };
+    if (!created) return null;
+    const profile = defaultProfileValues({
+      title: sourceText.title,
+      synopsis: sourceText.synopsis,
+      sourceLanguage: source.sourceLanguage,
+      targetLanguage: input.targetLanguage,
+    });
     await tx.insert(translationProfiles).values({ workspaceId: created.id, ...profile, updatedBy: actor.id });
     await tx.insert(translationProfileVersions).values({ workspaceId: created.id, version: 1, snapshot: { profile, glossary: [], characters: [] }, createdBy: actor.id });
     await writeAudit(tx, actor, "translation.workspace.create", "translation_workspace", created.id, null, serializeWorkspace(created));
     return created;
   });
+  let workspace = createdWorkspace ?? (await db.select().from(translationWorkspaces).where(and(
+    eq(translationWorkspaces.importSourceId, source.id),
+    eq(translationWorkspaces.targetLanguage, input.targetLanguage),
+  )).limit(1))[0];
+  if (!workspace) throw new ApiError(409, "TRANSLATION_WORKSPACE_CONFLICT", "ไม่สามารถเปิดงานแปลเดิมได้ กรุณาลองใหม่อีกครั้ง");
+
+  if (!createdWorkspace) {
+    const preparedWorkspace = await db.transaction(async (tx) => {
+      const [currentWorkspace] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, workspace.id)).limit(1).for("update");
+      const [currentProfile] = await tx.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspace.id)).limit(1).for("update");
+      if (!currentWorkspace || !currentProfile || currentProfile.version > 1 || currentProfile.name !== "Default") return null;
+      const profile = defaultProfileValues({
+        title: sourceText.title,
+        synopsis: sourceText.synopsis,
+        sourceLanguage: source.sourceLanguage,
+        targetLanguage: input.targetLanguage,
+      });
+      const nextVersion = currentWorkspace.version + 1;
+      const [updated] = await tx.update(translationWorkspaces).set({ status: "SETUP", version: nextVersion, updatedAt: new Date() })
+        .where(eq(translationWorkspaces.id, currentWorkspace.id)).returning();
+      await tx.update(translationProfiles).set({ ...profile, version: nextVersion, updatedBy: actor.id, updatedAt: new Date() })
+        .where(eq(translationProfiles.workspaceId, currentWorkspace.id));
+      await tx.insert(translationProfileVersions).values({
+        workspaceId: currentWorkspace.id,
+        version: nextVersion,
+        snapshot: { profile, glossary: [], characters: [], source: { title: sourceText.title, synopsis: sourceText.synopsis } },
+        createdBy: actor.id,
+      }).onConflictDoNothing();
+      await writeAudit(tx, actor, "translation.profile.bootstrap", "translation_workspace", currentWorkspace.id, serializeWorkspace(currentWorkspace), serializeWorkspace(updated));
+      return updated;
+    });
+    if (preparedWorkspace) workspace = preparedWorkspace;
+  }
+
   await syncTranslationWorkspaceSources(workspace.id);
-  const chaptersToStart = await db.select({ id: translationChapters.id }).from(translationChapters)
-    .where(and(eq(translationChapters.workspaceId, workspace.id), inArray(translationChapters.status, ["READY", "STALE"])))
-    .orderBy(asc(translationChapters.chapterNumber)).limit(100);
-  if (chaptersToStart.length) await enqueueTranslation(workspace.id, {
-    modelId: automaticConfig.model.id,
-    promptVersionId: automaticConfig.prompt.id,
-    chapterIds: chaptersToStart.map((chapter) => chapter.id),
-    idempotencyKey: `workspace-auto-start:${workspace.id}`,
-  });
   return workspace;
 }
 
@@ -378,7 +402,13 @@ export async function getTranslationStudio() {
       .innerJoin(novelImportSources, eq(novelImportSources.id, translationWorkspaces.importSourceId))
       .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
       .orderBy(desc(translationWorkspaces.updatedAt)),
-    db.select({ id: novelImportSources.id, sourceLanguage: novelImportSources.sourceLanguage, title: novelImportSourceTexts.title })
+    db.select({
+      id: novelImportSources.id,
+      sourceLanguage: novelImportSources.sourceLanguage,
+      title: novelImportSourceTexts.title,
+      synopsis: novelImportSourceTexts.synopsis,
+      chapterCount: sql<number>`(select count(*) from novel_import_chapters nic where nic.source_id = ${novelImportSources.id})`.mapWith(Number),
+    })
       .from(novelImportSources)
       .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
       .where(eq(novelImportSources.status, "ready")).orderBy(desc(novelImportSources.updatedAt)),
@@ -402,6 +432,9 @@ export async function getTranslationWorkspace(workspaceId: string) {
   const [workspace] = await db.select({
     workspace: translationWorkspaces,
     title: novelImportSourceTexts.title,
+    synopsis: novelImportSourceTexts.synopsis,
+    provider: novelImportSources.provider,
+    importReference: novelImportSources.importReference,
   }).from(translationWorkspaces)
     .innerJoin(novelImportSources, eq(novelImportSources.id, translationWorkspaces.importSourceId))
     .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
@@ -427,6 +460,12 @@ export async function getTranslationWorkspace(workspaceId: string) {
   ]);
   return {
     workspace: { ...serializeWorkspace(workspace.workspace), title: workspace.title ?? "Imported novel", updatedAt: workspace.workspace.updatedAt.toISOString() },
+    source: {
+      title: workspace.title ?? "Imported novel",
+      synopsis: workspace.synopsis,
+      provider: workspace.provider,
+      importReference: workspace.importReference,
+    },
     profile: profile[0] ? { ...profile[0], updatedAt: profile[0].updatedAt.toISOString() } : null,
     glossary: glossary.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     characters: characters.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
@@ -445,8 +484,12 @@ export async function configureTranslationWorkspace(workspaceId: string, input: 
   return db.transaction(async (tx) => {
     const [before] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, workspaceId)).limit(1);
     if (!before) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
+    const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
+      eq(translationJobs.workspaceId, workspaceId),
+      inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
+    )).limit(1);
     const [updated] = await tx.update(translationWorkspaces).set({
-      status: "READY",
+      status: activeJob ? "TRANSLATING" : "READY",
       version: before.version + 1,
       updatedAt: new Date(),
     }).where(and(eq(translationWorkspaces.id, workspaceId), eq(translationWorkspaces.version, input.expectedVersion))).returning();
@@ -499,6 +542,16 @@ export async function enqueueTranslation(workspaceId: string, input: z.infer<typ
     if (!workspace) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
     const [existing] = await tx.select().from(translationJobs).where(eq(translationJobs.idempotencyKey, input.idempotencyKey)).limit(1);
     if (existing) return existing;
+    const [profile] = await tx.select({ version: translationProfiles.version }).from(translationProfiles)
+      .where(eq(translationProfiles.workspaceId, workspaceId)).limit(1);
+    if (!profile || workspace.status === "SETUP" || profile.version <= 1) {
+      throw new ApiError(409, "TRANSLATION_PROFILE_REVIEW_REQUIRED", "กรุณาตรวจและบันทึก Default Profile ก่อนเลือกตอนเริ่มแปล");
+    }
+    const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
+      eq(translationJobs.workspaceId, workspaceId),
+      inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
+    )).limit(1);
+    if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "มีงานแปลกำลังทำงานอยู่ กรุณารอให้งานปัจจุบันเสร็จก่อน");
     const activeModels = input.modelId ? [] : await tx.select().from(translationAiModels).where(eq(translationAiModels.isActive, true));
     const preferredModel = activeModels.find((candidate) => candidate.modelName === automaticModelNameForTask("MAIN_TRANSLATION"));
     const model = input.modelId
@@ -534,6 +587,7 @@ export async function cancelTranslationJob(jobId: string) {
     const [updated] = await tx.update(translationJobs).set({ cancelRequestedAt: now, status: before.status === "QUEUED" ? "CANCELLED" : before.status, finishedAt: before.status === "QUEUED" ? now : null, updatedAt: now }).where(eq(translationJobs.id, jobId)).returning();
     const cancelledItems = await tx.update(translationJobItems).set({ status: "CANCELLED", finishedAt: now }).where(and(eq(translationJobItems.jobId, jobId), eq(translationJobItems.status, "QUEUED"))).returning({ chapterId: translationJobItems.translationChapterId });
     if (cancelledItems.length) await tx.update(translationChapters).set({ status: "READY", updatedAt: now }).where(and(inArray(translationChapters.id, cancelledItems.map((item) => item.chapterId)), eq(translationChapters.status, "QUEUED")));
+    if (before.status === "QUEUED") await tx.update(translationWorkspaces).set({ status: "READY", updatedAt: now }).where(eq(translationWorkspaces.id, before.workspaceId));
     await writeAudit(tx, actor, "translation.job.cancel", "translation_job", jobId, { status: before.status }, { status: updated.status, cancelRequested: true });
     return updated;
   });
