@@ -271,6 +271,8 @@ export const translationJobItems = pgTable("translation_job_items", {
   translationChapterId: uuid("translation_chapter_id").notNull().references(() => translationChapters.id, { onDelete: "cascade" }),
   sourceSnapshotId: uuid("source_snapshot_id").notNull().references(() => translationSourceSnapshots.id, { onDelete: "restrict" }),
   status: varchar("status", { length: 24 }).default("QUEUED").notNull(),
+  progressPercent: integer("progress_percent").default(0).notNull(),
+  progressStage: varchar("progress_stage", { length: 24 }).default("QUEUED").notNull(),
   attempts: integer("attempts").default(0).notNull(),
   availableAt: timestamp("available_at", timestampConfig).defaultNow().notNull(),
   lastError: text("last_error"),
@@ -279,7 +281,10 @@ export const translationJobItems = pgTable("translation_job_items", {
 }, (table) => [
   uniqueIndex("translation_job_items_job_chapter_uidx").on(table.jobId, table.translationChapterId),
   index("translation_job_items_claim_idx").on(table.status, table.availableAt, table.id),
+  index("translation_job_items_chapter_idx").on(table.translationChapterId, table.id.desc()),
   check("translation_job_items_status_valid", sql`${table.status} in ('QUEUED','RUNNING','COMPLETED','FAILED','CANCELLED')`),
+  check("translation_job_items_progress_valid", sql`${table.progressPercent} between 0 and 100`),
+  check("translation_job_items_stage_valid", sql`${table.progressStage} in ('QUEUED','CONTEXT','CANON_ANALYSIS','AI_REQUEST','AI_QA','ESCALATION','CODE_QA','SAVING','DONE','FAILED','CANCELLED')`),
   check("translation_job_items_attempts_nonnegative", sql`${table.attempts} >= 0`),
 ]);
 
@@ -287,6 +292,7 @@ export const translationAiInvocations = pgTable("translation_ai_invocations", {
   id: uuid("id").defaultRandom().primaryKey(),
   jobItemId: uuid("job_item_id").notNull().references(() => translationJobItems.id, { onDelete: "cascade" }),
   modelId: uuid("model_id").notNull().references(() => translationAiModels.id, { onDelete: "restrict" }),
+  task: varchar("task", { length: 32 }).default("MAIN_TRANSLATION").notNull(),
   contextSnapshotId: uuid("context_snapshot_id").references(() => translationContextSnapshots.id, { onDelete: "set null" }),
   providerRequestId: text("provider_request_id"),
   inputTokens: integer("input_tokens").default(0).notNull(),
@@ -300,6 +306,7 @@ export const translationAiInvocations = pgTable("translation_ai_invocations", {
   index("translation_ai_invocations_item_idx").on(table.jobItemId, table.createdAt),
   check("translation_ai_invocations_metrics_nonnegative", sql`${table.inputTokens} >= 0 and ${table.outputTokens} >= 0 and ${table.costMicros} >= 0 and ${table.latencyMs} >= 0`),
   check("translation_ai_invocations_status_valid", sql`${table.status} in ('SUCCESS','FAILED')`),
+  check("translation_ai_invocations_task_valid", sql`${table.task} in ('CANON_EXTRACTION','MAIN_TRANSLATION','FIRST_QA','ESCALATION')`),
 ]);
 
 export const translationQaIssues = pgTable("translation_qa_issues", {

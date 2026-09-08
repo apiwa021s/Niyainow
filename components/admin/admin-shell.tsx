@@ -6,6 +6,7 @@ import { ExternalLink, LogOut, Menu, Search, ShieldCheck, UserRound, X } from "l
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { adminNavGroups, isNavItemActive, type AdminNavItem } from "@/components/admin/admin-nav";
+import { TranslationQueueDock } from "@/components/admin/translation-queue-dock";
 import { ThemeSwitcher } from "@/components/interactive/theme-switcher";
 import { Logo } from "@/components/layout/logo";
 import { signOutUser } from "@/lib/auth/actions";
@@ -86,6 +87,7 @@ export function AdminShell({
         </header>
         <main id="main" className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
+      <TranslationQueueDock />
     </div>
   );
 }

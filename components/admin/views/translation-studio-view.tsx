@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpen, Bot, Languages, Sparkles, WalletCards } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, Languages, LoaderCircle, Sparkles, WalletCards } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { Panel, StatCard } from "@/components/admin/admin-ui";
 import { AiTranslationVisual } from "@/components/admin/ai-translation-visual";
@@ -16,16 +16,13 @@ import type { getTranslationStudio } from "@/services/translation-service";
 
 type Data = Awaited<ReturnType<typeof getTranslationStudio>>;
 
-async function requestJson(url: string, init: RequestInit) {
-  const response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...init.headers } });
-  const body = await response.json().catch(() => null) as { error?: { message?: string }; workspace?: { id: string } } | null;
-  if (!response.ok) throw new Error(body?.error?.message || `HTTP ${response.status}`);
-  return body;
-}
+type ProfileStage = { stage: string; label: string; modelName: string };
 
 export function TranslationStudioView({ data }: { data: Data }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [profileStage, setProfileStage] = useState<ProfileStage | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const selectedSource = data.sources.find((source) => source.id === selectedSourceId);
@@ -33,17 +30,77 @@ export function TranslationStudioView({ data }: { data: Data }) {
   const approvedChapters = data.workspaces.reduce((sum, row) => sum + row.approvedCount, 0);
   const totalCost = data.workspaces.reduce((sum, row) => sum + row.jobCostMicros, 0) / 1_000_000;
 
-  async function createWorkspace(formData: FormData) {
-    setBusy(true); setError("");
+  useEffect(() => {
+    if (!busy) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000)), 1_000);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+
+  async function createWorkspace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const formData = new FormData(event.currentTarget);
+    setError("");
+    setElapsedSeconds(0);
+    setProfileStage({ stage: "CONNECTING", label: "กำลังเตรียมข้อมูลและเชื่อมต่อ AI", modelName: "Automatic routing" });
+    setBusy(true);
     try {
-      const result = await requestJson("/api/admin/translation/workspaces", { method: "POST", body: JSON.stringify({ importSourceId: formData.get("importSourceId"), targetLanguage: formData.get("targetLanguage") }) });
-      if (result?.workspace?.id) router.push(`/admin/translation/${result.workspace.id}`);
-      else router.refresh();
+      // Give the browser one frame to paint the processing overlay before the long request starts.
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const response = await fetch("/api/admin/translation/workspaces", {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", "content-type": "application/json" },
+        body: JSON.stringify({ importSourceId: formData.get("importSourceId"), targetLanguage: formData.get("targetLanguage") }),
+      });
+      if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+        throw new Error(body?.error?.message || `HTTP ${response.status}`);
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let workspaceId = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as { type: string; stage?: string; label?: string; modelName?: string; workspace?: { id: string }; error?: { message?: string } };
+          if (event.type === "stage" && event.stage && event.label && event.modelName) setProfileStage({ stage: event.stage, label: event.label, modelName: event.modelName });
+          if (event.type === "error") throw new Error(event.error?.message || "สร้าง AI Profile ไม่สำเร็จ");
+          if (event.type === "complete") workspaceId = event.workspace?.id ?? "";
+        }
+        if (done) break;
+      }
+      if (!workspaceId) throw new Error("AI ทำงานเสร็จแต่ไม่ได้คืน Workspace");
+      router.push(`/admin/translation/${workspaceId}`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "สร้าง Workspace ไม่สำเร็จ"); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setProfileStage(null); setElapsedSeconds(0); }
   }
 
   return <div className="grid gap-5">
+    {busy ? (
+      <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ai-profile-progress-title">
+        <div className="w-full max-w-2xl rounded-[22px] border border-[var(--brand-primary)]/30 bg-card p-5 shadow-2xl sm:p-7">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--brand-emphasis)]">AI Profile Pipeline</p>
+              <h2 id="ai-profile-progress-title" className="mt-1 text-xl font-bold">กำลังวิเคราะห์ “{selectedSource?.title ?? "ต้นฉบับ"}”</h2>
+              <p className="mt-1 text-sm text-muted-foreground">กรุณาเปิดหน้านี้ไว้จนสร้าง Profile เสร็จ ระบบจะแสดงขั้นตอนจากเซิร์ฟเวอร์แบบสด</p>
+            </div>
+            <span className="flex shrink-0 items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--brand-emphasis)]"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{elapsedSeconds}s</span>
+          </div>
+          <AiTranslationVisual active stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} />
+          <div className="mt-4 flex items-center gap-2 rounded-[12px] bg-muted/55 px-3 py-2 text-xs text-muted-foreground">
+            <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>
+            Request กำลังทำงานจริง · ระบบจะไม่สร้าง Profile จำลองเมื่อ AI ล้มเหลว
+          </div>
+        </div>
+      </div>
+    ) : null}
     {error ? <div role="alert" className="rounded-[12px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
     <div className="grid gap-4 sm:grid-cols-3">
       <StatCard label="Workspace" value={data.workspaces.length} icon={<Languages className="h-5 w-5" />} />
@@ -61,7 +118,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[var(--brand-primary)]/10 text-[var(--brand-emphasis)]"><BookOpen className="h-5 w-5" aria-hidden /></span>
                 <div><h3 className="font-semibold">1. เลือกต้นฉบับ</h3><p className="text-sm text-muted-foreground">ระบบจะใช้เฉพาะชื่อเรื่องและเรื่องย่อเพื่อสร้าง Default Profile ก่อน ยังไม่ส่งตอนเข้าคิวแปล</p></div>
               </div>
-              <form action={createWorkspace} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_150px]">
+              <form onSubmit={createWorkspace} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_150px]" aria-busy={busy}>
                 <Field label="เรื่องที่นำเข้า">
                   <Select name="importSourceId" required value={selectedSourceId} onChange={(event) => setSelectedSourceId(event.target.value)}>
                     <option value="" disabled>เลือกเรื่อง</option>
@@ -81,7 +138,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">หลังสร้าง Profile ระบบจะพาไปขั้นตรวจแก้ก่อน จากนั้นคุณจึงเลือกตอนและเริ่มแปล ระบบเลือก model และ prompt ให้อัตโนมัติจาก <code>AI_TRANSLATION_API_KEY</code></p>
           </div>
-          <AiTranslationVisual active={busy} />
+          <AiTranslationVisual active={busy} stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} />
         </div>
       </div>
     </Panel>

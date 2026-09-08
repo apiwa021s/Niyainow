@@ -35,14 +35,24 @@ import {
   AUTOMATIC_TRANSLATION_MODELS,
   AUTOMATIC_TRANSLATION_SYSTEM_PROMPT,
   automaticModelNameForTask,
+  type AutomaticTranslationTask,
 } from "@/lib/domain/translation-ai-routing";
 import { countWords, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
-import { buildDefaultTranslationProfile } from "@/lib/domain/translation-profile";
 import { ApiError } from "@/lib/http/api-response";
+import { aiCallCostMicros, generateAiTranslationProfile, type AiStageEvent } from "@/services/ai/translation-pipeline";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
 const languageSchema = z.string().trim().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/).max(35);
 const uuidSchema = z.uuid();
+const storedAiPipelineSchema = z.array(z.object({
+  task: z.string(),
+  modelName: z.string(),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  latencyMs: z.number().int().nonnegative(),
+  costMicros: z.number().int().nonnegative(),
+  status: z.string(),
+}));
 
 export const createTranslationWorkspaceSchema = z.object({
   importSourceId: uuidSchema,
@@ -151,16 +161,6 @@ function serializeWorkspace(row: typeof translationWorkspaces.$inferSelect) {
   return { id: row.id, importSourceId: row.importSourceId, novelId: row.novelId, sourceLanguage: row.sourceLanguage, targetLanguage: row.targetLanguage, status: row.status, version: row.version };
 }
 
-function defaultProfileValues(input: { title: string; synopsis: string | null; sourceLanguage: string; targetLanguage: string }) {
-  const analyzed = buildDefaultTranslationProfile(input);
-  return {
-    name: analyzed.name,
-    styleGuide: analyzed.styleGuide,
-    instructions: analyzed.instructions,
-    preserveParagraphs: analyzed.preserveParagraphs,
-  };
-}
-
 async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
   const baseUrl = (process.env.AI_TRANSLATION_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
   if (!isSafeProviderUrl(baseUrl)) throw new ApiError(500, "AI_BASE_URL_INVALID", "AI_TRANSLATION_BASE_URL ต้องเป็น public HTTPS URL");
@@ -208,6 +208,31 @@ async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
       isActive: true,
       createdBy: actor.id,
     }).onConflictDoNothing();
+  });
+}
+
+async function getAutomaticModels<T extends AutomaticTranslationTask>(tasks: readonly T[]) {
+  const names = tasks.map(automaticModelNameForTask);
+  const rows = await getDb().select().from(translationAiModels).where(and(
+    eq(translationAiModels.isActive, true),
+    inArray(translationAiModels.modelName, names),
+  ));
+  const byName = new Map(rows.map((row) => [row.modelName, row]));
+  const entries = tasks.map((task) => {
+    const model = byName.get(automaticModelNameForTask(task));
+    if (!model) throw new ApiError(409, "AI_CONFIG_UNAVAILABLE", `ไม่พบโมเดลสำหรับขั้นตอน ${task}`);
+    return [task, model] as const;
+  });
+  return Object.fromEntries(entries) as Record<T, (typeof rows)[number]>;
+}
+
+function uniqueBySource<T extends { sourceTerm?: string; sourceName?: string }>(rows: T[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = (row.sourceTerm ?? row.sourceName ?? "").trim().toLocaleLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
@@ -309,7 +334,10 @@ export async function syncTranslationWorkspaceSources(workspaceId: string) {
   return { added, changed, total: usable.length };
 }
 
-export async function createTranslationWorkspace(input: z.infer<typeof createTranslationWorkspaceSchema>) {
+export async function createTranslationWorkspace(
+  input: z.infer<typeof createTranslationWorkspaceSchema>,
+  onStage?: (event: AiStageEvent) => void | Promise<void>,
+) {
   const actor = await assertTranslationPermission("translation.configure");
   if (!process.env.AI_TRANSLATION_API_KEY?.trim()) {
     throw new ApiError(409, "AI_CREDENTIAL_MISSING", "กรุณาตั้ง AI_TRANSLATION_API_KEY ใน environment ของ server");
@@ -326,7 +354,68 @@ export async function createTranslationWorkspace(input: z.infer<typeof createTra
     eq(novelImportSourceTexts.language, source.sourceLanguage),
   )).limit(1);
   if (!sourceText) throw new ApiError(409, "IMPORT_METADATA_MISSING", "เรื่องที่นำเข้ายังไม่มีชื่อเรื่องต้นฉบับ");
-  const createdWorkspace = await db.transaction(async (tx) => {
+
+  const [existingWorkspace] = await db.select().from(translationWorkspaces).where(and(
+    eq(translationWorkspaces.importSourceId, source.id),
+    eq(translationWorkspaces.targetLanguage, input.targetLanguage),
+  )).limit(1);
+  if (existingWorkspace) {
+    const [existingProfile] = await db.select({ version: translationProfiles.version }).from(translationProfiles)
+      .where(eq(translationProfiles.workspaceId, existingWorkspace.id)).limit(1);
+    if (existingWorkspace.status !== "SETUP" || (existingProfile?.version ?? 0) > 1) {
+      await syncTranslationWorkspaceSources(existingWorkspace.id);
+      return existingWorkspace;
+    }
+  }
+
+  const models = await getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "ENTITY_EXTRACTION"] as const);
+  const generated = await generateAiTranslationProfile({
+    title: sourceText.title,
+    synopsis: sourceText.synopsis,
+    sourceLanguage: source.sourceLanguage,
+    targetLanguage: input.targetLanguage,
+    models,
+    onStage,
+  });
+  const glossary = uniqueBySource(generated.glossary);
+  const characters = uniqueBySource(generated.characters);
+  const aiPipeline = generated.calls.map((call) => ({
+    task: call.task,
+    modelId: call.model.id,
+    modelName: call.model.modelName,
+    providerRequestId: call.result.providerRequestId,
+    inputTokens: call.result.inputTokens,
+    outputTokens: call.result.outputTokens,
+    latencyMs: call.result.latencyMs,
+    costMicros: aiCallCostMicros(call),
+    status: "SUCCESS",
+  }));
+
+  const workspace = await db.transaction(async (tx) => {
+    if (existingWorkspace) {
+      const [current] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, existingWorkspace.id)).limit(1).for("update");
+      const [currentProfile] = await tx.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, existingWorkspace.id)).limit(1).for("update");
+      if (!current) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
+      if (current.status !== "SETUP" || (currentProfile?.version ?? 0) > 1) return current;
+      const nextVersion = current.version + 1;
+      const [updated] = await tx.update(translationWorkspaces).set({ version: nextVersion, updatedAt: new Date() })
+        .where(eq(translationWorkspaces.id, current.id)).returning();
+      await tx.insert(translationProfiles).values({ workspaceId: current.id, ...generated.profile, version: nextVersion, updatedBy: actor.id })
+        .onConflictDoUpdate({ target: translationProfiles.workspaceId, set: { ...generated.profile, version: nextVersion, updatedBy: actor.id, updatedAt: new Date() } });
+      await tx.delete(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, current.id));
+      await tx.delete(translationCharacters).where(eq(translationCharacters.workspaceId, current.id));
+      if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id })));
+      if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id })));
+      await tx.insert(translationProfileVersions).values({
+        workspaceId: current.id,
+        version: nextVersion,
+        snapshot: { profile: generated.profile, glossary, characters, analysis: generated.analysis, aiPipeline, source: { title: sourceText.title, synopsis: sourceText.synopsis } },
+        createdBy: actor.id,
+      });
+      await writeAudit(tx, actor, "translation.profile.ai_generate", "translation_workspace", current.id, serializeWorkspace(current), serializeWorkspace(updated));
+      return updated;
+    }
+
     const [created] = await tx.insert(translationWorkspaces).values({
       importSourceId: source.id,
       novelId: null,
@@ -334,54 +423,20 @@ export async function createTranslationWorkspace(input: z.infer<typeof createTra
       targetLanguage: input.targetLanguage,
       createdBy: actor.id,
       assignedEditorId: actor.id,
-    }).onConflictDoNothing({
-      target: [translationWorkspaces.importSourceId, translationWorkspaces.targetLanguage],
-    }).returning();
-    if (!created) return null;
-    const profile = defaultProfileValues({
-      title: sourceText.title,
-      synopsis: sourceText.synopsis,
-      sourceLanguage: source.sourceLanguage,
-      targetLanguage: input.targetLanguage,
+    }).onConflictDoNothing({ target: [translationWorkspaces.importSourceId, translationWorkspaces.targetLanguage] }).returning();
+    if (!created) throw new ApiError(409, "TRANSLATION_WORKSPACE_CONFLICT", "มีการสร้าง Workspace เดียวกันจากหน้าต่างอื่น กรุณาลองใหม่");
+    await tx.insert(translationProfiles).values({ workspaceId: created.id, ...generated.profile, updatedBy: actor.id });
+    if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: true, workspaceId: created.id, createdBy: actor.id })));
+    if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: created.id, createdBy: actor.id })));
+    await tx.insert(translationProfileVersions).values({
+      workspaceId: created.id,
+      version: 1,
+      snapshot: { profile: generated.profile, glossary, characters, analysis: generated.analysis, aiPipeline, source: { title: sourceText.title, synopsis: sourceText.synopsis } },
+      createdBy: actor.id,
     });
-    await tx.insert(translationProfiles).values({ workspaceId: created.id, ...profile, updatedBy: actor.id });
-    await tx.insert(translationProfileVersions).values({ workspaceId: created.id, version: 1, snapshot: { profile, glossary: [], characters: [] }, createdBy: actor.id });
-    await writeAudit(tx, actor, "translation.workspace.create", "translation_workspace", created.id, null, serializeWorkspace(created));
+    await writeAudit(tx, actor, "translation.workspace.create_with_ai_profile", "translation_workspace", created.id, null, serializeWorkspace(created));
     return created;
   });
-  let workspace = createdWorkspace ?? (await db.select().from(translationWorkspaces).where(and(
-    eq(translationWorkspaces.importSourceId, source.id),
-    eq(translationWorkspaces.targetLanguage, input.targetLanguage),
-  )).limit(1))[0];
-  if (!workspace) throw new ApiError(409, "TRANSLATION_WORKSPACE_CONFLICT", "ไม่สามารถเปิดงานแปลเดิมได้ กรุณาลองใหม่อีกครั้ง");
-
-  if (!createdWorkspace) {
-    const preparedWorkspace = await db.transaction(async (tx) => {
-      const [currentWorkspace] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, workspace.id)).limit(1).for("update");
-      const [currentProfile] = await tx.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspace.id)).limit(1).for("update");
-      if (!currentWorkspace || !currentProfile || currentProfile.version > 1 || currentProfile.name !== "Default") return null;
-      const profile = defaultProfileValues({
-        title: sourceText.title,
-        synopsis: sourceText.synopsis,
-        sourceLanguage: source.sourceLanguage,
-        targetLanguage: input.targetLanguage,
-      });
-      const nextVersion = currentWorkspace.version + 1;
-      const [updated] = await tx.update(translationWorkspaces).set({ status: "SETUP", version: nextVersion, updatedAt: new Date() })
-        .where(eq(translationWorkspaces.id, currentWorkspace.id)).returning();
-      await tx.update(translationProfiles).set({ ...profile, version: nextVersion, updatedBy: actor.id, updatedAt: new Date() })
-        .where(eq(translationProfiles.workspaceId, currentWorkspace.id));
-      await tx.insert(translationProfileVersions).values({
-        workspaceId: currentWorkspace.id,
-        version: nextVersion,
-        snapshot: { profile, glossary: [], characters: [], source: { title: sourceText.title, synopsis: sourceText.synopsis } },
-        createdBy: actor.id,
-      }).onConflictDoNothing();
-      await writeAudit(tx, actor, "translation.profile.bootstrap", "translation_workspace", currentWorkspace.id, serializeWorkspace(currentWorkspace), serializeWorkspace(updated));
-      return updated;
-    });
-    if (preparedWorkspace) workspace = preparedWorkspace;
-  }
 
   await syncTranslationWorkspaceSources(workspace.id);
   return workspace;
@@ -397,7 +452,10 @@ export async function getTranslationStudio() {
       sourceTitle: novelImportSourceTexts.title,
       chapterCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id})`.mapWith(Number),
       approvedCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status in ('APPROVED','PUBLISHED'))`.mapWith(Number),
-      jobCostMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id join translation_jobs j on j.id = ji.job_id where j.workspace_id = ${translationWorkspaces.id}), 0)`.mapWith(Number),
+      jobCostMicros: sql<number>`
+        coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id join translation_jobs j on j.id = ji.job_id where j.workspace_id = ${translationWorkspaces.id}), 0)
+        + coalesce((select sum((call->>'costMicros')::bigint) from translation_profile_versions tpv cross join lateral jsonb_array_elements(coalesce(tpv.snapshot->'aiPipeline', '[]'::jsonb)) call where tpv.workspace_id = ${translationWorkspaces.id}), 0)
+      `.mapWith(Number),
     }).from(translationWorkspaces)
       .innerJoin(novelImportSources, eq(novelImportSources.id, translationWorkspaces.importSourceId))
       .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
@@ -440,7 +498,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
     .where(eq(translationWorkspaces.id, workspaceId)).limit(1);
   if (!workspace) return undefined;
-  const [profile, glossary, characters, chapterRows, jobs, models, prompts] = await Promise.all([
+  const [profile, glossary, characters, chapterRows, jobs, models, prompts, profileVersions] = await Promise.all([
     db.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspaceId)).limit(1),
     db.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId)).orderBy(asc(translationGlossaryEntries.sourceTerm)),
     db.select().from(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId)).orderBy(asc(translationCharacters.sourceName)),
@@ -450,6 +508,9 @@ export async function getTranslationWorkspace(workspaceId: string) {
       status: translationChapters.status,
       lockVersion: translationChapters.lockVersion,
       sourceTitle: translationSourceSnapshots.title,
+      progressPercent: sql<number>`coalesce((select ji.progress_percent from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1), 0)`.mapWith(Number),
+      progressStage: sql<string>`coalesce((select ji.progress_stage from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1), 'QUEUED')`,
+      jobItemStatus: sql<string | null>`(select ji.status from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1)`,
       revision: sql<number>`coalesce((select max(tv.revision) from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id}), 0)`.mapWith(Number),
       criticalIssues: sql<number>`(select count(*) from translation_qa_issues qi where qi.translation_version_id = (select tv.id from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id} order by tv.revision desc limit 1) and qi.severity = 'CRITICAL' and qi.resolved_at is null)`.mapWith(Number),
     }).from(translationChapters).innerJoin(translationSourceSnapshots, eq(translationSourceSnapshots.id, translationChapters.sourceSnapshotId))
@@ -457,7 +518,15 @@ export async function getTranslationWorkspace(workspaceId: string) {
     db.select().from(translationJobs).where(eq(translationJobs.workspaceId, workspaceId)).orderBy(desc(translationJobs.createdAt)).limit(20),
     db.select().from(translationAiModels).where(eq(translationAiModels.isActive, true)).orderBy(asc(translationAiModels.name)),
     db.select().from(translationPromptVersions).where(eq(translationPromptVersions.isActive, true)).orderBy(desc(translationPromptVersions.createdAt)),
+    db.select({ snapshot: translationProfileVersions.snapshot }).from(translationProfileVersions)
+      .where(and(
+        eq(translationProfileVersions.workspaceId, workspaceId),
+        sql`${translationProfileVersions.snapshot} ? 'aiPipeline'`,
+      )).orderBy(desc(translationProfileVersions.version)).limit(1),
   ]);
+  const storedPipeline = profileVersions[0]?.snapshot && typeof profileVersions[0].snapshot === "object"
+    ? storedAiPipelineSchema.safeParse(profileVersions[0].snapshot.aiPipeline)
+    : null;
   return {
     workspace: { ...serializeWorkspace(workspace.workspace), title: workspace.title ?? "Imported novel", updatedAt: workspace.workspace.updatedAt.toISOString() },
     source: {
@@ -467,6 +536,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
       importReference: workspace.importReference,
     },
     profile: profile[0] ? { ...profile[0], updatedAt: profile[0].updatedAt.toISOString() } : null,
+    profileAiPipeline: storedPipeline?.success ? storedPipeline.data : [],
     glossary: glossary.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     characters: characters.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     chapters: chapterRows,
@@ -475,6 +545,59 @@ export async function getTranslationWorkspace(workspaceId: string) {
       .filter((row, index, rows): row is typeof models[number] => Boolean(row) && rows.findIndex((candidate) => candidate?.id === row?.id) === index)
       .map((row) => ({ id: row.id, name: row.name, provider: row.provider, modelName: row.modelName })),
     prompts: prompts.map((row) => ({ id: row.id, name: row.name, version: row.version })),
+  };
+}
+
+export async function getActiveTranslationQueue() {
+  await assertTranslationPermission("translation.view");
+  const db = getDb();
+  const jobs = await db.select({
+    id: translationJobs.id,
+    workspaceId: translationJobs.workspaceId,
+    status: translationJobs.status,
+    totalItems: translationJobs.totalItems,
+    completedItems: translationJobs.completedItems,
+    failedItems: translationJobs.failedItems,
+    createdAt: translationJobs.createdAt,
+    title: novelImportSourceTexts.title,
+    progressPercent: sql<number>`coalesce((select round(avg(ji.progress_percent)) from translation_job_items ji where ji.job_id = ${translationJobs.id}), 0)`.mapWith(Number),
+  }).from(translationJobs)
+    .innerJoin(translationWorkspaces, eq(translationWorkspaces.id, translationJobs.workspaceId))
+    .innerJoin(novelImportSources, eq(novelImportSources.id, translationWorkspaces.importSourceId))
+    .leftJoin(novelImportSourceTexts, and(
+      eq(novelImportSourceTexts.sourceId, novelImportSources.id),
+      eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage),
+    ))
+    .where(inArray(translationJobs.status, ["QUEUED", "RUNNING"]))
+    .orderBy(asc(translationJobs.createdAt))
+    .limit(5);
+
+  if (!jobs.length) return { jobs: [] };
+  const items = await db.select({
+    jobId: translationJobItems.jobId,
+    status: translationJobItems.status,
+    progressPercent: translationJobItems.progressPercent,
+    progressStage: translationJobItems.progressStage,
+    chapterNumber: translationChapters.chapterNumber,
+    title: translationSourceSnapshots.title,
+  }).from(translationJobItems)
+    .innerJoin(translationChapters, eq(translationChapters.id, translationJobItems.translationChapterId))
+    .innerJoin(translationSourceSnapshots, eq(translationSourceSnapshots.id, translationJobItems.sourceSnapshotId))
+    .where(and(
+      inArray(translationJobItems.jobId, jobs.map((job) => job.id)),
+      inArray(translationJobItems.status, ["QUEUED", "RUNNING"]),
+    ))
+    .orderBy(desc(translationJobItems.status), asc(translationChapters.chapterNumber));
+
+  return {
+    jobs: jobs.map((job) => ({
+      ...job,
+      title: job.title ?? "Imported novel",
+      createdAt: job.createdAt.toISOString(),
+      currentItem: items.find((item) => item.jobId === job.id && item.status === "RUNNING")
+        ?? items.find((item) => item.jobId === job.id)
+        ?? null,
+    })),
   };
 }
 
@@ -585,7 +708,7 @@ export async function cancelTranslationJob(jobId: string) {
     if (["COMPLETED", "FAILED", "CANCELLED"].includes(before.status)) return before;
     const now = new Date();
     const [updated] = await tx.update(translationJobs).set({ cancelRequestedAt: now, status: before.status === "QUEUED" ? "CANCELLED" : before.status, finishedAt: before.status === "QUEUED" ? now : null, updatedAt: now }).where(eq(translationJobs.id, jobId)).returning();
-    const cancelledItems = await tx.update(translationJobItems).set({ status: "CANCELLED", finishedAt: now }).where(and(eq(translationJobItems.jobId, jobId), eq(translationJobItems.status, "QUEUED"))).returning({ chapterId: translationJobItems.translationChapterId });
+    const cancelledItems = await tx.update(translationJobItems).set({ status: "CANCELLED", progressPercent: 100, progressStage: "CANCELLED", finishedAt: now }).where(and(eq(translationJobItems.jobId, jobId), eq(translationJobItems.status, "QUEUED"))).returning({ chapterId: translationJobItems.translationChapterId });
     if (cancelledItems.length) await tx.update(translationChapters).set({ status: "READY", updatedAt: now }).where(and(inArray(translationChapters.id, cancelledItems.map((item) => item.chapterId)), eq(translationChapters.status, "QUEUED")));
     if (before.status === "QUEUED") await tx.update(translationWorkspaces).set({ status: "READY", updatedAt: now }).where(eq(translationWorkspaces.id, before.workspaceId));
     await writeAudit(tx, actor, "translation.job.cancel", "translation_job", jobId, { status: before.status }, { status: updated.status, cancelRequested: true });

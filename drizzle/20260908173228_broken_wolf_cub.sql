@@ -1,0 +1,1 @@
+CREATE INDEX "translation_job_items_chapter_idx" ON "translation_job_items" USING btree ("translation_chapter_id","id" DESC NULLS LAST);

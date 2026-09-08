@@ -106,7 +106,50 @@
 }
 
 .copy strong { font-size: 15px; }
-.copy > span:last-child { color: var(--muted-foreground); font-size: 12px; line-height: 1.6; }
+.copy > span:not(.eyebrow) { color: var(--muted-foreground); font-size: 12px; line-height: 1.6; }
+
+.stageSteps {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.stageSteps li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  transition: color .25s ease, transform .25s ease;
+}
+
+.stageSteps li > span {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.stageSteps li[data-state="active"] {
+  color: var(--brand-emphasis);
+  font-weight: 700;
+  transform: translateX(3px);
+}
+
+.stageSteps li[data-state="active"] > span {
+  border-color: color-mix(in srgb, var(--brand-primary) 52%, transparent);
+  background: color-mix(in srgb, var(--brand-primary) 14%, var(--card));
+  animation: ai-halo 1.5s ease-out infinite;
+}
+
+.stageSteps li[data-state="done"] { color: #059669; }
+.stageSteps li[data-state="done"] > span { border-color: #10b98166; background: #10b98114; }
 
 .eyebrow {
   display: flex;

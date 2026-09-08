@@ -19,6 +19,19 @@ type Character = Data["characters"][number];
 type WizardStep = 2 | 3;
 
 const ELIGIBLE_STATUSES = new Set(["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]);
+const PROGRESS_STAGE_LABELS: Record<string, string> = {
+  QUEUED: "รอคิว",
+  CONTEXT: "เตรียมบริบท",
+  CANON_ANALYSIS: "AI วิเคราะห์เนื้อหาและ Canon",
+  AI_REQUEST: "AI กำลังแปลฉบับหลัก",
+  AI_QA: "AI ตรวจเทียบต้นฉบับ",
+  ESCALATION: "AI รุ่นใหญ่กำลังแก้จุดผิดพลาด",
+  CODE_QA: "ระบบตรวจ Glossary และโครงสร้าง",
+  SAVING: "บันทึกฉบับร่าง",
+  DONE: "เสร็จแล้ว",
+  FAILED: "แปลไม่สำเร็จ",
+  CANCELLED: "ยกเลิกแล้ว",
+};
 
 async function mutate(url: string, method: "POST" | "PATCH", body?: unknown) {
   const response = await fetch(url, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -42,6 +55,8 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   const [statusFilter, setStatusFilter] = useState("ALL");
   const activeJobs = data.jobs.some((job) => job.status === "QUEUED" || job.status === "RUNNING");
   const activeJob = data.jobs.find((job) => job.status === "RUNNING") ?? data.jobs.find((job) => job.status === "QUEUED");
+  const currentChapter = data.chapters.find((chapter) => chapter.jobItemStatus === "RUNNING")
+    ?? data.chapters.find((chapter) => chapter.jobItemStatus === "QUEUED");
 
   useEffect(() => {
     if (!activeJobs) return;
@@ -122,7 +137,14 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   return <div className="grid gap-5">
     {error ? <div role="alert" className="rounded-[12px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
     {message ? <div role="status" className="rounded-[12px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">{message}</div> : null}
-    {activeJob ? <AiTranslationProgress completed={activeJob.completedItems + activeJob.failedItems} total={activeJob.totalItems} label={activeJob.status === "QUEUED" ? "AI กำลังเตรียมคิวแปล" : "AI กำลังแปลนิยาย"} /> : null}
+    {activeJob ? <AiTranslationProgress
+      completed={activeJob.completedItems + activeJob.failedItems}
+      total={activeJob.totalItems}
+      label={activeJob.status === "QUEUED" ? "กำลังรอ Worker รับงาน" : "AI pipeline กำลังทำงานจริง"}
+      currentChapter={currentChapter?.chapterNumber}
+      currentStage={currentChapter ? PROGRESS_STAGE_LABELS[currentChapter.progressStage] ?? currentChapter.progressStage : null}
+      currentPercent={currentChapter?.progressPercent}
+    /> : null}
 
     <TranslationSetupSteps activeStep={step} completedThrough={step === 2 ? 1 : 2} />
 
@@ -142,6 +164,16 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ตอนที่พร้อม</dt><dd className="font-semibold">{eligibleChapters.length.toLocaleString("th-TH")}</dd></div>
             </dl>
           </div>
+          {data.profileAiPipeline.length ? (
+            <div className="mt-4 rounded-[12px] border border-emerald-500/25 bg-emerald-500/8 p-3">
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />สร้างด้วย AI จริงครบ {data.profileAiPipeline.length} ขั้นตอน</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {data.profileAiPipeline.map((run) => <span key={run.task} className="rounded-full border border-emerald-500/20 bg-card px-2.5 py-1 text-[11px] text-muted-foreground">{run.task} · <strong className="text-foreground">{run.modelName}</strong> · {(run.latencyMs / 1_000).toFixed(1)}s</span>)}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-[12px] border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">Profile เดิมนี้สร้างก่อนเปิด AI pipeline หากต้องการสร้างใหม่ด้วย AI ให้สร้าง Workspace ใหม่สำหรับภาษาปลายทางอื่น</div>
+          )}
         </Panel>
 
         <Panel title="2. ตรวจ Default Profile" description={`เวอร์ชัน ${data.profile?.version ?? 1} · บันทึกขั้นตอนนี้ก่อนเลือกตอน`}>
@@ -219,12 +251,14 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
         </Panel>
 
         <Panel title={`ตอนทั้งหมด (${data.chapters.length.toLocaleString("th-TH")})`} description={`แสดง ${visibleChapters.length.toLocaleString("th-TH")} ตอน · พร้อมเลือก ${visibleEligible.length.toLocaleString("th-TH")} ตอน`} bodyClassName="p-0">
-          <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[760px] text-sm"><thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} aria-label="เลือกตอนที่แสดง สูงสุด 100 ตอน" onChange={toggleVisible} /></th><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อต้นฉบับ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">Revision</th><th className="px-4 py-3">QA</th><th className="px-4 py-3" /></tr></thead><tbody>
+          <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[920px] text-sm"><thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} aria-label="เลือกตอนที่แสดง สูงสุด 100 ตอน" onChange={toggleVisible} /></th><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อต้นฉบับ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ความคืบหน้า</th><th className="px-4 py-3">Revision</th><th className="px-4 py-3">QA</th><th className="px-4 py-3" /></tr></thead><tbody>
             {visibleChapters.map((chapter) => {
               const eligible = ELIGIBLE_STATUSES.has(chapter.status);
-              return <tr key={chapter.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-3"><input type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={`เลือกตอน ${chapter.chapterNumber}`} onChange={() => toggleChapter(chapter.id)} /></td><td className="px-4 py-3 font-semibold tabular">{chapter.chapterNumber}</td><td className="max-w-md truncate px-4 py-3">{chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</td><td className="px-4 py-3"><StatusPill label={chapter.status} tone={chapter.status === "PUBLISHED" || chapter.status === "APPROVED" ? "success" : chapter.status === "FAILED" || chapter.status === "QA_FAILED" ? "danger" : chapter.status === "TRANSLATING" || chapter.status === "QUEUED" ? "info" : "neutral"} /></td><td className="px-4 py-3 tabular">{chapter.revision}</td><td className="px-4 py-3">{chapter.criticalIssues ? <span className="text-destructive">{chapter.criticalIssues} critical</span> : "ผ่าน"}</td><td className="px-4 py-3 text-right"><Link className="font-semibold text-[var(--brand-light-on-light)] hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>เปิด</Link></td></tr>;
+              const progress = chapter.jobItemStatus ? chapter.progressPercent : chapter.status === "PUBLISHED" || chapter.status === "APPROVED" || chapter.revision > 0 ? 100 : 0;
+              const stage = chapter.jobItemStatus ? PROGRESS_STAGE_LABELS[chapter.progressStage] ?? chapter.progressStage : progress === 100 ? "มีฉบับแปลแล้ว" : "ยังไม่เริ่ม";
+              return <tr key={chapter.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-3"><input type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={`เลือกตอน ${chapter.chapterNumber}`} onChange={() => toggleChapter(chapter.id)} /></td><td className="px-4 py-3 font-semibold tabular">{chapter.chapterNumber}</td><td className="max-w-md truncate px-4 py-3">{chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</td><td className="px-4 py-3"><StatusPill label={chapter.status} tone={chapter.status === "PUBLISHED" || chapter.status === "APPROVED" ? "success" : chapter.status === "FAILED" || chapter.status === "QA_FAILED" ? "danger" : chapter.status === "TRANSLATING" || chapter.status === "QUEUED" ? "info" : "neutral"} /></td><td className="w-40 px-4 py-3"><div className="flex items-center justify-between gap-2 text-[11px]"><span className="truncate text-muted-foreground">{stage}</span><strong className="tabular-nums">{progress}%</strong></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-[var(--brand-primary)] transition-[width] duration-500" style={{ width: `${progress}%` }} /></div></td><td className="px-4 py-3 tabular">{chapter.revision}</td><td className="px-4 py-3">{chapter.criticalIssues ? <span className="text-destructive">{chapter.criticalIssues} critical</span> : "ผ่าน"}</td><td className="px-4 py-3 text-right"><Link className="font-semibold text-[var(--brand-light-on-light)] hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>เปิด</Link></td></tr>;
             })}
-            {!visibleChapters.length ? <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">ไม่พบตอนที่ตรงกับตัวกรอง</td></tr> : null}
+            {!visibleChapters.length ? <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">ไม่พบตอนที่ตรงกับตัวกรอง</td></tr> : null}
           </tbody></table></div>
           <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
             <p className="text-sm text-muted-foreground"><ListChecks className="mr-1 inline h-4 w-4" />เลือก {selected.size.toLocaleString("th-TH")} ตอน {activeJobs ? "· มีงานแปลกำลังทำงาน" : "· พร้อมสร้างคิว"}</p>

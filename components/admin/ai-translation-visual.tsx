@@ -4,7 +4,24 @@ import { cn } from "@/lib/utils";
 
 import styles from "./ai-translation-visual.module.css";
 
-export function AiTranslationVisual({ active = false }: { active?: boolean }) {
+const PROFILE_STEPS = [
+  { key: "PROFILE_ANALYSIS", label: "วิเคราะห์เรื่อง" },
+  { key: "FOUNDATION", label: "สร้างกฎแปล" },
+  { key: "ENTITY_EXTRACTION", label: "สกัดชื่อและศัพท์" },
+] as const;
+
+export function AiTranslationVisual({
+  active = false,
+  stage,
+  stageLabel,
+  modelName,
+}: {
+  active?: boolean;
+  stage?: string | null;
+  stageLabel?: string | null;
+  modelName?: string | null;
+}) {
+  const activeIndex = PROFILE_STEPS.findIndex((step) => step.key === stage);
   return (
     <div className={cn(styles.stage, active && styles.active)} role="status" aria-live="polite">
       <div aria-hidden className={styles.ambient} />
@@ -20,8 +37,17 @@ export function AiTranslationVisual({ active = false }: { active?: boolean }) {
       </div>
       <div className={styles.copy}>
         <span className={styles.eyebrow}><Languages className="h-3.5 w-3.5" /> AI Translation Engine</span>
-        <strong>{active ? "กำลังสร้างโลกฉบับแปล…" : "พร้อมเริ่มงานแปลอัตโนมัติ"}</strong>
-        <span>{active ? "วิเคราะห์บริบท · รักษาน้ำเสียง · เรียบเรียงภาษา" : "Profile, model routing และคิวตอนทำงานให้เอง"}</span>
+        <strong>{active ? stageLabel || "กำลังเริ่ม AI pipeline…" : "พร้อมเริ่มงานแปลอัตโนมัติ"}</strong>
+        <span>{active ? `${modelName || "กำลังเลือกโมเดล"} · เรียก AI จริงและตรวจ schema ก่อนบันทึก` : "Profile, model routing และคิวตอนทำงานให้เอง"}</span>
+        {active ? (
+          <ol className={styles.stageSteps} aria-label="ขั้นตอนสร้าง AI Profile">
+            {PROFILE_STEPS.map((step, index) => (
+              <li key={step.key} data-state={index < activeIndex ? "done" : index === activeIndex ? "active" : "pending"}>
+                <span>{index < activeIndex ? "✓" : index + 1}</span>{step.label}
+              </li>
+            ))}
+          </ol>
+        ) : null}
       </div>
       <div aria-hidden className={styles.textFlow}>
         <i /><i /><i /><i />
@@ -30,7 +56,21 @@ export function AiTranslationVisual({ active = false }: { active?: boolean }) {
   );
 }
 
-export function AiTranslationProgress({ completed, total, label }: { completed: number; total: number; label: string }) {
+export function AiTranslationProgress({
+  completed,
+  total,
+  label,
+  currentChapter,
+  currentStage,
+  currentPercent,
+}: {
+  completed: number;
+  total: number;
+  label: string;
+  currentChapter?: number | null;
+  currentStage?: string | null;
+  currentPercent?: number | null;
+}) {
   const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
   return (
     <div className={styles.progressCard} role="status" aria-live="polite">
@@ -43,7 +83,10 @@ export function AiTranslationProgress({ completed, total, label }: { completed: 
         <div className={styles.progressTrack} aria-hidden>
           <span style={{ width: `${percent}%` }} />
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">AI กำลังรักษาบริบท ชื่อตัวละคร และรูปแบบย่อหน้า · {percent}%</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          {currentChapter ? <><strong className="text-foreground">ตอน {currentChapter}</strong> · {currentStage} · {currentPercent ?? 0}%<span aria-hidden> · </span></> : null}
+          ออกจากหน้านี้ได้ ระบบทำงานต่อบน Worker · รวม {percent}%
+        </p>
       </div>
       <Sparkles aria-hidden className={styles.progressSparkle} />
     </div>

@@ -2,13 +2,13 @@ name: Process translation jobs
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       limit:
         description: Maximum chapters to process in this invocation
         required: true
-        default: "10"
+        default: "3"
         type: string
 
 permissions:
@@ -21,7 +21,7 @@ concurrency:
 jobs:
   process:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     environment: production
     env:
       NODE_ENV: production
@@ -34,4 +34,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run db:process-translations -- --limit=${{ github.event_name == 'workflow_dispatch' && inputs.limit || '10' }}
+      - run: npm run db:process-translations -- --limit=${{ github.event_name == 'workflow_dispatch' && inputs.limit || '3' }}

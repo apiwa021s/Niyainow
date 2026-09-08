@@ -7,7 +7,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-with-translation-worker.mjs",
+    "dev:web": "next dev",
     "build": "next build",
     "vercel-build": "next build",
     "start": "next start",
@@ -25,6 +26,8 @@
     "db:publish-scheduled": "tsx db/publish-scheduled.ts",
     "db:process-outbox": "tsx db/process-outbox.ts",
     "db:process-translations": "node --conditions=react-server --import tsx db/process-translation-jobs.ts",
+    "db:cancel-translations": "node --conditions=react-server --import tsx db/cancel-translation-jobs.ts",
+    "db:reset-translation-workspace": "node --conditions=react-server --import tsx db/reset-translation-workspace.ts",
     "db:verify-core": "node --conditions=react-server --import tsx db/verify-core-backend.ts",
     "db:verify-stripe": "node --conditions=react-server --import tsx db/verify-stripe-backend.ts",
     "db:seed": "tsx db/seed.ts",

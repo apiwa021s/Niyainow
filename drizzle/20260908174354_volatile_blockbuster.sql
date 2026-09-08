@@ -1,0 +1,4 @@
+ALTER TABLE "translation_job_items" DROP CONSTRAINT "translation_job_items_stage_valid";--> statement-breakpoint
+ALTER TABLE "translation_ai_invocations" ADD COLUMN "task" varchar(32) DEFAULT 'MAIN_TRANSLATION' NOT NULL;--> statement-breakpoint
+ALTER TABLE "translation_ai_invocations" ADD CONSTRAINT "translation_ai_invocations_task_valid" CHECK ("translation_ai_invocations"."task" in ('CANON_EXTRACTION','MAIN_TRANSLATION','FIRST_QA','ESCALATION'));--> statement-breakpoint
+ALTER TABLE "translation_job_items" ADD CONSTRAINT "translation_job_items_stage_valid" CHECK ("translation_job_items"."progress_stage" in ('QUEUED','CONTEXT','CANON_ANALYSIS','AI_REQUEST','AI_QA','ESCALATION','CODE_QA','SAVING','DONE','FAILED','CANCELLED'));

@@ -6,11 +6,13 @@ The admin studio translates immutable snapshots of private imported chapters. It
 
 1. Deploy the Drizzle migrations with `npm run db:deploy` before sending traffic to the new application build.
 2. Add `AI_TRANSLATION_API_KEY` to the server/Vercel and GitHub `production` environments. `AI_TRANSLATION_BASE_URL` is optional and defaults to `https://api.openai.com/v1`.
-3. Create a workspace from an imported source and choose the target language. The system analyzes the imported title and synopsis, bootstraps the managed model presets and prompt, builds a draft Default Profile, and snapshots the source without queueing chapters.
+3. Create a workspace from an imported source and choose the target language. The server makes three real structured AI calls: profile analysis, translation foundation, and metadata entity extraction. The UI streams the current stage and model while the calls run. A malformed or failed AI response stops creation; there is no deterministic profile fallback.
 4. Review and save the Default Profile, then search, filter, and select up to 100 eligible chapters for the first translation job. Only the selected chapters are queued.
-5. The `Process translation jobs` workflow claims queued items with `FOR UPDATE SKIP LOCKED`. A completed batch stops at the review stage; an editor explicitly selects the next batch. A local worker can be run with `npm run db:process-translations -- --limit=10`.
+5. The `Process translation jobs` workflow claims queued items with `FOR UPDATE SKIP LOCKED`. `npm run dev` starts both Next.js and a continuous local translation worker, so local queues begin automatically. Use `npm run dev:web` only when intentionally running the web server without a worker. A one-off worker remains available with `npm run db:process-translations -- --limit=10`.
 
 The worker retries an item three times with backoff. It stores provider request identifiers, token counts, latency, and calculated cost, but never logs source text, translated text, prompts, or credentials.
+
+Each chapter exposes truthful worker milestones (`QUEUED`, `CONTEXT`, `CANON_ANALYSIS`, `AI_REQUEST`, `AI_QA`, conditional `ESCALATION`, `CODE_QA`, `SAVING`, and `DONE`) as a progress percentage. Canon analysis, main translation, AI QA, and escalation are separate provider calls and are recorded separately. `CODE_QA` is explicitly labelled as deterministic. Active queues are shown in a collapsible dock on every Admin page, so editors can safely leave the workspace while the worker continues processing.
 
 ## Permissions
 

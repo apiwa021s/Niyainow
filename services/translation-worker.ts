@@ -14,12 +14,15 @@ import {
   translationJobs,
   translationProfiles,
   translationPromptVersions,
+  translationQaIssues,
   translationSourceSnapshots,
   translationVersions,
   translationWorkspaces,
 } from "@/db/schema";
 import { estimateTokens, sha256 } from "@/lib/domain/translation";
+import { automaticModelNameForTask, type AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
 import { logger } from "@/lib/logger";
+import { aiCallCostMicros, analyzeChapterWithAi, qaTranslationWithAi, reviseTranslationWithAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
 import { getTranslationProvider } from "@/services/ai/translation-provider";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
@@ -52,7 +55,7 @@ async function claimNextItem(): Promise<ClaimedItem | null> {
       .for("update", { skipLocked: true });
     if (!row) return null;
     const now = new Date();
-    const [item] = await tx.update(translationJobItems).set({ status: "RUNNING", attempts: row.item.attempts + 1, startedAt: now, lastError: null })
+    const [item] = await tx.update(translationJobItems).set({ status: "RUNNING", progressPercent: 10, progressStage: "CONTEXT", attempts: row.item.attempts + 1, startedAt: now, lastError: null })
       .where(and(eq(translationJobItems.id, row.item.id), eq(translationJobItems.status, "QUEUED"))).returning();
     if (!item) return null;
     const [job] = await tx.update(translationJobs).set({ status: "RUNNING", startedAt: row.job.startedAt ?? now, updatedAt: now })
@@ -156,52 +159,150 @@ async function refreshJob(jobId: string) {
   });
 }
 
+async function recordStructuredInvocation(jobItemId: string, contextSnapshotId: string, call: AiCallRecord) {
+  await getDb().insert(translationAiInvocations).values({
+    jobItemId,
+    modelId: call.model.id,
+    task: call.task,
+    contextSnapshotId,
+    providerRequestId: call.result.providerRequestId,
+    inputTokens: call.result.inputTokens,
+    outputTokens: call.result.outputTokens,
+    costMicros: aiCallCostMicros(call),
+    latencyMs: call.result.latencyMs,
+    status: "SUCCESS",
+  });
+}
+
+function modelForTask(models: Array<typeof translationAiModels.$inferSelect>, task: AutomaticTranslationTask) {
+  const model = models.find((candidate) => candidate.modelName === automaticModelNameForTask(task));
+  if (!model) throw new Error(`AI model is unavailable for ${task}`);
+  return model;
+}
+
 async function processClaimedItem(claimed: ClaimedItem) {
   const db = getDb();
   const startedAt = Date.now();
   let contextSnapshotId: string | null = null;
+  let currentTask: "CANON_EXTRACTION" | "MAIN_TRANSLATION" | "FIRST_QA" | "ESCALATION" = "MAIN_TRANSLATION";
+  let currentModelId = claimed.job.modelId;
   try {
-    const [config] = await db.select({ model: translationAiModels, prompt: translationPromptVersions })
-      .from(translationAiModels)
-      .innerJoin(translationPromptVersions, eq(translationPromptVersions.id, claimed.job.promptVersionId))
-      .where(eq(translationAiModels.id, claimed.job.modelId)).limit(1);
-    if (!config || !config.model.isActive || !config.prompt.isActive) throw new Error("AI model or prompt is disabled");
+    const [mainModelRows, promptRows, automaticModels] = await Promise.all([
+      db.select().from(translationAiModels).where(eq(translationAiModels.id, claimed.job.modelId)).limit(1),
+      db.select().from(translationPromptVersions).where(eq(translationPromptVersions.id, claimed.job.promptVersionId)).limit(1),
+      db.select().from(translationAiModels).where(eq(translationAiModels.isActive, true)),
+    ]);
+    const config = { model: mainModelRows[0], prompt: promptRows[0] };
+    if (!config.model || !config.prompt || !config.model.isActive || !config.prompt.isActive) throw new Error("AI model or prompt is disabled");
     const built = await buildContext(claimed.job, claimed.item.translationChapterId, claimed.item.sourceSnapshotId);
     contextSnapshotId = built.contextSnapshot.id;
+
+    await db.update(translationJobItems).set({ progressPercent: 15, progressStage: "CANON_ANALYSIS" }).where(eq(translationJobItems.id, claimed.item.id));
+    const canonModel = modelForTask(automaticModels, "CANON_EXTRACTION");
+    currentTask = "CANON_EXTRACTION";
+    currentModelId = canonModel.id;
+    const chapterAnalysis = await analyzeChapterWithAi({
+      model: canonModel,
+      sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+      sourceContent: built.source.content,
+      context: built.context,
+    });
+    await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, chapterAnalysis.call);
+
+    await db.update(translationJobItems).set({ progressPercent: 35, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
+    currentTask = "MAIN_TRANSLATION";
+    currentModelId = config.model.id;
     const result = await getTranslationProvider(config.model.provider).translate({
       model: config.model,
       prompt: config.prompt,
-      context: built.context,
+      context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
       sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
       sourceContent: built.source.content,
     });
-    const costMicros = Math.round((result.inputTokens * Number(config.model.inputCostMicrosPerMillion) + result.outputTokens * Number(config.model.outputCostMicrosPerMillion)) / 1_000_000);
+    await db.insert(translationAiInvocations).values({
+      jobItemId: claimed.item.id,
+      modelId: config.model.id,
+      task: "MAIN_TRANSLATION",
+      contextSnapshotId: built.contextSnapshot.id,
+      providerRequestId: result.providerRequestId,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      costMicros: Math.round((result.inputTokens * Number(config.model.inputCostMicrosPerMillion) + result.outputTokens * Number(config.model.outputCostMicrosPerMillion)) / 1_000_000),
+      latencyMs: result.latencyMs,
+      status: "SUCCESS",
+    });
+
+    await db.update(translationJobItems).set({ progressPercent: 70, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+    let translation = result.translation;
+    const qaModel = modelForTask(automaticModels, "FIRST_QA");
+    currentTask = "FIRST_QA";
+    currentModelId = qaModel.id;
+    let qa = await qaTranslationWithAi({
+      model: qaModel,
+      sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+      sourceContent: built.source.content,
+      translatedTitle: translation.title,
+      translatedContent: translation.content,
+      context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
+    });
+    await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, qa.call);
+
+    if (!qa.value.passed) {
+      await db.update(translationJobItems).set({ progressPercent: 82, progressStage: "ESCALATION" }).where(eq(translationJobItems.id, claimed.item.id));
+      const escalationModel = modelForTask(automaticModels, "ESCALATION");
+      currentTask = "ESCALATION";
+      currentModelId = escalationModel.id;
+      const revision = await reviseTranslationWithAi({
+        model: escalationModel,
+        prompt: config.prompt,
+        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+        sourceContent: built.source.content,
+        translatedTitle: translation.title,
+        translatedContent: translation.content,
+        context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
+        qa: qa.value,
+      });
+      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, revision.call);
+      translation = revision.value;
+      await db.update(translationJobItems).set({ progressPercent: 87, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+      currentTask = "FIRST_QA";
+      currentModelId = qaModel.id;
+      qa = await qaTranslationWithAi({
+        model: qaModel,
+        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+        sourceContent: built.source.content,
+        translatedTitle: translation.title,
+        translatedContent: translation.content,
+        context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
+      });
+      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, qa.call);
+    }
+
+    await db.update(translationJobItems).set({ progressPercent: 92, progressStage: "CODE_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+    await db.update(translationJobItems).set({ progressPercent: 96, progressStage: "SAVING" }).where(eq(translationJobItems.id, claimed.item.id));
     await db.transaction(async (tx) => {
       const [latest] = await tx.select().from(translationVersions).where(eq(translationVersions.translationChapterId, built.chapter.id)).orderBy(desc(translationVersions.revision)).limit(1);
       const version = await insertTranslationVersion(tx, {
         chapter: { ...built.chapter, sourceSnapshotId: claimed.item.sourceSnapshotId },
-        title: result.translation.title,
-        content: result.translation.content,
+        title: translation.title,
+        content: translation.content,
         origin: "AI",
         parentVersionId: latest?.id ?? null,
         contextSnapshotId: built.contextSnapshot.id,
         actorId: claimed.job.requestedBy,
       });
-      const issues = await replaceQaIssues(tx, version.id, built.source.content, result.translation.content, claimed.job.workspaceId);
-      await tx.insert(translationAiInvocations).values({
-        jobItemId: claimed.item.id,
-        modelId: claimed.job.modelId,
-        contextSnapshotId: built.contextSnapshot.id,
-        providerRequestId: result.providerRequestId,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        costMicros,
-        latencyMs: result.latencyMs,
-        status: "SUCCESS",
-      });
+      const issues = await replaceQaIssues(tx, version.id, built.source.content, translation.content, claimed.job.workspaceId);
+      if (qa.value.issues.length) await tx.insert(translationQaIssues).values(qa.value.issues.map((issue) => ({
+        translationVersionId: version.id,
+        code: `AI_${issue.code}`.slice(0, 80),
+        severity: issue.severity,
+        message: issue.message,
+        metadata: { source: "AI_QA", score: qa.value.score },
+      })));
+      const hasCriticalIssue = !qa.value.passed || issues.some((issue) => issue.severity === "CRITICAL") || qa.value.issues.some((issue) => issue.severity === "CRITICAL");
       const now = new Date();
-      await tx.update(translationJobItems).set({ status: "COMPLETED", finishedAt: now, lastError: null }).where(eq(translationJobItems.id, claimed.item.id));
-      await tx.update(translationChapters).set({ status: issues.some((issue) => issue.severity === "CRITICAL") ? "QA_FAILED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
+      await tx.update(translationJobItems).set({ status: "COMPLETED", progressPercent: 100, progressStage: "DONE", finishedAt: now, lastError: null }).where(eq(translationJobItems.id, claimed.item.id));
+      await tx.update(translationChapters).set({ status: hasCriticalIssue ? "QA_FAILED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
         eq(translationChapters.id, built.chapter.id),
         eq(translationChapters.lockVersion, built.chapter.lockVersion),
         eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
@@ -214,7 +315,8 @@ async function processClaimedItem(claimed: ClaimedItem) {
     await db.transaction(async (tx) => {
       await tx.insert(translationAiInvocations).values({
         jobItemId: claimed.item.id,
-        modelId: claimed.job.modelId,
+        modelId: currentModelId,
+        task: currentTask,
         contextSnapshotId,
         latencyMs: Date.now() - startedAt,
         status: "FAILED",
@@ -222,6 +324,8 @@ async function processClaimedItem(claimed: ClaimedItem) {
       });
       await tx.update(translationJobItems).set({
         status: retry ? "QUEUED" : "FAILED",
+        progressPercent: retry ? 0 : 100,
+        progressStage: retry ? "QUEUED" : "FAILED",
         availableAt: retry ? new Date(Date.now() + 2 ** claimed.item.attempts * 30_000) : now,
         finishedAt: retry ? null : now,
         lastError: message,
