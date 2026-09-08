@@ -4,12 +4,17 @@ import { HomeFeed, HomeHeroSection, HomePersonalizedSections, HomeSignup, type H
 import { HomeFeedSkeleton, HomeHeroSkeleton } from "@/components/home/home-skeletons";
 import { GuestContinueReading } from "@/components/reader/guest-continue-reading";
 import {
-  studioHomeBanners,
-  studioHomeData,
-  studioHomePersonalization,
-  studioHomePublishedNovels,
-  studioHomeUpdates,
-} from "@/data/studio-reader-home";
+  getActiveBanners,
+  getCompletedNovels,
+  getFeaturedNovels,
+  getGenreShowcase,
+  getNewThisWeek,
+  getRankings,
+  getRecommendedNovels,
+  getUpdates,
+  getUpdatesForNovels,
+} from "@/services/novel-service";
+import { getHomePersonalization } from "@/services/user-service";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
@@ -26,7 +31,9 @@ async function HomeReaderSections() {
     return <GuestContinueReading />;
   }
 
-  const renderedAccountSlugs = studioHomePersonalization.continueReading
+  const personalization = await getHomePersonalization(currentUser.id);
+  const followedUpdates = await getUpdatesForNovels(personalization.followedNovelSlugs, 12);
+  const renderedAccountSlugs = personalization.continueReading
     .slice(0, 5)
     .map((item) => item.novel.slug);
 
@@ -37,8 +44,8 @@ async function HomeReaderSections() {
         title="อ่านต่อจากอุปกรณ์นี้"
       />
       <HomePersonalizedSections
-        personalization={studioHomePersonalization}
-        followedUpdates={studioHomeUpdates}
+        personalization={personalization}
+        followedUpdates={followedUpdates}
       />
     </>
   );
@@ -49,12 +56,35 @@ async function HomeGuestSignup() {
   return currentUser?.status === "ACTIVE" ? null : <HomeSignup />;
 }
 
-async function MockHomeHero() {
-  return <HomeHeroSection banners={studioHomeBanners} featuredNovels={studioHomePublishedNovels} />;
+async function PublicHomeHero() {
+  const [banners, featuredNovels] = await Promise.all([
+    getActiveBanners(6),
+    getFeaturedNovels(6),
+  ]);
+  return <HomeHeroSection banners={banners} featuredNovels={featuredNovels} />;
 }
 
-async function MockHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
-  const data: HomeData = studioHomeData;
+async function PublicHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
+  const [
+    newThisWeek,
+    recommended,
+    completed,
+    rankings,
+    rankingsDaily,
+    rankingsMonthly,
+    updates,
+    genreShowcase,
+  ] = await Promise.all([
+      getNewThisWeek(12),
+      getRecommendedNovels(12),
+      getCompletedNovels(12),
+      getRankings("WEEKLY", 16),
+      getRankings("DAILY", 16),
+      getRankings("MONTHLY", 16),
+      getUpdates("all", undefined, 12),
+      getGenreShowcase(8),
+    ]);
+  const data: HomeData = { newThisWeek, recommended, completed, rankings, rankingsDaily, rankingsMonthly, updates, genreShowcase };
   return (
     <HomeFeed data={data} signupSlot={signupSlot}>
       {children}
@@ -73,11 +103,11 @@ export default function HomePage() {
       <h1 className="sr-only">อ่านนิยายออนไลน์และนิยายแปลไทย อัปเดตตอนใหม่ทุกวัน</h1>
       <div className="flex flex-col gap-4 lg:gap-5">
         <Suspense fallback={<HomeHeroSkeleton />}>
-          <MockHomeHero />
+          <PublicHomeHero />
         </Suspense>
 
         <Suspense fallback={<HomeFeedSkeleton />}>
-          <MockHomeFeed
+          <PublicHomeFeed
             signupSlot={
               <Suspense key="home-signup" fallback={null}>
                 <HomeGuestSignup />
@@ -87,7 +117,7 @@ export default function HomePage() {
             <Suspense fallback={<GuestContinueReading />}>
               <HomeReaderSections />
             </Suspense>
-          </MockHomeFeed>
+          </PublicHomeFeed>
         </Suspense>
       </div>
     </main>

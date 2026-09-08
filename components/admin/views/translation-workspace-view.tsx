@@ -151,11 +151,16 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     {step === 2 ? (
       <form action={saveConfiguration} className="grid gap-5">
         <Panel title="ผลวิเคราะห์ต้นฉบับ" description="Default Profile นี้สร้างจากชื่อเรื่องและเรื่องย่อเท่านั้น คุณตรวจและแก้ได้ก่อนส่งตอนให้ AI">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_280px]">
             <div className="rounded-[12px] border border-border bg-muted/40 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" />ข้อมูลที่ใช้วิเคราะห์</p>
               <h3 className="mt-2 font-semibold">{data.source.title}</h3>
               <p className="mt-2 max-h-36 overflow-auto text-sm leading-relaxed text-muted-foreground">{data.source.synopsis?.trim() || "ไม่มีเรื่องย่อจากต้นฉบับ ระบบจึงสร้างกฎแปลแบบทั่วไปให้ตรวจแก้"}</p>
+            </div>
+            <div className="rounded-[12px] border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" />ฉบับแปลโดย AI</p>
+              <h3 className="mt-2 font-semibold">{data.translatedMetadata?.title ?? "ยังไม่มีชื่อเรื่องฉบับแปล"}</h3>
+              <p className="mt-2 max-h-36 overflow-auto text-sm leading-relaxed text-muted-foreground">{data.translatedMetadata?.synopsis?.trim() || "ยังไม่มีเรื่องย่อฉบับแปล"}</p>
             </div>
             <dl className="grid content-start gap-2 rounded-[12px] border border-border p-4 text-sm">
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ต้นทาง</dt><dd className="font-semibold">{data.workspace.sourceLanguage}</dd></div>

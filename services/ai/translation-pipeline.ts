@@ -35,6 +35,8 @@ const foundationSchema = z.object({
   styleGuide: z.string().min(1).max(20_000),
   instructions: z.string().min(1).max(20_000),
   preserveParagraphs: z.boolean(),
+  translatedTitle: z.string().min(1).max(1_000),
+  translatedSynopsis: z.string().min(1).max(20_000).nullable(),
 });
 
 const entitiesSchema = z.object({
@@ -75,6 +77,7 @@ const translationSchema = z.object({ title: z.string().min(1).max(1_000), conten
 
 const PROFILE_SYSTEM_PROMPT = `You design production translation profiles for serialized fiction.
 Analyze only the supplied title and synopsis. Never invent plot facts. Produce actionable guidance in the target language.
+Translate the novel title and complete synopsis faithfully into the requested target language. Preserve names according to the profile strategy and do not summarize, omit, or add story details.
 Names, terms, and character suggestions must be grounded in the supplied metadata. Return only the requested structured output.`;
 
 const CHAPTER_ANALYSIS_PROMPT = `You are a continuity analyst for serialized-fiction translation.
@@ -129,14 +132,21 @@ export async function generateAiTranslationProfile(input: {
     timeoutMs: 75_000,
   });
 
-  await input.onStage?.({ stage: "FOUNDATION", label: "AI กำลังสร้าง Style guide และกฎการแปล", modelName: input.models.FOUNDATION.modelName });
+  await input.onStage?.({ stage: "FOUNDATION", label: "AI กำลังแปลชื่อเรื่องและเรื่องย่อ พร้อมสร้าง Style guide", modelName: input.models.FOUNDATION.modelName });
   const foundation = await structured({
     model: input.models.FOUNDATION,
     task: "FOUNDATION",
     systemPrompt: PROFILE_SYSTEM_PROMPT,
     payload: { source, analysis: analysis.value },
     schemaName: "novel_translation_foundation",
-    jsonSchema: jsonObject({ name: { type: "string" }, styleGuide: { type: "string" }, instructions: { type: "string" }, preserveParagraphs: { type: "boolean" } }),
+    jsonSchema: jsonObject({
+      name: { type: "string" },
+      styleGuide: { type: "string" },
+      instructions: { type: "string" },
+      preserveParagraphs: { type: "boolean" },
+      translatedTitle: { type: "string" },
+      translatedSynopsis: { type: ["string", "null"] },
+    }),
     parser: foundationSchema,
     timeoutMs: 75_000,
   });
@@ -156,7 +166,14 @@ export async function generateAiTranslationProfile(input: {
     timeoutMs: 75_000,
   });
 
-  return { profile: foundation.value, analysis: analysis.value, ...entities.value, calls: [analysis.call, foundation.call, entities.call] };
+  const { translatedTitle, translatedSynopsis, ...profile } = foundation.value;
+  return {
+    profile,
+    metadata: { title: translatedTitle.trim(), synopsis: translatedSynopsis?.trim() || null },
+    analysis: analysis.value,
+    ...entities.value,
+    calls: [analysis.call, foundation.call, entities.call],
+  };
 }
 
 export async function analyzeChapterWithAi(input: {

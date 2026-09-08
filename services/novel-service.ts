@@ -755,7 +755,7 @@ async function getNovelBySlugFromRedis(slug: string) {
   });
 }
 
-const getNovelBySlugCached = unstable_cache(getNovelBySlugFromRedis, ["public-novel-by-slug-v4"], {
+const getNovelBySlugCached = unstable_cache(getNovelBySlugFromRedis, ["public-novel-by-slug-v5"], {
   revalidate: PUBLIC_CACHE_SECONDS,
   tags: ["public-novels"],
 });

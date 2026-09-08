@@ -34,9 +34,13 @@ function sanitize(value: unknown, key = "", depth = 0, seen = new WeakSet<object
   if (typeof value === "function" || typeof value === "symbol") return String(value);
   if (value instanceof Date) return value.toISOString();
   if (value instanceof Error) {
+    const errorWithCause = value as Error & { cause?: unknown; code?: unknown; constraint_name?: unknown };
     return {
       name: value.name,
       message: sanitize(value.message, "message", depth + 1, seen),
+      ...(errorWithCause.code === undefined ? {} : { code: sanitize(errorWithCause.code, "code", depth + 1, seen) }),
+      ...(errorWithCause.constraint_name === undefined ? {} : { constraint: sanitize(errorWithCause.constraint_name, "constraint", depth + 1, seen) }),
+      ...(errorWithCause.cause === undefined ? {} : { cause: sanitize(errorWithCause.cause, "cause", depth + 1, seen) }),
       ...(process.env.NODE_ENV === "production" ? {} : { stack: value.stack ? sanitizeString(value.stack) : undefined }),
     };
   }
