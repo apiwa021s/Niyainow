@@ -16,6 +16,7 @@ import { Reveal } from "@/components/ui/reveal";
 import { RevenueCalculator } from "@/components/creators/revenue-calculator";
 import { ButtonLink } from "@/components/ui/button";
 import { PageShell } from "@/components/ui/section";
+import { isWriterModeEnabled } from "@/lib/features/writer-mode";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
@@ -83,6 +84,8 @@ const faqs = [
 ] as const;
 
 export default function CreatorsPage() {
+  const writerModeEnabled = isWriterModeEnabled();
+
   return (
     <PageShell className="max-w-5xl">
       <Reveal as="section" className="py-4 sm:py-8">
@@ -352,10 +355,16 @@ export default function CreatorsPage() {
             ฝ่ายพันธมิตรนักเขียนและนักแปลตอบกลับภายใน 2 วันทำการ
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <ButtonLink href="/creators/apply" variant="primary">
-              สมัครเป็นนักเขียนหรือนักแปล
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </ButtonLink>
+            {writerModeEnabled ? (
+              <ButtonLink href="/creators/apply" variant="primary">
+                สมัครเป็นนักเขียนหรือนักแปล
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </ButtonLink>
+            ) : (
+              <p className="inline-flex min-h-11 items-center rounded-[6px] bg-muted px-4 text-sm font-semibold text-(--text-secondary)">
+                ขณะนี้ปิดรับสมัครนักเขียนและนักแปลชั่วคราว
+              </p>
+            )}
             <ButtonLink href="mailto:novelnow.com@outlook.com" variant="outline">
               <Mail className="h-4 w-4" aria-hidden />
               novelnow.com@outlook.com

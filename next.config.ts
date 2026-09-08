@@ -89,7 +89,16 @@ export default function createNextConfig(phase: string): NextConfig {
       deviceSizes: [640, 750, 1080, 1440, 1920],
       imageSizes: [32, 48, 64, 96, 128, 192, 256, 384],
       qualities: [75],
-      remotePatterns: assetPattern,
+      remotePatterns: [
+        ...assetPattern,
+        {
+          protocol: "https",
+          hostname: "lh3.googleusercontent.com",
+          port: "",
+          pathname: "/a/**",
+          search: "",
+        },
+      ],
     },
     async headers() {
       return [

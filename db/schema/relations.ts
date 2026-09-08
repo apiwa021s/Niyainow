@@ -17,6 +17,12 @@ import {
   tags,
 } from "./content";
 import {
+  novelImportChapters,
+  novelImportChapterTexts,
+  novelImportSources,
+  novelImportSourceTexts,
+} from "./import";
+import {
   chapterUnlocks,
   coinLedgerEntries,
   coinWallets,
@@ -77,6 +83,7 @@ export const novelsRelations = relations(novels, ({ many, one }) => ({
   reviews: many(reviews),
   dailyStats: many(novelDailyStats),
   rankings: many(novelRankings),
+  importSources: many(novelImportSources),
 }));
 
 export const authorsRelations = relations(authors, ({ many }) => ({
@@ -118,6 +125,27 @@ export const chaptersRelations = relations(chapters, ({ many, one }) => ({
   novel: one(novels, { fields: [chapters.novelId], references: [novels.id] }),
   coinLedger: many(coinLedgerEntries),
   unlocks: many(chapterUnlocks),
+  importChapters: many(novelImportChapters),
+}));
+
+export const novelImportSourcesRelations = relations(novelImportSources, ({ many, one }) => ({
+  linkedNovel: one(novels, { fields: [novelImportSources.linkedNovelId], references: [novels.id] }),
+  texts: many(novelImportSourceTexts),
+  chapters: many(novelImportChapters),
+}));
+
+export const novelImportSourceTextsRelations = relations(novelImportSourceTexts, ({ one }) => ({
+  source: one(novelImportSources, { fields: [novelImportSourceTexts.sourceId], references: [novelImportSources.id] }),
+}));
+
+export const novelImportChaptersRelations = relations(novelImportChapters, ({ many, one }) => ({
+  source: one(novelImportSources, { fields: [novelImportChapters.sourceId], references: [novelImportSources.id] }),
+  linkedChapter: one(chapters, { fields: [novelImportChapters.linkedChapterId], references: [chapters.id] }),
+  texts: many(novelImportChapterTexts),
+}));
+
+export const novelImportChapterTextsRelations = relations(novelImportChapterTexts, ({ one }) => ({
+  chapter: one(novelImportChapters, { fields: [novelImportChapterTexts.chapterId], references: [novelImportChapters.id] }),
 }));
 
 export const coinWalletsRelations = relations(coinWallets, ({ one }) => ({

@@ -1,6 +1,7 @@
 import { NextResponse, connection } from "next/server";
 
 import { ApiError, apiErrorResponse } from "@/lib/http/api-response";
+import { isWriterModeEnabled } from "@/lib/features/writer-mode";
 import { logger } from "@/lib/logger";
 import { takeDistributedRateLimit } from "@/lib/security/distributed-rate-limit";
 import {
@@ -28,6 +29,9 @@ export async function handleUserRoute<T>(
   // failure by the generic catch below.
   await connection();
   try {
+    if (options.scope.startsWith("studio-") && !isWriterModeEnabled()) {
+      throw new ApiError(404, "WRITER_MODE_DISABLED", "ระบบนักเขียนปิดใช้งานชั่วคราว");
+    }
     if (options.mutation) assertSameOrigin(request);
     const user = await requireApiUser();
 

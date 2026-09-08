@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { EnvironmentConfigurationError, getRedisRuntimeEnv, getRuntimeEnv, requireDatabaseEnv } from "./env";
+import {
+  EnvironmentConfigurationError,
+  getRedisRuntimeEnv,
+  getRuntimeEnv,
+  requireDatabaseEnv,
+  requireNovelImportEnv,
+} from "./env";
 
 describe("environment helpers", () => {
   it("permits credential-less module evaluation", () => {
@@ -18,6 +24,18 @@ describe("environment helpers", () => {
       requireDatabaseEnv({ NODE_ENV: "test", DATABASE_URL: "postgresql://user:pass@db.example.test/app" })
         .DATABASE_URL,
     ).toContain("postgresql://");
+  });
+
+  it("requires a strong secret before enabling the private novel import API", () => {
+    expect(() => requireNovelImportEnv({ NODE_ENV: "test" })).toThrow(EnvironmentConfigurationError);
+    expect(() => requireNovelImportEnv({
+      NODE_ENV: "test",
+      NOVEL_IMPORT_TOKEN: "too-short",
+    })).toThrow(EnvironmentConfigurationError);
+    expect(requireNovelImportEnv({
+      NODE_ENV: "test",
+      NOVEL_IMPORT_TOKEN: "test-import-token-with-at-least-32-characters",
+    }).NOVEL_IMPORT_TOKEN).toHaveLength(45);
   });
 
   it("requires Turnstile client and server keys together", () => {

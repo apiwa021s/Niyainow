@@ -2,14 +2,21 @@ import { cacheLife } from "next/cache";
 import Link from "next/link";
 
 import { Logo } from "@/components/layout/logo";
+import { isWriterModeEnabled } from "@/lib/features/writer-mode";
+
+const writerModeEnabled = isWriterModeEnabled();
 
 const groups = [
   {
     title: "NovelNow",
     links: [
       ["เกี่ยวกับเรา", "/about"],
-      ["สำหรับนักเขียนและนักแปล", "/creators"],
-      ["สตูดิโอนักเขียน", "/studio"],
+      ...(writerModeEnabled
+        ? ([
+            ["สำหรับนักเขียนและนักแปล", "/creators"],
+            ["สตูดิโอนักเขียน", "/studio"],
+          ] as const)
+        : []),
       ["อ่านนิยายออนไลน์ทั้งหมด", "/novels"],
       ["อันดับนิยายยอดนิยม", "/rankings"]
     ]

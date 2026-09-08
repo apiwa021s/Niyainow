@@ -8,6 +8,7 @@ import { PageShell } from "@/components/ui/section";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { isActiveUser } from "@/lib/auth/permissions";
 import { safeLoginCallback } from "@/lib/auth/redirects";
+import { isWriterModeEnabled, isWriterModePagePath } from "@/lib/features/writer-mode";
 
 export const metadata: Metadata = { title: "เข้าสู่ระบบ", robots: { index: false, follow: false } };
 
@@ -17,11 +18,15 @@ export default async function LoginPage({
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
   const params = await searchParams;
-  const callbackUrl = safeLoginCallback(params.callbackUrl, "/");
+  const requestedCallbackUrl = safeLoginCallback(params.callbackUrl, "/");
+  const writerModeEnabled = isWriterModeEnabled();
+  const callbackUrl = !writerModeEnabled && isWriterModePagePath(requestedCallbackUrl)
+    ? "/"
+    : requestedCallbackUrl;
   const currentUser = await getCurrentUser();
   if (currentUser && isActiveUser(currentUser)) redirect(callbackUrl);
 
-  const writerFlow = callbackUrl === "/studio" || callbackUrl.startsWith("/studio/");
+  const writerFlow = writerModeEnabled && (callbackUrl === "/studio" || callbackUrl.startsWith("/studio/"));
   const protectedGuestDestination = /^\/(?:studio|library|history|notifications|profile|settings|wallet)(?:\/|$)/u.test(callbackUrl);
   const guestHref = protectedGuestDestination ? "/" : callbackUrl;
   const journey = writerFlow

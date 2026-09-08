@@ -4,6 +4,7 @@ import type { NextFetchEvent, NextMiddleware } from "next/server";
 
 import { auth } from "@/auth";
 import { decideProxyAccess } from "@/lib/auth/proxy-policy";
+import { isWriterModeApiPath, isWriterModeEnabled, isWriterModePagePath } from "@/lib/features/writer-mode";
 
 type AuthProxyMiddleware = (request: NextAuthRequest, event: NextFetchEvent) => ReturnType<NextMiddleware>;
 
@@ -26,6 +27,19 @@ const authorizeRequest: AuthProxyMiddleware = (request) => {
 };
 
 export async function proxy(request: NextAuthRequest, event: NextFetchEvent) {
+  const pathname = request.nextUrl.pathname;
+  if (!isWriterModeEnabled()) {
+    if (isWriterModeApiPath(pathname)) {
+      return NextResponse.json(
+        { error: { code: "WRITER_MODE_DISABLED", message: "ระบบนักเขียนปิดใช้งานชั่วคราว" } },
+        { status: 404, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
+    if (isWriterModePagePath(pathname)) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
+
   const proxyHandler = (await auth(authorizeRequest)) as NextMiddleware;
   return proxyHandler(request, event);
 }
@@ -39,6 +53,8 @@ export const config = {
     "/profile/:path*",
     "/settings/:path*",
     "/studio/:path*",
+    "/api/studio/:path*",
+    "/creators/apply/:path*",
     "/wallet/:path*",
   ],
 };

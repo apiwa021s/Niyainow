@@ -57,6 +57,7 @@ const runtimeEnvSchema = z.object({
       .optional(),
   ),
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(20).default(5),
+  WRITER_MODE_ENABLED: booleanEnv(false),
   CACHE_ENABLED: booleanEnv(true),
   REDIS_ENABLED: booleanEnv(false),
   REDIS_URL: optionalRedisUrl,
@@ -74,6 +75,7 @@ const runtimeEnvSchema = z.object({
   AUTH_GOOGLE_ID: optionalString,
   AUTH_GOOGLE_SECRET: optionalString,
   AUTH_TRUST_HOST: z.preprocess(emptyToUndefined, z.enum(["true", "false"]).optional()),
+  NOVEL_IMPORT_TOKEN: z.preprocess(emptyToUndefined, z.string().trim().min(32).optional()),
   TURNSTILE_SECRET_KEY: optionalString,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: optionalString,
   R2_ACCOUNT_ID: z.preprocess(emptyToUndefined, z.string().regex(/^[a-zA-Z0-9_-]+$/).optional()),
@@ -134,6 +136,7 @@ export type RequiredR2Env = Required<
     | "R2_UPLOAD_URL_TTL_SECONDS"
   >
 >;
+export type RequiredNovelImportEnv = Required<Pick<RuntimeEnv, "NOVEL_IMPORT_TOKEN">>;
 export type RequiredStripeEnv = Required<Pick<RuntimeEnv, "NEXT_PUBLIC_APP_URL" | "STRIPE_SECRET_KEY" | "STRIPE_WEBHOOK_SECRET">>;
 
 export class EnvironmentConfigurationError extends Error {
@@ -223,6 +226,12 @@ export function requireR2Env(source: NodeJS.ProcessEnv = process.env): RuntimeEn
     ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET_NAME"],
     "Cloudflare R2",
   );
+  return env;
+}
+
+export function requireNovelImportEnv(source: NodeJS.ProcessEnv = process.env): RuntimeEnv & RequiredNovelImportEnv {
+  const env = getRuntimeEnv(source);
+  requireKeys(env, ["NOVEL_IMPORT_TOKEN"], "Novel import API");
   return env;
 }
 

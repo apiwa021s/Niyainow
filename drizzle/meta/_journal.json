@@ -57,6 +57,13 @@
       "when": 1787375514873,
       "tag": "20260822051154_numerous_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788877758841,
+      "tag": "20260908142918_white_sunspot",
+      "breakpoints": true
     }
   ]
 }

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { StudioShell } from "@/components/studio/studio-shell";
 import { StudioThemeScript } from "@/components/studio/studio-theme-script";
 import { StudioThemeProvider } from "@/components/studio/studio-theme";
 import { requireActiveUser } from "@/lib/auth/dal";
+import { isWriterModeEnabled } from "@/lib/features/writer-mode";
 import { getWriterProfileForUser } from "@/services/studio-service";
 
 export const metadata: Metadata = {
@@ -17,6 +19,8 @@ export const metadata: Metadata = {
 };
 
 export default async function StudioLayout({ children }: { children: ReactNode }) {
+  if (!isWriterModeEnabled()) notFound();
+
   const user = await requireActiveUser("/studio");
   const profile = await getWriterProfileForUser(user.id);
   const displayName = profile?.displayName || user.name || "นักเขียน NovelNow";
