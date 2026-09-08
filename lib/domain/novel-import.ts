@@ -2,6 +2,17 @@ import { z } from "zod";
 
 export const IMPORT_TRANSLATION_STATUSES = ["draft", "reviewed", "approved"] as const;
 
+/** Advances only across a complete prefix; out-of-order chapters remain staged without moving the probe past a gap. */
+export function advanceContiguousChapterCheckpoint(
+  currentChapter: number,
+  availableChapterNumbers: Iterable<number>,
+) {
+  const available = new Set(availableChapterNumbers);
+  let checkpoint = currentChapter;
+  while (available.has(checkpoint + 1)) checkpoint++;
+  return checkpoint;
+}
+
 export const languageTagSchema = z.string().trim().min(2).max(35).transform((value, context) => {
   try {
     const [canonical] = Intl.getCanonicalLocales(value);
@@ -19,6 +30,11 @@ const httpUrlSchema = z.url().refine((value) => {
   return url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
 }, "Must use HTTPS, except for a loopback development URL");
 
+const httpsUrlSchema = z.url().refine((value) => {
+  const url = new URL(value);
+  return url.protocol === "https:" && !url.username && !url.password;
+}, "Must be a credential-free HTTPS URL");
+
 const providerSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/u);
 const externalWorkIdSchema = z.string().trim().min(1).max(256);
 const titleSchema = z.string().trim().min(1).max(1_000);
@@ -35,6 +51,7 @@ export const novelImportSourceInputSchema = z.object({
   provider: providerSchema,
   externalWorkId: externalWorkIdSchema,
   seedUrl: httpUrlSchema,
+  coverUrl: httpsUrlSchema.optional(),
   originalTitle: titleSchema,
   sourceLanguage: languageTagSchema.default("en"),
   originalSynopsis: z.string().trim().max(20_000).optional(),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  advanceContiguousChapterCheckpoint,
   languageTagSchema,
   novelImportChapterBatchInputSchema,
   novelImportSourceInputSchema,
@@ -14,6 +15,12 @@ const sourceInput = {
 };
 
 describe("novel import contract", () => {
+  it("never advances an import checkpoint across a missing chapter", () => {
+    expect(advanceContiguousChapterCheckpoint(2, [3, 4, 6, 7])).toBe(4);
+    expect(advanceContiguousChapterCheckpoint(0, [5, 2, 1, 2])).toBe(2);
+    expect(advanceContiguousChapterCheckpoint(4, [8, 6])).toBe(4);
+  });
+
   it("canonicalizes BCP 47 language tags", () => {
     expect(languageTagSchema.parse("ZH-hant-tw")).toBe("zh-Hant-TW");
   });
@@ -21,6 +28,7 @@ describe("novel import contract", () => {
   it("defaults a source to English and accepts independent localizations", () => {
     const result = novelImportSourceInputSchema.parse({
       ...sourceInput,
+      coverUrl: "https://assets.mvlempyr.app/images/900/5117.webp",
       localizations: [
         { language: "th", title: "เรื่องตัวอย่าง" },
         { language: "ja-JP", title: "サンプル物語", status: "reviewed" },
@@ -73,6 +81,10 @@ describe("novel import contract", () => {
     expect(novelImportSourceInputSchema.safeParse({
       ...sourceInput,
       seedUrl: "http://example.test/story",
+    }).success).toBe(false);
+    expect(novelImportSourceInputSchema.safeParse({
+      ...sourceInput,
+      coverUrl: "http://assets.mvlempyr.app/images/900/5117.webp",
     }).success).toBe(false);
 
     const chapter = {

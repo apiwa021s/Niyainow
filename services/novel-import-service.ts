@@ -2,10 +2,11 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  mediaAssets,
   novelImportChapters,
   novelImportChapterTexts,
   novelImportSources,
@@ -15,7 +16,11 @@ import type {
   NovelImportChapterBatchInput,
   NovelImportSourceInput,
 } from "@/lib/domain/novel-import";
+import { advanceContiguousChapterCheckpoint } from "@/lib/domain/novel-import";
+import { EnvironmentConfigurationError } from "@/lib/env";
 import { ApiError } from "@/lib/http/api-response";
+import { logger } from "@/lib/logger";
+import { ImportedCoverError, uploadImportedCover } from "@/lib/r2/import-cover";
 
 function importReference(provider: string, externalWorkId: string) {
   return `import:${provider}:${externalWorkId}`;
@@ -33,42 +38,163 @@ function sourceState(source: typeof novelImportSources.$inferSelect) {
     status: source.status,
     blockedReason: source.blockedReason,
     importReference: source.importReference,
+    coverStatus: source.coverStatus,
+    coverKey: source.coverKey,
+    coverError: source.coverError,
     lastSuccessfulChapter: source.lastSuccessfulChapter,
     nextProbeChapter: source.nextProbeChapter,
   };
 }
 
+function safeCoverError(error: unknown) {
+  if (error instanceof ImportedCoverError) return `${error.code}: ${error.message}`;
+  if (error instanceof EnvironmentConfigurationError) return "R2_NOT_CONFIGURED: Media storage is not configured";
+  return "COVER_UPLOAD_FAILED: Unexpected cover upload failure";
+}
+
+async function syncNovelImportCover(input: {
+  sourceId: string;
+  provider: string;
+  externalWorkId: string;
+  title: string;
+  coverUrl: string;
+}) {
+  const db = getDb();
+  try {
+    const uploaded = await uploadImportedCover({
+      sourceId: input.sourceId,
+      provider: input.provider,
+      externalWorkId: input.externalWorkId,
+      sourceUrl: input.coverUrl,
+    });
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.insert(mediaAssets).values({
+        objectKey: uploaded.objectKey,
+        kind: "COVER",
+        status: "READY",
+        contentType: uploaded.contentType,
+        byteSize: uploaded.byteSize,
+        altText: input.title,
+        etag: uploaded.etag,
+        metadata: {
+          source: "novel-import",
+          provider: input.provider,
+          externalWorkId: input.externalWorkId,
+          checksumSha256: uploaded.checksumSha256,
+        },
+        createdAt: now,
+        updatedAt: now,
+      }).onConflictDoUpdate({
+        target: mediaAssets.objectKey,
+        set: {
+          status: "READY",
+          contentType: uploaded.contentType,
+          byteSize: uploaded.byteSize,
+          altText: input.title,
+          etag: uploaded.etag,
+          metadata: {
+            source: "novel-import",
+            provider: input.provider,
+            externalWorkId: input.externalWorkId,
+            checksumSha256: uploaded.checksumSha256,
+          },
+          updatedAt: now,
+          deletedAt: null,
+        },
+      });
+      await tx.update(novelImportSources).set({
+        coverKey: uploaded.objectKey,
+        coverStatus: "ready",
+        coverError: null,
+        coverUpdatedAt: now,
+        updatedAt: now,
+      }).where(and(
+        eq(novelImportSources.id, input.sourceId),
+        eq(novelImportSources.coverSourceUrl, input.coverUrl),
+      ));
+    });
+  } catch (error) {
+    const message = safeCoverError(error);
+    await db.update(novelImportSources).set({
+      coverStatus: "error",
+      coverError: message,
+      coverUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(novelImportSources.id, input.sourceId),
+      eq(novelImportSources.coverSourceUrl, input.coverUrl),
+    ));
+    logger.warn("Novel import cover upload failed", {
+      sourceId: input.sourceId,
+      provider: input.provider,
+      externalWorkId: input.externalWorkId,
+      error,
+    });
+  }
+}
+
 export async function registerNovelImportSource(input: NovelImportSourceInput) {
   const db = getDb();
-  return db.transaction(async (tx) => {
-    const [existing] = await tx.select().from(novelImportSources).where(and(
+  const staged = await db.transaction(async (tx) => {
+    let [source] = await tx.select().from(novelImportSources).where(and(
       eq(novelImportSources.provider, input.provider),
       eq(novelImportSources.externalWorkId, input.externalWorkId),
-    )).limit(1);
+    )).for("update").limit(1);
 
-    if (existing && existing.status !== "ready") return sourceState(existing);
-    if (existing && existing.sourceLanguage !== input.sourceLanguage) {
+    if (!source) {
+      [source] = await tx.insert(novelImportSources).values({
+        provider: input.provider,
+        externalWorkId: input.externalWorkId,
+        importReference: importReference(input.provider, input.externalWorkId),
+        seedUrl: input.seedUrl,
+        coverSourceUrl: input.coverUrl,
+        coverStatus: input.coverUrl ? "pending" : "missing",
+        coverUpdatedAt: input.coverUrl ? new Date() : null,
+        sourceLanguage: input.sourceLanguage,
+        metadata: input.metadata,
+      }).onConflictDoNothing({
+        target: [novelImportSources.provider, novelImportSources.externalWorkId],
+      }).returning();
+
+      // Another importer may have registered the same source between our first
+      // read and insert. Lock and reuse that row instead of surfacing a unique
+      // constraint error to a retrying client.
+      if (!source) {
+        [source] = await tx.select().from(novelImportSources).where(and(
+          eq(novelImportSources.provider, input.provider),
+          eq(novelImportSources.externalWorkId, input.externalWorkId),
+        )).for("update").limit(1);
+      }
+    }
+
+    if (!source) throw new ApiError(409, "SOURCE_REGISTRATION_CONFLICT", "Import source registration conflicted; retry");
+
+    if (source.status !== "ready") return sourceState(source);
+    if (source.sourceLanguage !== input.sourceLanguage) {
       throw new ApiError(
         409,
         "SOURCE_LANGUAGE_CONFLICT",
-        `Import source is already registered as ${existing.sourceLanguage}`,
+        `Import source is already registered as ${source.sourceLanguage}`,
       );
     }
 
-    const [source] = existing
-      ? await tx.update(novelImportSources).set({
-          seedUrl: input.seedUrl,
-          metadata: input.metadata,
-          updatedAt: new Date(),
-        }).where(eq(novelImportSources.id, existing.id)).returning()
-      : await tx.insert(novelImportSources).values({
-          provider: input.provider,
-          externalWorkId: input.externalWorkId,
-          importReference: importReference(input.provider, input.externalWorkId),
-          seedUrl: input.seedUrl,
-          sourceLanguage: input.sourceLanguage,
-          metadata: input.metadata,
-        }).returning();
+    const coverNeedsSync = Boolean(input.coverUrl) && (
+      source.coverSourceUrl !== input.coverUrl ||
+      source.coverStatus !== "ready" ||
+      !source.coverKey
+    );
+    [source] = await tx.update(novelImportSources).set({
+      seedUrl: input.seedUrl,
+      metadata: input.metadata,
+      ...(coverNeedsSync ? {
+        coverSourceUrl: input.coverUrl,
+        coverStatus: "pending",
+        coverError: null,
+        coverUpdatedAt: new Date(),
+      } : {}),
+      updatedAt: new Date(),
+    }).where(eq(novelImportSources.id, source.id)).returning();
 
     await tx.insert(novelImportSourceTexts).values({
       sourceId: source.id,
@@ -110,6 +236,21 @@ export async function registerNovelImportSource(input: NovelImportSourceInput) {
 
     return sourceState(source);
   });
+
+  if (staged.status === "ready" && input.coverUrl && staged.coverStatus !== "ready") {
+    await syncNovelImportCover({
+      sourceId: staged.sourceId,
+      provider: input.provider,
+      externalWorkId: input.externalWorkId,
+      title: input.originalTitle,
+      coverUrl: input.coverUrl,
+    });
+    const [refreshed] = await db.select().from(novelImportSources)
+      .where(eq(novelImportSources.id, staged.sourceId)).limit(1);
+    if (refreshed) return sourceState(refreshed);
+  }
+
+  return staged;
 }
 
 export async function ingestNovelImportChapterBatch(input: NovelImportChapterBatchInput) {
@@ -118,14 +259,13 @@ export async function ingestNovelImportChapterBatch(input: NovelImportChapterBat
     const [source] = await tx.select().from(novelImportSources).where(and(
       eq(novelImportSources.provider, input.provider),
       eq(novelImportSources.externalWorkId, input.externalWorkId),
-    )).limit(1);
+    )).for("update").limit(1);
     if (!source) throw new ApiError(404, "SOURCE_NOT_FOUND", "Register the import source before sending chapters");
     if (source.status !== "ready") {
       throw new ApiError(403, "SOURCE_NOT_READY", `Import source is ${source.status}`);
     }
 
     const results: Array<{ chapterNumber: number; action: "created" | "updated" | "unchanged" | "stale" }> = [];
-    let highestAcceptedChapter = source.lastSuccessfulChapter ?? 0;
 
     for (const inputChapter of input.chapters) {
       const sourceLanguage = inputChapter.sourceLanguage ?? source.sourceLanguage;
@@ -233,13 +373,31 @@ export async function ingestNovelImportChapterBatch(input: NovelImportChapterBat
       }
 
       if (action === "unchanged" && (sourceChanged || translationChanged)) action = "updated";
-      highestAcceptedChapter = Math.max(highestAcceptedChapter, inputChapter.chapterNumber);
       results.push({ chapterNumber: inputChapter.chapterNumber, action });
     }
 
+    const currentCheckpoint = source.lastSuccessfulChapter ?? 0;
+    const stagedAfterCheckpoint = await tx.select({
+      chapterNumber: novelImportChapters.chapterNumber,
+    }).from(novelImportChapters).innerJoin(
+      novelImportChapterTexts,
+      and(
+        eq(novelImportChapterTexts.chapterId, novelImportChapters.id),
+        eq(novelImportChapterTexts.language, source.sourceLanguage),
+        eq(novelImportChapterTexts.textKind, "source"),
+      ),
+    ).where(and(
+      eq(novelImportChapters.sourceId, source.id),
+      gt(novelImportChapters.chapterNumber, currentCheckpoint),
+    )).orderBy(asc(novelImportChapters.chapterNumber));
+    const lastSuccessfulChapter = advanceContiguousChapterCheckpoint(
+      currentCheckpoint,
+      stagedAfterCheckpoint.map(({ chapterNumber }) => chapterNumber),
+    );
+
     const [updatedSource] = await tx.update(novelImportSources).set({
-      lastSuccessfulChapter: highestAcceptedChapter || null,
-      nextProbeChapter: highestAcceptedChapter + 1,
+      lastSuccessfulChapter: lastSuccessfulChapter || null,
+      nextProbeChapter: lastSuccessfulChapter + 1,
       updatedAt: new Date(),
     }).where(eq(novelImportSources.id, source.id)).returning();
 

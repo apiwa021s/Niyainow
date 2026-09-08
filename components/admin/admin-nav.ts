@@ -1,4 +1,4 @@
-import { BookOpen, FileStack, GalleryHorizontalEnd, LayoutDashboard, MessageSquare, RefreshCw, ScrollText, Tags } from "lucide-react";
+import { BookOpen, FileStack, GalleryHorizontalEnd, Inbox, LayoutDashboard, MessageSquare, RefreshCw, ScrollText, Tags } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type AdminNavItem = {
@@ -23,6 +23,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       { href: "/admin/novels", label: "นิยาย", icon: BookOpen },
       { href: "/admin/chapters", label: "ตอนทั้งหมด", icon: FileStack },
+      { href: "/admin/imports", label: "รายการนำเข้า", icon: Inbox },
       { href: "/admin/genres", label: "แนวนิยาย", icon: Tags },
       { href: "/admin/tags", label: "แท็ก", icon: Tags },
       { href: "/admin/banners", label: "แบนเนอร์", icon: GalleryHorizontalEnd },

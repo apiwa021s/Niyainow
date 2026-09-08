@@ -28,6 +28,7 @@ Remote origins and source URLs must use HTTPS. Loopback HTTP is accepted for loc
   "provider": "mvlempyr",
   "externalWorkId": "5117",
   "seedUrl": "https://www.example.com/chapter/5117-1",
+  "coverUrl": "https://assets.mvlempyr.app/images/900/5117.webp",
   "originalTitle": "Original title",
   "sourceLanguage": "en",
   "originalSynopsis": "Optional source synopsis",
@@ -44,6 +45,8 @@ Remote origins and source URLs must use HTTPS. Loopback HTTP is accepted for loc
 ```
 
 The idempotency key is `(provider, externalWorkId)`. Language values are canonical BCP 47 tags such as `en`, `th`, `ja-JP`, or `zh-Hant`.
+
+`coverUrl` is optional. For an allowlisted provider, the server fetches the image over HTTPS, verifies its file signature and 8 MB size limit, then stores it in R2 instead of hotlinking the provider. Source registration still succeeds when a cover fails; the response and `/admin/imports` expose `coverStatus` and a safe `coverError` so the import can be retried without dropping chapters.
 
 ## Import chapters
 
@@ -74,7 +77,7 @@ The idempotency key is `(provider, externalWorkId)`. Language values are canonic
 }
 ```
 
-A batch contains 1–20 unique chapter numbers. Chapter identity is `(sourceId, chapterNumber)` while text identity is `(chapterId, language)`, so one chapter can hold any number of separately versioned languages. An accepted chapter action is `created`, `updated`, or `unchanged`; an older conflicting fetch returns `stale`.
+A batch contains 1–20 unique chapter numbers. Chapter identity is `(sourceId, chapterNumber)` while text identity is `(chapterId, language)`, so one chapter can hold any number of separately versioned languages. An accepted chapter action is `created`, `updated`, or `unchanged`; an older conflicting fetch returns `stale`. Out-of-order chapters may be staged, but `nextProbeChapter` advances only across a complete contiguous sequence and never jumps over a missing chapter.
 
 Translation status is one of `draft`, `reviewed`, or `approved`. Source text is always stored with `source` status. The API keeps source identity, localized metadata, chapter identity, and localized chapter bodies in separate tables so adding a new language never duplicates or overwrites the original text.
 
@@ -90,5 +93,7 @@ The migration creates:
 - `novel_import_source_texts`
 - `novel_import_chapters`
 - `novel_import_chapter_texts`
+
+The cover workflow also records the R2 object in `media_assets` and stores its object key and upload status on `novel_import_sources`.
 
 `linked_novel_id` and `linked_chapter_id` are nullable review-time links to the public catalog. Importing alone never creates public content.
