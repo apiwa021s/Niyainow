@@ -9,11 +9,8 @@ import {
   ChapterPreview,
   NovelCommunity,
   NovelHero,
-  NovelMembershipCard,
-  NovelMetaRail,
   NovelSignals,
-  NovelTasteSection,
-  SimilarNovels,
+  NovelSynopsis,
 } from "@/components/novels/novel-detail";
 import { NovelResumeMobileBar } from "@/components/reader/novel-resume-actions";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -40,10 +37,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     });
   }
   const status = novel.status === "completed" ? "จบแล้ว" : novel.status === "hiatus" ? "พักการอัปเดต" : "กำลังอัปเดต";
-  const credit = novel.translator ? `แปลโดย ${novel.translator}` : `ผู้เขียน ${novel.author}`;
   return pageMetadata({
     title: `${novel.thaiTitle} อ่านออนไลน์`,
-    description: `อ่าน ${novel.thaiTitle} ออนไลน์ ${credit} ${novel.chapters.toLocaleString("th-TH")} ตอน สถานะ${status} — ${novel.synopsis}`,
+    description: `อ่าน ${novel.thaiTitle} ออนไลน์ ${novel.chapters.toLocaleString("th-TH")} ตอน สถานะ${status} — ${novel.synopsis}`,
     path: `/novel/${novel.slug}`,
     image: novel.cover,
     type: "article",
@@ -82,7 +78,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
       exit={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "none" }}
       default="none"
     >
-    <PageShell className="pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-24">
+    <PageShell className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-24">
       <PublicViewTracker slug={novel.slug} />
       <JsonLd
         data={[
@@ -149,29 +145,21 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
       />
       <NovelResumeMobileBar
         slug={novel.slug}
-        title={novel.thaiTitle}
         startHref={startHref}
         startLabel={startLabel}
         serverProgress={userState?.progress}
-        followed={userState?.followed}
         libraryStatus={userState?.libraryStatus}
       />
       <NovelSignals novel={novel} />
-      <div className="mt-8 grid gap-6">
-        <NovelTasteSection novel={novel} />
-        <NovelMembershipCard novel={novel} />
-      </div>
-
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 space-y-10">
-          <ChapterPreview slug={novel.slug} chapters={detailSections.latestChapters} />
-          <NovelCommunity novel={novel} userState={userState} reviews={detailSections.reviews} />
-        </div>
-        <NovelMetaRail novel={novel} userState={userState} />
-      </div>
-
-      <div className="mt-12">
-        <SimilarNovels novels={detailSections.similar} />
+      <div className="mx-auto mt-8 grid max-w-4xl gap-8 sm:mt-10 sm:gap-10">
+        <NovelSynopsis novel={novel} />
+        <ChapterPreview
+          slug={novel.slug}
+          firstChapters={detailSections.firstChapters}
+          latestChapters={detailSections.latestChapters}
+          chapterCount={novel.chapters}
+        />
+        <NovelCommunity novel={novel} userState={userState} reviews={detailSections.reviews} />
       </div>
     </PageShell>
     </ViewTransition>

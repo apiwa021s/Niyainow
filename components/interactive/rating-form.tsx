@@ -59,10 +59,12 @@ export function RatingForm({
   slug,
   isAuthenticated,
   initialRating = null,
+  compact = false,
 }: {
   slug: string;
   isAuthenticated: boolean;
   initialRating?: number | null;
+  compact?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -146,9 +148,15 @@ export function RatingForm({
 
   return (
     <div className="max-w-lg py-2">
-      <p className="editorial-kicker">YOUR RATING</p>
-      <h3 className="mt-1 text-xl font-semibold">ให้คะแนนเรื่องนี้</h3>
-      <div className="mt-4">
+      {compact ? (
+        <h3 className="text-sm font-semibold">ให้คะแนนเรื่องนี้</h3>
+      ) : (
+        <>
+          <p className="editorial-kicker">YOUR RATING</p>
+          <h3 className="mt-1 text-xl font-semibold">ให้คะแนนเรื่องนี้</h3>
+        </>
+      )}
+      <div className={compact ? "mt-2" : "mt-4"}>
         <div className="flex gap-1" role="group" aria-label="ให้คะแนน 1 ถึง 5 ดาว">
           {[1, 2, 3, 4, 5].map((score) => (
             <button
@@ -170,9 +178,11 @@ export function RatingForm({
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          หนึ่งบัญชีให้คะแนนได้หนึ่งครั้ง และเปลี่ยนคะแนนภายหลังได้
-        </p>
+        {!compact ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            หนึ่งบัญชีให้คะแนนได้หนึ่งครั้ง และเปลี่ยนคะแนนภายหลังได้
+          </p>
+        ) : null}
       </div>
     </div>
   );

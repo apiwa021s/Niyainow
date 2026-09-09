@@ -2257,29 +2257,26 @@ export const getPublishedReviews = cache(
 export type NovelDetailSections = {
   firstChapters: ChapterSummary[];
   latestChapters: ChapterSummary[];
-  similar: Novel[];
   reviews: Review[];
 };
 
 async function getNovelDetailSectionsFromSources(slug: string): Promise<NovelDetailSections> {
-  const [firstChapters, latestChapterItems, similar, publishedReviews] = await Promise.all([
-    getChapters(slug, 1),
-    getLatestChapters(slug, 5),
-    getSimilarNovels(slug, 4),
+  const [firstChapters, latestChapterItems, publishedReviews] = await Promise.all([
+    getChapters(slug, 4),
+    getLatestChapters(slug, 4),
     getPublishedReviews(slug, 6),
   ]);
 
   return {
     firstChapters,
     latestChapters: latestChapterItems,
-    similar,
     reviews: publishedReviews,
   };
 }
 
 const getNovelDetailSectionsCached = unstable_cache(
   getNovelDetailSectionsFromSources,
-  ["public-novel-detail-sections-v1"],
+  ["public-novel-detail-sections-v2"],
   {
     revalidate: PUBLIC_CACHE_SECONDS,
     tags: ["public-novels", "public-chapters", "public-reviews", "public-taxonomy"],
@@ -2288,12 +2285,12 @@ const getNovelDetailSectionsCached = unstable_cache(
 
 /**
  * Public, slow-changing detail-page sections. Keeping this bundle in the Next
- * data cache avoids four PostgreSQL-backed lookups whenever Redis is disabled,
+ * data cache avoids three PostgreSQL-backed lookups whenever Redis is disabled,
  * while the existing editorial tags still invalidate it after a mutation.
  */
 export const getNovelDetailSections = cache(async (slugInput: string): Promise<NovelDetailSections> => {
   const slug = cleanText(slugInput, 180);
-  if (!slug) return { firstChapters: [], latestChapters: [], similar: [], reviews: [] };
+  if (!slug) return { firstChapters: [], latestChapters: [], reviews: [] };
   return getNovelDetailSectionsCached(slug);
 });
 

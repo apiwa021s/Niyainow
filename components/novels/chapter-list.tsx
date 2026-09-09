@@ -1,10 +1,8 @@
 "use client";
 
 import {
-  ArrowDown,
   ArrowLeft,
   ArrowRight,
-  ArrowUp,
   Check,
   ChevronDown,
   LockKeyhole,
@@ -279,12 +277,9 @@ export function ChapterList({
     return `${action}${queryString ? `?${queryString}` : ""}`;
   };
 
-  const nextOrder: ChapterCatalogOrder = catalog.order === "latest" ? "oldest" : "latest";
-  const nextOrderLabel = nextOrder === "oldest" ? "เรียงตอนแรกก่อน" : "เรียงตอนล่าสุดก่อน";
-
   return (
     <section aria-label="รายชื่อตอน" className="grid gap-4">
-      <div className="flex items-stretch gap-2">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
         <form action={action} method="get" role="search" className="min-w-0 flex-1">
           <div className="relative">
             <label>
@@ -312,14 +307,26 @@ export function ChapterList({
           <button type="submit" className="sr-only">ค้นหา</button>
         </form>
 
-        <Link
-          href={catalogHref({ order: nextOrder, rangeStart: null, rangeEnd: null, page: 1 })}
-          aria-label={nextOrderLabel}
-          title={nextOrderLabel}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] border border-border bg-card text-muted-foreground transition-colors hover:border-[var(--brand-emphasis)] hover:text-[var(--brand-emphasis)]"
-        >
-          {catalog.order === "latest" ? <ArrowDown className="h-5 w-5" aria-hidden /> : <ArrowUp className="h-5 w-5" aria-hidden />}
-        </Link>
+        <nav aria-label="ลำดับสารบัญ" className="grid h-11 grid-cols-2 rounded-[8px] border border-border bg-surface-subtle p-1">
+          {(["oldest", "latest"] as const).map((order) => {
+            const active = catalog.order === order;
+            return (
+              <Link
+                key={order}
+                href={catalogHref({ order, rangeStart: null, rangeEnd: null, page: 1 })}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-w-24 items-center justify-center rounded-[5px] px-3 text-xs font-semibold transition-colors",
+                  active
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-[var(--brand-emphasis)]",
+                )}
+              >
+                {order === "oldest" ? "ตอนแรก" : "ตอนล่าสุด"}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
       <NovelCatalogResume slug={slug} serverProgress={serverProgress} />

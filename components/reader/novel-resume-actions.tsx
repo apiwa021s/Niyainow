@@ -6,9 +6,7 @@ import { useMemo, useSyncExternalStore } from "react";
 
 import {
   BookmarkButton,
-  FollowButton,
   LibraryButton,
-  ShareButton,
   type NovelLibraryStatus,
 } from "@/components/interactive/novel-actions";
 import { ButtonLink } from "@/components/ui/button";
@@ -65,27 +63,22 @@ function chapterLabel(chapterNumber: number) {
 
 type ResumeActionProps = {
   slug: string;
-  title: string;
   startHref: string;
   startLabel: string;
   serverProgress?: NovelResumeServerProgress | null;
-  followed?: boolean;
   libraryStatus?: NovelLibraryStatus | null;
   bookmarkCount?: number;
 };
 
 export function NovelResumeActions({
   slug,
-  title,
   startHref,
   startLabel,
   serverProgress,
-  followed,
   libraryStatus,
   bookmarkCount,
 }: ResumeActionProps) {
   const selection = useNovelResumeProgress(slug, serverProgress);
-  const progressed = selection !== null;
   const href = selection ? progressHref(slug, selection) : startHref;
   const label = selection
     ? `อ่านต่อ ตอนที่ ${chapterLabel(selection.progress.chapterNumber)}`
@@ -99,16 +92,11 @@ export function NovelResumeActions({
           <BookOpen className="h-4 w-4" />
           {label}
         </ButtonLink>
-        {progressed ? (
-          <ButtonLink href={`/novel/${slug}/chapters`} variant="outline">
-            <ListOrdered className="h-4 w-4" />
-            สารบัญ
-          </ButtonLink>
-        ) : (
-          <LibraryButton slug={slug} initialStatus={libraryStatus} count={bookmarkCount} />
-        )}
-        <FollowButton slug={slug} initialActive={followed} />
-        <ShareButton title={title} />
+        <ButtonLink href={`/novel/${slug}/chapters`} variant="outline">
+          <ListOrdered className="h-4 w-4" />
+          สารบัญ
+        </ButtonLink>
+        <LibraryButton slug={slug} initialStatus={libraryStatus} count={bookmarkCount} />
       </div>
 
       {selection ? (
@@ -128,7 +116,6 @@ export function NovelResumeActions({
 
 export function NovelResumeMobileBar({
   slug,
-  title,
   startHref,
   startLabel,
   serverProgress,
@@ -141,8 +128,17 @@ export function NovelResumeMobileBar({
     : startLabel;
 
   return (
-    <div className="novel-resume-mobile-bar fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-border bg-background px-4 py-2.5 lg:hidden">
+    <div className="novel-resume-mobile-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] lg:hidden">
       <div className="mx-auto flex max-w-md items-center gap-2">
+        <Link
+          href={`/novel/${slug}/chapters`}
+          aria-label="เปิดสารบัญ"
+          title="สารบัญ"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-border bg-card hover:bg-muted"
+        >
+          <ListOrdered className="h-4 w-4" />
+        </Link>
+        <BookmarkButton slug={slug} initialStatus={libraryStatus} />
         <Link
           href={href}
           className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-3 text-base font-semibold text-white shadow-[var(--sh-brand)] active:translate-y-px"
@@ -150,20 +146,6 @@ export function NovelResumeMobileBar({
           <BookOpen className="h-5 w-5 shrink-0" />
           <span className="truncate">{label}</span>
         </Link>
-
-        {selection ? (
-          <Link
-            href={`/novel/${slug}/chapters`}
-            aria-label="เปิดสารบัญ"
-            title="สารบัญ"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-border bg-card hover:bg-muted"
-          >
-            <ListOrdered className="h-4 w-4" />
-          </Link>
-        ) : (
-          <BookmarkButton slug={slug} initialStatus={libraryStatus} />
-        )}
-        <ShareButton title={title} compact />
       </div>
     </div>
   );

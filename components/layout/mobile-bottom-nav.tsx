@@ -35,8 +35,11 @@ const nav = [
 /** Five slots (brief §6.1), with the floating resume bar riding above it. */
 export function MobileBottomNav() {
   const pathname = usePathname() ?? "";
+  const isNovelDetail = /^\/novel\/[^/]+\/?$/u.test(pathname);
   const activeIndex = Math.max(0, nav.findIndex((item) => item.match(pathname)));
   const visible = useScrollChromeVisibility();
+
+  if (isNovelDetail) return null;
 
   return (
     <div className={`sticky bottom-0 z-40 mt-auto transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)] motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}`}>

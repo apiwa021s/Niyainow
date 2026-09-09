@@ -1,43 +1,26 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ListOrdered, Star } from "lucide-react";
 import { ViewTransition } from "react";
-import { BookOpen, ChevronDown, ListOrdered, ShieldAlert, Sparkles, Star } from "lucide-react";
 
-import {
-  CompleteButton,
-} from "@/components/interactive/novel-actions";
 import { RatingForm } from "@/components/interactive/rating-form";
-import { SimilarNovelCard } from "@/components/novels/novel-card";
-import { WriterFollowButton } from "@/components/novels/writer-follow-button";
 import { NovelResumeActions } from "@/components/reader/novel-resume-actions";
-import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/section";
-import { displayTagName } from "@/lib/domain/tag";
-import {
-  getNovelTaste,
-  getWriterMembership,
-  relationshipLabel,
-  settingLabel,
-  tropeLabel,
-  warningLabel,
-} from "@/lib/domain/reader-taste";
 import { formatNumber } from "@/lib/utils";
 import type { UserNovelState } from "@/services/user-service";
 import type { ChapterSummary, Novel, Review } from "@/types/novel";
 
-type NovelStatusMeta = {
-  label: string;
-  detail: string;
-};
+function statusLabel(status: Novel["status"]) {
+  if (status === "completed") return "จบแล้ว";
+  if (status === "hiatus") return "พักการอัปเดต";
+  return "กำลังอัปเดต";
+}
 
-function statusMeta(status: Novel["status"]): NovelStatusMeta {
-  if (status === "completed") {
-    return { label: "จบแล้ว", detail: "เผยแพร่ครบทุกตอนที่มีในคลัง" };
-  }
-  if (status === "hiatus") {
-    return { label: "พักการแปล", detail: "ยังไม่มีตอนใหม่ในช่วงนี้" };
-  }
-  return { label: "กำลังแปล", detail: "ติดตามเพื่อไม่พลาดตอนใหม่" };
+function formatChapterNumber(value: number) {
+  return value.toLocaleString("th-TH", {
+    maximumFractionDigits: 3,
+    useGrouping: false,
+  });
 }
 
 export function NovelHero({
@@ -51,118 +34,67 @@ export function NovelHero({
   startLabel: string;
   userState?: UserNovelState;
 }) {
-  const status = statusMeta(novel.status);
-  const taste = getNovelTaste(novel);
-
   return (
-    <header className="relative isolate overflow-hidden rounded-(--r-lg) bg-surface px-3 py-5 sm:px-5 sm:py-7 lg:px-6 lg:py-8">
+    <header className="relative isolate overflow-hidden rounded-(--r-lg) bg-surface px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <Image
           src={novel.cover}
           alt=""
           fill
           sizes="384px"
-          className="scale-125 object-cover object-center opacity-45 blur-3xl saturate-150 dark:opacity-55"
+          className="scale-125 object-cover object-center opacity-40 blur-3xl saturate-150 dark:opacity-50"
         />
-        <div className="absolute inset-0 bg-linear-to-r from-surface/55 via-surface/82 to-surface/95" />
-        <div className="absolute inset-0 bg-linear-to-b from-surface/15 via-transparent to-surface/85" />
+        <div className="absolute inset-0 bg-linear-to-r from-surface/70 via-surface/88 to-surface/95" />
+        <div className="absolute inset-0 bg-linear-to-b from-surface/25 via-transparent to-surface/90" />
       </div>
 
-      <div className="relative grid gap-7 md:grid-cols-[200px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[228px_minmax(0,1fr)_248px] xl:gap-10">
-        <div className="mx-auto w-[156px] sm:w-[176px] md:mx-0 md:w-full">
+      <div className="relative grid gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:items-center md:gap-x-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-x-10">
+        <div className="min-w-0 text-center md:col-start-2 md:row-start-1 md:text-left">
+          <span className="inline-flex min-h-7 items-center border-l-2 border-[var(--brand-emphasis)] pl-2 text-xs font-semibold">
+            {statusLabel(novel.status)}
+          </span>
+          <h1 className="mt-3 text-balance text-h1 font-semibold leading-[1.25] sm:text-4xl lg:text-5xl">
+            {novel.thaiTitle}
+          </h1>
+        </div>
+
+        <div className="mx-auto w-[164px] md:col-start-1 md:row-span-2 md:row-start-1 md:w-full">
           <ViewTransition name={`cover-${novel.slug}`} share="morph" default="none">
-          <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted shadow-[var(--sh-2)]">
-            <Image
-              src={novel.cover}
-              alt={`ปกนิยาย ${novel.thaiTitle}`}
-              fill
-              preload
-              sizes="(max-width: 767px) 176px, 228px"
-              className="object-cover"
-            />
-          </div>
+            <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted shadow-[var(--sh-2)]">
+              <Image
+                src={novel.cover}
+                alt={`ปกนิยาย ${novel.thaiTitle}`}
+                fill
+                preload
+                sizes="(max-width: 767px) 164px, 220px"
+                className="object-cover"
+              />
+            </div>
           </ViewTransition>
         </div>
 
-        <div className="min-w-0 text-center md:text-left">
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 md:justify-start">
-            <span className="inline-flex min-h-7 items-center border-l-2 border-[var(--brand-emphasis)] pl-2 text-xs font-semibold text-foreground">
-              {status.label}
-            </span>
-            {novel.genres.slice(0, 3).map((genre) => (
+        <div className="min-w-0 text-center md:col-start-2 md:row-start-2 md:text-left">
+          <div className="flex flex-wrap justify-center gap-2 md:justify-start">
+            {novel.genres.map((genre) => (
               <Link
                 key={genre}
                 href={`/genre/${genre}`}
-                className="inline-flex min-h-11 items-center text-xs font-medium text-muted-foreground underline-offset-4 hover:text-[var(--brand-emphasis)] hover:underline"
+                className="inline-flex min-h-9 items-center rounded-full border border-border bg-card/80 px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--brand-emphasis)] hover:text-[var(--brand-emphasis)]"
               >
                 {novel.genreNames?.[genre] ?? genre}
               </Link>
             ))}
           </div>
-          <p className="mt-2 text-xs font-medium text-muted-foreground">
-            {relationshipLabel(taste.relationship)} · {settingLabel(taste.setting)}
-          </p>
-
-          <p className="editorial-kicker mt-4">NOVEL / เรื่องอ่าน</p>
-          <h1 className="mt-1 text-balance text-h1 font-semibold leading-[1.25] sm:text-4xl xl:text-5xl">
-            {novel.thaiTitle}
-          </h1>
-          {novel.title !== novel.thaiTitle ? (
-            <p className="mt-2 text-sm text-muted-foreground">{novel.title}</p>
-          ) : null}
-          <p className="mt-3 text-sm text-muted-foreground">
-            ผู้เขียน{" "}
-            {novel.authorSlug ? (
-              <Link href={`/creators/${novel.authorSlug}`} className="font-medium text-foreground underline-offset-4 hover:text-[var(--brand-emphasis)] hover:underline">
-                {novel.author}
-              </Link>
-            ) : (
-              <span className="font-medium text-foreground">{novel.author}</span>
-            )}
-            {novel.translator ? (
-              <> · ผู้แปล <span className="font-medium text-foreground">{novel.translator}</span></>
-            ) : null}
-          </p>
-          <div className="mt-2 flex justify-center md:justify-start">
-            <WriterFollowButton authorName={novel.author} />
-          </div>
-
-          <p className="mt-4 line-clamp-4 text-left text-sm leading-[1.9] text-muted-foreground sm:text-base">
-            {novel.synopsis}
-          </p>
-
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground md:justify-start">
-            <span><strong className="tabular text-base text-foreground">{novel.chapters.toLocaleString("th-TH")}</strong> ตอน</span>
-            <span>{novel.latestChapter ? `ล่าสุด ตอนที่ ${novel.latestChapter.number.toLocaleString("th-TH")}` : "ยังไม่มีตอนเผยแพร่"}</span>
-            <span>{status.detail}</span>
-          </div>
 
           <NovelResumeActions
             slug={novel.slug}
-            title={novel.thaiTitle}
             startHref={startHref}
             startLabel={startLabel}
             serverProgress={userState?.progress}
-            followed={userState?.followed}
             libraryStatus={userState?.libraryStatus}
             bookmarkCount={novel.bookmarkCount}
           />
         </div>
-
-        <aside className="hidden rounded-(--r-md) bg-surface-subtle p-4 xl:block" aria-label="ข้อมูลฉบับและทางลัด">
-          <p className="editorial-kicker">READING INDEX</p>
-          <p className="tabular mt-3 text-4xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">ตอนที่เผยแพร่ในคลัง</p>
-          <dl className="mt-5 grid gap-1 text-sm">
-            <InfoRow label="สถานะ" value={status.label} />
-            <InfoRow label="อัปเดต" value={novel.updatedAt} />
-            <InfoRow label="ตอนล่าสุด" value={novel.latestChapter ? `ตอนที่ ${novel.latestChapter.number}` : "—"} />
-          </dl>
-          <ButtonLink href={`/novel/${novel.slug}/chapters`} variant="outline" className="mt-5 w-full">
-            <ListOrdered className="h-4 w-4" />
-            เปิดสารบัญ
-          </ButtonLink>
-        </aside>
       </div>
     </header>
   );
@@ -170,117 +102,122 @@ export function NovelHero({
 
 export function NovelSignals({ novel }: { novel: Novel }) {
   return (
-    <section aria-label="ข้อมูลการอ่านของเรื่อง" className="grid gap-4 rounded-(--r-md) bg-surface-subtle px-3 py-3 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-7 sm:px-4">
-      <div>
-        <p className="text-xs text-muted-foreground">จำนวนตอน</p>
-        <p className="tabular mt-0.5 text-2xl font-semibold">{novel.chapters.toLocaleString("th-TH")}</p>
-      </div>
-      <dl className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm sm:flex sm:flex-wrap sm:gap-x-7">
-        <Signal label="คะแนนผู้อ่าน" value={(novel.ratingCount ?? 0) > 0 ? `${novel.rating.toFixed(1)} / 5` : "ยังไม่มีคะแนน"} />
-        <Signal label="ยอดอ่าน" value={`${formatNumber(novel.views)} ครั้ง`} />
-        <Signal label="อยู่ในคลัง" value={`${formatNumber(novel.bookmarkCount ?? 0)} คน`} />
-        <Signal label="การเข้าถึง" value={novel.hasPaidChapters ? "มีตอนจำกัดการเข้าถึง" : "อ่านตอนสาธารณะได้"} />
+    <section aria-label="ข้อมูลการอ่านของเรื่อง" className="mt-4 overflow-hidden rounded-(--r-md) bg-surface-subtle">
+      <dl className="grid grid-cols-3 divide-x divide-border px-2 py-4 sm:px-4 sm:py-5">
+        <Signal label="ยอดอ่าน" value={formatNumber(novel.views)} />
+        <Signal label="จำนวนตอน" value={formatNumber(novel.chapters)} />
+        <Signal label="รีวิว" value={formatNumber(novel.reviewCount ?? 0)} />
       </dl>
     </section>
   );
 }
 
-/**
- * Story taste metadata (brief §34–36): the 3–6 tropes that best describe the
- * story and a compact, expandable content-warning line. Grouped in one card
- * so the page doesn't grow a new warning wall.
- */
-export function NovelTasteSection({ novel }: { novel: Novel }) {
-  const taste = getNovelTaste(novel);
+export function NovelSynopsis({ novel }: { novel: Novel }) {
   return (
-    <section aria-labelledby="taste-title" className="grid gap-6 rounded-(--r-md) bg-surface-subtle px-4 py-5 sm:px-5">
-      <div>
-        <h2 id="taste-title" className="text-sm font-semibold">เรื่องนี้เหมาะกับคนที่ชอบ</h2>
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
-          {taste.tropes.map((trope) => (
-            <span key={trope} className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
-              {tropeLabel(trope)}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {taste.warnings.length ? (
-        <details className="group">
-          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-sm font-semibold">
-            <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            คำเตือนเนื้อหา
-            <span className="text-xs font-normal text-muted-foreground">
-              {taste.warnings.map((warning) => warningLabel(warning)).join(" · ")}
-            </span>
-            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
-          </summary>
-          <ul className="mt-2 grid gap-1 pl-6 text-sm text-muted-foreground">
-            {taste.warnings.map((warning) => (
-              <li key={warning}>{warningLabel(warning)}</li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+    <section aria-labelledby="novel-synopsis-title">
+      <h2 id="novel-synopsis-title" className="text-h2 font-semibold">เรื่องย่อ</h2>
+      <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground sm:text-base sm:leading-8">
+        {novel.synopsis}
+      </p>
     </section>
   );
 }
 
-/** Small membership upsell (brief §Module 6) — never larger than the hero, and skipped entirely when the writer has none. */
-export function NovelMembershipCard({ novel }: { novel: Novel }) {
-  const membership = getWriterMembership(novel);
-  if (!membership) return null;
+function chapterRangeLabel(chapters: ChapterSummary[]) {
+  if (!chapters.length) return "";
+  const numbers = chapters.map((chapter) => chapter.number);
+  const start = Math.min(...numbers);
+  const end = Math.max(...numbers);
+  return start === end
+    ? `ตอนที่ ${formatChapterNumber(start)}`
+    : `ตอนที่ ${formatChapterNumber(start)} – ${formatChapterNumber(end)}`;
+}
+
+function ChapterSection({
+  slug,
+  title,
+  chapters,
+}: {
+  slug: string;
+  title: string;
+  chapters: ChapterSummary[];
+}) {
   return (
-    <section aria-labelledby="membership-title" className="flex flex-wrap items-center justify-between gap-4 rounded-(--r-md) border border-[var(--brand-emphasis)]/25 bg-[color-mix(in_srgb,var(--brand-primary)_6%,transparent)] px-4 py-4 sm:px-5">
-      <div className="min-w-0">
-        <p id="membership-title" className="inline-flex items-center gap-1.5 text-sm font-semibold">
-          <Sparkles className="h-4 w-4 text-[var(--brand-emphasis)]" aria-hidden />
-          {membership.name}
-        </p>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          สนับสนุน {novel.author} และอ่านตอนใหม่ก่อนใคร — สมาชิกอ่านก่อน {membership.earlyAccessChapters} ตอน
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <span className="text-sm font-semibold">{membership.priceLabel}</span>
-        <ButtonLink href={`/novel/${novel.slug}/membership`} variant="outline" size="sm">
-          ดู Membership
-        </ButtonLink>
-      </div>
+    <section className="overflow-hidden rounded-(--r-md) border border-border bg-card" aria-label={title}>
+      <h3 className="bg-surface-subtle px-4 py-3 text-sm font-semibold sm:px-5">{title}</h3>
+      <ol className="divide-y divide-border">
+        {chapters.map((chapter) => (
+          <li key={chapter.id ?? chapter.number}>
+            <Link
+              href={`/novel/${slug}/chapter/${chapter.number}`}
+              className="group grid min-h-14 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-subtle sm:px-5"
+            >
+              <span className="tabular text-xs font-semibold text-muted-foreground">
+                {formatChapterNumber(chapter.number)}
+              </span>
+              <span className="line-clamp-1 text-sm font-medium transition-colors group-hover:text-[var(--brand-emphasis)]">
+                {chapter.title}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
 
-export function ChapterPreview({ slug, chapters }: { slug: string; chapters: ChapterSummary[] }) {
+export function ChapterPreview({
+  slug,
+  firstChapters,
+  latestChapters,
+  chapterCount,
+}: {
+  slug: string;
+  firstChapters: ChapterSummary[];
+  latestChapters: ChapterSummary[];
+  chapterCount: number;
+}) {
+  const first = [...firstChapters].sort((left, right) => left.number - right.number);
+  const firstKeys = new Set(first.map((chapter) => chapter.id ?? chapter.number));
+  const latest = [...latestChapters]
+    .filter((chapter) => !firstKeys.has(chapter.id ?? chapter.number))
+    .sort((left, right) => right.number - left.number);
+  const hasChapters = first.length > 0 || latest.length > 0;
+  const isSingleSection = latest.length === 0;
+
   return (
-    <section aria-labelledby="latest-chapters-title">
-      <div className="mb-3 flex min-h-8 items-center justify-between gap-3">
+    <section aria-labelledby="chapter-preview-title">
+      <div className="mb-3 flex min-h-11 flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <ListOrdered className="h-4 w-4 shrink-0 text-[var(--brand-light-on-light)]" aria-hidden />
-          <h2 id="latest-chapters-title" className="truncate text-h2 font-semibold">ตอนล่าสุด</h2>
+          <ListOrdered className="h-5 w-5 shrink-0 text-[var(--brand-light-on-light)]" aria-hidden />
+          <h2 id="chapter-preview-title" className="text-h2 font-semibold">สารบัญ</h2>
+          <span className="text-sm text-muted-foreground">{formatNumber(chapterCount)} ตอน</span>
         </div>
-        <Link href={`/novel/${slug}/chapters`} className="-my-3 inline-flex min-h-11 shrink-0 items-center py-3 text-sm font-semibold text-(--text-secondary) hover:text-[var(--brand-emphasis)]">
-          ดูสารบัญทั้งหมด
+        <Link
+          href={`/novel/${slug}/chapters`}
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-(--text-secondary) hover:text-[var(--brand-emphasis)]"
+        >
+          ดูทั้งหมด
         </Link>
       </div>
-      {chapters.length ? (
-        <ol className="grid gap-1">
-          {chapters.map((chapter) => (
-            <li key={chapter.id ?? chapter.number}>
-              <Link
-                href={`/novel/${slug}/chapter/${chapter.number}`}
-                className="group block rounded-[6px] px-3 py-3 transition-colors hover:bg-surface-subtle"
-                aria-label={`ตอนที่ ${chapter.number} ${chapter.title}`}
-              >
-                <span className="line-clamp-1 font-medium transition-colors group-hover:text-[var(--brand-emphasis)]">
-                  {chapter.title}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
+
+      {hasChapters ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          <ChapterSection
+            slug={slug}
+            title={isSingleSection ? "ตอนทั้งหมด" : `ช่วงตอนแรก · ${chapterRangeLabel(first)}`}
+            chapters={first}
+          />
+          {latest.length ? (
+            <ChapterSection
+              slug={slug}
+              title={`ช่วงตอนล่าสุด · ${chapterRangeLabel(latest)}`}
+              chapters={latest}
+            />
+          ) : null}
+        </div>
       ) : (
-        <EmptyState title="ยังไม่มีตอนที่เผยแพร่" description="ติดตามเรื่องนี้ไว้ แล้วกลับมาเมื่อผู้ดูแลเผยแพร่ตอนแรก" />
+        <EmptyState title="ยังไม่มีตอนที่เผยแพร่" description="กลับมาดูใหม่เมื่อมีตอนแรก" />
       )}
     </section>
   );
@@ -295,96 +232,46 @@ export function NovelCommunity({
   userState?: UserNovelState;
   reviews: Review[];
 }) {
+  const ratingCount = novel.ratingCount ?? 0;
+  const hasRating = ratingCount > 0;
+
   return (
-    <>
-      <section aria-labelledby="rating-title">
-        <h2 id="rating-title" className="sr-only">ให้คะแนนเรื่องนี้</h2>
+    <section aria-labelledby="reader-reviews-title">
+      <h2 id="reader-reviews-title" className="text-h2 font-semibold">รีวิวจากนักอ่าน</h2>
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
+        <strong className="tabular text-5xl font-semibold leading-none">
+          {hasRating ? novel.rating.toFixed(1) : "—"}
+        </strong>
+        <div>
+          <div className="flex gap-0.5" aria-label={hasRating ? `คะแนน ${novel.rating.toFixed(1)} จาก 5` : "ยังไม่มีคะแนน"}>
+            {[1, 2, 3, 4, 5].map((score) => (
+              <Star
+                key={score}
+                aria-hidden
+                className={`h-5 w-5 ${hasRating && score <= Math.round(novel.rating) ? "fill-amber-400 text-amber-400" : "text-border"}`}
+              />
+            ))}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{formatNumber(ratingCount)} คะแนน · {formatNumber(novel.reviewCount ?? reviews.length)} รีวิว</p>
+        </div>
+      </div>
+
+      <div className="mt-4">
         <RatingForm
           slug={novel.slug}
           isAuthenticated={Boolean(userState)}
           initialRating={userState?.rating}
+          compact
         />
-      </section>
+      </div>
 
       {reviews.length ? (
-        <section aria-labelledby="reader-reviews-title">
-          <div className="mb-3">
-            <h2 id="reader-reviews-title" className="text-h2 font-semibold">รีวิวจากนักอ่าน</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{formatNumber(novel.reviewCount ?? reviews.length)} รีวิวจากข้อมูลที่เผยแพร่จริง</p>
-          </div>
-          <div className="grid gap-3">
-            {reviews.map((review) => (
-              <ReaderReview key={review.id} review={review} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </>
-  );
-}
-
-export function NovelMetaRail({ novel, userState }: { novel: Novel; userState?: UserNovelState }) {
-  const status = statusMeta(novel.status);
-  const taste = getNovelTaste(novel);
-  return (
-    <aside className="space-y-6 lg:pl-7" aria-label="ข้อมูลเพิ่มเติมของนิยาย">
-      {novel.tags.length ? (
-        <section>
-          <p className="editorial-kicker">STORY THREADS</p>
-          <h2 className="mt-1 text-sm font-semibold">แท็กของเรื่อง</h2>
-          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
-            {novel.tags.map((tag) => (
-              <Link
-                key={tag}
-                href={`/tag/${tag}`}
-                className="inline-flex min-h-11 items-center text-xs font-medium text-muted-foreground underline-offset-4 hover:text-[var(--brand-emphasis)] hover:underline"
-              >
-                #{displayTagName(novel.tagNames?.[tag] ?? tag)}
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section>
-        <p className="editorial-kicker">EDITION NOTE</p>
-        <h2 className="mt-1 text-sm font-semibold">ข้อมูลฉบับ</h2>
-        <dl className="mt-3 grid gap-1">
-          <InfoRow label="ผู้เขียน" value={novel.author} />
-          {novel.translator ? <InfoRow label="ผู้แปล" value={novel.translator} /> : null}
-          <InfoRow label="สถานะ" value={status.label} />
-          <InfoRow label="อัปเดตล่าสุด" value={novel.updatedAt} />
-          <InfoRow label="แนว" value={novel.genreNames?.[novel.genres[0]] ?? novel.genres[0] ?? "—"} />
-          <InfoRow label="คู่หลัก" value={relationshipLabel(taste.relationship)} />
-          <InfoRow label="โลก" value={settingLabel(taste.setting)} />
-        </dl>
-        <div className="mt-5 grid gap-2">
-          <ButtonLink href={`/novel/${novel.slug}/chapters`} variant="outline" className="w-full">
-            <BookOpen className="h-4 w-4" />
-            สารบัญทั้งหมด
-          </ButtonLink>
-          <CompleteButton
-            slug={novel.slug}
-            initialStatus={userState?.libraryStatus}
-            initialHasProgress={Boolean(userState?.progress)}
-          />
+        <div className="mt-4 divide-y divide-border border-t border-border">
+          {reviews.map((review) => (
+            <ReaderReview key={review.id} review={review} />
+          ))}
         </div>
-      </section>
-    </aside>
-  );
-}
-
-export function SimilarNovels({ novels }: { novels: Novel[] }) {
-  if (!novels.length) return null;
-  return (
-    <section>
-      <div className="mb-3">
-        <h2 className="text-h2 font-semibold">เรื่องใกล้เคียง</h2>
-        <p className="mt-1 text-sm text-muted-foreground">เชื่อมโยงจากแนวหรือแท็กที่อยู่ใกล้กันในคลัง</p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        {novels.map((novel) => <SimilarNovelCard key={novel.slug} novel={novel} />)}
-      </div>
+      ) : null}
     </section>
   );
 }
@@ -425,18 +312,9 @@ function ReaderReview({ review }: { review: Review }) {
 
 function Signal({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 font-medium">{value}</dd>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 py-2.5 text-sm">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right font-medium">{value}</dd>
+    <div className="min-w-0 px-2 text-center sm:px-4">
+      <dt className="text-xs text-muted-foreground sm:text-sm">{label}</dt>
+      <dd className="tabular mt-1 truncate text-xl font-semibold sm:text-2xl">{value}</dd>
     </div>
   );
 }
