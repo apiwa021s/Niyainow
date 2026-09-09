@@ -98,6 +98,9 @@ function SourceAutocomplete({ sources, value, existingSourceIds, onChange }: {
 export function TranslationStudioView({ data }: { data: Data }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileRegenerate, setProfileRegenerate] = useState(false);
   const [profileStage, setProfileStage] = useState<ProfileStage | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState("");
@@ -122,6 +125,9 @@ export function TranslationStudioView({ data }: { data: Data }) {
   async function runProfileCreation(regenerate = false) {
     if (busy) return;
     setError("");
+    setProfileError("");
+    setProfileRegenerate(regenerate);
+    setProfileDialogOpen(true);
     setElapsedSeconds(0);
     setProfileStage({ stage: "CONNECTING", label: "กำลังเตรียมข้อมูลและเชื่อมต่อ AI", modelName: "Automatic routing" });
     setBusy(true);
@@ -156,9 +162,20 @@ export function TranslationStudioView({ data }: { data: Data }) {
         if (done) break;
       }
       if (!workspaceId) throw new Error("AI ทำงานเสร็จแต่ไม่ได้คืน Workspace");
+      setProfileStage({ stage: "COMPLETE", label: "สร้าง AI Profile สำเร็จ กำลังเปิด Workspace", modelName: "Automatic routing" });
       router.push(`/admin/translation/${workspaceId}`);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "สร้าง Workspace ไม่สำเร็จ"); }
-    finally { setBusy(false); setProfileStage(null); setElapsedSeconds(0); }
+    } catch (cause) {
+      setProfileError(cause instanceof Error ? cause.message : "สร้าง Workspace ไม่สำเร็จ");
+      setBusy(false);
+    }
+  }
+
+  function closeProfileDialog() {
+    if (busy) return;
+    setProfileDialogOpen(false);
+    setProfileError("");
+    setProfileStage(null);
+    setElapsedSeconds(0);
   }
 
   function createWorkspace(event: FormEvent<HTMLFormElement>) {
@@ -180,22 +197,35 @@ export function TranslationStudioView({ data }: { data: Data }) {
   }
 
   return <div className="grid gap-5">
-    {busy ? (
+    {profileDialogOpen ? (
       <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ai-profile-progress-title">
         <div className="w-full max-w-2xl rounded-[22px] border border-[var(--brand-primary)]/30 bg-card p-5 shadow-2xl sm:p-7">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--brand-emphasis)]">AI Profile Pipeline</p>
-              <h2 id="ai-profile-progress-title" className="mt-1 text-xl font-bold">กำลังวิเคราะห์ “{selectedSource?.title ?? "ต้นฉบับ"}”</h2>
-              <p className="mt-1 text-sm text-muted-foreground">กรุณาเปิดหน้านี้ไว้จนสร้าง Profile เสร็จ ระบบจะแสดงขั้นตอนจากเซิร์ฟเวอร์แบบสด</p>
+              <h2 id="ai-profile-progress-title" className="mt-1 text-xl font-bold">{profileError ? "สร้าง Profile ไม่สำเร็จ" : `กำลังวิเคราะห์ “${selectedSource?.title ?? "ต้นฉบับ"}”`}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{profileError ? "ระบบหยุดงานไว้โดยไม่บันทึก Profile จำลอง คุณสามารถดูสาเหตุและลองใหม่ได้จากหน้าต่างนี้" : "กรุณาเปิดหน้านี้ไว้จนสร้าง Profile เสร็จ ระบบจะแสดงขั้นตอนจากเซิร์ฟเวอร์แบบสด"}</p>
             </div>
-            <span className="flex shrink-0 items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--brand-emphasis)]"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{elapsedSeconds}s</span>
+            <span className="flex shrink-0 items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--brand-emphasis)]">{busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}{elapsedSeconds}s</span>
           </div>
-          <AiTranslationVisual active stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} />
-          <div className="mt-4 flex items-center gap-2 rounded-[12px] bg-muted/55 px-3 py-2 text-xs text-muted-foreground">
-            <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>
-            Request กำลังทำงานจริง · ระบบจะไม่สร้าง Profile จำลองเมื่อ AI ล้มเหลว
-          </div>
+          <AiTranslationVisual active={busy} failed={Boolean(profileError)} stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} />
+          {profileError ? (
+            <>
+              <div role="alert" className="mt-4 rounded-[12px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <p className="font-semibold">AI หยุดที่ขั้นตอน: {profileStage?.label ?? "กำลังเชื่อมต่อระบบ"}</p>
+                <p className="mt-1 break-words text-xs leading-relaxed">{profileError}</p>
+              </div>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeProfileDialog}>ปิดหน้าต่าง</Button>
+                <Button type="button" onClick={() => void runProfileCreation(profileRegenerate)}>ลองสร้าง Profile ใหม่</Button>
+              </div>
+            </>
+          ) : (
+            <div className="mt-4 flex items-center gap-2 rounded-[12px] bg-muted/55 px-3 py-2 text-xs text-muted-foreground">
+              <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>
+              Request กำลังทำงานจริง · ระบบจะไม่สร้าง Profile จำลองเมื่อ AI ล้มเหลว
+            </div>
+          )}
         </div>
       </div>
     ) : null}

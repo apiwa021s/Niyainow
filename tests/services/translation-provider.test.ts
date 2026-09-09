@@ -22,6 +22,7 @@ const model = {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.AI_TRANSLATION_API_KEY;
+  delete process.env.AI_TRANSLATION_REQUEST_TIMEOUT_MS;
 });
 
 describe("translation provider", () => {
@@ -65,5 +66,20 @@ describe("translation provider", () => {
       schemaName: "test_result",
       jsonSchema: { type: "object", additionalProperties: false, properties: {}, required: [] },
     })).rejects.toThrow("invalid structured JSON");
+  });
+
+  it("reports the task and model when a provider request times out", async () => {
+    process.env.AI_TRANSLATION_API_KEY = "test-key";
+    process.env.AI_TRANSLATION_REQUEST_TIMEOUT_MS = "90000";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("The operation was aborted due to timeout", "TimeoutError")));
+
+    await expect(getTranslationProvider("openai-compatible").generateStructured({
+      model,
+      systemPrompt: "Return JSON.",
+      task: "PROFILE_ANALYSIS",
+      payload: {},
+      schemaName: "test_result",
+      jsonSchema: { type: "object", additionalProperties: false, properties: {}, required: [] },
+    })).rejects.toThrow("PROFILE_ANALYSIS (gpt-5.6-terra) ใช้เวลาเกิน 90 วินาที");
   });
 });

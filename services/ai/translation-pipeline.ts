@@ -197,7 +197,6 @@ export async function generateAiTranslationProfile(input: {
       }),
     }),
     parser: analysisSchema,
-    timeoutMs: 65_000,
   });
   const legacyGenreContext = selectTranslationGenreContext({
     genre: analysis.value.genre,
@@ -233,7 +232,6 @@ export async function generateAiTranslationProfile(input: {
       translatedSynopsis: { type: ["string", "null"] },
     }),
     parser: foundationSchema,
-    timeoutMs: 65_000,
   });
 
   await input.onStage?.({ stage: "PROFILE_QUALITY_REVIEW", label: "บรรณาธิการ AI กำลังแก้สำนวนทื่อและตรวจความเป็นธรรมชาติ", modelName: input.models.PROFILE_QUALITY_REVIEW.modelName });
@@ -253,7 +251,6 @@ export async function generateAiTranslationProfile(input: {
       reviewNotes: stringArray,
     }),
     parser: profileQualitySchema,
-    timeoutMs: 65_000,
   });
 
   await input.onStage?.({ stage: "ENTITY_EXTRACTION", label: "AI กำลังสกัดชื่อ ตัวละคร และศัพท์เริ่มต้น", modelName: input.models.ENTITY_EXTRACTION.modelName });
@@ -268,7 +265,6 @@ export async function generateAiTranslationProfile(input: {
       characters: { type: "array", items: jsonObject({ sourceName: { type: "string" }, targetName: { type: "string" }, aliases: stringArray, description: { type: ["string", "null"] }, speakingStyle: { type: ["string", "null"] } }) },
     }),
     parser: entitiesSchema,
-    timeoutMs: 65_000,
   });
 
   const { translatedTitle, translatedSynopsis, reviewNotes, ...profile } = qualityReview.value;

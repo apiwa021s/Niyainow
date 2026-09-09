@@ -13,11 +13,13 @@ const PROFILE_STEPS = [
 
 export function AiTranslationVisual({
   active = false,
+  failed = false,
   stage,
   stageLabel,
   modelName,
 }: {
   active?: boolean;
+  failed?: boolean;
   stage?: string | null;
   stageLabel?: string | null;
   modelName?: string | null;
@@ -38,9 +40,9 @@ export function AiTranslationVisual({
       </div>
       <div className={styles.copy}>
         <span className={styles.eyebrow}><Languages className="h-3.5 w-3.5" /> AI Translation Engine</span>
-        <strong>{active ? stageLabel || "กำลังเริ่ม AI pipeline…" : "พร้อมเริ่มงานแปลอัตโนมัติ"}</strong>
-        <span>{active ? `${modelName || "กำลังเลือกโมเดล"} · เรียก AI จริงและตรวจ schema ก่อนบันทึก` : "Profile, model routing และคิวตอนทำงานให้เอง"}</span>
-        {active ? (
+        <strong>{failed ? "AI Profile Pipeline หยุดทำงาน" : active ? stageLabel || "กำลังเริ่ม AI pipeline…" : "พร้อมเริ่มงานแปลอัตโนมัติ"}</strong>
+        <span>{failed ? `${modelName || "Automatic routing"} · ไม่มีการบันทึก Profile จำลอง` : active ? `${modelName || "กำลังเลือกโมเดล"} · เรียก AI จริงและตรวจ schema ก่อนบันทึก` : "Profile, model routing และคิวตอนทำงานให้เอง"}</span>
+        {active || failed ? (
           <ol className={styles.stageSteps} aria-label="ขั้นตอนสร้าง AI Profile">
             {PROFILE_STEPS.map((step, index) => (
               <li key={step.key} data-state={index < activeIndex ? "done" : index === activeIndex ? "active" : "pending"}>

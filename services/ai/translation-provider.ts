@@ -51,26 +51,54 @@ type CompatibleResponse = {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 };
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 180_000;
+const MIN_REQUEST_TIMEOUT_MS = 30_000;
+const MAX_REQUEST_TIMEOUT_MS = 240_000;
+
+function requestTimeoutMs(explicitTimeoutMs?: number) {
+  const configuredTimeoutMs = Number(process.env.AI_TRANSLATION_REQUEST_TIMEOUT_MS);
+  const candidate = explicitTimeoutMs ?? (Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0
+    ? configuredTimeoutMs
+    : DEFAULT_REQUEST_TIMEOUT_MS);
+  return Math.min(MAX_REQUEST_TIMEOUT_MS, Math.max(MIN_REQUEST_TIMEOUT_MS, Math.round(candidate)));
+}
+
+function isTimeoutError(error: unknown) {
+  return error instanceof Error && (
+    error.name === "TimeoutError"
+    || /aborted due to timeout|timed?\s*out/i.test(error.message)
+  );
+}
+
 async function requestStructured(input: StructuredAiInput): Promise<StructuredAiResult> {
   const secret = process.env[input.model.apiKeyEnv];
   if (!secret) throw new Error(`Missing configured AI credential: ${input.model.apiKeyEnv}`);
   const startedAt = Date.now();
-  const response = await fetch(`${input.model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: input.model.modelName,
-      messages: [
-        { role: "developer", content: input.systemPrompt },
-        { role: "user", content: JSON.stringify({ task: input.task, ...input.payload }) },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: input.schemaName, strict: true, schema: input.jsonSchema },
-      },
-    }),
-    signal: AbortSignal.timeout(input.timeoutMs ?? 180_000),
-  });
+  const timeoutMs = requestTimeoutMs(input.timeoutMs);
+  let response: Response;
+  try {
+    response = await fetch(`${input.model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: input.model.modelName,
+        messages: [
+          { role: "developer", content: input.systemPrompt },
+          { role: "user", content: JSON.stringify({ task: input.task, ...input.payload }) },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: input.schemaName, strict: true, schema: input.jsonSchema },
+        },
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    if (isTimeoutError(error)) {
+      throw new Error(`AI ขั้นตอน ${input.task} (${input.model.modelName}) ใช้เวลาเกิน ${Math.round(timeoutMs / 1_000)} วินาที กรุณาลองใหม่`, { cause: error });
+    }
+    throw error;
+  }
   if (!response.ok) {
     const requestId = response.headers.get("x-request-id");
     throw new Error(`Provider request failed with HTTP ${response.status}${requestId ? ` (${requestId})` : ""}`);
