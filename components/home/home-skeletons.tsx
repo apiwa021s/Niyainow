@@ -59,7 +59,7 @@ function CoverRowSkeleton() {
 
 export function HomeFeedSkeleton() {
   return (
-    <div aria-hidden className="flex flex-col gap-4 lg:gap-5">
+    <div aria-hidden className="flex flex-col gap-3">
       <section className="rounded-(--r-lg) border border-border bg-surface p-2.5">
         <div className="mb-2 flex items-center justify-between">
           <Skeleton className="h-4 w-44" />

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { ContentRow, RowItem } from "@/components/home/content-row";
 import type { Genre } from "@/types/novel";
 
 const GENRE_STYLE: Record<string, { icon: LucideIcon; gradient: string }> = {
@@ -55,37 +56,28 @@ function styleFor(slug: string) {
 export function CategoryIconRail({ items, title }: { items: { genre: Genre; covers: string[] }[]; title?: string }) {
   if (!items.length) return null;
   return (
-    <section aria-labelledby="home-genres-title" className="grid gap-2">
-      <div className="flex min-h-8 items-center justify-between gap-3">
-        <h2 id="home-genres-title" className="text-h2 font-semibold">{title ?? "เลือกตามแนวนิยาย"}</h2>
-        <Link href="/genres" className="-my-3 inline-flex min-h-11 items-center py-3 text-sm font-semibold text-(--text-secondary) hover:text-accent-base">
-          ดูทุกแนว
-        </Link>
-      </div>
-      <nav aria-label={title ?? "เลือกตามแนวนิยาย"}>
-        <div className="rail-scroll -mx-1 flex gap-3 px-1">
-          {items.map(({ genre }) => {
-            const { icon: Icon, gradient } = styleFor(genre.slug);
-            return (
-              <Link
-                key={genre.slug}
-                href={`/genre/${genre.slug}`}
-                className="group flex w-20 shrink-0 flex-col items-center gap-1.5 sm:w-24"
+    <ContentRow title={title ?? "เลือกตามแนวนิยาย"} href="/genres" action="ดูทุกแนว" className="render-deferred">
+      {items.map(({ genre }) => {
+        const { icon: Icon, gradient } = styleFor(genre.slug);
+        return (
+          <RowItem key={genre.slug} className="w-20 shrink-0 sm:w-24">
+            <Link
+              href={`/genre/${genre.slug}`}
+              className="group flex w-full flex-col items-center gap-1.5"
+            >
+              <span
+                aria-hidden
+                className={`grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br text-white shadow-sm transition-transform group-hover:scale-105 sm:h-16 sm:w-16 ${gradient}`}
               >
-                <span
-                  aria-hidden
-                  className={`grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br text-white shadow-sm transition-transform group-hover:scale-105 sm:h-16 sm:w-16 ${gradient}`}
-                >
-                  <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
-                </span>
-                <span className="line-clamp-1 text-center text-xs font-medium text-(--text-secondary) group-hover:text-(--text-primary)">
-                  {genre.thaiName || genre.name}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
-    </section>
+                <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
+              </span>
+              <span className="line-clamp-1 text-center text-xs font-medium text-(--text-secondary) group-hover:text-(--text-primary)">
+                {genre.thaiName || genre.name}
+              </span>
+            </Link>
+          </RowItem>
+        );
+      })}
+    </ContentRow>
   );
 }

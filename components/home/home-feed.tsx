@@ -7,7 +7,6 @@ import { BannerCarousel, type BannerSlide } from "@/components/home/banner-carou
 import { CategoryIconRail } from "@/components/home/category-icon-rail";
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { RankingTabs } from "@/components/home/ranking-tabs";
-import { GenreDiscovery } from "@/components/home/genre-discovery";
 import { TrendingTicker } from "@/components/home/trending-ticker";
 import { UpdateFeed } from "@/components/home/update-feed";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
@@ -82,17 +81,15 @@ function HomeNovelCarousel({
   title,
   novels,
   href,
-  description,
 }: {
   title: string;
   novels: Novel[];
   href: string;
-  description?: string;
 }) {
   if (!novels.length) return null;
 
   return (
-    <ContentRow title={title} description={description} href={href} bleed={false} className="render-deferred">
+    <ContentRow title={title} href={href} className="render-deferred">
       {novels.map((novel) => (
         <RowItem key={novel.slug} className={HOME_CAROUSEL_ITEM_CLASS}>
           <HomeGridCard novel={novel} />
@@ -186,22 +183,18 @@ function multiGenreShelf(pool: Novel[], genreSlugs: readonly string[], limit = 1
 const GENRE_SHELVES = [
   {
     title: "ผจญภัยในโลกเหนือจินตนาการ",
-    description: "แฟนตาซี ผจญภัย ระบบ ศิลปะการต่อสู้ และวันสิ้นโลก",
     genres: ["fantasy", "adventure", "system", "martial-arts", "apocalypse"],
   },
   {
     title: "ไขปริศนาและลุ้นระทึก",
-    description: "สืบสวน ลึกลับ ระทึกขวัญ และสยองขวัญ",
     genres: ["mystery", "thriller", "horror"],
   },
   {
     title: "เรื่องของหัวใจและชีวิต",
-    description: "โรแมนซ์ ร่วมสมัย ดราม่า คอมเมดี้ และชีวิตประจำวัน",
     genres: ["romance", "contemporary", "drama", "comedy", "slice-of-life"],
   },
   {
     title: "พลัง ความเร็ว และโลกอนาคต",
-    description: "แอ็กชัน ประวัติศาสตร์ กีฬา และไซไฟ",
     genres: ["action", "historical", "sports", "sci-fi"],
   },
 ] as const;
@@ -224,30 +217,26 @@ export function HomeFeed({
     : [...pool].sort((a, b) => b.chapters - a.chapters);
 
   return (
-    <div className="flex flex-col gap-4 lg:gap-5">
+    <div className="flex flex-col gap-3">
       <TrendingTicker novels={data.rankings.slice(0, 16)} />
-      <GenreDiscovery />
       <CategoryIconRail items={data.genreShowcase} title="สำรวจนิยายทุกแนว" />
 
       {children}
 
       <HomeNovelCarousel
         title="เรื่องน่าอ่านหลากแนว"
-        description="คัดจากคะแนนและความนิยม ครบหลายอารมณ์และหลายสไตล์"
         novels={diverseRecommended}
         href="/novels?sort=rating"
       />
 
       <HomeNovelCarousel
         title="ยอดนิยมจากทั้งคลัง"
-        description="เรื่องที่นักอ่านกำลังเปิดอ่านและติดตามมากที่สุดในช่วงนี้"
         novels={data.rankings}
         href="/rankings"
       />
 
       <HomeNovelCarousel
         title="เรื่องใหม่ที่น่าจับตา"
-        description="นิยายเปิดตัวและเรื่องที่เพิ่งเริ่มอัปเดตจากหลายหมวด"
         novels={diverseNewReleases}
         href="/novels?sort=new"
       />
@@ -258,7 +247,6 @@ export function HomeFeed({
         <HomeNovelCarousel
           key={shelf.title}
           title={shelf.title}
-          description={shelf.description}
           novels={multiGenreShelf(pool, shelf.genres)}
           href={`/novels?genre=${shelf.genres.join(",")}`}
         />
@@ -266,7 +254,6 @@ export function HomeFeed({
 
       <HomeNovelCarousel
         title="อ่านรวดเดียวจบ"
-        description={data.completed.length ? "เรื่องที่เผยแพร่ครบแล้ว เก็บไว้อ่านยาวได้ทีเดียว" : "เรื่องตอนยาวจาก Studio สำหรับอ่านต่อเนื่อง"}
         novels={bingeReading}
         href="/novels?status=completed"
       />
@@ -275,7 +262,6 @@ export function HomeFeed({
         <div>
           <UpdateFeed
             title="อัปเดตล่าสุด"
-            description="ตอนใหม่จากทุกหมวด เรียงตามเวลาอัปเดตล่าสุด"
             href="/updates"
             items={data.updates}
           />
@@ -300,7 +286,7 @@ export function HomePersonalizedSections({
   return (
     <>
       {continueItems.length ? (
-        <ContentRow title="อ่านต่อ" description="กลับสู่ตอนล่าสุดที่บันทึกไว้ในบัญชี" href="/library">
+        <ContentRow title="อ่านต่อ" href="/library">
           {continueItems.map((item) => (
             <RowItem key={item.novel.slug}>
               <AccountContinueReadingCard item={item} />
@@ -311,7 +297,6 @@ export function HomePersonalizedSections({
 
       <UpdateFeed
         title="ตอนใหม่จากเรื่องที่ติดตาม"
-        description="อัปเดตจากรายการติดตามของคุณ"
         href="/library/following"
         items={followedUpdates.slice(0, 6)}
         emptyText={

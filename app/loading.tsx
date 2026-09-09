@@ -7,7 +7,7 @@ export default function Loading() {
     <PageShell className="max-w-(--home-max) 2xl:px-6">
       <InkLogoLoader />
       <p role="status" className="sr-only">กำลังเตรียมหน้าแรก</p>
-      <div className="flex flex-col gap-4 lg:gap-5">
+      <div className="flex flex-col gap-3">
         <HomeHeroSkeleton />
         <HomeFeedSkeleton />
       </div>

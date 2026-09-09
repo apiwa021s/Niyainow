@@ -101,7 +101,7 @@ export default function HomePage() {
     >
     <main id="main" className="mx-auto w-full max-w-(--home-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6 2xl:px-6">
       <h1 className="sr-only">อ่านนิยายออนไลน์และนิยายแปลไทย อัปเดตตอนใหม่ทุกวัน</h1>
-      <div className="flex flex-col gap-4 lg:gap-5">
+      <div className="flex flex-col gap-3">
         <Suspense fallback={<HomeHeroSkeleton />}>
           <PublicHomeHero />
         </Suspense>

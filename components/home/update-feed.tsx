@@ -8,13 +8,11 @@ import type { NovelUpdate } from "@/services/novel-service";
 export function UpdateFeed({
   items,
   title,
-  description,
   href,
   emptyText,
 }: {
   items: NovelUpdate[];
   title: string;
-  description?: string;
   href?: string;
   emptyText?: string;
 }) {
@@ -23,8 +21,6 @@ export function UpdateFeed({
   return (
     <section aria-label={title}>
       <SectionHeader title={title} href={href} />
-      {description ? <p className="-mt-1.5 mb-1.5 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}
-
       {visibleItems.length === 0 ? (
         <p className="rounded-(--r-lg) border border-dashed border-border p-6 text-center text-sm text-(--text-secondary)">
           {emptyText ?? "ยังไม่มีอัปเดต"}
