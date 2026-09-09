@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createUniqueSlug, slugify, slugSchema, withSlugSuffix } from "./slug";
+import { createUniqueSlug, selectReadableSlugSource, slugify, slugSchema, withSlugSuffix } from "./slug";
 
 describe("slug utilities", () => {
   it("normalizes Latin titles into safe stable slugs", () => {
@@ -12,6 +12,11 @@ describe("slug utilities", () => {
     expect(first).toBe(slugify("ราชันเงา", "novel"));
     expect(first).toMatch(/^novel-[a-z0-9]+$/);
     expect(slugSchema.safeParse(first).success).toBe(true);
+  });
+
+  it("uses the original title when a localized title cannot create a readable ASCII slug", () => {
+    expect(selectReadableSlugSource("กลุ่มแชตบำเพ็ญเซียน", "Cultivation Chat Group")).toBe("Cultivation Chat Group");
+    expect(selectReadableSlugSource("Solo Leveling ฉบับไทย", "Solo Leveling")).toBe("Solo Leveling ฉบับไทย");
   });
 
   it("resolves conflicts without exceeding the maximum length", async () => {

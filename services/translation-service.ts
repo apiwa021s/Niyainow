@@ -43,6 +43,7 @@ import { countWords, segmentText, selectBestTranslationModel } from "@/lib/domai
 import { ApiError } from "@/lib/http/api-response";
 import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
 import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
+import { createUniqueSlug, selectReadableSlugSource } from "@/lib/validation/slug";
 import { aiCallCostMicros, generateAiTranslationProfile, reviewNovelTitleWithAi, type AiStageEvent } from "@/services/ai/translation-pipeline";
 import { getTranslationMasterOverview, loadApprovedTranslationMasterBundle } from "@/services/translation-master-service";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
@@ -197,12 +198,6 @@ function isSafeProviderUrl(value: string) {
 
 function auditValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function createImportedNovelSlug(provider: string, externalWorkId: string, targetLanguage: string, sourceId: string) {
-  const identity = `${provider}-${externalWorkId}-${targetLanguage}`.toLowerCase().normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 145);
-  return `import-${identity || "novel"}-${sourceId.slice(0, 8)}`;
 }
 
 async function writeAudit(tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], actor: CurrentUser, action: string, entityType: string, entityId: string, before: unknown, after: unknown) {
@@ -1079,8 +1074,16 @@ async function stageApprovedTranslationDraft(tx: TranslationTx, row: Translation
       if (row.workspace.sourceLanguage.length > 16 || row.workspace.targetLanguage.length > 16) {
         throw new ApiError(409, "PUBLIC_LANGUAGE_UNSUPPORTED", "รหัสภาษายาวเกินกว่าที่นิยายสาธารณะรองรับ");
       }
+      const publicSlug = await createUniqueSlug(
+        selectReadableSlugSource(localizedTitle, sourceText.title),
+        async (candidate) => {
+          const [existing] = await tx.select({ id: novels.id }).from(novels).where(eq(novels.slug, candidate)).limit(1);
+          return Boolean(existing);
+        },
+        "novel",
+      );
       const [createdNovel] = await tx.insert(novels).values({
-        slug: createImportedNovelSlug(source.provider, source.externalWorkId, row.workspace.targetLanguage, source.id),
+        slug: publicSlug,
         title: localizedTitle,
         titleOriginal: sourceText.title,
         synopsis: localizedSynopsis,

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { connection } from "next/server";
 import { ViewTransition } from "react";
 
@@ -21,6 +21,7 @@ import { absoluteUrl } from "@/lib/site-config";
 import {
   getNovelBySlug,
   getNovelDetailSections,
+  resolveCanonicalPublicNovelSlug,
 } from "@/services/novel-service";
 import { getUserNovelState } from "@/services/user-service";
 
@@ -50,6 +51,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function NovelDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await connection();
+  const canonicalSlug = await resolveCanonicalPublicNovelSlug(slug);
+  if (canonicalSlug && canonicalSlug !== slug) permanentRedirect(`/novel/${canonicalSlug}`);
 
   const novelPromise = getNovelBySlug(slug);
   const detailSectionsPromise = getNovelDetailSections(slug);

@@ -30,6 +30,7 @@ import {
   novelAlternativeTitles,
   novelGenres,
   novelDailyStats,
+  novelImportSources,
   novelRankings,
   novelSearchDocuments,
   novelStatistics,
@@ -39,6 +40,7 @@ import {
   ratings,
   reviews,
   tags,
+  translationWorkspaces,
   users,
   writerProfiles,
 } from "@/db/schema";
@@ -763,6 +765,43 @@ const getNovelBySlugCached = unstable_cache(getNovelBySlugFromRedis, ["public-no
 export const getNovelBySlug = cache(async (slugInput: string) => {
   const slug = cleanText(slugInput, 180);
   return slug ? getNovelBySlugCached(slug) : undefined;
+});
+
+const legacyImportedNovelSlugPattern = /^import-.+-([0-9a-f]{8})$/u;
+
+function legacyImportedNovelSlug(input: {
+  provider: string;
+  externalWorkId: string;
+  targetLanguage: string;
+  sourceId: string;
+}) {
+  const identity = `${input.provider}-${input.externalWorkId}-${input.targetLanguage}`.toLowerCase().normalize("NFKD")
+    .replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 145);
+  return `import-${identity || "novel"}-${input.sourceId.slice(0, 8)}`;
+}
+
+/** Keeps previously shared system-generated URLs working after a readable slug migration. */
+export const resolveCanonicalPublicNovelSlug = cache(async (slugInput: string) => {
+  const slug = cleanText(slugInput, 180);
+  const sourceIdPrefix = slug?.match(legacyImportedNovelSlugPattern)?.[1];
+  if (!slug || !sourceIdPrefix) return slug;
+
+  const candidates = await getDb().select({
+    slug: novels.slug,
+    provider: novelImportSources.provider,
+    externalWorkId: novelImportSources.externalWorkId,
+    targetLanguage: translationWorkspaces.targetLanguage,
+    sourceId: novelImportSources.id,
+  }).from(novelImportSources)
+    .innerJoin(translationWorkspaces, eq(translationWorkspaces.importSourceId, novelImportSources.id))
+    .innerJoin(novels, eq(novels.id, translationWorkspaces.novelId))
+    .where(and(
+      sql`left(${novelImportSources.id}::text, 8) = ${sourceIdPrefix}`,
+      publicNovelCondition(new Date()),
+    ))
+    .limit(10);
+
+  return candidates.find((candidate) => legacyImportedNovelSlug(candidate) === slug)?.slug ?? slug;
 });
 
 export type WriterProfile = {

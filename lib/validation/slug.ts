@@ -40,6 +40,12 @@ export function slugify(value: string, fallbackPrefix = "item") {
   return trimSlug(normalized || fallback, MAX_SLUG_LENGTH);
 }
 
+/** Prefer the localized title when it can produce a readable ASCII slug. */
+export function selectReadableSlugSource(localizedTitle: string, originalTitle?: string | null) {
+  if (/[a-z0-9]/iu.test(localizedTitle)) return localizedTitle;
+  return originalTitle?.trim() || localizedTitle;
+}
+
 function slugifyPrefix(value: string) {
   const prefix = value
     .normalize("NFKD")
