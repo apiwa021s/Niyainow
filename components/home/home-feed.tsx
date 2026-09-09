@@ -39,7 +39,7 @@ function HomeGridCard({ novel }: { novel: Novel }) {
     .filter(Boolean);
 
   return (
-    <article className="group min-w-0">
+    <article className="group w-full min-w-0 max-w-full overflow-hidden">
       <Link href={`/novel/${novel.slug}`} transitionTypes={["nav-forward"]} className="block">
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[6px] bg-surface-recessed shadow-[0_3px_12px_rgba(0,0,0,0.12)] ring-1 ring-border transition-[box-shadow] duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:shadow-[0_6px_18px_rgba(0,0,0,0.18)] group-hover:ring-2 group-hover:ring-accent-base group-focus-within:ring-2 group-focus-within:ring-accent-base">
           <Image
@@ -59,9 +59,12 @@ function HomeGridCard({ novel }: { novel: Novel }) {
           ) : null}
         </div>
       </Link>
-      <div className="mt-1.5 min-w-0">
-        <Link href={`/novel/${novel.slug}`} className="block">
-          <h3 className="truncate text-sm font-semibold leading-[1.35] text-[var(--brand-light-on-light)] group-hover:text-[var(--brand-emphasis)]">
+      <div className="mt-1.5 w-full min-w-0 max-w-full overflow-hidden">
+        <Link href={`/novel/${novel.slug}`} className="block w-full min-w-0 max-w-full overflow-hidden">
+          <h3
+            className="block w-full max-w-full overflow-hidden whitespace-nowrap text-ellipsis text-sm font-semibold leading-[1.35] text-[var(--brand-light-on-light)] group-hover:text-[var(--brand-emphasis)]"
+            style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          >
             {novel.thaiTitle}
           </h3>
         </Link>
