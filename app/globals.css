@@ -746,9 +746,11 @@ body:has([data-continue-reading-bar]) .novel-resume-mobile-bar {
   line-break: normal;
 
   /* Ragged right, always. Justification has no inter-word spaces to stretch
-     in Thai, so the engine stretches the glyph run instead. */
+     in Thai, so the engine stretches the glyph run instead. Use the browser's
+     stable wrapping pass for long prose: `pretty` may rebalance earlier lines
+     and makes paragraph flow vary between rendering engines. */
   text-align: start;
-  text-wrap: pretty;
+  text-wrap: wrap;
   hyphens: none;
 }
 
@@ -763,7 +765,7 @@ body:has([data-continue-reading-bar]) .novel-resume-mobile-bar {
 .read-body > p {
   margin: 0 0 var(--read-para-gap);
   text-indent: var(--read-indent);
-  white-space: pre-line;
+  white-space: normal;
 
   /* Chapters run to hundreds of paragraphs. Skipping layout and paint for the
      ones off screen is what keeps scrolling smooth on a mid-range phone; the

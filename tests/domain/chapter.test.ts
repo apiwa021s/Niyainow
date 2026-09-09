@@ -13,6 +13,15 @@ describe("chapter domain", () => {
     expect(splitChapterParagraphs("ย่อหน้าแรก\r\n\r\n  ย่อหน้าที่สอง  ")).toEqual(["ย่อหน้าแรก", "ย่อหน้าที่สอง"]);
   });
 
+  it("removes imported hard-wraps without destroying real paragraph breaks", () => {
+    expect(splitChapterParagraphs("ประโยคที่ถูก\nตัดกลางคำ\n\nย่อหน้าใหม่")).toEqual([
+      "ประโยคที่ถูกตัดกลางคำ",
+      "ย่อหน้าใหม่",
+    ]);
+    expect(splitChapterParagraphs("ย่อหน้าแรก\n  \nย่อหน้าที่สอง")).toEqual(["ย่อหน้าแรก", "ย่อหน้าที่สอง"]);
+    expect(splitChapterParagraphs("A wrapped\nEnglish sentence")).toEqual(["A wrapped English sentence"]);
+  });
+
   it("only exposes published, non-deleted chapters after publication time", () => {
     const now = new Date("2026-08-14T00:00:00.000Z");
     expect(isPublicChapter({ status: "PUBLISHED", publishedAt: new Date("2026-08-13T00:00:00.000Z") }, now)).toBe(true);

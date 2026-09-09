@@ -113,7 +113,7 @@ describe("Thai line-breaking rules", () => {
     expect(body).toMatch(/letter-spacing:\s*0;/);
     expect(body).toMatch(/word-break:\s*normal/);
     expect(body).toMatch(/text-align:\s*start/);
-    expect(body).toMatch(/text-wrap:\s*pretty/);
+    expect(body).toMatch(/text-wrap:\s*wrap/);
   });
 });
 

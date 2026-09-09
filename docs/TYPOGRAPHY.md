@@ -53,7 +53,7 @@ and it only does that when nothing has overridden the break rules.
 word-break: normal;
 overflow-wrap: normal;
 text-align: start;    /* ragged right */
-text-wrap: pretty;    /* no orphaned last line */
+text-wrap: wrap;      /* stable prose wrapping across rendering engines */
 
 /* wrong — breaks mid-word or mid-syllable */
 word-break: break-all;
@@ -67,6 +67,8 @@ text-align: justify;  /* no spaces to stretch, so the glyph run stretches instea
   common way to wreck Thai text. Scope the hard break to the elements that
   actually need it — URLs and code — as `.read-body a, [data-read-url]` does.
 - Long headings: `text-wrap: balance`.
+- A single newline inside a stored paragraph is normalized as an imported
+  hard-wrap. A blank line remains the explicit paragraph boundary.
 - If dictionary breaking is ever not good enough, inject `&#8203;` (ZWSP) at
   render time, in one layer. **Never store ZWSP in the database** — it breaks
   search and copy-paste.
