@@ -42,11 +42,12 @@ import {
 import { countWords, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
 import { ApiError } from "@/lib/http/api-response";
 import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
+import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
 import { aiCallCostMicros, generateAiTranslationProfile, reviewNovelTitleWithAi, type AiStageEvent } from "@/services/ai/translation-pipeline";
 import { getTranslationMasterOverview, loadApprovedTranslationMasterBundle } from "@/services/translation-master-service";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
-const languageSchema = z.string().trim().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/).max(35);
+const languageSchema = z.string().trim().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/).max(35).transform((value) => value.toLocaleLowerCase());
 const uuidSchema = z.uuid();
 const translatedImportSourceTexts = alias(novelImportSourceTexts, "translated_import_source_texts");
 const storedAiPipelineSchema = z.array(z.object({
@@ -425,6 +426,13 @@ export async function createTranslationWorkspace(
       await syncTranslationWorkspaceSources(existingWorkspace.id);
       return existingWorkspace;
     }
+    if (input.regenerate) {
+      const [activeJob] = await db.select({ id: translationJobs.id }).from(translationJobs).where(and(
+        eq(translationJobs.workspaceId, existingWorkspace.id),
+        inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
+      )).limit(1);
+      if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "รอให้งานแปลปัจจุบันเสร็จก่อนสร้าง Profile ใหม่");
+    }
   }
 
   const sampleRows = await db.select({
@@ -588,6 +596,8 @@ export async function getTranslationStudio() {
     db.select({
       id: novelImportSources.id,
       sourceLanguage: novelImportSources.sourceLanguage,
+      provider: novelImportSources.provider,
+      coverKey: novelImportSources.coverKey,
       title: novelImportSourceTexts.title,
       synopsis: novelImportSourceTexts.synopsis,
       chapterCount: sql<number>`(select count(*) from novel_import_chapters nic where nic.source_id = ${novelImportSources.id})`.mapWith(Number),
@@ -603,7 +613,11 @@ export async function getTranslationStudio() {
     workspaces: workspaceRows.map(({ workspace, sourceTitle, translatedTitle, chapterCount, approvedCount, jobCostMicros }) => ({
       ...serializeWorkspace(workspace), title: translatedTitle ?? sourceTitle ?? "Imported novel", sourceTitle: sourceTitle ?? "Imported novel", chapterCount, approvedCount, jobCostMicros, updatedAt: workspace.updatedAt.toISOString(),
     })),
-    sources: sourceRows.map((row) => ({ ...row, title: row.title ?? "Imported novel" })),
+    sources: sourceRows.map((row) => ({
+      ...row,
+      title: row.title ?? "Imported novel",
+      coverUrl: assetUrl(row.coverKey, publicAssetFallbacks.novelCover),
+    })),
     models: modelRows.map((row) => ({ ...row, inputCostMicrosPerMillion: Number(row.inputCostMicrosPerMillion), outputCostMicrosPerMillion: Number(row.outputCostMicrosPerMillion), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     prompts: promptRows.map((row) => ({ id: row.id, name: row.name, version: row.version })),
     masterData,
