@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const steps = [
   { number: 1, label: "เลือกต้นฉบับ", description: "เลือกเรื่องและภาษาปลายทาง", icon: FileSearch },
-  { number: 2, label: "ตรวจ Default Profile", description: "ตรวจผลวิเคราะห์ชื่อและเรื่องย่อ", icon: SlidersHorizontal },
+  { number: 2, label: "AI สร้าง Profile พร้อมใช้", description: "เลือก Master และตรวจคุณภาพอัตโนมัติ", icon: SlidersHorizontal },
   { number: 3, label: "เลือกตอนและเริ่มแปล", description: "เลือกได้สูงสุด 100 ตอนต่อคิว", icon: ListChecks },
 ] as const;
 

@@ -132,7 +132,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
       </div>
     </Panel>
 
-    <Panel title="เตรียมงานแปลเรื่องใหม่" description="ทำทีละขั้นเพื่อให้ Profile และตอนที่ส่งแปลถูกต้องก่อนเริ่มใช้ AI">
+    <Panel title="เตรียมงานแปลเรื่องใหม่" description="เลือกต้นฉบับครั้งเดียว ระบบจะวิเคราะห์ เลือก Master สร้างและตรวจ Profile จนพร้อมเลือกตอนแปล">
       <div className="grid gap-6">
         <TranslationSetupSteps activeStep={1} completedThrough={0} />
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-stretch">
@@ -153,14 +153,14 @@ export function TranslationStudioView({ data }: { data: Data }) {
                 {selectedSource ? (
                   <div className="grid gap-2 rounded-[12px] border border-border bg-card p-4 md:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{selectedSource.title}</strong><span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{selectedSource.chapterCount.toLocaleString("th-TH")} ตอน</span></div>
-                    <p className="line-clamp-4 text-sm leading-relaxed text-muted-foreground">{selectedSource.synopsis?.trim() || "ต้นฉบับนี้ยังไม่มีเรื่องย่อ ระบบจะสร้าง Profile แบบทั่วไปให้ตรวจแก้ก่อน"}</p>
+                    <p className="line-clamp-4 text-sm leading-relaxed text-muted-foreground">{selectedSource.synopsis?.trim() || "ต้นฉบับนี้ไม่มีเรื่องย่อ ระบบจะวิเคราะห์จากตัวอย่างตอนเพื่อสร้าง Profile พร้อมใช้"}</p>
                     <p className="text-xs font-medium text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden />ข้อมูลที่จะนำไปวิเคราะห์: ชื่อเรื่อง + เรื่องย่อ + ตัวอย่างสูงสุด 3 ตอนแรก</p>
                   </div>
                 ) : null}
-                <Button type="submit" loading={busy} disabled={!selectedSourceId} className="md:col-span-2 md:justify-self-start"><Sparkles className="h-4 w-4" />วิเคราะห์และสร้าง Default Profile<ArrowRight className="h-4 w-4" /></Button>
+                <Button type="submit" loading={busy} disabled={!selectedSourceId || !data.masterData.runtimeReady} title={!data.masterData.runtimeReady ? "อนุมัติ Translation Master ก่อนสร้าง Profile พร้อมใช้" : undefined} className="md:col-span-2 md:justify-self-start"><Sparkles className="h-4 w-4" />สร้าง Profile พร้อมใช้<ArrowRight className="h-4 w-4" /></Button>
               </form>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">หลังสร้าง Profile ระบบจะพาไปขั้นตรวจแก้ก่อน จากนั้นคุณจึงเลือกตอนและเริ่มแปล ระบบเลือก model และ prompt ให้อัตโนมัติจาก <code>AI_TRANSLATION_API_KEY</code></p>
+            <p className="text-xs leading-relaxed text-muted-foreground">เมื่อเสร็จระบบจะพาไปเลือกตอนแปลทันที และยังย้อนกลับมาแก้ชื่อ Profile คลังคำ หรือตัวละครได้ภายหลัง ระบบเลือก model และ prompt ให้อัตโนมัติจาก <code>AI_TRANSLATION_API_KEY</code></p>
           </div>
           <AiTranslationVisual active={busy} stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} />
         </div>

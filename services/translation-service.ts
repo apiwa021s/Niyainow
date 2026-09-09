@@ -76,9 +76,23 @@ const storedProfileAnalysisSchema = z.object({
   narrativeVoice: z.string(),
   terminologyRisks: z.array(z.string()),
   translationStrategy: z.string(),
+  masterRouting: z.object({
+    baseProfileId: z.string().nullable(),
+    overlayProfileIds: z.array(z.string()),
+    recipeId: z.string().nullable(),
+    confidence: z.number().int().min(0).max(100),
+    reason: z.string(),
+    sourceSignals: z.array(z.string()),
+  }).optional(),
   genreContext: z.object({ key: z.string(), label: z.string(), guidance: z.string() }),
   masterSelection: z.object({
     mode: z.enum(["MASTER", "LEGACY_FALLBACK"]),
+    routing: z.object({
+      method: z.enum(["AI_VALIDATED", "DETERMINISTIC", "LEGACY_FALLBACK"]),
+      confidence: z.number().int().min(0).max(100).nullable(),
+      reason: z.string().nullable(),
+      sourceSignals: z.array(z.string()),
+    }).optional(),
     baseProfile: z.object({ id: z.string(), version: z.string(), name: z.string() }).nullable(),
     overlays: z.array(z.object({ id: z.string(), version: z.string(), name: z.string() })),
     recipe: z.object({ id: z.string(), version: z.string(), name: z.string() }).nullable(),
@@ -430,6 +444,9 @@ export async function createTranslationWorkspace(
     getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "PROFILE_QUALITY_REVIEW", "ENTITY_EXTRACTION"] as const),
     loadApprovedTranslationMasterBundle(),
   ]);
+  if (!masterBundle.genres.some((profile) => profile.profile_kind === "BASE_GENRE")) {
+    throw new ApiError(409, "TRANSLATION_MASTER_NOT_READY", "กรุณาตรวจและอนุมัติ Translation Master ก่อนสร้าง Profile พร้อมใช้");
+  }
   const generated = await generateAiTranslationProfile({
     title: sourceText.title,
     synopsis: sourceText.synopsis,
@@ -486,7 +503,11 @@ export async function createTranslationWorkspace(
         if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "รอให้งานแปลปัจจุบันเสร็จก่อนสร้าง Profile ใหม่");
       }
       const nextVersion = current.version + 1;
-      const [updated] = await tx.update(translationWorkspaces).set({ version: nextVersion, updatedAt: new Date() })
+      const [updated] = await tx.update(translationWorkspaces).set({
+        status: current.status === "SETUP" ? "READY" : current.status,
+        version: nextVersion,
+        updatedAt: new Date(),
+      })
         .where(eq(translationWorkspaces.id, current.id)).returning();
       await tx.insert(translationProfiles).values({ workspaceId: current.id, ...generated.profile, version: nextVersion, updatedBy: actor.id })
         .onConflictDoUpdate({ target: translationProfiles.workspaceId, set: { ...generated.profile, version: nextVersion, updatedBy: actor.id, updatedAt: new Date() } });
@@ -518,6 +539,7 @@ export async function createTranslationWorkspace(
       novelId: null,
       sourceLanguage: source.sourceLanguage,
       targetLanguage: input.targetLanguage,
+      status: "READY",
       createdBy: actor.id,
       assignedEditorId: actor.id,
     }).onConflictDoNothing({ target: [translationWorkspaces.importSourceId, translationWorkspaces.targetLanguage] }).returning();
@@ -877,8 +899,8 @@ export async function enqueueTranslation(workspaceId: string, input: z.infer<typ
     if (existing) return existing;
     const [profile] = await tx.select({ version: translationProfiles.version }).from(translationProfiles)
       .where(eq(translationProfiles.workspaceId, workspaceId)).limit(1);
-    if (!profile || workspace.status === "SETUP" || profile.version <= 1) {
-      throw new ApiError(409, "TRANSLATION_PROFILE_REVIEW_REQUIRED", "กรุณาตรวจและบันทึก Default Profile ก่อนเลือกตอนเริ่มแปล");
+    if (!profile || workspace.status === "SETUP") {
+      throw new ApiError(409, "TRANSLATION_PROFILE_REVIEW_REQUIRED", "ยังไม่มี Translation Profile ที่พร้อมใช้ กรุณาสร้าง Profile ใหม่ก่อนเลือกตอนแปล");
     }
     const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
       eq(translationJobs.workspaceId, workspaceId),

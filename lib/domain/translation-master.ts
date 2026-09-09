@@ -94,11 +94,26 @@ export type TranslationMasterBundle = {
 
 export type TranslationMasterSelection = {
   mode: "MASTER" | "LEGACY_FALLBACK";
+  routing: {
+    method: "AI_VALIDATED" | "DETERMINISTIC" | "LEGACY_FALLBACK";
+    confidence: number | null;
+    reason: string | null;
+    sourceSignals: string[];
+  };
   baseProfile: { id: string; version: string; name: string } | null;
   overlays: Array<{ id: string; version: string; name: string }>;
   recipe: { id: string; version: string; name: string } | null;
   sceneCandidates: Array<{ id: string; version: string; name: string }>;
   globalRuleVersions: string[];
+};
+
+export type TranslationMasterRoutingProposal = {
+  baseProfileId: string | null;
+  overlayProfileIds: string[];
+  recipeId: string | null;
+  confidence: number;
+  reason: string;
+  sourceSignals: string[];
 };
 
 type CsvFileDefinition = {
@@ -311,7 +326,7 @@ export function selectTranslationMasterContext(bundle: TranslationMasterBundle, 
   tone: string;
   narrativeVoice: string;
   terminologyRisks: string[];
-}) {
+}, proposal?: TranslationMasterRoutingProposal | null) {
   const haystack = [analysis.genre, ...analysis.subgenres, analysis.tone, analysis.narrativeVoice, ...analysis.terminologyRisks]
     .join(" ").toLowerCase().replace(/[_/]+/g, " ");
   const baseProfiles = bundle.genres.filter((profile) => profile.profile_kind === "BASE_GENRE");
@@ -321,21 +336,35 @@ export function selectTranslationMasterContext(bundle: TranslationMasterBundle, 
     .sort((left, right) => right.score - left.score
       || Number(BASE_FAMILY_DEFAULTS[right.profile.genre_family] === right.profile.profile_id) - Number(BASE_FAMILY_DEFAULTS[left.profile.genre_family] === left.profile.profile_id)
       || left.profile.profile_id.localeCompare(right.profile.profile_id))[0];
-  const selectedBase = base?.score ? base.profile : baseProfiles.find((profile) => profile.profile_id === "G000") ?? null;
+  const proposedBase = proposal && proposal.confidence >= 60
+    ? baseProfiles.find((profile) => profile.profile_id === proposal.baseProfileId)
+    : null;
+  const selectedBase = proposedBase ?? (base?.score ? base.profile : baseProfiles.find((profile) => profile.profile_id === "G000") ?? null);
   if (!selectedBase) return null;
 
-  const overlays = bundle.genres
+  const matchedOverlays = bundle.genres
     .filter((profile) => profile.profile_kind !== "BASE_GENRE")
     .map((profile) => ({ profile, score: matchScore(profile, haystack, false) }))
     .filter(({ profile, score }) => score > 0 && (!profile.compatible_base_ids_json.length || profile.compatible_base_ids_json.includes(selectedBase.profile_id)))
     .sort((left, right) => right.score - left.score || left.profile.profile_id.localeCompare(right.profile.profile_id))
     .slice(0, 4)
     .map(({ profile }) => profile);
+  const proposedOverlays = proposal && proposedBase
+    ? [...new Set(proposal.overlayProfileIds)].map((id) => bundle.genres.find((profile) => profile.profile_id === id))
+      .filter((profile): profile is GenreProfileMaster => Boolean(profile && profile.profile_kind !== "BASE_GENRE"))
+      .filter((profile) => !profile.compatible_base_ids_json.length || profile.compatible_base_ids_json.includes(selectedBase.profile_id))
+      .slice(0, 4)
+    : [];
+  const overlays = proposedBase ? proposedOverlays : matchedOverlays;
 
   const overlayIds = new Set(overlays.map((profile) => profile.profile_id));
-  const recipe = bundle.recipes
+  const compatibleRecipes = bundle.recipes
     .filter((candidate) => candidate.base_profile_id === selectedBase.profile_id
-      && candidate.overlay_profile_ids_json.every((id) => overlayIds.has(id)))
+      && candidate.overlay_profile_ids_json.every((id) => overlayIds.has(id)));
+  const proposedRecipe = proposal && proposedBase
+    ? compatibleRecipes.find((candidate) => candidate.recipe_id === proposal.recipeId) ?? null
+    : null;
+  const recipe = proposedRecipe ?? compatibleRecipes
     .map((candidate) => ({
       candidate,
       score: candidate.overlay_profile_ids_json.filter((id) => overlayIds.has(id)).length * 10
@@ -372,6 +401,17 @@ export function selectTranslationMasterContext(bundle: TranslationMasterBundle, 
   };
   const selection: TranslationMasterSelection = {
     mode: "MASTER",
+    routing: proposedBase ? {
+      method: "AI_VALIDATED",
+      confidence: proposal?.confidence ?? null,
+      reason: proposal?.reason ?? null,
+      sourceSignals: proposal?.sourceSignals.slice(0, 8) ?? [],
+    } : {
+      method: "DETERMINISTIC",
+      confidence: null,
+      reason: "AI routing was unavailable, low-confidence, or invalid; used validated deterministic matching.",
+      sourceSignals: [],
+    },
     baseProfile: compactProfile(selectedBase),
     overlays: overlays.map(compactProfile),
     recipe: recipe ? { id: recipe.recipe_id, version: recipe.version, name: recipe.name_th } : null,
@@ -379,6 +419,28 @@ export function selectTranslationMasterContext(bundle: TranslationMasterBundle, 
     globalRuleVersions: rules.map((rule) => `${rule.rule_id}@${rule.version}`),
   };
   return { key: selectedBase.profile_id, label: selectedBase.name_th, guidance: JSON.stringify(guidance), selection };
+}
+
+export function buildTranslationMasterRoutingCatalog(bundle: TranslationMasterBundle) {
+  return {
+    profiles: bundle.genres.map((profile) => ({
+      id: profile.profile_id,
+      kind: profile.profile_kind,
+      family: profile.genre_family,
+      nameTh: profile.name_th,
+      nameEn: profile.name_en,
+      activateOnlyWhen: profile.activation_conditions_th,
+      compatibleBaseIds: profile.compatible_base_ids_json,
+    })),
+    recipes: bundle.recipes.map((recipe) => ({
+      id: recipe.recipe_id,
+      name: recipe.name_th,
+      baseProfileId: recipe.base_profile_id,
+      overlayProfileIds: recipe.overlay_profile_ids_json,
+      activateOnlyWhen: recipe.activation_guard_th,
+      selectionReason: recipe.selection_reason_th,
+    })),
+  };
 }
 
 function profilePromptFields(profile: GenreProfileMaster) {

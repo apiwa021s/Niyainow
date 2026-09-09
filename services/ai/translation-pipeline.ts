@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { translationAiModels, translationPromptVersions } from "@/db/schema";
 import type { AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
 import { selectTranslationGenreContext } from "@/lib/domain/translation-genre-context";
-import { selectTranslationMasterContext, type TranslationMasterBundle, type TranslationMasterSelection } from "@/lib/domain/translation-master";
+import { buildTranslationMasterRoutingCatalog, selectTranslationMasterContext, type TranslationMasterBundle, type TranslationMasterSelection } from "@/lib/domain/translation-master";
 import { getTranslationProvider, type StructuredAiResult } from "@/services/ai/translation-provider";
 
 type AiModel = typeof translationAiModels.$inferSelect;
@@ -30,6 +30,14 @@ const analysisSchema = z.object({
   narrativeVoice: z.string().min(1).max(2_000),
   terminologyRisks: z.array(z.string().min(1).max(500)).max(30),
   translationStrategy: z.string().min(1).max(5_000),
+  masterRouting: z.object({
+    baseProfileId: z.string().min(1).max(40).nullable(),
+    overlayProfileIds: z.array(z.string().min(1).max(40)).max(4),
+    recipeId: z.string().min(1).max(40).nullable(),
+    confidence: z.number().int().min(0).max(100),
+    reason: z.string().min(1).max(2_000),
+    sourceSignals: z.array(z.string().min(1).max(500)).max(8),
+  }),
 });
 
 const foundationSchema = z.object({
@@ -104,7 +112,10 @@ const translationSchema = z.object({ title: z.string().min(1).max(1_000), conten
 const PROFILE_SYSTEM_PROMPT = `You design production translation profiles for serialized fiction.
 Analyze the supplied title, synopsis, and bounded opening-chapter samples. Never invent plot facts. Produce actionable guidance in the target language.
 Translate the novel title and complete synopsis faithfully into the requested target language. Preserve names according to the profile strategy and do not summarize, omit, or add story details.
-Names, terms, and character suggestions must be grounded in the supplied source material. Treat genre context as editorial guidance, never as story facts. Return only the requested structured output.`;
+Names, terms, and character suggestions must be grounded in the supplied source material. Treat genre context as editorial guidance, never as story facts. Do not imitate a named author, translator, or copyrighted work; apply only general editorial mechanisms. Return only the requested structured output.`;
+
+const PROFILE_ANALYSIS_SYSTEM_PROMPT = `${PROFILE_SYSTEM_PROMPT}
+When a translationMasterCatalog is supplied, propose exactly one BASE_GENRE profile and only overlays explicitly supported by the title, synopsis, or chapter samples. Use activation conditions, not popularity, cover assumptions, or stereotypes. Select IDs only from the catalog. Select a recipe only when its base and every required overlay match your proposal. Use the neutral G000 base when evidence is insufficient. Quote only short source signals and provide a calibrated confidence from 0 to 100. The server will validate all proposed IDs and compatibility before use.`;
 
 const PROFILE_QUALITY_REVIEW_PROMPT = `You are the final senior localization editor for a production serialized-fiction profile.
 Audit the draft title, synopsis, style guide, and instructions against the source metadata, chapter samples, analysis, and selected genre context.
@@ -158,6 +169,7 @@ export async function generateAiTranslationProfile(input: {
   onStage?: (event: AiStageEvent) => void | Promise<void>;
 }) {
   const source = { title: input.title, synopsis: input.synopsis?.trim() || null, sourceLanguage: input.sourceLanguage, targetLanguage: input.targetLanguage };
+  const masterCatalog = buildTranslationMasterRoutingCatalog(input.masterBundle);
   const samples = input.samples.slice(0, 3).map((sample) => ({
     chapterNumber: sample.chapterNumber,
     title: sample.title?.trim() || null,
@@ -165,16 +177,24 @@ export async function generateAiTranslationProfile(input: {
       ? sample.content
       : `${sample.content.slice(0, 7_500)}\n\n[…bounded sample…]\n\n${sample.content.slice(-2_500)}`,
   }));
-  await input.onStage?.({ stage: "PROFILE_ANALYSIS", label: "AI กำลังวิเคราะห์แนวเรื่อง น้ำเสียง และความเสี่ยง", modelName: input.models.PROFILE_ANALYSIS.modelName });
+  await input.onStage?.({ stage: "PROFILE_ANALYSIS", label: "AI กำลังวิเคราะห์เรื่องและเลือก Translation Master", modelName: input.models.PROFILE_ANALYSIS.modelName });
   const analysis = await structured({
     model: input.models.PROFILE_ANALYSIS,
     task: "PROFILE_ANALYSIS",
-    systemPrompt: PROFILE_SYSTEM_PROMPT,
-    payload: { source, openingChapterSamples: samples },
+    systemPrompt: PROFILE_ANALYSIS_SYSTEM_PROMPT,
+    payload: { source, openingChapterSamples: samples, translationMasterCatalog: masterCatalog },
     schemaName: "novel_profile_analysis",
     jsonSchema: jsonObject({
       genre: { type: "string" }, subgenres: stringArray, tone: { type: "string" }, narrativeVoice: { type: "string" },
       terminologyRisks: stringArray, translationStrategy: { type: "string" },
+      masterRouting: jsonObject({
+        baseProfileId: { type: ["string", "null"] },
+        overlayProfileIds: stringArray,
+        recipeId: { type: ["string", "null"] },
+        confidence: { type: "integer", minimum: 0, maximum: 100 },
+        reason: { type: "string" },
+        sourceSignals: stringArray,
+      }),
     }),
     parser: analysisSchema,
     timeoutMs: 65_000,
@@ -185,9 +205,10 @@ export async function generateAiTranslationProfile(input: {
     tone: analysis.value.tone,
     targetLanguage: input.targetLanguage,
   });
-  const masterGenreContext = selectTranslationMasterContext(input.masterBundle, analysis.value);
+  const masterGenreContext = selectTranslationMasterContext(input.masterBundle, analysis.value, analysis.value.masterRouting);
   const masterSelection: TranslationMasterSelection = masterGenreContext?.selection ?? {
     mode: "LEGACY_FALLBACK",
+    routing: { method: "LEGACY_FALLBACK", confidence: null, reason: "No approved active genre master was available.", sourceSignals: [] },
     baseProfile: null,
     overlays: [],
     recipe: null,

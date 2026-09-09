@@ -79,4 +79,29 @@ describe("translation master", () => {
     });
     expect(result?.selection.overlays).toEqual([]);
   });
+
+  it("uses an AI proposal only after validating profile compatibility", () => {
+    const profile = (id: string, kind: string, compatibleBaseIds: string[] = []) => ({
+      profile_id: id, profile_kind: kind, genre_family: kind === "BASE_GENRE" ? "FANTASY" : "PLOT_TROPE", name_th: id, name_en: id,
+      activation_conditions_th: "source evidence required", emotion_target_th: "preserve", narration_style_th: "faithful", dialogue_style_th: "natural",
+      pronoun_honorific_rules_th: "context", sentence_rhythm_th: "source", imagery_rules_th: "source", cultural_localization_rules_th: "source",
+      terminology_categories_json: [], glossary_rules_th: "story wins", required_story_memory_json: [], avoid_rules_json: [], qa_checks_json: [],
+      translator_instruction_th: "faithful", polish_instruction_th: "compare", recommended_scene_ids_json: [], compatible_base_ids_json: compatibleBaseIds,
+      version: "1.0.0", review_status: "APPROVED" as const,
+    });
+    const bundle: TranslationMasterBundle = {
+      genres: [profile("G000", "BASE_GENRE"), profile("G010", "BASE_GENRE"), profile("O006", "TROPE_OVERLAY", ["G010"]), profile("O009", "SETTING_OVERLAY", ["G009"])],
+      scenes: [], globalRules: [], recipes: [],
+    };
+    const result = selectTranslationMasterContext(bundle, {
+      genre: "fantasy", subgenres: ["revenge"], tone: "serious", narrativeVoice: "third person", terminologyRisks: [],
+    }, {
+      baseProfileId: "G010", overlayProfileIds: ["O006", "O009", "NOT_FOUND"], recipeId: null,
+      confidence: 92, reason: "Fantasy revenge is explicit in the samples", sourceSignals: ["the protagonist seeks revenge"],
+    });
+    expect(result?.selection.routing.method).toBe("AI_VALIDATED");
+    expect(result?.selection.baseProfile?.id).toBe("G010");
+    expect(result?.selection.overlays.map((row) => row.id)).toEqual(["O006"]);
+    expect(result?.selection.routing.confidence).toBe(92);
+  });
 });

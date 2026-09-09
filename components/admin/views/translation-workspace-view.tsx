@@ -44,7 +44,7 @@ async function mutate(url: string, method: "POST" | "PATCH", body?: unknown) {
 
 export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; canCancelJobs: boolean }) {
   const router = useRouter();
-  const needsProfileReview = data.workspace.status === "SETUP" || (data.profile?.version ?? 1) <= 1;
+  const needsProfileReview = data.workspace.status === "SETUP" || !data.profile;
   const [step, setStep] = useState<WizardStep>(needsProfileReview ? 2 : 3);
   const [profileConfirmed, setProfileConfirmed] = useState(!needsProfileReview);
   const [busy, setBusy] = useState("");
@@ -245,7 +245,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
                 {data.profileAnalysis.masterSelection.overlays.map((row) => <span key={row.id} className="rounded-full border border-border bg-card px-2.5 py-1">Overlay · {row.name} · {row.id}@{row.version}</span>)}
                 {data.profileAnalysis.masterSelection.recipe ? <span className="rounded-full border border-border bg-card px-2.5 py-1">Recipe · {data.profileAnalysis.masterSelection.recipe.name} · {data.profileAnalysis.masterSelection.recipe.id}@{data.profileAnalysis.masterSelection.recipe.version}</span> : null}
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">Scene {data.profileAnalysis.masterSelection.sceneCandidates.length} รายการเป็นเพียง candidate และจะใช้เมื่อเนื้อหาตอนนั้นเข้าเงื่อนไขเท่านั้น · Global rules {data.profileAnalysis.masterSelection.globalRuleVersions.length} รายการ</p>
+              <p className="mt-2 text-xs text-muted-foreground">Routing {data.profileAnalysis.masterSelection.routing?.method ?? "DETERMINISTIC"}{data.profileAnalysis.masterSelection.routing?.confidence !== null && data.profileAnalysis.masterSelection.routing?.confidence !== undefined ? ` · confidence ${data.profileAnalysis.masterSelection.routing.confidence}%` : ""} · Scene {data.profileAnalysis.masterSelection.sceneCandidates.length} รายการเป็นเพียง candidate และจะใช้เมื่อเนื้อหาตอนนั้นเข้าเงื่อนไขเท่านั้น · Global rules {data.profileAnalysis.masterSelection.globalRuleVersions.length} รายการ</p>
             </div>
           ) : null}
           {titleReview ? (
