@@ -122,25 +122,18 @@ Version counters avoid hundreds of deletes. Lock release uses a Lua compare-and-
 
 ## Configuration
 
-Either configure `REDIS_URL` or the discrete host fields. `REDIS_URL` takes precedence.
+Configure the Redis connection with `REDIS_URL` using the `redis://` or `rediss://` protocol. Supplying the URL enables Redis; discrete host, port, username, password, database, and SSL environment variables are not supported.
 
 ```dotenv
 CACHE_ENABLED=true
-REDIS_ENABLED=true
-REDIS_URL=
-REDIS_HOST=cache.internal.example
-REDIS_PORT=6379
-REDIS_USERNAME=
-REDIS_PASSWORD=
-REDIS_DATABASE=0
-REDIS_SSL=true
+REDIS_URL=rediss://default:password@cache.internal.example:6379/0
 REDIS_TIMEOUT_MS=75
 REDIS_DEBUG=false
 REDIS_CACHE_PREFIX=niyainow
 REDIS_MAX_ITEM_BYTES=1048576
 ```
 
-Set `CACHE_ENABLED=false` for an immediate application-level bypass. If `REDIS_ENABLED=true` but neither endpoint is present, caching is disabled and a sampled configuration warning is emitted.
+Set `CACHE_ENABLED=false` for an immediate application-level bypass. If `REDIS_URL` is absent, Redis caching remains disabled without affecting PostgreSQL-backed requests.
 
 ## Operations and observability
 

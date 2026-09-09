@@ -24,38 +24,19 @@ function warnSampled(message: string, error?: unknown) {
 
 function cacheConfigured() {
   const env = getRedisRuntimeEnv();
-  if (!env.CACHE_ENABLED || !env.REDIS_ENABLED) return false;
-  if (!env.REDIS_URL && !env.REDIS_HOST) {
-    warnSampled("Redis caching is enabled but REDIS_URL/REDIS_HOST is missing");
-    return false;
-  }
-  return true;
+  return env.CACHE_ENABLED && Boolean(env.REDIS_URL);
 }
 
 export function isRedisCacheEnabled() {
   return cacheConfigured();
 }
 
-function connectionUrl() {
-  const env = getRedisRuntimeEnv();
-  if (env.REDIS_URL) return env.REDIS_URL;
-  if (!env.REDIS_HOST) return undefined;
-
-  const url = new URL(`${env.REDIS_SSL ? "rediss" : "redis"}://${env.REDIS_HOST}`);
-  url.port = String(env.REDIS_PORT);
-  url.pathname = `/${env.REDIS_DATABASE}`;
-  if (env.REDIS_USERNAME) url.username = env.REDIS_USERNAME;
-  if (env.REDIS_PASSWORD) url.password = env.REDIS_PASSWORD;
-  return url.toString();
-}
-
 function createRedisClient() {
   const env = getRedisRuntimeEnv();
-  const url = connectionUrl();
-  if (!url) return undefined;
+  if (!env.REDIS_URL) return undefined;
 
   const client = createClient({
-    url,
+    url: env.REDIS_URL,
     disableOfflineQueue: true,
     commandsQueueMaxLength: 1_000,
     socket: {

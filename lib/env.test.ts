@@ -53,21 +53,24 @@ describe("environment helpers", () => {
     });
   });
 
-  it("parses the discrete Redis feature flags without requiring credentials", () => {
+  it("parses REDIS_URL as the only Redis connection setting", () => {
     const redis = getRedisRuntimeEnv({
       NODE_ENV: "test",
       CACHE_ENABLED: "true",
-      REDIS_ENABLED: "true",
-      REDIS_HOST: "cache.example.test",
-      REDIS_SSL: "true",
+      REDIS_URL: "rediss://default:secret@cache.example.test:6379/0",
       REDIS_TIMEOUT_MS: "75",
     });
     expect(redis).toMatchObject({
       CACHE_ENABLED: true,
-      REDIS_ENABLED: true,
-      REDIS_HOST: "cache.example.test",
-      REDIS_SSL: true,
+      REDIS_URL: "rediss://default:secret@cache.example.test:6379/0",
       REDIS_TIMEOUT_MS: 75,
     });
+  });
+
+  it("rejects a non-Redis REDIS_URL", () => {
+    expect(() => getRedisRuntimeEnv({
+      NODE_ENV: "test",
+      REDIS_URL: "https://cache.example.test",
+    })).toThrow(EnvironmentConfigurationError);
   });
 });

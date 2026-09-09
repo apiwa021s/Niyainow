@@ -59,14 +59,7 @@ const runtimeEnvSchema = z.object({
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(20).default(5),
   WRITER_MODE_ENABLED: booleanEnv(false),
   CACHE_ENABLED: booleanEnv(true),
-  REDIS_ENABLED: booleanEnv(false),
   REDIS_URL: optionalRedisUrl,
-  REDIS_HOST: optionalString,
-  REDIS_PORT: z.coerce.number().int().min(1).max(65_535).default(6379),
-  REDIS_USERNAME: optionalString,
-  REDIS_PASSWORD: optionalString,
-  REDIS_DATABASE: z.coerce.number().int().min(0).max(15).default(0),
-  REDIS_SSL: booleanEnv(false),
   REDIS_TIMEOUT_MS: z.coerce.number().int().min(25).max(10_000).default(75),
   REDIS_DEBUG: booleanEnv(false),
   REDIS_CACHE_PREFIX: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(64).default("niyainow")),
@@ -107,14 +100,7 @@ export type RequiredDatabaseEnv = Pick<RuntimeEnv, "DATABASE_URL" | "DATABASE_MA
 export type RedisRuntimeEnv = Pick<
   RuntimeEnv,
   | "CACHE_ENABLED"
-  | "REDIS_ENABLED"
   | "REDIS_URL"
-  | "REDIS_HOST"
-  | "REDIS_PORT"
-  | "REDIS_USERNAME"
-  | "REDIS_PASSWORD"
-  | "REDIS_DATABASE"
-  | "REDIS_SSL"
   | "REDIS_TIMEOUT_MS"
   | "REDIS_DEBUG"
   | "REDIS_CACHE_PREFIX"
@@ -191,14 +177,7 @@ export function getRedisRuntimeEnv(source: NodeJS.ProcessEnv = process.env): Red
   const env = getRuntimeEnv(source);
   return {
     CACHE_ENABLED: env.CACHE_ENABLED,
-    REDIS_ENABLED: env.REDIS_ENABLED,
     REDIS_URL: env.REDIS_URL,
-    REDIS_HOST: env.REDIS_HOST,
-    REDIS_PORT: env.REDIS_PORT,
-    REDIS_USERNAME: env.REDIS_USERNAME,
-    REDIS_PASSWORD: env.REDIS_PASSWORD,
-    REDIS_DATABASE: env.REDIS_DATABASE,
-    REDIS_SSL: env.REDIS_SSL,
     REDIS_TIMEOUT_MS: env.REDIS_TIMEOUT_MS,
     REDIS_DEBUG: env.REDIS_DEBUG,
     REDIS_CACHE_PREFIX: env.REDIS_CACHE_PREFIX,
