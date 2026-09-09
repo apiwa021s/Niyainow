@@ -116,7 +116,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
             <div className="rounded-[14px] border border-border bg-muted/35 p-4">
               <div className="mb-4 flex items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[var(--brand-primary)]/10 text-[var(--brand-emphasis)]"><BookOpen className="h-5 w-5" aria-hidden /></span>
-                <div><h3 className="font-semibold">1. เลือกต้นฉบับ</h3><p className="text-sm text-muted-foreground">ระบบจะใช้เฉพาะชื่อเรื่องและเรื่องย่อเพื่อสร้าง Default Profile ก่อน ยังไม่ส่งตอนเข้าคิวแปล</p></div>
+                <div><h3 className="font-semibold">1. เลือกต้นฉบับ</h3><p className="text-sm text-muted-foreground">ระบบจะวิเคราะห์ชื่อ เรื่องย่อ และตัวอย่าง 3 ตอนแรก แล้วเลือก context ตามคู่ภาษาและแนวนิยายอัตโนมัติ</p></div>
               </div>
               <form onSubmit={createWorkspace} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_150px]" aria-busy={busy}>
                 <Field label="เรื่องที่นำเข้า">
@@ -130,7 +130,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
                   <div className="grid gap-2 rounded-[12px] border border-border bg-card p-4 md:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{selectedSource.title}</strong><span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{selectedSource.chapterCount.toLocaleString("th-TH")} ตอน</span></div>
                     <p className="line-clamp-4 text-sm leading-relaxed text-muted-foreground">{selectedSource.synopsis?.trim() || "ต้นฉบับนี้ยังไม่มีเรื่องย่อ ระบบจะสร้าง Profile แบบทั่วไปให้ตรวจแก้ก่อน"}</p>
-                    <p className="text-xs font-medium text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden />ข้อมูลที่จะนำไปวิเคราะห์: ชื่อเรื่อง + เรื่องย่อ</p>
+                    <p className="text-xs font-medium text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden />ข้อมูลที่จะนำไปวิเคราะห์: ชื่อเรื่อง + เรื่องย่อ + ตัวอย่างสูงสุด 3 ตอนแรก</p>
                   </div>
                 ) : null}
                 <Button type="submit" loading={busy} disabled={!selectedSourceId} className="md:col-span-2 md:justify-self-start"><Sparkles className="h-4 w-4" />วิเคราะห์และสร้าง Default Profile<ArrowRight className="h-4 w-4" /></Button>

@@ -46,6 +46,32 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
   const chapterUrl = `/api/admin/translation/workspaces/${workspaceId}/chapters/${chapterId}`;
   const criticalCount = data.issues.filter((issue) => issue.severity === "CRITICAL" && !issue.resolvedAt).length;
 
+  function suggestionFor(issue: Data["issues"][number]) {
+    const metadata = issue.metadata && typeof issue.metadata === "object" ? issue.metadata : {};
+    const location = metadata.location === "TITLE" || metadata.location === "CONTENT" ? metadata.location : null;
+    const currentText = typeof metadata.currentText === "string" ? metadata.currentText : null;
+    const suggestedText = typeof metadata.suggestedText === "string" ? metadata.suggestedText : null;
+    return location && suggestedText ? { location, currentText, suggestedText } : null;
+  }
+
+  function applyQaSuggestion(issue: Data["issues"][number]) {
+    const suggestion = suggestionFor(issue);
+    if (!suggestion) return;
+    if (suggestion.location === "TITLE") {
+      setTitle(suggestion.currentText && title.includes(suggestion.currentText)
+        ? title.replace(suggestion.currentText, suggestion.suggestedText)
+        : suggestion.suggestedText);
+    } else {
+      if (!suggestion.currentText || !content.includes(suggestion.currentText)) {
+        setError("หาข้อความเดิมในฉบับแปลไม่พบ อาจมีการแก้ไขหลัง QA กรุณาตรวจคำแนะนำแล้วแก้ด้วยตนเอง");
+        return;
+      }
+      setContent(content.replace(suggestion.currentText, suggestion.suggestedText));
+    }
+    setError("");
+    setMessage("ใช้คำแนะนำในช่องแก้ไขแล้ว กรุณาตรวจและกด “บันทึก Revision” เพื่อรัน QA ใหม่");
+  }
+
   return <div className="grid gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-border bg-card px-4 py-3 shadow-[var(--sh-1)]">
       <div className="min-w-0"><Link href={`/admin/translation/${workspaceId}`} className="text-xs font-medium text-[var(--brand-light-on-light)] hover:underline">← {data.workspace.sourceLanguage} → {data.workspace.targetLanguage}</Link><h1 className="mt-1 truncate text-lg font-bold">ตอน {data.chapter.chapterNumber}: {data.source.title}</h1></div>
@@ -68,7 +94,10 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
       <section className="min-w-0 rounded-[14px] border border-border bg-card"><div className="border-b border-border px-4 py-3"><h2 className="font-semibold">คำแปล</h2><p className="text-xs text-muted-foreground">ทุกครั้งที่บันทึกจะสร้าง immutable revision ใหม่</p></div><div className="grid gap-3 p-4"><Input aria-label="ชื่อตอนแปล" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="ชื่อตอน" /><Textarea aria-label="เนื้อหาคำแปล" value={content} onChange={(event) => setContent(event.target.value)} className="min-h-[calc(100vh-390px)] resize-y font-sans leading-7" placeholder="คำแปลจะแสดงที่นี่ หรือพิมพ์คำแปลด้วยตนเอง" /><p className="text-right text-xs text-muted-foreground">{content.length.toLocaleString("th-TH")} ตัวอักษร</p></div></section>
 
       <aside className="grid content-start gap-4">
-        <details open className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">QA ({data.issues.length})</summary><div className="grid gap-2 border-t border-border p-3">{data.issues.map((issue) => <div key={issue.id} className={`rounded-[9px] px-3 py-2 text-xs ${issue.severity === "CRITICAL" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}><strong>{issue.code}</strong><p className="mt-1 leading-relaxed">{issue.message}</p></div>)}{!data.issues.length ? <p className="text-xs text-muted-foreground">ยังไม่มีปัญหา QA</p> : null}</div></details>
+        <details open className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">QA ({data.issues.length})</summary><div className="grid gap-2 border-t border-border p-3">{data.issues.map((issue) => {
+          const suggestion = suggestionFor(issue);
+          return <div key={issue.id} className={`rounded-[9px] px-3 py-2 text-xs ${issue.severity === "CRITICAL" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}><strong>{issue.code}</strong><p className="mt-1 leading-relaxed">{issue.message}</p>{suggestion ? <div className="mt-2 rounded-md bg-card/80 p-2 text-foreground"><p className="line-clamp-2 text-muted-foreground">เดิม: {suggestion.currentText || "ชื่อปัจจุบัน"}</p><p className="mt-1 line-clamp-3">แนะนำ: {suggestion.suggestedText}</p><Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => applyQaSuggestion(issue)}>ใช้คำแนะนำนี้</Button></div> : null}</div>;
+        })}{!data.issues.length ? <p className="text-xs text-muted-foreground">ยังไม่มีปัญหา QA</p> : null}</div></details>
         <details open className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">Context</summary><div className="grid gap-4 border-t border-border p-3 text-xs"><div><h3 className="font-semibold">Glossary ที่เกี่ยวข้อง</h3>{data.glossary.map((term) => <p key={term.sourceTerm} className="mt-1 text-muted-foreground">{term.sourceTerm} → {term.targetTerm}</p>)}{!data.glossary.length ? <p className="mt-1 text-muted-foreground">ไม่มี</p> : null}</div><div><h3 className="font-semibold">Characters</h3>{data.characters.map((character) => <p key={character.sourceName} className="mt-1 text-muted-foreground">{character.sourceName} → {character.targetName}</p>)}{!data.characters.length ? <p className="mt-1 text-muted-foreground">ไม่มี</p> : null}</div><div><h3 className="font-semibold">Style</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{data.profile?.styleGuide || "ยังไม่ได้กำหนด"}</p></div></div></details>
         <details className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">Revision history ({data.history.length})</summary><div className="grid gap-1 border-t border-border p-3">{data.history.map((version) => <div key={version.id} className="flex justify-between gap-2 rounded px-2 py-1.5 text-xs"><span>v{version.revision} · {version.origin}</span><span>{version.status}</span></div>)}</div></details>
       </aside>

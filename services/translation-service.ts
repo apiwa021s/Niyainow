@@ -41,8 +41,8 @@ import {
 } from "@/lib/domain/translation-ai-routing";
 import { countWords, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
 import { ApiError } from "@/lib/http/api-response";
-import { invalidateChapterCache } from "@/lib/redis/invalidation";
-import { aiCallCostMicros, generateAiTranslationProfile, type AiStageEvent } from "@/services/ai/translation-pipeline";
+import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
+import { aiCallCostMicros, generateAiTranslationProfile, reviewNovelTitleWithAi, type AiStageEvent } from "@/services/ai/translation-pipeline";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
 const languageSchema = z.string().trim().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/).max(35);
@@ -57,10 +57,33 @@ const storedAiPipelineSchema = z.array(z.object({
   costMicros: z.number().int().nonnegative(),
   status: z.string(),
 }));
+const storedTitleReviewSchema = z.object({
+  reviewedTitle: z.string(),
+  score: z.number().int().min(0).max(100),
+  verdict: z.enum(["NATURAL", "NEEDS_REVISION"]),
+  issues: z.array(z.string()),
+  recommendedTitle: z.string(),
+  candidates: z.array(z.object({ title: z.string(), rationale: z.string() })),
+  modelName: z.string(),
+  latencyMs: z.number().int().nonnegative(),
+  reviewedAt: z.string(),
+});
+const storedProfileAnalysisSchema = z.object({
+  genre: z.string(),
+  subgenres: z.array(z.string()),
+  tone: z.string(),
+  narrativeVoice: z.string(),
+  terminologyRisks: z.array(z.string()),
+  translationStrategy: z.string(),
+  genreContext: z.object({ key: z.string(), label: z.string(), guidance: z.string() }),
+  profileReviewNotes: z.array(z.string()),
+  sampledChapters: z.array(z.number().int().positive()),
+});
 
 export const createTranslationWorkspaceSchema = z.object({
   importSourceId: uuidSchema,
   targetLanguage: languageSchema,
+  regenerate: z.boolean().default(false),
 });
 
 const glossaryEntrySchema = z.object({
@@ -83,6 +106,10 @@ const characterSchema = z.object({
 
 export const configureTranslationWorkspaceSchema = z.object({
   expectedVersion: z.number().int().positive(),
+  metadata: z.object({
+    title: z.string().trim().min(1).max(1_000),
+    synopsis: z.string().trim().max(20_000).nullable(),
+  }),
   profile: z.object({
     name: z.string().trim().min(1).max(160),
     styleGuide: z.string().trim().max(20_000),
@@ -91,6 +118,11 @@ export const configureTranslationWorkspaceSchema = z.object({
   }),
   glossary: z.array(glossaryEntrySchema).max(2_000),
   characters: z.array(characterSchema).max(1_000),
+});
+
+export const reviewTranslationTitleSchema = z.object({
+  title: z.string().trim().min(1).max(1_000),
+  synopsis: z.string().trim().max(20_000).nullable(),
 });
 
 export const createTranslationModelSchema = z.object({
@@ -366,18 +398,32 @@ export async function createTranslationWorkspace(
   if (existingWorkspace) {
     const [existingProfile] = await db.select({ version: translationProfiles.version }).from(translationProfiles)
       .where(eq(translationProfiles.workspaceId, existingWorkspace.id)).limit(1);
-    if (existingWorkspace.status !== "SETUP" || (existingProfile?.version ?? 0) > 1) {
+    if (!input.regenerate && (existingWorkspace.status !== "SETUP" || (existingProfile?.version ?? 0) > 1)) {
       await syncTranslationWorkspaceSources(existingWorkspace.id);
       return existingWorkspace;
     }
   }
 
-  const models = await getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "ENTITY_EXTRACTION"] as const);
+  const sampleRows = await db.select({
+    chapterNumber: novelImportChapters.chapterNumber,
+    title: novelImportChapterTexts.title,
+    content: novelImportChapterTexts.content,
+  }).from(novelImportChapters).innerJoin(novelImportChapterTexts, and(
+    eq(novelImportChapterTexts.chapterId, novelImportChapters.id),
+    eq(novelImportChapterTexts.language, source.sourceLanguage),
+    eq(novelImportChapterTexts.textKind, "source"),
+  )).where(eq(novelImportChapters.sourceId, source.id)).orderBy(asc(novelImportChapters.chapterNumber)).limit(3);
+  const samples = sampleRows.filter((row): row is typeof row & { content: string } => Boolean(row.content?.trim()));
+  if (!samples.length && !sourceText.synopsis?.trim()) {
+    throw new ApiError(409, "PROFILE_CONTEXT_MISSING", "ต้องมีเรื่องย่อหรือตอนต้นฉบับอย่างน้อย 1 ตอนเพื่อสร้าง Translation Profile คุณภาพสูง");
+  }
+  const models = await getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "PROFILE_QUALITY_REVIEW", "ENTITY_EXTRACTION"] as const);
   const generated = await generateAiTranslationProfile({
     title: sourceText.title,
     synopsis: sourceText.synopsis,
     sourceLanguage: source.sourceLanguage,
     targetLanguage: input.targetLanguage,
+    samples,
     models,
     onStage,
   });
@@ -418,24 +464,39 @@ export async function createTranslationWorkspace(
       const [current] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, existingWorkspace.id)).limit(1).for("update");
       const [currentProfile] = await tx.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, existingWorkspace.id)).limit(1).for("update");
       if (!current) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
-      if (current.status !== "SETUP" || (currentProfile?.version ?? 0) > 1) return current;
+      if (!input.regenerate && (current.status !== "SETUP" || (currentProfile?.version ?? 0) > 1)) return current;
+      if (input.regenerate) {
+        const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
+          eq(translationJobs.workspaceId, current.id),
+          inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
+        )).limit(1);
+        if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "รอให้งานแปลปัจจุบันเสร็จก่อนสร้าง Profile ใหม่");
+      }
       const nextVersion = current.version + 1;
       const [updated] = await tx.update(translationWorkspaces).set({ version: nextVersion, updatedAt: new Date() })
         .where(eq(translationWorkspaces.id, current.id)).returning();
       await tx.insert(translationProfiles).values({ workspaceId: current.id, ...generated.profile, version: nextVersion, updatedBy: actor.id })
         .onConflictDoUpdate({ target: translationProfiles.workspaceId, set: { ...generated.profile, version: nextVersion, updatedBy: actor.id, updatedAt: new Date() } });
       await persistTranslatedMetadata();
-      await tx.delete(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, current.id));
-      await tx.delete(translationCharacters).where(eq(translationCharacters.workspaceId, current.id));
-      if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id })));
-      if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id })));
+      if (input.regenerate) {
+        await tx.update(translationChapters).set({ status: "STALE", updatedAt: new Date() }).where(and(
+          eq(translationChapters.workspaceId, current.id),
+          inArray(translationChapters.status, ["DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]),
+        ));
+      }
+      if (!input.regenerate) {
+        await tx.delete(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, current.id));
+        await tx.delete(translationCharacters).where(eq(translationCharacters.workspaceId, current.id));
+      }
+      if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
+      if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
       await tx.insert(translationProfileVersions).values({
         workspaceId: current.id,
         version: nextVersion,
         snapshot: { profile: generated.profile, metadata: generated.metadata, glossary, characters, analysis: generated.analysis, aiPipeline, source: { title: sourceText.title, synopsis: sourceText.synopsis } },
         createdBy: actor.id,
       });
-      await writeAudit(tx, actor, "translation.profile.ai_generate", "translation_workspace", current.id, serializeWorkspace(current), serializeWorkspace(updated));
+      await writeAudit(tx, actor, input.regenerate ? "translation.profile.ai_regenerate" : "translation.profile.ai_generate", "translation_workspace", current.id, serializeWorkspace(current), serializeWorkspace(updated));
       return updated;
     }
 
@@ -533,7 +594,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     ))
     .where(eq(translationWorkspaces.id, workspaceId)).limit(1);
   if (!workspace) return undefined;
-  const [profile, glossary, characters, chapterRows, jobs, models, prompts, profileVersions] = await Promise.all([
+  const [profile, glossary, characters, chapterRows, jobs, models, prompts, profileVersions, titleReviewRows] = await Promise.all([
     db.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspaceId)).limit(1),
     db.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId)).orderBy(asc(translationGlossaryEntries.sourceTerm)),
     db.select().from(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId)).orderBy(asc(translationCharacters.sourceName)),
@@ -558,10 +619,19 @@ export async function getTranslationWorkspace(workspaceId: string) {
         eq(translationProfileVersions.workspaceId, workspaceId),
         sql`${translationProfileVersions.snapshot} ? 'aiPipeline'`,
       )).orderBy(desc(translationProfileVersions.version)).limit(1),
+    db.select({ after: adminAuditLogs.after }).from(adminAuditLogs).where(and(
+      eq(adminAuditLogs.action, "translation.metadata.title_review"),
+      eq(adminAuditLogs.entityType, "translation_workspace"),
+      eq(adminAuditLogs.entityId, workspaceId),
+    )).orderBy(desc(adminAuditLogs.createdAt)).limit(1),
   ]);
   const storedPipeline = profileVersions[0]?.snapshot && typeof profileVersions[0].snapshot === "object"
     ? storedAiPipelineSchema.safeParse(profileVersions[0].snapshot.aiPipeline)
     : null;
+  const storedProfileAnalysis = profileVersions[0]?.snapshot && typeof profileVersions[0].snapshot === "object"
+    ? storedProfileAnalysisSchema.safeParse(profileVersions[0].snapshot.analysis)
+    : null;
+  const storedTitleReview = storedTitleReviewSchema.safeParse(titleReviewRows[0]?.after);
   return {
     workspace: { ...serializeWorkspace(workspace.workspace), title: workspace.translatedTitle ?? workspace.sourceTitle ?? "Imported novel", updatedAt: workspace.workspace.updatedAt.toISOString() },
     source: {
@@ -576,6 +646,8 @@ export async function getTranslationWorkspace(workspaceId: string) {
     } : null,
     profile: profile[0] ? { ...profile[0], updatedAt: profile[0].updatedAt.toISOString() } : null,
     profileAiPipeline: storedPipeline?.success ? storedPipeline.data : [],
+    profileAnalysis: storedProfileAnalysis?.success ? storedProfileAnalysis.data : null,
+    titleReview: storedTitleReview.success ? storedTitleReview.data : null,
     glossary: glossary.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     characters: characters.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     chapters: chapterRows,
@@ -640,18 +712,65 @@ export async function getActiveTranslationQueue() {
   };
 }
 
+export async function reviewTranslationTitle(workspaceId: string, input: z.infer<typeof reviewTranslationTitleSchema>) {
+  const actor = await assertTranslationPermission("translation.configure");
+  if (!process.env.AI_TRANSLATION_API_KEY?.trim()) {
+    throw new ApiError(409, "AI_CREDENTIAL_MISSING", "กรุณาตั้ง AI_TRANSLATION_API_KEY ใน environment ของ server");
+  }
+  await ensureAutomaticAiConfiguration(actor);
+  const db = getDb();
+  const [workspace] = await db.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, workspaceId)).limit(1);
+  if (!workspace) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
+  const [sourceText, translatedText, profile, models] = await Promise.all([
+    db.select().from(novelImportSourceTexts).where(and(
+      eq(novelImportSourceTexts.sourceId, workspace.importSourceId),
+      eq(novelImportSourceTexts.language, workspace.sourceLanguage),
+    )).limit(1),
+    db.select().from(novelImportSourceTexts).where(and(
+      eq(novelImportSourceTexts.sourceId, workspace.importSourceId),
+      eq(novelImportSourceTexts.language, workspace.targetLanguage),
+    )).limit(1),
+    db.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspaceId)).limit(1),
+    getAutomaticModels(["FOUNDATION"] as const),
+  ]);
+  if (!sourceText[0] || !translatedText[0]) throw new ApiError(409, "TRANSLATION_METADATA_MISSING", "ยังไม่มีชื่อเรื่องฉบับแปลให้ตรวจ");
+
+  const review = await reviewNovelTitleWithAi({
+    model: models.FOUNDATION,
+    sourceTitle: sourceText[0].title,
+    sourceSynopsis: sourceText[0].synopsis,
+    translatedTitle: input.title,
+    translatedSynopsis: input.synopsis,
+    sourceLanguage: workspace.sourceLanguage,
+    targetLanguage: workspace.targetLanguage,
+    profile: profile[0] ? { styleGuide: profile[0].styleGuide, instructions: profile[0].instructions } : null,
+  });
+  const payload = {
+    reviewedTitle: input.title,
+    ...review.value,
+    modelName: review.call.model.modelName,
+    latencyMs: review.call.result.latencyMs,
+    reviewedAt: new Date().toISOString(),
+  };
+  await db.transaction((tx) => writeAudit(tx, actor, "translation.metadata.title_review", "translation_workspace", workspaceId, {
+    title: input.title,
+  }, payload));
+  return payload;
+}
+
 export async function configureTranslationWorkspace(workspaceId: string, input: z.infer<typeof configureTranslationWorkspaceSchema>) {
   const actor = await assertTranslationPermission("translation.configure");
   const db = getDb();
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [before] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, workspaceId)).limit(1);
     if (!before) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
     const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
       eq(translationJobs.workspaceId, workspaceId),
       inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
     )).limit(1);
+    if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "รอให้งานแปลปัจจุบันเสร็จก่อนแก้ Profile เพื่อไม่ให้คำศัพท์ที่ AI เพิ่งพบสูญหาย");
     const [updated] = await tx.update(translationWorkspaces).set({
-      status: activeJob ? "TRANSLATING" : "READY",
+      status: "READY",
       version: before.version + 1,
       updatedAt: new Date(),
     }).where(and(eq(translationWorkspaces.id, workspaceId), eq(translationWorkspaces.version, input.expectedVersion))).returning();
@@ -659,6 +778,17 @@ export async function configureTranslationWorkspace(workspaceId: string, input: 
 
     await tx.update(translationProfiles).set({ ...input.profile, version: before.version + 1, updatedBy: actor.id, updatedAt: new Date() })
       .where(eq(translationProfiles.workspaceId, workspaceId));
+    await tx.insert(novelImportSourceTexts).values({
+      sourceId: before.importSourceId,
+      language: before.targetLanguage,
+      textKind: "translation",
+      translationStatus: "approved",
+      title: input.metadata.title,
+      synopsis: input.metadata.synopsis,
+    }).onConflictDoUpdate({
+      target: [novelImportSourceTexts.sourceId, novelImportSourceTexts.language],
+      set: { title: input.metadata.title, synopsis: input.metadata.synopsis, translationStatus: "approved", updatedAt: new Date() },
+    });
     await tx.delete(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId));
     if (input.glossary.length) await tx.insert(translationGlossaryEntries).values(input.glossary.map((entry) => ({ sourceTerm: entry.sourceTerm, targetTerm: entry.targetTerm, note: entry.note, isLocked: entry.isLocked, workspaceId, createdBy: actor.id })));
     await tx.delete(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId));
@@ -666,12 +796,38 @@ export async function configureTranslationWorkspace(workspaceId: string, input: 
     await tx.insert(translationProfileVersions).values({
       workspaceId,
       version: before.version + 1,
-      snapshot: { profile: input.profile, glossary: input.glossary, characters: input.characters },
+      snapshot: { profile: input.profile, metadata: input.metadata, glossary: input.glossary, characters: input.characters },
       createdBy: actor.id,
     });
+    let novelSlug: string | null = null;
+    if (before.novelId) {
+      const [publicNovel] = await tx.update(novels).set({
+        title: input.metadata.title,
+        synopsis: input.metadata.synopsis ?? "",
+        updatedBy: actor.id,
+        updatedAt: new Date(),
+      }).where(and(eq(novels.id, before.novelId), isNull(novels.deletedAt))).returning({ slug: novels.slug, titleOriginal: novels.titleOriginal });
+      if (publicNovel) {
+        novelSlug = publicNovel.slug;
+        await tx.insert(novelSearchDocuments).values({
+          novelId: before.novelId,
+          searchText: [input.metadata.title, publicNovel.titleOriginal].filter(Boolean).join(" "),
+        }).onConflictDoUpdate({
+          target: novelSearchDocuments.novelId,
+          set: { searchText: [input.metadata.title, publicNovel.titleOriginal].filter(Boolean).join(" "), updatedAt: new Date() },
+        });
+      }
+    }
     await writeAudit(tx, actor, "translation.workspace.configure", "translation_workspace", workspaceId, serializeWorkspace(before), serializeWorkspace(updated));
-    return updated;
+    return { workspace: updated, novelSlug };
   });
+  if (result.novelSlug) {
+    await invalidateNovelCache(result.novelSlug);
+    for (const tag of ["public-novels", "public-search", "public-rankings", "public-sitemap"]) revalidateTag(tag, { expire: 0 });
+    revalidatePath("/");
+    revalidatePath(`/novel/${result.novelSlug}`);
+  }
+  return result.workspace;
 }
 
 export async function createTranslationModel(input: z.infer<typeof createTranslationModelSchema>) {

@@ -7,6 +7,7 @@ describe("automatic translation AI routing", () => {
     expect(automaticModelNameForTask("MAIN_TRANSLATION")).toBe("gpt-5.6-sol");
     expect(automaticModelNameForTask("FIRST_QA")).toBe("gpt-5.6-terra");
     expect(automaticModelNameForTask("ENTITY_EXTRACTION")).toBe("gpt-5.6-luna");
+    expect(automaticModelNameForTask("PROFILE_QUALITY_REVIEW")).toBe("gpt-6-astra");
     expect(automaticModelNameForTask("ESCALATION")).toBe("gpt-6-astra");
   });
 

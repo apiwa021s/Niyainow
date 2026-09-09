@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -13,6 +13,7 @@ import {
   translationJobItems,
   translationJobs,
   translationProfiles,
+  translationProfileVersions,
   translationPromptVersions,
   translationQaIssues,
   translationSourceSnapshots,
@@ -83,7 +84,7 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
     .where(and(eq(translationChapters.id, translationChapterId), eq(translationChapters.workspaceId, job.workspaceId), eq(translationSourceSnapshots.id, sourceSnapshotId))).limit(1);
   if (!row) throw new Error("Translation chapter is no longer available");
 
-  const [allTerms, allCharacters, previousApproved] = await Promise.all([
+  const [allTerms, allCharacters, previousApproved, profileVersionRows] = await Promise.all([
     db.select().from(translationGlossaryEntries).where(and(eq(translationGlossaryEntries.workspaceId, job.workspaceId), eq(translationGlossaryEntries.isLocked, true))),
     db.select().from(translationCharacters).where(and(eq(translationCharacters.workspaceId, job.workspaceId), eq(translationCharacters.isLocked, true))),
     db.select({ chapterNumber: translationChapters.chapterNumber, title: translationVersions.title, content: translationVersions.content })
@@ -96,6 +97,10 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
       ))
       .orderBy(desc(translationChapters.chapterNumber), desc(translationVersions.revision))
       .limit(2),
+    db.select({ snapshot: translationProfileVersions.snapshot }).from(translationProfileVersions).where(and(
+      eq(translationProfileVersions.workspaceId, job.workspaceId),
+      sql`${translationProfileVersions.snapshot} ? 'analysis'`,
+    )).orderBy(desc(translationProfileVersions.version)).limit(1),
   ]);
 
   const haystack = `${row.source.title ?? ""}\n${row.source.content}`.toLocaleLowerCase();
@@ -117,6 +122,13 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
       instructions: row.profile.instructions,
       preserveParagraphs: row.profile.preserveParagraphs,
     },
+    genreContext: (() => {
+      const snapshot = profileVersionRows[0]?.snapshot;
+      if (!snapshot || typeof snapshot !== "object") return null;
+      const analysis = snapshot.analysis;
+      if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) return null;
+      return "genreContext" in analysis ? analysis.genreContext : null;
+    })(),
     glossary: relevantTerms,
     characters: relevantCharacters,
     previousApproved: previousApproved.map((entry) => ({ chapterNumber: entry.chapterNumber, title: entry.title, ending: entry.content.slice(-4_000) })),
@@ -208,6 +220,20 @@ async function processClaimedItem(claimed: ClaimedItem) {
       context: built.context,
     });
     await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, chapterAnalysis.call);
+    const learnedTerms = chapterAnalysis.value.glossaryCandidates
+      .filter((entry) => entry.confidence >= 70)
+      .filter((entry) => entry.sourceTerm.trim() && entry.targetTerm.trim())
+      .filter((entry, index, rows) => rows.findIndex((candidate) => candidate.sourceTerm.trim().toLocaleLowerCase() === entry.sourceTerm.trim().toLocaleLowerCase()) === index);
+    if (learnedTerms.length) {
+      await db.insert(translationGlossaryEntries).values(learnedTerms.map((entry) => ({
+        workspaceId: claimed.job.workspaceId,
+        sourceTerm: entry.sourceTerm.trim(),
+        targetTerm: entry.targetTerm.trim(),
+        note: entry.note?.trim() || `AI เสนอจากตอน ${built.chapter.chapterNumber} · ความมั่นใจ ${entry.confidence}%`,
+        isLocked: false,
+        createdBy: claimed.job.requestedBy,
+      }))).onConflictDoNothing();
+    }
 
     await db.update(translationJobItems).set({ progressPercent: 35, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
     currentTask = "MAIN_TRANSLATION";
@@ -297,7 +323,13 @@ async function processClaimedItem(claimed: ClaimedItem) {
         code: `AI_${issue.code}`.slice(0, 80),
         severity: issue.severity,
         message: issue.message,
-        metadata: { source: "AI_QA", score: qa.value.score },
+        metadata: {
+          source: "AI_QA",
+          score: qa.value.score,
+          location: issue.location,
+          currentText: issue.currentText,
+          suggestedText: issue.suggestedText,
+        },
       })));
       const hasCriticalIssue = !qa.value.passed || issues.some((issue) => issue.severity === "CRITICAL") || qa.value.issues.some((issue) => issue.severity === "CRITICAL");
       const now = new Date();

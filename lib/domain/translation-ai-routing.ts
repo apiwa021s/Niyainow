@@ -1,6 +1,7 @@
 export type AutomaticTranslationTask =
   | "PROFILE_ANALYSIS"
   | "FOUNDATION"
+  | "PROFILE_QUALITY_REVIEW"
   | "ENTITY_EXTRACTION"
   | "CANON_EXTRACTION"
   | "MAIN_TRANSLATION"
@@ -24,6 +25,7 @@ export const AUTOMATIC_TRANSLATION_ROUTING: ReadonlyArray<{
 }> = [
   { task: "PROFILE_ANALYSIS", label: "วิเคราะห์เรื่องครั้งแรก", modelLabel: "GPT-6 Astra", reason: "สร้าง profile แรกที่ดีที่สุด", modelName: "gpt-6-astra" },
   { task: "FOUNDATION", label: "วิเคราะห์ชื่อ + เรื่องย่อ", modelLabel: "Astra / Sol", reason: "สร้าง foundation", modelName: "gpt-6-astra" },
+  { task: "PROFILE_QUALITY_REVIEW", label: "บรรณาธิการตรวจ Profile", modelLabel: "GPT-6 Astra", reason: "แก้ความทื่อและ translationese ก่อนเริ่มแปล", modelName: "gpt-6-astra" },
   { task: "ENTITY_EXTRACTION", label: "Extract ชื่อ/ศัพท์/Entity", modelLabel: "GPT-5.6 Luna", reason: "งาน structured ปริมาณมาก ราคาถูก", modelName: "gpt-5.6-luna" },
   { task: "CANON_EXTRACTION", label: "สรุปตอน / Canon extraction", modelLabel: "GPT-5.6 Terra", reason: "ต้องเข้าใจเนื้อหาพอสมควร", modelName: "gpt-5.6-terra" },
   { task: "MAIN_TRANSLATION", label: "แปลนิยายหลัก", modelLabel: "GPT-5.6 Sol", reason: "สมดุลคุณภาพและราคาสำหรับ production", modelName: "gpt-5.6-sol" },

@@ -7,6 +7,7 @@ import styles from "./ai-translation-visual.module.css";
 const PROFILE_STEPS = [
   { key: "PROFILE_ANALYSIS", label: "วิเคราะห์เรื่อง" },
   { key: "FOUNDATION", label: "สร้างกฎแปล" },
+  { key: "PROFILE_QUALITY_REVIEW", label: "บรรณาธิการตรวจสำนวน" },
   { key: "ENTITY_EXTRACTION", label: "สกัดชื่อและศัพท์" },
 ] as const;
 

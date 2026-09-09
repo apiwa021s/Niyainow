@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
-import { AiTranslationProgress } from "@/components/admin/ai-translation-visual";
+import { AiTranslationProgress, AiTranslationVisual } from "@/components/admin/ai-translation-visual";
 import { StatusPill } from "@/components/admin/status-pill";
 import { TranslationSetupSteps } from "@/components/admin/translation-setup-steps";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,9 @@ import type { getTranslationWorkspace } from "@/services/translation-service";
 type Data = NonNullable<Awaited<ReturnType<typeof getTranslationWorkspace>>>;
 type Glossary = Data["glossary"][number];
 type Character = Data["characters"][number];
+type TitleReview = NonNullable<Data["titleReview"]>;
 type WizardStep = 2 | 3;
+type ProfileStage = { stage: string; label: string; modelName: string };
 
 const ELIGIBLE_STATUSES = new Set(["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]);
 const PROGRESS_STAGE_LABELS: Record<string, string> = {
@@ -50,6 +52,10 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   const [error, setError] = useState("");
   const [glossary, setGlossary] = useState<Glossary[]>(data.glossary);
   const [characters, setCharacters] = useState<Character[]>(data.characters);
+  const [translatedTitle, setTranslatedTitle] = useState(data.translatedMetadata?.title ?? "");
+  const [translatedSynopsis, setTranslatedSynopsis] = useState(data.translatedMetadata?.synopsis ?? "");
+  const [titleReview, setTitleReview] = useState<TitleReview | null>(data.titleReview);
+  const [profileStage, setProfileStage] = useState<ProfileStage | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chapterQuery, setChapterQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -94,6 +100,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   async function saveConfiguration(formData: FormData) {
     const saved = await perform("save", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}`, "PATCH", {
       expectedVersion: data.workspace.version,
+      metadata: { title: translatedTitle, synopsis: translatedSynopsis.trim() || null },
       profile: {
         name: formData.get("profileName"), styleGuide: formData.get("styleGuide"), instructions: formData.get("instructions"), preserveParagraphs: formData.get("preserveParagraphs") === "on",
       },
@@ -104,6 +111,60 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
       setProfileConfirmed(true);
       setStep(3);
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  async function reviewTitle() {
+    setBusy("review-title"); setError(""); setMessage("");
+    try {
+      const result = await mutate(`/api/admin/translation/workspaces/${data.workspace.id}/review-title`, "POST", {
+        title: translatedTitle,
+        synopsis: translatedSynopsis.trim() || null,
+      }) as { review: TitleReview };
+      setTitleReview(result.review);
+      setMessage("AI ตรวจชื่อเรื่องแล้ว เลือกคำแนะนำที่เหมาะสมแล้วกดบันทึก Profile");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ตรวจชื่อเรื่องไม่สำเร็จ");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function regenerateProfile() {
+    if (!window.confirm("สร้าง Profile ใหม่ด้วย AI และทำเครื่องหมายฉบับแปลที่ยังไม่เผยแพร่ให้ตรวจ/แปลใหม่ตาม Profile ล่าสุดหรือไม่? Glossary และตัวละครที่มีอยู่จะไม่ถูกลบ")) return;
+    setBusy("regenerate-profile"); setError(""); setMessage("");
+    setProfileStage({ stage: "CONNECTING", label: "กำลังโหลดเรื่องย่อและตัวอย่าง 3 ตอนแรก", modelName: "Automatic routing" });
+    try {
+      const response = await fetch("/api/admin/translation/workspaces", {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", "content-type": "application/json" },
+        body: JSON.stringify({ importSourceId: data.workspace.importSourceId, targetLanguage: data.workspace.targetLanguage, regenerate: true }),
+      });
+      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = false;
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as { type: string; stage?: string; label?: string; modelName?: string; error?: { message?: string } };
+          if (event.type === "stage" && event.stage && event.label && event.modelName) setProfileStage({ stage: event.stage, label: event.label, modelName: event.modelName });
+          if (event.type === "error") throw new Error(event.error?.message || "สร้าง Profile ใหม่ไม่สำเร็จ");
+          if (event.type === "complete") completed = true;
+        }
+        if (done) break;
+      }
+      if (!completed) throw new Error("AI ทำงานเสร็จแต่ไม่ได้ยืนยันผลลัพธ์");
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "สร้าง Profile ใหม่ไม่สำเร็จ");
+    } finally {
+      setBusy(""); setProfileStage(null);
     }
   }
 
@@ -135,6 +196,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   }
 
   return <div className="grid gap-5">
+    {busy === "regenerate-profile" ? <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="กำลังสร้าง Translation Profile ใหม่"><div className="w-full max-w-2xl rounded-[22px] border border-[var(--brand-primary)]/30 bg-card p-6 shadow-2xl"><h2 className="mb-1 text-xl font-bold">กำลังสร้าง Profile คุณภาพสูงใหม่</h2><p className="mb-4 text-sm text-muted-foreground">วิเคราะห์ตัวอย่างเนื้อหา เลือก context ตามแนว และตรวจสำนวนโดยบรรณาธิการ AI</p><AiTranslationVisual active stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} /></div></div> : null}
     {error ? <div role="alert" className="rounded-[12px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
     {message ? <div role="status" className="rounded-[12px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">{message}</div> : null}
     {activeJob ? <AiTranslationProgress
@@ -157,18 +219,31 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
               <h3 className="mt-2 font-semibold">{data.source.title}</h3>
               <p className="mt-2 max-h-36 overflow-auto text-sm leading-relaxed text-muted-foreground">{data.source.synopsis?.trim() || "ไม่มีเรื่องย่อจากต้นฉบับ ระบบจึงสร้างกฎแปลแบบทั่วไปให้ตรวจแก้"}</p>
             </div>
-            <div className="rounded-[12px] border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" />ฉบับแปลโดย AI</p>
-              <h3 className="mt-2 font-semibold">{data.translatedMetadata?.title ?? "ยังไม่มีชื่อเรื่องฉบับแปล"}</h3>
-              <p className="mt-2 max-h-36 overflow-auto text-sm leading-relaxed text-muted-foreground">{data.translatedMetadata?.synopsis?.trim() || "ยังไม่มีเรื่องย่อฉบับแปล"}</p>
+            <div className="grid gap-3 rounded-[12px] border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" />ฉบับแปลโดย AI · แก้ไขได้</p>
+                <Button type="button" size="sm" variant="outline" loading={busy === "review-title"} onClick={reviewTitle}><Sparkles className="h-3.5 w-3.5" />AI Review ชื่อเรื่อง</Button>
+              </div>
+              <Field label="ชื่อเรื่องฉบับแปล" hint="ชื่อนี้จะถูกใช้ในหน้าแรก หน้ารายละเอียด และระบบค้นหา"><Input value={translatedTitle} onChange={(event) => setTranslatedTitle(event.target.value)} required /></Field>
+              <Field label="เรื่องย่อฉบับแปล"><Textarea value={translatedSynopsis} onChange={(event) => setTranslatedSynopsis(event.target.value)} className="min-h-32" /></Field>
             </div>
             <dl className="grid content-start gap-2 rounded-[12px] border border-border p-4 text-sm">
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ต้นทาง</dt><dd className="font-semibold">{data.workspace.sourceLanguage}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ปลายทาง</dt><dd className="font-semibold">{data.workspace.targetLanguage}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ต้นฉบับ</dt><dd className="max-w-40 truncate font-semibold">{data.source.provider}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ตอนที่พร้อม</dt><dd className="font-semibold">{eligibleChapters.length.toLocaleString("th-TH")}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Genre context</dt><dd className="max-w-44 text-right font-semibold">{data.profileAnalysis?.genreContext.label ?? "Profile รุ่นเดิม"}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ตัวอย่างที่อ่าน</dt><dd className="font-semibold">{data.profileAnalysis?.sampledChapters.length ? `${data.profileAnalysis.sampledChapters.length} ตอน` : "เฉพาะ metadata"}</dd></div>
             </dl>
           </div>
+          {titleReview ? (
+            <div className="mt-4 rounded-[12px] border border-sky-500/25 bg-sky-500/8 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">ผล Review ชื่อเรื่อง</p>{translatedTitle !== titleReview.reviewedTitle ? <p className="text-xs text-amber-700 dark:text-amber-300">ชื่อถูกแก้หลัง Review — กด Review อีกครั้งเพื่อประเมินชื่อปัจจุบัน</p> : null}</div><span className="rounded-full bg-card px-2.5 py-1 text-xs font-bold">{titleReview.score}/100 · {titleReview.verdict === "NATURAL" ? "เป็นธรรมชาติ" : "ควรปรับ"}</span></div>
+              {titleReview.issues.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">{titleReview.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">ไม่พบจุดผิดธรรมชาติที่สำคัญ</p>}
+              <div className="mt-3 grid gap-2 md:grid-cols-2">{titleReview.candidates.map((candidate) => <div key={candidate.title} className={`rounded-[10px] border p-3 ${candidate.title === titleReview.recommendedTitle ? "border-[var(--brand-primary)] bg-card" : "border-border bg-card/70"}`}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{candidate.title}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{candidate.rationale}</p></div><Button type="button" size="sm" variant={translatedTitle === candidate.title ? "secondary" : "outline"} onClick={() => { setTranslatedTitle(candidate.title); setMessage(`เลือกชื่อ “${candidate.title}” แล้ว กดบันทึก Profile เพื่อใช้งานจริง`); }}>{translatedTitle === candidate.title ? "เลือกแล้ว" : "ใช้ชื่อนี้"}</Button></div></div>)}</div>
+              <p className="mt-3 text-[11px] text-muted-foreground">ตรวจด้วย {titleReview.modelName} · {(titleReview.latencyMs / 1_000).toFixed(1)} วินาที</p>
+            </div>
+          ) : null}
           {data.profileAiPipeline.length ? (
             <div className="mt-4 rounded-[12px] border border-emerald-500/25 bg-emerald-500/8 p-3">
               <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />สร้างด้วย AI จริงครบ {data.profileAiPipeline.length} ขั้นตอน</p>
@@ -181,7 +256,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
           )}
         </Panel>
 
-        <Panel title="2. ตรวจ Default Profile" description={`เวอร์ชัน ${data.profile?.version ?? 1} · บันทึกขั้นตอนนี้ก่อนเลือกตอน`}>
+        <Panel title="2. ตรวจ Default Profile" description={`เวอร์ชัน ${data.profile?.version ?? 1} · บันทึกขั้นตอนนี้ก่อนเลือกตอน`} action={<Button type="button" size="sm" variant="outline" disabled={activeJobs} loading={busy === "regenerate-profile"} onClick={regenerateProfile}><Sparkles className="h-4 w-4" />สร้าง Profile คุณภาพสูงใหม่</Button>}>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="ชื่อ Profile" hint="ใช้แยก Profile เมื่อมีหลายแนวการแปล"><Input name="profileName" required defaultValue={data.profile?.name ?? "Default"} /></Field>
             <div className="rounded-[10px] bg-muted px-3 py-2 text-sm text-muted-foreground">นิยายสาธารณะ: {data.workspace.novelId ? "สร้างแล้ว" : "จะสร้างเป็น Draft เมื่ออนุมัติตอนแรก"}</div>
@@ -192,9 +267,9 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
         </Panel>
 
         <details className="group rounded-[16px] border border-border bg-card shadow-[var(--sh-1)]">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-semibold">Glossary เริ่มต้น <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">{glossary.length} คำ <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-semibold">คลังคำตลอดทั้งเรื่อง <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">ล็อก {glossary.filter((entry) => entry.isLocked).length} · AI เสนอ {glossary.filter((entry) => !entry.isLocked).length} <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary>
           <div className="grid gap-3 border-t border-border p-5">
-            <p className="text-sm text-muted-foreground">เพิ่มเฉพาะคำที่ต้องล็อกตั้งแต่ตอนแรก รายการนี้แก้เพิ่มภายหลังได้</p>
+            <p className="text-sm text-muted-foreground">คำที่ล็อกเป็นกฎบังคับและถูกตรวจซ้ำด้วยระบบ ส่วนคำที่ AI พบระหว่างแปลจะถูกเก็บแบบ “เสนอ” ให้ตรวจแก้และติ๊กล็อกก่อนใช้เป็นกฎถาวรในตอนถัดไป</p>
             {glossary.map((entry, index) => <div key={entry.id ?? index} className="grid gap-2 md:grid-cols-[1fr_1fr_1.4fr_auto_auto]">
               <Input aria-label="คำต้นฉบับ" value={entry.sourceTerm} placeholder="คำต้นฉบับ" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, sourceTerm: event.target.value } : row))} />
               <Input aria-label="คำแปล" value={entry.targetTerm} placeholder="คำแปลที่กำหนด" onChange={(event) => setGlossary((rows) => rows.map((row, i) => i === index ? { ...row, targetTerm: event.target.value } : row))} />
@@ -223,7 +298,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
 
         <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--brand-primary)]/25 bg-card/95 p-3 shadow-[var(--sh-2)] backdrop-blur">
           <p className="text-sm text-muted-foreground"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-600" />ตรวจ Profile แล้วจึงไปเลือกตอน</p>
-          <Button type="submit" loading={busy === "save"}><Save className="h-4 w-4" />บันทึกและไปเลือกตอน</Button>
+          <Button type="submit" loading={busy === "save"} disabled={activeJobs}><Save className="h-4 w-4" />{activeJobs ? "รอคิวจบก่อนบันทึก" : "บันทึกและไปเลือกตอน"}</Button>
         </div>
       </form>
     ) : (
@@ -235,8 +310,8 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
         >
           <div className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-muted/50 p-3">
-              <div><p className="text-sm font-semibold">Profile พร้อมใช้งาน</p><p className="text-xs text-muted-foreground">{data.profile?.name ?? "Default"} · เวอร์ชัน {data.profile?.version ?? 1}</p></div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setStep(2)}><ArrowLeft className="h-4 w-4" />กลับไปแก้ Profile</Button>
+              <div><p className="text-sm font-semibold">Profile พร้อมใช้งาน</p><p className="text-xs text-muted-foreground">{data.profile?.name ?? "Default"} · เวอร์ชัน {data.profile?.version ?? 1} · คลังคำ {data.glossary.length} คำ ({data.glossary.filter((entry) => !entry.isLocked).length} คำรอตรวจ)</p></div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setGlossary(data.glossary); setStep(2); }}><ArrowLeft className="h-4 w-4" />Review ชื่อเรื่อง / แก้ Profile</Button>
             </div>
 
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_190px]">
