@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BellRing, BookMarked, Eye, Heart, LibraryBig } from "lucide-react";
+import { BellRing, BookMarked, BookOpen, Eye, Heart, LibraryBig } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BannerCarousel, type BannerSlide } from "@/components/home/banner-carousel";
@@ -33,10 +33,6 @@ const genreNameOf = (novel: Novel, slug?: string) =>
 
 function HomeGridCard({ novel }: { novel: Novel }) {
   const badge = novel.isNew ? "ใหม่" : novel.status === "completed" ? "จบ" : null;
-  const genreLabels = novel.genres
-    .slice(0, 2)
-    .map((slug) => genreNameOf(novel, slug))
-    .filter(Boolean);
 
   return (
     <article className="group min-w-0">
@@ -61,14 +57,12 @@ function HomeGridCard({ novel }: { novel: Novel }) {
       </Link>
       <div className="mt-1.5 min-w-0">
         <Link href={`/novel/${novel.slug}`} className="block">
-          <h3 className="line-clamp-2 text-sm font-semibold leading-[1.35] group-hover:text-[var(--brand-emphasis)]">
+          <h3 className="truncate text-sm font-semibold leading-[1.35] group-hover:text-[var(--brand-emphasis)]">
             {novel.thaiTitle}
           </h3>
         </Link>
-        <p className="tabular mt-1 truncate text-xs text-(--text-tertiary)">
-          {genreLabels.length ? `${genreLabels.join(" · ")} · ` : ""}{novel.chapters.toLocaleString("th-TH")} ตอน
-        </p>
-        <p className="tabular mt-1 flex items-center gap-3 text-xs text-(--text-tertiary)">
+        <p className="tabular mt-1 flex min-w-0 items-center justify-between gap-1.5 text-[11px] text-(--text-tertiary) sm:text-xs">
+          <span className="inline-flex min-w-0 items-center gap-1"><BookOpen className="h-3 w-3 shrink-0" aria-hidden /><span className="truncate">{formatNumber(novel.chapters)} ตอน</span></span>
           <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" aria-hidden />{formatNumber(novel.views)}</span>
           <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" aria-hidden />{formatNumber(novel.bookmarkCount ?? 0)}</span>
         </p>

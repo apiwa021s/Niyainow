@@ -68,6 +68,7 @@ type ResumeActionProps = {
   serverProgress?: NovelResumeServerProgress | null;
   libraryStatus?: NovelLibraryStatus | null;
   bookmarkCount?: number;
+  onOpenChapters?: () => void;
 };
 
 export function NovelResumeActions({
@@ -91,10 +92,6 @@ export function NovelResumeActions({
         <ButtonLink href={href} size="lg">
           <BookOpen className="h-4 w-4" />
           {label}
-        </ButtonLink>
-        <ButtonLink href={`/novel/${slug}/chapters`} variant="outline">
-          <ListOrdered className="h-4 w-4" />
-          สารบัญ
         </ButtonLink>
         <LibraryButton slug={slug} initialStatus={libraryStatus} count={bookmarkCount} />
       </div>
@@ -120,6 +117,7 @@ export function NovelResumeMobileBar({
   startLabel,
   serverProgress,
   libraryStatus,
+  onOpenChapters,
 }: ResumeActionProps) {
   const selection = useNovelResumeProgress(slug, serverProgress);
   const href = selection ? progressHref(slug, selection) : startHref;
@@ -130,14 +128,16 @@ export function NovelResumeMobileBar({
   return (
     <div className="novel-resume-mobile-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] lg:hidden">
       <div className="mx-auto flex max-w-md items-center gap-2">
-        <Link
-          href={`/novel/${slug}/chapters`}
+        <button
+          type="button"
+          onClick={onOpenChapters}
           aria-label="เปิดสารบัญ"
           title="สารบัญ"
+          aria-haspopup="dialog"
           className="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] border border-border bg-card hover:bg-muted"
         >
           <ListOrdered className="h-4 w-4" />
-        </Link>
+        </button>
         <BookmarkButton slug={slug} initialStatus={libraryStatus} />
         <Link
           href={href}

@@ -1,26 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ListOrdered, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { ViewTransition } from "react";
 
 import { RatingForm } from "@/components/interactive/rating-form";
 import { NovelResumeActions } from "@/components/reader/novel-resume-actions";
-import { EmptyState } from "@/components/ui/section";
 import { formatNumber } from "@/lib/utils";
 import type { UserNovelState } from "@/services/user-service";
-import type { ChapterSummary, Novel, Review } from "@/types/novel";
+import type { Novel, Review } from "@/types/novel";
 
 function statusLabel(status: Novel["status"]) {
   if (status === "completed") return "จบแล้ว";
   if (status === "hiatus") return "พักการอัปเดต";
   return "กำลังอัปเดต";
-}
-
-function formatChapterNumber(value: number) {
-  return value.toLocaleString("th-TH", {
-    maximumFractionDigits: 3,
-    useGrouping: false,
-  });
 }
 
 export function NovelHero({
@@ -119,106 +111,6 @@ export function NovelSynopsis({ novel }: { novel: Novel }) {
       <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground sm:text-base sm:leading-8">
         {novel.synopsis}
       </p>
-    </section>
-  );
-}
-
-function chapterRangeLabel(chapters: ChapterSummary[]) {
-  if (!chapters.length) return "";
-  const numbers = chapters.map((chapter) => chapter.number);
-  const start = Math.min(...numbers);
-  const end = Math.max(...numbers);
-  return start === end
-    ? `ตอนที่ ${formatChapterNumber(start)}`
-    : `ตอนที่ ${formatChapterNumber(start)} – ${formatChapterNumber(end)}`;
-}
-
-function ChapterSection({
-  slug,
-  title,
-  chapters,
-}: {
-  slug: string;
-  title: string;
-  chapters: ChapterSummary[];
-}) {
-  return (
-    <section className="overflow-hidden rounded-(--r-md) border border-border bg-card" aria-label={title}>
-      <h3 className="bg-surface-subtle px-4 py-3 text-sm font-semibold sm:px-5">{title}</h3>
-      <ol className="divide-y divide-border">
-        {chapters.map((chapter) => (
-          <li key={chapter.id ?? chapter.number}>
-            <Link
-              href={`/novel/${slug}/chapter/${chapter.number}`}
-              className="group grid min-h-14 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-subtle sm:px-5"
-            >
-              <span className="tabular text-xs font-semibold text-muted-foreground">
-                {formatChapterNumber(chapter.number)}
-              </span>
-              <span className="line-clamp-1 text-sm font-medium transition-colors group-hover:text-[var(--brand-emphasis)]">
-                {chapter.title}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-export function ChapterPreview({
-  slug,
-  firstChapters,
-  latestChapters,
-  chapterCount,
-}: {
-  slug: string;
-  firstChapters: ChapterSummary[];
-  latestChapters: ChapterSummary[];
-  chapterCount: number;
-}) {
-  const first = [...firstChapters].sort((left, right) => left.number - right.number);
-  const firstKeys = new Set(first.map((chapter) => chapter.id ?? chapter.number));
-  const latest = [...latestChapters]
-    .filter((chapter) => !firstKeys.has(chapter.id ?? chapter.number))
-    .sort((left, right) => right.number - left.number);
-  const hasChapters = first.length > 0 || latest.length > 0;
-  const isSingleSection = latest.length === 0;
-
-  return (
-    <section aria-labelledby="chapter-preview-title">
-      <div className="mb-3 flex min-h-11 flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <ListOrdered className="h-5 w-5 shrink-0 text-[var(--brand-light-on-light)]" aria-hidden />
-          <h2 id="chapter-preview-title" className="text-h2 font-semibold">สารบัญ</h2>
-          <span className="text-sm text-muted-foreground">{formatNumber(chapterCount)} ตอน</span>
-        </div>
-        <Link
-          href={`/novel/${slug}/chapters`}
-          className="inline-flex min-h-11 items-center text-sm font-semibold text-(--text-secondary) hover:text-[var(--brand-emphasis)]"
-        >
-          ดูทั้งหมด
-        </Link>
-      </div>
-
-      {hasChapters ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <ChapterSection
-            slug={slug}
-            title={isSingleSection ? "ตอนทั้งหมด" : `ช่วงตอนแรก · ${chapterRangeLabel(first)}`}
-            chapters={first}
-          />
-          {latest.length ? (
-            <ChapterSection
-              slug={slug}
-              title={`ช่วงตอนล่าสุด · ${chapterRangeLabel(latest)}`}
-              chapters={latest}
-            />
-          ) : null}
-        </div>
-      ) : (
-        <EmptyState title="ยังไม่มีตอนที่เผยแพร่" description="กลับมาดูใหม่เมื่อมีตอนแรก" />
-      )}
     </section>
   );
 }

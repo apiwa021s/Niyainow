@@ -5,14 +5,13 @@ import { connection } from "next/server";
 import { ViewTransition } from "react";
 
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
+import { NovelChapterBrowser } from "@/components/novels/novel-chapter-browser";
 import {
-  ChapterPreview,
   NovelCommunity,
   NovelHero,
   NovelSignals,
   NovelSynopsis,
 } from "@/components/novels/novel-detail";
-import { NovelResumeMobileBar } from "@/components/reader/novel-resume-actions";
 import { JsonLd } from "@/components/seo/json-ld";
 import { PageShell } from "@/components/ui/section";
 import { getCurrentUser } from "@/lib/auth/dal";
@@ -69,7 +68,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
   const firstChapter = detailSections.firstChapters[0];
   const startHref = firstChapter
     ? `/novel/${novel.slug}/chapter/${firstChapter.number}`
-    : `/novel/${novel.slug}/chapters`;
+    : "#novel-chapters";
   const startLabel = firstChapter ? "เริ่มอ่าน" : "ดูสารบัญ";
 
   return (
@@ -112,10 +111,12 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
               : undefined,
             genre: novel.genres.map((genre) => novel.genreNames?.[genre] ?? genre),
             keywords: novel.tags.map((tag) => displayTagName(novel.tagNames?.[tag] ?? tag)),
-            potentialAction: {
-              "@type": "ReadAction",
-              target: absoluteUrl(startHref),
-            },
+            potentialAction: firstChapter
+              ? {
+                  "@type": "ReadAction",
+                  target: absoluteUrl(startHref),
+                }
+              : undefined,
           },
           {
             "@context": "https://schema.org",
@@ -143,21 +144,18 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         startLabel={startLabel}
         userState={userState}
       />
-      <NovelResumeMobileBar
-        slug={novel.slug}
-        startHref={startHref}
-        startLabel={startLabel}
-        serverProgress={userState?.progress}
-        libraryStatus={userState?.libraryStatus}
-      />
       <NovelSignals novel={novel} />
       <div className="mx-auto mt-8 grid max-w-4xl gap-8 sm:mt-10 sm:gap-10">
         <NovelSynopsis novel={novel} />
-        <ChapterPreview
+        <NovelChapterBrowser
           slug={novel.slug}
           firstChapters={detailSections.firstChapters}
           latestChapters={detailSections.latestChapters}
           chapterCount={novel.chapters}
+          startHref={startHref}
+          startLabel={startLabel}
+          serverProgress={userState?.progress}
+          libraryStatus={userState?.libraryStatus}
         />
         <NovelCommunity novel={novel} userState={userState} reviews={detailSections.reviews} />
       </div>
