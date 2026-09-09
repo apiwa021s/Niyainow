@@ -1593,8 +1593,8 @@ export const getGenreRising = cache(async (slugInput: string, requestedLimit = 6
 });
 
 export const getGenreShowcase = unstable_cache(
-  async (requestedLimit = 8) => {
-    const limit = clampLimit(requestedLimit, 8, 12);
+  async (requestedLimit = 17) => {
+    const limit = clampLimit(requestedLimit, 17, 20);
     return getOrSetVersioned({
       versionKeys: [cacheKeys.versions.homepage(), cacheKeys.versions.taxonomy()],
       key: ([homepageVersion, taxonomyVersion]) =>

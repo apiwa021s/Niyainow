@@ -1,5 +1,8 @@
 import {
   Compass,
+  BookOpen,
+  Building2,
+  Coffee,
   Cpu,
   Flame,
   Ghost,
@@ -13,6 +16,7 @@ import {
   Heart,
   Skull,
   Dumbbell,
+  Trophy,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -22,7 +26,8 @@ const GENRE_STYLE: Record<string, { icon: LucideIcon; gradient: string }> = {
   romance: { icon: Heart, gradient: "from-rose-400 to-pink-600" },
   historical: { icon: Sword, gradient: "from-amber-400 to-orange-600" },
   war: { icon: Swords, gradient: "from-red-500 to-rose-700" },
-  contemporary: { icon: Heart, gradient: "from-pink-400 to-fuchsia-600" },
+  contemporary: { icon: Building2, gradient: "from-cyan-400 to-blue-600" },
+  drama: { icon: BookOpen, gradient: "from-purple-400 to-violet-700" },
   fantasy: { icon: Sword, gradient: "from-violet-400 to-purple-600" },
   action: { icon: Swords, gradient: "from-red-400 to-orange-600" },
   system: { icon: Cpu, gradient: "from-sky-400 to-blue-600" },
@@ -31,6 +36,8 @@ const GENRE_STYLE: Record<string, { icon: LucideIcon; gradient: string }> = {
   wuxia: { icon: Sword, gradient: "from-amber-400 to-red-600" },
   adventure: { icon: Compass, gradient: "from-teal-400 to-emerald-600" },
   comedy: { icon: Smile, gradient: "from-yellow-400 to-amber-500" },
+  "slice-of-life": { icon: Coffee, gradient: "from-lime-400 to-emerald-600" },
+  sports: { icon: Trophy, gradient: "from-orange-400 to-amber-600" },
   mystery: { icon: Search, gradient: "from-indigo-400 to-indigo-700" },
   horror: { icon: Ghost, gradient: "from-slate-500 to-zinc-800" },
   "sci-fi": { icon: Rocket, gradient: "from-sky-400 to-cyan-600" },
@@ -38,7 +45,7 @@ const GENRE_STYLE: Record<string, { icon: LucideIcon; gradient: string }> = {
   "martial-arts": { icon: Dumbbell, gradient: "from-orange-400 to-red-600" },
 };
 
-const DEFAULT_STYLE = { icon: Flame, gradient: "from-[var(--brand-primary)] to-fuchsia-600" };
+const DEFAULT_STYLE = { icon: BookOpen, gradient: "from-[var(--brand-primary)] to-violet-600" };
 
 function styleFor(slug: string) {
   return GENRE_STYLE[slug] ?? DEFAULT_STYLE;
@@ -48,30 +55,37 @@ function styleFor(slug: string) {
 export function CategoryIconRail({ items, title }: { items: { genre: Genre; covers: string[] }[]; title?: string }) {
   if (!items.length) return null;
   return (
-    <nav aria-label={title ?? "เลือกตามแนวนิยาย"} className="grid gap-2">
-      {title ? <p className="text-sm font-semibold text-(--text-secondary)">{title}</p> : null}
-      <div className="rail-scroll -mx-1 flex gap-3 px-1">
-        {items.map(({ genre }) => {
-          const { icon: Icon, gradient } = styleFor(genre.slug);
-          return (
-            <Link
-              key={genre.slug}
-              href={`/genre/${genre.slug}`}
-              className="group flex w-20 shrink-0 flex-col items-center gap-1.5 sm:w-24"
-            >
-              <span
-                aria-hidden
-                className={`grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br text-white shadow-sm transition-transform group-hover:scale-105 sm:h-16 sm:w-16 ${gradient}`}
-              >
-                <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
-              </span>
-              <span className="line-clamp-1 text-center text-xs font-medium text-(--text-secondary) group-hover:text-(--text-primary)">
-                {genre.thaiName || genre.name}
-              </span>
-            </Link>
-          );
-        })}
+    <section aria-labelledby="home-genres-title" className="grid gap-2">
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <h2 id="home-genres-title" className="text-h2 font-semibold">{title ?? "เลือกตามแนวนิยาย"}</h2>
+        <Link href="/genres" className="-my-3 inline-flex min-h-11 items-center py-3 text-sm font-semibold text-(--text-secondary) hover:text-accent-base">
+          ดูทุกแนว
+        </Link>
       </div>
-    </nav>
+      <nav aria-label={title ?? "เลือกตามแนวนิยาย"}>
+        <div className="rail-scroll -mx-1 flex gap-3 px-1">
+          {items.map(({ genre }) => {
+            const { icon: Icon, gradient } = styleFor(genre.slug);
+            return (
+              <Link
+                key={genre.slug}
+                href={`/genre/${genre.slug}`}
+                className="group flex w-20 shrink-0 flex-col items-center gap-1.5 sm:w-24"
+              >
+                <span
+                  aria-hidden
+                  className={`grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br text-white shadow-sm transition-transform group-hover:scale-105 sm:h-16 sm:w-16 ${gradient}`}
+                >
+                  <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
+                </span>
+                <span className="line-clamp-1 text-center text-xs font-medium text-(--text-secondary) group-hover:text-(--text-primary)">
+                  {genre.thaiName || genre.name}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </section>
   );
 }

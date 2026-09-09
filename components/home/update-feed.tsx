@@ -33,6 +33,7 @@ export function UpdateFeed({
         <ol className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
           {visibleItems.map((item, index) => {
             const novel = item.novel;
+            const genre = novel.genreNames?.[novel.genres[0]];
             return (
               <li key={`${item.novelSlug}-${item.chapter}-${index}`}>
                 <Link
@@ -51,7 +52,7 @@ export function UpdateFeed({
                     </span>
                     <span className="tabular mt-0.5 flex items-center gap-1 text-xs text-(--text-tertiary)">
                       <Clock3 className="h-3 w-3" aria-hidden />
-                      {item.time}
+                      {genre ? `${genre} · ` : ""}{item.time}
                     </span>
                   </span>
                   <ChevronRight className="h-4 w-4 text-(--text-tertiary) transition-colors group-hover:text-accent-base" aria-hidden />

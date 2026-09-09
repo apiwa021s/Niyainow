@@ -7,14 +7,10 @@ import { BannerCarousel, type BannerSlide } from "@/components/home/banner-carou
 import { CategoryIconRail } from "@/components/home/category-icon-rail";
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { RankingTabs } from "@/components/home/ranking-tabs";
-import { TasteDiscovery } from "@/components/home/taste-discovery";
+import { GenreDiscovery } from "@/components/home/genre-discovery";
 import { TrendingTicker } from "@/components/home/trending-ticker";
 import { UpdateFeed } from "@/components/home/update-feed";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
-import {
-  getNovelTaste,
-  type NovelTaste,
-} from "@/lib/domain/reader-taste";
 import { cn, formatNumber } from "@/lib/utils";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { HomePersonalization } from "@/services/user-service";
@@ -38,7 +34,10 @@ const genreNameOf = (novel: Novel, slug?: string) =>
 
 function HomeGridCard({ novel }: { novel: Novel }) {
   const badge = novel.isNew ? "ใหม่" : novel.status === "completed" ? "จบ" : null;
-  const genre = genreNameOf(novel, novel.genres[0]);
+  const genreLabels = novel.genres
+    .slice(0, 2)
+    .map((slug) => genreNameOf(novel, slug))
+    .filter(Boolean);
 
   return (
     <article className="group min-w-0">
@@ -68,7 +67,7 @@ function HomeGridCard({ novel }: { novel: Novel }) {
           </h3>
         </Link>
         <p className="tabular mt-1 truncate text-xs text-(--text-tertiary)">
-          {genre ? `${genre} · ` : ""}{novel.chapters.toLocaleString("th-TH")} ตอน
+          {genreLabels.length ? `${genreLabels.join(" · ")} · ` : ""}{novel.chapters.toLocaleString("th-TH")} ตอน
         </p>
         <p className="tabular mt-1 flex items-center gap-3 text-xs text-(--text-tertiary)">
           <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" aria-hidden />{formatNumber(novel.views)}</span>
@@ -138,7 +137,10 @@ const MIN_BANNER_SLIDES = 3;
 export function HomeHeroSection({ banners, featuredNovels }: { banners: PromoBannerItem[]; featuredNovels: Novel[] }) {
   const slides: BannerSlide[] = [
     ...banners.map(bannerSlideFromPromo),
-    ...featuredNovels.map((novel) => bannerSlideFromNovel(novel, "แนะนำ")),
+    ...featuredNovels.map((novel) => bannerSlideFromNovel(
+      novel,
+      novel.genres.slice(0, 2).map((slug) => genreNameOf(novel, slug)).filter(Boolean).join(" · ") || "เรื่องแนะนำ",
+    )),
   ].slice(0, Math.max(MIN_BANNER_SLIDES, banners.length));
 
   return (
@@ -148,7 +150,7 @@ export function HomeHeroSection({ banners, featuredNovels }: { banners: PromoBan
   );
 }
 
-/** Dedup the shared Studio mock across Home shelves. */
+/** Deduplicate the public catalogue results shared across home shelves. */
 function pooledNovels(data: HomeData): Novel[] {
   const map = new Map<string, Novel>();
   for (const novel of [...data.recommended, ...data.newThisWeek, ...data.completed, ...data.rankings]) {
@@ -157,11 +159,52 @@ function pooledNovels(data: HomeData): Novel[] {
   return [...map.values()];
 }
 
-function tasteShelf(pool: Novel[], predicate: (taste: NovelTaste) => boolean, limit = 12): Novel[] {
-  const matches = pool.filter((novel) => predicate(getNovelTaste(novel)));
-  const fallback = pool.filter((novel) => !matches.some((match) => match.slug === novel.slug));
-  return [...matches, ...fallback].slice(0, limit);
+function multiGenreShelf(pool: Novel[], genreSlugs: readonly string[], limit = 12): Novel[] {
+  const buckets = genreSlugs.map((slug) => pool.filter((novel) => novel.genres.includes(slug)));
+  const selected: Novel[] = [];
+  const selectedSlugs = new Set<string>();
+
+  while (selected.length < limit) {
+    let added = false;
+    for (const bucket of buckets) {
+      const novel = bucket.find((candidate) => !selectedSlugs.has(candidate.slug));
+      if (!novel) continue;
+      selected.push(novel);
+      selectedSlugs.add(novel.slug);
+      added = true;
+      if (selected.length === limit) break;
+    }
+    if (!added) break;
+  }
+
+  return [
+    ...selected,
+    ...pool.filter((novel) => !selectedSlugs.has(novel.slug)),
+  ].slice(0, limit);
 }
+
+const GENRE_SHELVES = [
+  {
+    title: "ผจญภัยในโลกเหนือจินตนาการ",
+    description: "แฟนตาซี ผจญภัย ระบบ ศิลปะการต่อสู้ และวันสิ้นโลก",
+    genres: ["fantasy", "adventure", "system", "martial-arts", "apocalypse"],
+  },
+  {
+    title: "ไขปริศนาและลุ้นระทึก",
+    description: "สืบสวน ลึกลับ ระทึกขวัญ และสยองขวัญ",
+    genres: ["mystery", "thriller", "horror"],
+  },
+  {
+    title: "เรื่องของหัวใจและชีวิต",
+    description: "โรแมนซ์ ร่วมสมัย ดราม่า คอมเมดี้ และชีวิตประจำวัน",
+    genres: ["romance", "contemporary", "drama", "comedy", "slice-of-life"],
+  },
+  {
+    title: "พลัง ความเร็ว และโลกอนาคต",
+    description: "แอ็กชัน ประวัติศาสตร์ กีฬา และไซไฟ",
+    genres: ["action", "historical", "sports", "sci-fi"],
+  },
+] as const;
 
 export function HomeFeed({
   data,
@@ -173,69 +216,53 @@ export function HomeFeed({
   signupSlot?: ReactNode;
 }) {
   const pool = pooledNovels(data);
-  const fantasy = [
-    ...pool.filter((novel) => novel.genres.includes("fantasy")),
-    ...pool.filter((novel) => !novel.genres.includes("fantasy")),
-  ].slice(0, 12);
-  const blTrending = tasteShelf(pool, (taste) => taste.relationship === "mm");
-  const omegaverse = tasteShelf(pool, (taste) => taste.setting === "omegaverse");
-  const possessive = tasteShelf(pool, (taste) => taste.tropes.includes("possessive"));
-  const bingeReading = data.completed.length ? data.completed : [...pool].sort((a, b) => b.chapters - a.chapters);
+  const activeGenreSlugs = data.genreShowcase.map(({ genre }) => genre.slug);
+  const diverseRecommended = multiGenreShelf(data.recommended, activeGenreSlugs);
+  const diverseNewReleases = multiGenreShelf(data.newThisWeek, activeGenreSlugs);
+  const bingeReading = data.completed.length
+    ? multiGenreShelf(data.completed, activeGenreSlugs)
+    : [...pool].sort((a, b) => b.chapters - a.chapters);
 
   return (
     <div className="flex flex-col gap-4 lg:gap-5">
       <TrendingTicker novels={data.rankings.slice(0, 16)} />
-      <TasteDiscovery />
-      <CategoryIconRail items={data.genreShowcase} />
+      <GenreDiscovery />
+      <CategoryIconRail items={data.genreShowcase} title="สำรวจนิยายทุกแนว" />
 
       {children}
 
       <HomeNovelCarousel
-        title="สำหรับคุณ"
-        description="คัดจากคะแนนและกิจกรรมการอ่านของคลัง"
-        novels={data.recommended}
+        title="เรื่องน่าอ่านหลากแนว"
+        description="คัดจากคะแนนและความนิยม ครบหลายอารมณ์และหลายสไตล์"
+        novels={diverseRecommended}
         href="/novels?sort=rating"
       />
 
       <HomeNovelCarousel
-        title="กำลังมาแรงคืนนี้"
-        description="เรื่องที่นักอ่านกำลังเปิดอ่านและติดตามมากที่สุด"
+        title="ยอดนิยมจากทั้งคลัง"
+        description="เรื่องที่นักอ่านกำลังเปิดอ่านและติดตามมากที่สุดในช่วงนี้"
         novels={data.rankings}
         href="/rankings"
       />
 
       <HomeNovelCarousel
         title="เรื่องใหม่ที่น่าจับตา"
-        novels={data.newThisWeek}
+        description="นิยายเปิดตัวและเรื่องที่เพิ่งเริ่มอัปเดตจากหลายหมวด"
+        novels={diverseNewReleases}
         href="/novels?sort=new"
       />
 
       <RankingTabs daily={data.rankingsDaily} weekly={data.rankings} monthly={data.rankingsMonthly} />
 
-      <HomeNovelCarousel
-        title="แฟนตาซีและการผจญภัย"
-        description="ออกเดินทางสู่โลกใหม่ เวทมนตร์ และภารกิจเหนือจินตนาการ"
-        novels={fantasy}
-        href="/novels?genre=fantasy"
-      />
-
-      <HomeNovelCarousel
-        title="BL ที่กำลังมาแรง"
-        novels={blTrending}
-        href="/novels?relationship=mm"
-      />
-
-      <HomeNovelCarousel
-        title="Omegaverse"
-        novels={omegaverse}
-        href="/novels?setting=omegaverse"
-      />
-
-      <HomeNovelCarousel
-        title="คลั่งรัก / หวงแรง"
-        novels={possessive}
-        href="/novels?trope=possessive"
-      />
+      {GENRE_SHELVES.map((shelf) => (
+        <HomeNovelCarousel
+          key={shelf.title}
+          title={shelf.title}
+          description={shelf.description}
+          novels={multiGenreShelf(pool, shelf.genres)}
+          href={`/novels?genre=${shelf.genres.join(",")}`}
+        />
+      ))}
 
       <HomeNovelCarousel
         title="อ่านรวดเดียวจบ"
@@ -248,7 +275,7 @@ export function HomeFeed({
         <div>
           <UpdateFeed
             title="อัปเดตล่าสุด"
-            description="รายการอัปเดตแบบ live feed สำหรับคนที่กลับมาเช็กทุกวัน"
+            description="ตอนใหม่จากทุกหมวด เรียงตามเวลาอัปเดตล่าสุด"
             href="/updates"
             items={data.updates}
           />

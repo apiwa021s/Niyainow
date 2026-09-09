@@ -32,6 +32,10 @@ function sortNovels(novels: Novel[], mode: SortMode): Novel[] {
 }
 
 function RankRow({ novel, rank }: { novel: Novel; rank: number }) {
+  const genreLabels = novel.genres
+    .slice(0, 2)
+    .map((slug) => novel.genreNames?.[slug] ?? slug)
+    .filter(Boolean);
   return (
     <Link
       href={`/novel/${novel.slug}`}
@@ -51,6 +55,7 @@ function RankRow({ novel, rank }: { novel: Novel; rank: number }) {
         <p className="truncate text-sm font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
           {novel.thaiTitle}
         </p>
+        {genreLabels.length ? <p className="mt-0.5 truncate text-xs text-(--text-secondary)">{genreLabels.join(" · ")}</p> : null}
         <p className="tabular mt-0.5 flex items-center gap-3 text-xs text-(--text-tertiary)">
           <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" aria-hidden />{formatNumber(novel.views)}</span>
           <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" aria-hidden />{formatNumber(novel.bookmarkCount ?? 0)}</span>
@@ -83,7 +88,7 @@ export function RankingTabs({
   return (
     <section aria-labelledby="home-ranking-title" className="render-deferred rounded-2xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="home-ranking-title" className="text-h2 font-semibold">จัดอันดับนิยาย</h2>
+        <h2 id="home-ranking-title" className="text-h2 font-semibold">อันดับนิยายทุกแนว</h2>
         <div role="tablist" aria-label="ช่วงเวลาจัดอันดับ" className="inline-flex rounded-full border border-border bg-muted/40 p-0.5">
           {PERIOD_TABS.map((tab) => (
             <button

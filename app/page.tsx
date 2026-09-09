@@ -82,7 +82,7 @@ async function PublicHomeFeed({ children, signupSlot }: { children: ReactNode; s
       getRankings("DAILY", 16),
       getRankings("MONTHLY", 16),
       getUpdates("all", undefined, 12),
-      getGenreShowcase(8),
+      getGenreShowcase(17),
     ]);
   const data: HomeData = { newThisWeek, recommended, completed, rankings, rankingsDaily, rankingsMonthly, updates, genreShowcase };
   return (

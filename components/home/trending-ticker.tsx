@@ -54,8 +54,8 @@ export function TrendingTicker({ novels }: { novels: Novel[] }) {
                 <span className="block truncate text-xs font-semibold transition-colors group-hover:text-accent-base">
                   {novel.thaiTitle}
                 </span>
-                <span className="tabular mt-0.5 block text-xs text-(--text-secondary)">
-                  {formatNumber(novel.views)} ครั้ง
+                <span className="tabular mt-0.5 block truncate text-xs text-(--text-secondary)">
+                  {novel.genreNames?.[novel.genres[0]] ? `${novel.genreNames[novel.genres[0]]} · ` : ""}{formatNumber(novel.views)} ครั้ง
                 </span>
               </span>
             </Link>
