@@ -33,11 +33,15 @@ const genreNameOf = (novel: Novel, slug?: string) =>
 
 function HomeGridCard({ novel }: { novel: Novel }) {
   const badge = novel.isNew ? "ใหม่" : novel.status === "completed" ? "จบ" : null;
+  const genreLabels = novel.genres
+    .slice(0, 2)
+    .map((slug) => genreNameOf(novel, slug))
+    .filter(Boolean);
 
   return (
     <article className="group min-w-0">
       <Link href={`/novel/${novel.slug}`} transitionTypes={["nav-forward"]} className="block">
-        <div className="cover-tile rounded-2xl shadow-sm">
+        <div className="relative aspect-2/3 overflow-hidden rounded-[4px] bg-surface-recessed shadow-sm ring-1 ring-border transition-shadow group-hover:ring-2 group-hover:ring-accent-base group-focus-within:ring-2 group-focus-within:ring-accent-base">
           <Image
             src={novel.cover}
             alt=""
@@ -57,14 +61,17 @@ function HomeGridCard({ novel }: { novel: Novel }) {
       </Link>
       <div className="mt-1.5 min-w-0">
         <Link href={`/novel/${novel.slug}`} className="block">
-          <h3 className="truncate text-sm font-semibold leading-[1.35] group-hover:text-[var(--brand-emphasis)]">
+          <h3 className="truncate text-sm font-semibold leading-[1.35] text-[var(--brand-light-on-light)] group-hover:text-[var(--brand-emphasis)]">
             {novel.thaiTitle}
           </h3>
         </Link>
-        <p className="tabular mt-1 flex min-w-0 items-center justify-between gap-1.5 text-[11px] text-(--text-tertiary) sm:text-xs">
-          <span className="inline-flex min-w-0 items-center gap-1"><BookOpen className="h-3 w-3 shrink-0" aria-hidden /><span className="truncate">{formatNumber(novel.chapters)} ตอน</span></span>
-          <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" aria-hidden />{formatNumber(novel.views)}</span>
-          <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" aria-hidden />{formatNumber(novel.bookmarkCount ?? 0)}</span>
+        <p className="mt-0.5 truncate text-xs text-(--text-secondary)">
+          {genreLabels.join(" · ") || "นิยาย"}
+        </p>
+        <p className="tabular mt-1 flex min-w-0 items-center gap-2.5 text-[11px] text-(--text-tertiary) sm:text-xs">
+          <span className="inline-flex items-center gap-1" title="ยอดอ่าน"><Eye className="h-3 w-3 shrink-0" aria-hidden />{formatNumber(novel.views)}</span>
+          <span className="inline-flex items-center gap-1" title="จำนวนตอน"><BookOpen className="h-3 w-3 shrink-0" aria-hidden />{formatNumber(novel.chapters)}</span>
+          <span className="inline-flex items-center gap-1" title="ถูกใจ"><Heart className="h-3 w-3 shrink-0" aria-hidden />{formatNumber(novel.bookmarkCount ?? 0)}</span>
         </p>
       </div>
     </article>
