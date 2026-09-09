@@ -1,7 +1,6 @@
 import {
   isRelationshipValue,
   isSettingValue,
-  parseHeatParam,
   parseTropeParam,
 } from "@/lib/domain/reader-taste";
 import type { NovelQuery } from "@/types/novel-query";
@@ -84,7 +83,6 @@ function appendNovelParams(params: URLSearchParams, query: NovelQuery) {
   if (query.relationship) params.set("relationship", String(query.relationship));
   if (query.setting) params.set("setting", String(query.setting));
   if (query.trope) params.set("trope", String(query.trope));
-  if (query.heat) params.set("heat", String(query.heat));
   if (query.sort) params.set("sort", String(query.sort));
   if (query.page && Number(query.page) > 1) params.set("page", String(query.page));
 }
@@ -102,12 +100,6 @@ function normalizedSetting(value: string | string[] | undefined) {
 function normalizedTrope(value: string | string[] | undefined) {
   const parsed = parseTropeParam(scalar(value));
   return parsed.length ? parsed.join(",") : undefined;
-}
-
-function normalizedHeat(value: string | string[] | undefined) {
-  const candidate = scalar(value);
-  const range = parseHeatParam(candidate);
-  return range ? (range.min === range.max ? String(range.min) : `${range.min}-${range.max}`) : undefined;
 }
 
 function href(pathname: string, params: URLSearchParams) {
@@ -144,7 +136,6 @@ export function canonicalizeNovelSearchParams(
   const relationship = normalizedRelationship(raw.relationship);
   const setting = normalizedSetting(raw.setting);
   const trope = normalizedTrope(raw.trope);
-  const heat = normalizedHeat(raw.heat);
   const query: NovelQuery = {
     ...(q ? { q } : {}),
     ...(genre ? { genre } : {}),
@@ -157,7 +148,6 @@ export function canonicalizeNovelSearchParams(
     ...(relationship ? { relationship } : {}),
     ...(setting ? { setting } : {}),
     ...(trope ? { trope } : {}),
-    ...(heat ? { heat } : {}),
     ...(sort && sort !== "popular" ? { sort } : {}),
     ...(page > 1 ? { page } : {}),
   };

@@ -11,7 +11,6 @@ export type StoryHealth = {
   hasCover: boolean;
   hasTagline: boolean;
   hasGenre: boolean;
-  hasMaturitySettings: boolean;
   hasFreeIntroChapter: boolean;
 };
 
@@ -28,8 +27,6 @@ export type StudioWork = {
   unlocks: number;
   earnings: number;
   updatedAt: string;
-  /** Default heat level for the story — a chapter without its own override inherits this. */
-  heatLevel: number;
   health: StoryHealth;
   defaultAccess: "free" | "paid";
   defaultPrice: number;
@@ -54,8 +51,6 @@ export type StudioChapter = {
   likes: number;
   comments: number;
   updatedAt: string;
-  /** Present only when this chapter's rating differs from the story default. */
-  heatOverride?: number;
   /** Present only when this chapter adds warnings beyond the story default. */
   warningIds?: string[];
 };
@@ -87,7 +82,6 @@ const defaultHealth: StoryHealth = {
   hasCover: true,
   hasTagline: true,
   hasGenre: true,
-  hasMaturitySettings: true,
   hasFreeIntroChapter: false,
 };
 
@@ -105,7 +99,6 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 4_120,
     earnings: 14_420,
     updatedAt: "2 ชั่วโมงที่แล้ว",
-    heatLevel: 3,
     health: { ...defaultHealth, hasFreeIntroChapter: true },
     defaultAccess: "paid",
     defaultPrice: 5,
@@ -125,7 +118,6 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 980,
     earnings: 3_430,
     updatedAt: "เมื่อวาน",
-    heatLevel: 2,
     health: { ...defaultHealth, hasFreeIntroChapter: true },
     defaultAccess: "paid",
     defaultPrice: 3,
@@ -145,7 +137,6 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 166,
     earnings: 580.5,
     updatedAt: "3 วันที่แล้ว",
-    heatLevel: 1,
     health: { ...defaultHealth, hasFreeIntroChapter: true },
     defaultAccess: "paid",
     defaultPrice: 3,
@@ -164,12 +155,10 @@ export const studioWorks: readonly StudioWork[] = [
     unlocks: 0,
     earnings: 0,
     updatedAt: "1 สัปดาห์ที่แล้ว",
-    heatLevel: 1,
     health: {
       hasCover: false,
       hasTagline: false,
       hasGenre: true,
-      hasMaturitySettings: true,
       hasFreeIntroChapter: false,
     },
     defaultAccess: "free",
@@ -193,8 +182,6 @@ export const studioChapters: readonly StudioChapter[] = [
     likes: 1_082,
     comments: 186,
     updatedAt: "2 ชม. ที่แล้ว",
-    // Battle chapter — reads more intense than the story's own Heat 3 default.
-    heatOverride: 5,
     warningIds: ["blood_gore", "death"],
   },
   { number: 2665, title: "คำสั่งจากวังหลวง", status: "published", earlyAccessNote: "สมาชิกอ่านได้แล้ว", publicReleaseNote: "Public พรุ่งนี้ 20:00", price: 5, unlocks: 402, words: 3_180, views: 9_360, uniqueReaders: 7_560, likes: 964, comments: 142, updatedAt: "เมื่อวาน" },

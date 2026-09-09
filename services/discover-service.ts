@@ -23,8 +23,6 @@ export type DiscoverFilters = {
   relationshipIds?: string[];
   settingIds?: string[];
   tropeIds?: string[];
-  heatMin?: number;
-  heatMax?: number;
   status?: "ongoing" | "completed" | "paused";
   sort?: "recent" | "updated" | "popular";
   page?: number;
@@ -37,8 +35,6 @@ export async function getDiscoverStories(filters: DiscoverFilters) {
   if (filters.relationshipIds?.length) conditions.push(exists(getDb().select({ one: sql`1` }).from(novelRelationships).where(and(eq(novelRelationships.novelId, novels.id), inArray(novelRelationships.relationshipTypeId, filters.relationshipIds)))));
   if (filters.settingIds?.length) conditions.push(exists(getDb().select({ one: sql`1` }).from(novelSettings).where(and(eq(novelSettings.novelId, novels.id), inArray(novelSettings.settingId, filters.settingIds)))));
   if (filters.tropeIds?.length) conditions.push(exists(getDb().select({ one: sql`1` }).from(novelTropes).where(and(eq(novelTropes.novelId, novels.id), inArray(novelTropes.tropeId, filters.tropeIds)))));
-  if (filters.heatMin !== undefined) conditions.push(sql`${novels.heatLevel} >= ${filters.heatMin}`);
-  if (filters.heatMax !== undefined) conditions.push(sql`${novels.heatLevel} <= ${filters.heatMax}`);
   if (filters.status) conditions.push(eq(novels.status, filters.status === "ongoing" ? "ONGOING" : filters.status === "completed" ? "COMPLETED" : "HIATUS"));
   if (filters.query) {
     const pattern = `%${filters.query.replace(/[%_\\]/gu, " ")}%`;
@@ -58,7 +54,6 @@ export async function getDiscoverStories(filters: DiscoverFilters) {
     tagline: novels.tagline,
     synopsis: novels.synopsis,
     coverKey: novels.coverKey,
-    heatLevel: novels.heatLevel,
     status: novels.status,
     latestChapterAt: novels.latestChapterAt,
     writerId: writerProfiles.id,

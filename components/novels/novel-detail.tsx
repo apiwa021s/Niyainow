@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ViewTransition } from "react";
-import { BookOpen, ChevronDown, Flame, ListOrdered, ShieldAlert, Sparkles, Star } from "lucide-react";
+import { BookOpen, ChevronDown, ListOrdered, ShieldAlert, Sparkles, Star } from "lucide-react";
 
 import {
   CompleteButton,
@@ -16,8 +16,6 @@ import { displayTagName } from "@/lib/domain/tag";
 import {
   getNovelTaste,
   getWriterMembership,
-  heatDescription,
-  heatDescriptor,
   relationshipLabel,
   settingLabel,
   tropeLabel,
@@ -189,9 +187,8 @@ export function NovelSignals({ novel }: { novel: Novel }) {
 
 /**
  * Story taste metadata (brief §34–36): the 3–6 tropes that best describe the
- * story, its heat level with a short description, and a compact, expandable
- * content-warning line. Grouped in one card so the page doesn't grow a new
- * "warning wall" — heat and warnings are metadata, not the headline.
+ * story and a compact, expandable content-warning line. Grouped in one card
+ * so the page doesn't grow a new warning wall.
  */
 export function NovelTasteSection({ novel }: { novel: Novel }) {
   const taste = getNovelTaste(novel);
@@ -206,22 +203,6 @@ export function NovelTasteSection({ novel }: { novel: Novel }) {
             </span>
           ))}
         </div>
-      </div>
-
-      <div>
-        <h2 className="text-sm font-semibold">ระดับความเข้มข้น</h2>
-        <div className="mt-2.5 flex items-center gap-2">
-          <span aria-hidden className="flex gap-0.5">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Flame
-                key={index}
-                className={index < taste.heat ? "h-4 w-4 text-[var(--brand-emphasis)]" : "h-4 w-4 text-muted-foreground/30"}
-              />
-            ))}
-          </span>
-          <span className="text-sm font-semibold">ระดับ {taste.heat} — {heatDescriptor(taste.heat)}</span>
-        </div>
-        <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{heatDescription(taste.heat)}</p>
       </div>
 
       {taste.warnings.length ? (

@@ -98,7 +98,6 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
       tagNames: splitNames(form.get("tags")),
       status: String(form.get("status")),
       publicationStatus,
-      contentRating: String(form.get("contentRating")),
       isFeatured: form.get("isFeatured") === "on",
       coverKey: coverKey || null,
       bannerKey: bannerKey || null,
@@ -177,9 +176,6 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
               <option value="DRAFT">ฉบับร่าง</option><option value="IN_REVIEW">รอตรวจ</option><option value="PUBLISHED">เผยแพร่</option><option value="ARCHIVED">เก็บถาวร</option>
             </Select></label>
             <div className="rounded-[12px] border border-border bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">การตั้งเวลาเผยแพร่ปิดไว้จนกว่าจะติดตั้ง production scheduler/cron ที่ตรวจสอบและ retry ได้จริง</div>
-            <label className="grid gap-1.5"><Label>ระดับเนื้อหา</Label><Select name="contentRating" defaultValue={novel?.contentRating ?? "TEEN"}>
-              <option value="EVERYONE">ทุกวัย</option><option value="TEEN">วัยรุ่น</option><option value="MATURE">ผู้ใหญ่</option><option value="ADULT">18+</option>
-            </Select></label>
             <label className="flex items-center gap-2 rounded-[12px] border border-border p-3 text-sm font-medium">
               <input type="checkbox" name="isFeatured" defaultChecked={novel?.isFeatured ?? false} className="h-4 w-4 accent-[var(--brand-emphasis)]" /> แสดงเป็นเรื่องแนะนำ
             </label>

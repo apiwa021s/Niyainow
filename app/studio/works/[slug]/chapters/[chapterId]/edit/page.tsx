@@ -19,5 +19,5 @@ export default async function EditChapterPage({ params }: { params: Promise<{ sl
     ]);
     if (chapter.novelId !== story.id) notFound();
   } catch { notFound(); }
-  return <ProductionChapterEditor story={{ id: story.id, slug: story.slug, title: story.title, heatLevel: story.heatLevel }} chapterNumber={chapter.chapterNumber} initialChapter={chapter} />;
+  return <ProductionChapterEditor story={{ id: story.id, slug: story.slug, title: story.title }} chapterNumber={chapter.chapterNumber} initialChapter={chapter} />;
 }

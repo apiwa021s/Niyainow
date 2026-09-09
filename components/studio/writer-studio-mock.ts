@@ -43,17 +43,11 @@ export const fanSource = [
 ];
 
 export const fanPreferences = [
-  { label: "Dark Romance", value: 74 },
+  { label: "แฟนตาซี", value: 74 },
   { label: "BL", value: 62 },
   { label: "Omegaverse", value: 48 },
   { label: "คลั่งรัก", value: 41 },
   { label: "Enemies to Lovers", value: 36 },
-];
-
-export const intensityPreference = [
-  { level: 3, value: 18 },
-  { level: 4, value: 52 },
-  { level: 5, value: 30 },
 ];
 
 export const latestFans = [
@@ -111,7 +105,7 @@ export const membershipBenefits = [
 
 export const defaultMembership = {
   enabled: false,
-  name: "Luna After Dark",
+  name: "Luna Reader Club",
   description: "ขอบคุณที่สนับสนุนงานของฉัน\nสมาชิกจะได้อ่านตอนใหม่ก่อนใคร\nและเข้าถึงเนื้อหาพิเศษ ✦",
   price: 59,
   selectedBenefits: ["early", "bonus", "member-post", "badge"],
@@ -193,7 +187,7 @@ export const storySorts = ["อัปเดตล่าสุด", "ยอดอ
 
 export const notificationItems = [
   { id: "n1", category: "ผลงาน", title: "EP.38 เผยแพร่แล้ว", detail: "เมื่อ 2 ชั่วโมงที่แล้ว", day: "วันนี้" },
-  { id: "n2", category: "Membership", title: "Luna After Dark", detail: "มีสมาชิกใหม่ 18 คนในสัปดาห์นี้", day: "วันนี้" },
+  { id: "n2", category: "Membership", title: "Luna Reader Club", detail: "มีสมาชิกใหม่ 18 คนในสัปดาห์นี้", day: "วันนี้" },
   { id: "n3", category: "แฟน", title: "รักที่ไม่ควรถูกเปิดเผย", detail: "มีผู้ติดตามเพิ่ม 142 คน", day: "วันนี้" },
   { id: "n4", category: "รายได้", title: "รายได้สัปดาห์นี้เพิ่มขึ้น", detail: "รายได้เพิ่ม 14% เทียบสัปดาห์ก่อน", day: "เมื่อวาน" },
   { id: "n5", category: "แฟน", title: "มีผู้ติดตามใหม่ 42 คนวันนี้", detail: "สรุปแบบรวมรายวัน", day: "วันนี้" },

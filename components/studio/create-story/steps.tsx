@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Bold, ExternalLink, Flame, Italic, Pilcrow, Quote } from "lucide-react";
+import { AlertTriangle, Bold, ExternalLink, Italic, Pilcrow, Quote } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 
@@ -11,11 +11,10 @@ import {
   SelectableChip,
   SelectionCounter,
 } from "@/components/studio/create-story/selectable";
-import { HeatBadge, StoryPreview } from "@/components/studio/create-story/story-preview";
+import { StoryPreview } from "@/components/studio/create-story/story-preview";
 import type { StepErrors, StoryDraft } from "@/components/studio/create-story/use-story-draft";
 import { QuestionBlock } from "@/components/studio/create-story/wizard-chrome";
 import { ContentWarningPicker } from "@/components/studio/shared/content-warning-picker";
-import { HeatLevelPicker } from "@/components/studio/shared/heat-level-picker";
 import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
 import {
   CONTENT_ORIGINS,
@@ -324,7 +323,7 @@ export function GenreAndStyleForm({ draft, errors, update }: StepProps) {
 
 /* ── Step 3 ─────────────────────────────────────────────────────────── */
 
-export function MatureContentForm({ draft, errors, update }: StepProps) {
+export function ContentWarningsForm({ draft, errors, update }: StepProps) {
   function toggleWarning(id: string) {
     if (draft.noContentWarnings) return;
     update(
@@ -338,24 +337,11 @@ export function MatureContentForm({ draft, errors, update }: StepProps) {
   return (
     <div className="grid gap-8">
       <header>
-        <h2 className="text-xl font-semibold sm:text-2xl">ช่วยให้ผู้อ่านรู้ว่าเรื่องนี้เข้มข้นแค่ไหน</h2>
+        <h2 className="text-xl font-semibold sm:text-2xl">ช่วยให้ผู้อ่านเตรียมใจก่อนเริ่มอ่าน</h2>
         <p className="mt-1.5 text-sm leading-7 text-(--text-secondary)">
           ข้อมูลส่วนนี้ช่วยให้ NovelNow แนะนำเรื่องได้เหมาะกับผู้อ่าน และช่วยให้ผู้อ่านตัดสินใจก่อนเริ่มอ่าน
         </p>
       </header>
-
-      <QuestionBlock
-        question={
-          <span className="inline-flex items-center gap-1.5">
-            <Flame aria-hidden className="h-4 w-4 text-brand-primary" />
-            ระดับความเข้มข้น
-          </span>
-        }
-        description="เลือกระดับที่ตรงกับเรื่องมากที่สุด หนึ่งระดับ"
-        error={errors.heatLevel}
-      >
-        <HeatLevelPicker value={draft.heatLevel} onChange={(level) => update("heatLevel", level)} />
-      </QuestionBlock>
 
       <QuestionBlock
         question="มีเนื้อหาที่ควรแจ้งผู้อ่านหรือไม่?"
@@ -394,7 +380,7 @@ export function MatureContentForm({ draft, errors, update }: StepProps) {
               className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-primary)]"
             />
             <span className="text-sm leading-7 text-(--text-secondary)">
-              ฉันยืนยันว่าข้อมูลเกี่ยวกับระดับเนื้อหาและคำเตือนข้างต้นถูกต้องตามเนื้อเรื่อง
+              ฉันยืนยันว่าคำเตือนข้างต้นถูกต้องตามเนื้อเรื่อง
             </span>
           </label>
           <label className="flex cursor-pointer gap-3 rounded-xl bg-muted/40 p-4">
@@ -413,7 +399,7 @@ export function MatureContentForm({ draft, errors, update }: StepProps) {
           href="/terms"
           className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--brand-emphasis)] underline-offset-4 hover:underline"
         >
-          ดูนโยบายเนื้อหา 20+
+          ดูนโยบายเนื้อหา
           <ExternalLink aria-hidden className="h-3.5 w-3.5" />
         </Link>
       </QuestionBlock>
@@ -444,7 +430,7 @@ export function ReviewAndRightsForm({
         {[
           { step: 1, label: "ข้อมูลเรื่อง" },
           { step: 2, label: "แนวและสไตล์" },
-          { step: 3, label: "เนื้อหา 20+" },
+          { step: 3, label: "คำเตือนเนื้อหา" },
         ].map((section) => (
           <div key={section.step} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
             <span className="text-sm font-medium">{section.label}</span>
@@ -574,13 +560,6 @@ export function ReviewAndRightsForm({
         </p>
       </QuestionBlock>
 
-      {draft.heatLevel ? (
-        <p className="flex items-center gap-2 text-xs text-(--text-tertiary)">
-          เรื่องนี้จะถูกจัดเป็น
-          <HeatBadge level={draft.heatLevel} />
-          และแสดงเฉพาะกับผู้อ่านที่ยืนยันอายุ 20 ปีขึ้นไป
-        </p>
-      ) : null}
     </div>
   );
 }

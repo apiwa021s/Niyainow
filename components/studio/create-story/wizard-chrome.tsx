@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 export const WIZARD_STEPS = [
   { id: 1, label: "ข้อมูลเรื่อง" },
   { id: 2, label: "แนวและสไตล์" },
-  { id: 3, label: "เนื้อหา 20+" },
+  { id: 3, label: "คำเตือนเนื้อหา" },
   { id: 4, label: "ตรวจสอบและสร้างเรื่อง" },
 ] as const;
 

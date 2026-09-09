@@ -11,7 +11,7 @@ import {
 } from "@/components/browse/deferred-filter-panel";
 import { NovelGridSkeleton } from "@/components/browse/novel-grid-skeleton";
 import { Select } from "@/components/ui/form-controls";
-import { heatLabelFor, relationshipLabel, settingLabel, tropeLabel, parseTropeParam } from "@/lib/domain/reader-taste";
+import { relationshipLabel, settingLabel, tropeLabel, parseTropeParam } from "@/lib/domain/reader-taste";
 import { cn } from "@/lib/utils";
 import { novelBrowseHref } from "@/lib/validation/public-query";
 import type { GenreFacet } from "@/services/novel-service";
@@ -101,8 +101,7 @@ export function NovelBrowser({
       query.q ||
       query.relationship ||
       query.setting ||
-      query.trope ||
-      query.heat,
+      query.trope,
   );
 
   function routeHref(next: NovelQuery) {
@@ -184,7 +183,6 @@ export function NovelBrowser({
         update({ ...query, trope: next.length ? next.join(",") : undefined, page: undefined });
       },
     })),
-    ...(query.heat ? [{ key: "heat", label: heatLabelFor(query.heat), remove: () => update({ ...query, heat: undefined, page: undefined }) }] : []),
     ...(["status", "chapters", "rating", "updated", "content"] as const)
       .filter((key) => query[key])
       .map((key) => ({

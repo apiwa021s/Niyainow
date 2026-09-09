@@ -73,16 +73,15 @@ async function verifyCoreBackend() {
     });
 
     const studioStory = await createWriterStory(userId, {
-      title: `Verification Dark Romance ${suffix}`,
+      title: `Verification Fantasy ${suffix}`,
       tagline: "Disposable Studio fixture",
       synopsis: "Create Story acceptance scenario",
       coverKey: null,
-      primaryGenreId: "dark_romance",
+      primaryGenreId: "fantasy",
       secondaryGenreIds: ["romance"],
       relationshipIds: ["mm"],
       settingIds: ["omegaverse"],
       tropeIds: ["possessive", "slow_burn", "protective_lead"],
-      heatLevel: 4,
       contentWarningIds: ["violence"],
       storyType: "serial",
       storyStatus: "ongoing",
@@ -95,15 +94,13 @@ async function verifyCoreBackend() {
       contentPolicyConfirmed: true,
     });
     studioStoryId = studioStory.id;
-    assert(studioStory.publicationStatus === "DRAFT" && studioStory.heatLevel === 4, "studio_story_create");
+    assert(studioStory.publicationStatus === "DRAFT", "studio_story_create");
     const studioChapter = await createWriterChapter(userId, studioStoryId, {
       chapterNumber: 1,
       title: "Free acceptance chapter",
       content: "Published free content",
       accessMode: "free",
       coinPrice: 0,
-      inheritStoryHeatLevel: true,
-      heatLevel: null,
       inheritStoryWarnings: true,
       contentWarningIds: [],
       memberAvailableAt: null,
@@ -126,8 +123,6 @@ async function verifyCoreBackend() {
       synopsis: "Disposable integration fixture",
       publicationStatus: "PUBLISHED",
       publishedAt: now,
-      contentRating: "ADULT",
-      heatLevel: 3,
       rightsConfirmedAt: now,
       contentPolicyConfirmedAt: now,
     }).returning({ id: novels.id });

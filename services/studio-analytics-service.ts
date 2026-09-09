@@ -116,7 +116,7 @@ export async function getStudioFanPreferences(userId: string) {
   if (sampleSize < FAN_SAMPLE_THRESHOLD) {
     return { visible: false, sampleSize, minimumSampleThreshold: FAN_SAMPLE_THRESHOLD };
   }
-  const [genreRows, relationshipRows, settingRows, tropeRows, heatRows] = await Promise.all([
+  const [genreRows, relationshipRows, settingRows, tropeRows] = await Promise.all([
     db.select({ id: genres.id, slug: genres.slug, nameTh: genres.thaiName, readers: sql<number>`count(distinct ${readingHistory.userId})::int` })
       .from(readingHistory).innerJoin(novels, eq(novels.id, readingHistory.novelId)).innerJoin(novelGenres, eq(novelGenres.novelId, novels.id)).innerJoin(genres, eq(genres.id, novelGenres.genreId))
       .where(eq(novels.writerId, writer.id)).groupBy(genres.id, genres.slug, genres.thaiName).orderBy(desc(sql`count(distinct ${readingHistory.userId})`)).limit(10),
@@ -129,9 +129,6 @@ export async function getStudioFanPreferences(userId: string) {
     db.select({ id: tropes.id, slug: tropes.slug, nameTh: tropes.nameTh, readers: sql<number>`count(distinct ${readingHistory.userId})::int` })
       .from(readingHistory).innerJoin(novels, eq(novels.id, readingHistory.novelId)).innerJoin(novelTropes, eq(novelTropes.novelId, novels.id)).innerJoin(tropes, eq(tropes.id, novelTropes.tropeId))
       .where(eq(novels.writerId, writer.id)).groupBy(tropes.id, tropes.slug, tropes.nameTh).orderBy(desc(sql`count(distinct ${readingHistory.userId})`)).limit(10),
-    db.select({ heatLevel: novels.heatLevel, readers: sql<number>`count(distinct ${readingHistory.userId})::int` })
-      .from(readingHistory).innerJoin(novels, eq(novels.id, readingHistory.novelId))
-      .where(eq(novels.writerId, writer.id)).groupBy(novels.heatLevel).orderBy(novels.heatLevel),
   ]);
   return {
     visible: true,
@@ -141,7 +138,6 @@ export async function getStudioFanPreferences(userId: string) {
     relationships: relationshipRows,
     settings: settingRows,
     tropes: tropeRows,
-    heat: heatRows,
   };
 }
 

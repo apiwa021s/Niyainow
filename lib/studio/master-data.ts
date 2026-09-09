@@ -228,46 +228,6 @@ export const TROPES = master([
   { id: "protective_lead", nameTh: "สายปกป้อง", nameEn: "Protective Lead", descriptionTh: "ตัวละครหลักปกป้องอีกฝ่ายเสมอ" },
 ]);
 
-export type HeatLevel = {
-  level: 1 | 2 | 3 | 4 | 5;
-  nameTh: string;
-  shortTh: string;
-  descriptionTh: string;
-};
-
-export const HEAT_LEVELS: readonly HeatLevel[] = [
-  {
-    level: 1,
-    nameTh: "Mature",
-    shortTh: "เบา",
-    descriptionTh: "เน้นความสัมพันธ์และประเด็นสำหรับผู้ใหญ่ ไม่มีหรือมีฉากเชิงชู้สาวเพียงเล็กน้อย",
-  },
-  {
-    level: 2,
-    nameTh: "Suggestive",
-    shortTh: "เล็กน้อย",
-    descriptionTh: "มีบรรยากาศหรือฉากสำหรับผู้ใหญ่ แต่ไม่ได้เป็นองค์ประกอบหลักของเรื่อง",
-  },
-  {
-    level: 3,
-    nameTh: "Explicit บางช่วง",
-    shortTh: "ชัดเจน",
-    descriptionTh: "มีฉากสำหรับผู้ใหญ่อย่างชัดเจนในบางตอน",
-  },
-  {
-    level: 4,
-    nameTh: "Explicit",
-    shortTh: "เข้มข้น",
-    descriptionTh: "มีฉากสำหรับผู้ใหญ่ค่อนข้างชัดเจนและเกิดขึ้นหลายช่วงของเรื่อง",
-  },
-  {
-    level: 5,
-    nameTh: "Very Explicit",
-    shortTh: "สูงมาก",
-    descriptionTh: "เนื้อหาสำหรับผู้ใหญ่เป็นองค์ประกอบสำคัญของเรื่อง",
-  },
-];
-
 export const CONTENT_WARNINGS = master([
   { id: "violence", nameTh: "ความรุนแรง", nameEn: "Violence" },
   { id: "strong_language", nameTh: "ภาษารุนแรง / คำหยาบ", nameEn: "Strong Language" },

@@ -49,7 +49,6 @@ export const studioStoryInputSchema = z.object({
   relationshipIds: z.array(masterSlug).length(1),
   settingIds: z.array(masterSlug).max(2).default([]),
   tropeIds: z.array(masterSlug).min(1).max(6),
-  heatLevel: z.number().int().min(1).max(5),
   contentWarningIds: z.array(masterSlug).max(14).default([]),
   storyType: z.enum(["serial", "complete_novel", "oneshot", "anthology"]),
   storyStatus: z.enum(["ongoing", "completed", "paused"]),
@@ -77,11 +76,21 @@ export const studioStoryInputSchema = z.object({
 
 export type StudioStoryInput = z.infer<typeof studioStoryInputSchema>;
 
+function withoutLegacyContentLevel<T extends {
+  contentRating?: unknown;
+  heatLevel?: unknown;
+  inheritStoryHeatLevel?: unknown;
+}>(record: T) {
+  const safe = { ...record };
+  delete safe.contentRating;
+  delete safe.heatLevel;
+  delete safe.inheritStoryHeatLevel;
+  return safe;
+}
+
 const chapterAccessFields = {
   accessMode: z.enum(["free", "paid", "early_access", "members_only"]),
   coinPrice: z.number().int().min(0).max(1_000_000).default(0),
-  inheritStoryHeatLevel: z.boolean().default(true),
-  heatLevel: z.number().int().min(1).max(5).optional().nullable(),
   inheritStoryWarnings: z.boolean().default(true),
   contentWarningIds: z.array(masterSlug).max(14).default([]),
   memberAvailableAt: z.iso.datetime({ offset: true }).optional().nullable(),
@@ -101,8 +110,6 @@ function validateChapterAccess(input: z.infer<z.ZodObject<typeof chapterAccessFi
   } else if (input.publicAvailableAt || input.publicAccessModeAfterEarlyAccess || input.publicCoinPrice) {
     context.addIssue({ code: "custom", path: ["publicAvailableAt"], message: "Public release fields are only valid for early access" });
   }
-  if (input.inheritStoryHeatLevel && input.heatLevel) context.addIssue({ code: "custom", path: ["heatLevel"], message: "Inherited heat cannot be overridden" });
-  if (!input.inheritStoryHeatLevel && !input.heatLevel) context.addIssue({ code: "custom", path: ["heatLevel"], message: "Heat override is required" });
   if (input.inheritStoryWarnings && input.contentWarningIds.length > 0) context.addIssue({ code: "custom", path: ["contentWarningIds"], message: "Inherited warnings cannot be overridden" });
 }
 
@@ -133,8 +140,6 @@ function chapterAccessValues(input: StudioChapterAccessInput) {
     accessMode: input.accessMode,
     isFree: input.accessMode === "free",
     coinPrice: input.accessMode === "paid" ? input.coinPrice : 0,
-    inheritStoryHeatLevel: input.inheritStoryHeatLevel,
-    heatLevel: input.inheritStoryHeatLevel ? null : input.heatLevel,
     inheritStoryWarnings: input.inheritStoryWarnings,
     memberAvailableAt: input.memberAvailableAt ? new Date(input.memberAvailableAt) : null,
     publicAvailableAt: input.publicAvailableAt ? new Date(input.publicAvailableAt) : null,
@@ -225,7 +230,6 @@ export async function listWriterStories(userId: string) {
       tagline: novels.tagline,
       status: novels.status,
       publishStatus: novels.publicationStatus,
-      heatLevel: novels.heatLevel,
       updatedAt: novels.updatedAt,
       publishedAt: novels.publishedAt,
     })
@@ -275,8 +279,6 @@ export async function createWriterStory(userId: string, input: StudioStoryInput)
       titleOriginal: input.originalTitle,
       status: input.storyStatus === "ongoing" ? "ONGOING" : input.storyStatus === "completed" ? "COMPLETED" : "HIATUS",
       publicationStatus: "DRAFT",
-      contentRating: "ADULT",
-      heatLevel: input.heatLevel,
       storyType: input.storyType,
       originType: input.originType,
       rightsHolder: input.rightsHolder,
@@ -298,7 +300,7 @@ export async function createWriterStory(userId: string, input: StudioStoryInput)
     if (masters.settingRows.length) await tx.insert(novelSettings).values(masters.settingRows.map((row) => ({ novelId: story.id, settingId: row.id })));
     await tx.insert(novelTropes).values(masters.tropeRows.map((row) => ({ novelId: story.id, tropeId: row.id })));
     if (masters.warningRows.length) await tx.insert(novelContentWarnings).values(masters.warningRows.map((row) => ({ novelId: story.id, contentWarningId: row.id })));
-    return story;
+    return withoutLegacyContentLevel(story);
   });
 }
 
@@ -367,7 +369,7 @@ export async function createWriterChapter(
     }).returning();
     if (!chapter) throw new Error("chapter_write_failed");
     await replaceChapterWarnings(tx, chapter.id, input.inheritStoryWarnings, input.contentWarningIds);
-    return chapter;
+    return withoutLegacyContentLevel(chapter);
   });
 }
 
@@ -394,7 +396,7 @@ export async function updateWriterChapter(
     }).where(and(eq(chapters.id, chapterId), eq(chapters.version, input.expectedVersion))).returning();
     if (!chapter) throw new ApiError(409, "VERSION_CONFLICT", "ตอนนี้ถูกแก้ไขจากอุปกรณ์อื่น กรุณาโหลดข้อมูลล่าสุด");
     await replaceChapterWarnings(tx, chapter.id, input.inheritStoryWarnings, input.contentWarningIds);
-    return chapter;
+    return withoutLegacyContentLevel(chapter);
   });
 }
 
@@ -440,7 +442,7 @@ export async function publishWriterChapter(userId: string, chapterId: string) {
       .where(and(eq(chapters.id, row.chapterId), ne(chapters.status, "PUBLISHED"))).returning();
     if (!chapter) {
       const [existing] = await tx.select().from(chapters).where(eq(chapters.id, row.chapterId)).limit(1);
-      return existing;
+      return existing ? withoutLegacyContentLevel(existing) : existing;
     }
     await tx.update(novels).set({ latestChapterAt: now, updatedAt: now }).where(eq(novels.id, chapter.novelId));
     await tx.insert(domainOutboxEvents).values({
@@ -450,7 +452,7 @@ export async function publishWriterChapter(userId: string, chapterId: string) {
       dedupeKey: `chapter-published:${chapter.id}`,
       payload: { chapterId: chapter.id, novelId: chapter.novelId },
     }).onConflictDoNothing();
-    return chapter;
+    return withoutLegacyContentLevel(chapter);
   });
 }
 
@@ -459,14 +461,14 @@ export async function scheduleWriterChapter(userId: string, chapterId: string, s
   if (scheduledAt <= new Date()) throw new ApiError(400, "INVALID_SCHEDULE", "เวลานัดเผยแพร่ต้องอยู่ในอนาคต");
   const [chapter] = await getDb().update(chapters).set({ status: "SCHEDULED", scheduledFor: scheduledAt, publishedAt: null, updatedAt: new Date() })
     .where(eq(chapters.id, chapterId)).returning();
-  return chapter;
+  return chapter ? withoutLegacyContentLevel(chapter) : chapter;
 }
 
 export async function unpublishWriterChapter(userId: string, chapterId: string) {
   const { row } = await getOwnedChapter(userId, chapterId);
   const [chapter] = await getDb().update(chapters).set({ status: "UNPUBLISHED", scheduledFor: null, updatedAt: new Date() })
     .where(eq(chapters.id, row.chapterId)).returning();
-  return chapter;
+  return chapter ? withoutLegacyContentLevel(chapter) : chapter;
 }
 
 export async function getWriterChapter(userId: string, chapterId: string) {
@@ -481,8 +483,6 @@ export async function getWriterChapter(userId: string, chapterId: string) {
     status: chapters.status,
     accessMode: chapters.accessMode,
     coinPrice: chapters.coinPrice,
-    inheritStoryHeatLevel: chapters.inheritStoryHeatLevel,
-    heatLevel: chapters.heatLevel,
     inheritStoryWarnings: chapters.inheritStoryWarnings,
     memberAvailableAt: chapters.memberAvailableAt,
     publicAvailableAt: chapters.publicAvailableAt,
@@ -502,7 +502,7 @@ export async function getWriterChapter(userId: string, chapterId: string) {
 export async function getWriterStory(userId: string, storyId: string) {
   await getOwnedStory(userId, storyId);
   const [story] = await getDb().select().from(novels).where(eq(novels.id, storyId)).limit(1);
-  return story;
+  return story ? withoutLegacyContentLevel(story) : story;
 }
 
 export async function updateWriterStory(userId: string, storyId: string, input: StudioStoryInput) {
@@ -517,8 +517,6 @@ export async function updateWriterStory(userId: string, storyId: string, input: 
       coverKey: input.coverKey,
       titleOriginal: input.originalTitle,
       status: input.storyStatus === "ongoing" ? "ONGOING" : input.storyStatus === "completed" ? "COMPLETED" : "HIATUS",
-      contentRating: "ADULT",
-      heatLevel: input.heatLevel,
       storyType: input.storyType,
       originType: input.originType,
       rightsHolder: input.rightsHolder,
@@ -547,7 +545,7 @@ export async function updateWriterStory(userId: string, storyId: string, input: 
     if (masters.settingRows.length) await tx.insert(novelSettings).values(masters.settingRows.map((row) => ({ novelId: story.id, settingId: row.id })));
     await tx.insert(novelTropes).values(masters.tropeRows.map((row) => ({ novelId: story.id, tropeId: row.id })));
     if (masters.warningRows.length) await tx.insert(novelContentWarnings).values(masters.warningRows.map((row) => ({ novelId: story.id, contentWarningId: row.id })));
-    return updated;
+    return withoutLegacyContentLevel(updated);
   });
 }
 
@@ -556,14 +554,14 @@ export async function publishWriterStory(userId: string, storyId: string) {
   const now = new Date();
   const [updated] = await getDb().update(novels).set({ publicationStatus: "PUBLISHED", publishedAt: now, updatedAt: now })
     .where(eq(novels.id, story.id)).returning();
-  return updated;
+  return updated ? withoutLegacyContentLevel(updated) : updated;
 }
 
 export async function setWriterStoryStatus(userId: string, storyId: string, status: "COMPLETED" | "HIATUS") {
   const { story } = await getOwnedStory(userId, storyId);
   const [updated] = await getDb().update(novels).set({ status, updatedAt: new Date() })
     .where(eq(novels.id, story.id)).returning();
-  return updated;
+  return updated ? withoutLegacyContentLevel(updated) : updated;
 }
 
 export async function getWriterProfileEditorData(userId: string) {
@@ -600,7 +598,7 @@ export async function getWriterStoryBySlug(userId: string, slug: string) {
     isNull(novels.deletedAt),
   )).limit(1);
   if (!story) throw new ApiError(404, "STORY_NOT_FOUND", "ไม่พบผลงานนี้");
-  return story;
+  return withoutLegacyContentLevel(story);
 }
 
 export async function getWriterChapterEditorData(userId: string, chapterId: string) {

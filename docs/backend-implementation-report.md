@@ -21,8 +21,8 @@ Date: 2026-08-22
 
 - Added writer profiles without splitting Reader and Writer accounts
 - Added normalized relationship, setting, trope, and content-warning masters and story/chapter relations
-- Added story ownership, origin/rights, heat, story type, and policy confirmations
-- Added four chapter access modes, early-access release policy, heat/warning overrides, and optimistic versioning
+- Added story ownership, origin/rights, story type, content warnings, and policy confirmations
+- Added four chapter access modes, early-access release policy, warning overrides, and optimistic versioning
 - Added paid/bonus/promo coin attribution and stored paid-coin monetary value
 - Added writer follows, writer posts, membership plans/states, notifications, privacy settings, content reports
 - Added creator contracts, immutable revenue events, and creator ledger entries using integer minor units and basis points

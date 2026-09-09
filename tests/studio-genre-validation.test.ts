@@ -12,7 +12,6 @@ const validStory = {
   relationshipIds: ["mf"],
   settingIds: [],
   tropeIds: ["slow_burn"],
-  heatLevel: 1,
   contentWarningIds: [],
   storyType: "serial" as const,
   storyStatus: "ongoing" as const,

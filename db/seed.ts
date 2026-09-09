@@ -133,7 +133,6 @@ export async function seedDevelopmentData() {
           language: "th",
           status: storyStatus[novel.status],
           publicationStatus: "PUBLISHED" as const,
-          contentRating: "TEEN" as const,
           isFeatured: novel.featured ?? false,
           latestChapterAt: now,
           publishedAt: now,

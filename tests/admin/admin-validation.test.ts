@@ -84,7 +84,6 @@ describe("admin novel validation", () => {
     tagNames: ["Adventure"],
     status: "ONGOING" as const,
     publicationStatus: "DRAFT" as const,
-    contentRating: "TEEN" as const,
     isFeatured: false,
     coverKey: null,
     bannerKey: null,

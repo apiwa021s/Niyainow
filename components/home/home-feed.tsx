@@ -173,7 +173,10 @@ export function HomeFeed({
   signupSlot?: ReactNode;
 }) {
   const pool = pooledNovels(data);
-  const darkRomance = tasteShelf(pool, (taste) => taste.heat >= 4);
+  const fantasy = [
+    ...pool.filter((novel) => novel.genres.includes("fantasy")),
+    ...pool.filter((novel) => !novel.genres.includes("fantasy")),
+  ].slice(0, 12);
   const blTrending = tasteShelf(pool, (taste) => taste.relationship === "mm");
   const omegaverse = tasteShelf(pool, (taste) => taste.setting === "omegaverse");
   const possessive = tasteShelf(pool, (taste) => taste.tropes.includes("possessive"));
@@ -210,10 +213,10 @@ export function HomeFeed({
       <RankingTabs daily={data.rankingsDaily} weekly={data.rankings} monthly={data.rankingsMonthly} />
 
       <HomeNovelCarousel
-        title="Dark Romance"
-        description="เรื่องระดับความเข้มข้นสูง สำหรับคืนที่อยากอ่านอะไรจริงจัง"
-        novels={darkRomance}
-        href="/novels?heat=4-5"
+        title="แฟนตาซีและการผจญภัย"
+        description="ออกเดินทางสู่โลกใหม่ เวทมนตร์ และภารกิจเหนือจินตนาการ"
+        novels={fantasy}
+        href="/novels?genre=fantasy"
       />
 
       <HomeNovelCarousel

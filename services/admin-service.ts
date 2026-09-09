@@ -62,7 +62,6 @@ const MAX_CHAPTER_PARAGRAPHS = 5_000;
 const publicationStatusSchema = z.enum(["DRAFT", "IN_REVIEW", "SCHEDULED", "PUBLISHED", "ARCHIVED"]);
 const chapterStatusSchema = z.enum(["DRAFT", "SCHEDULED", "PUBLISHED", "UNPUBLISHED", "ARCHIVED"]);
 const storyStatusSchema = z.enum(["ONGOING", "COMPLETED", "HIATUS", "CANCELLED"]);
-const contentRatingSchema = z.enum(["EVERYONE", "TEEN", "MATURE", "ADULT"]);
 const reviewStatusSchema = z.enum(["PENDING", "PUBLISHED", "HIDDEN", "REJECTED"]);
 const moderationStatusSchema = z.enum(["PUBLISHED", "HIDDEN", "REJECTED"]);
 
@@ -85,7 +84,6 @@ const adminNovelBaseSchema = z
     tagNames: z.array(z.string().trim().min(1).max(160)).max(20).default([]),
     status: storyStatusSchema,
     publicationStatus: publicationStatusSchema,
-    contentRating: contentRatingSchema,
     isFeatured: z.boolean().default(false),
     coverKey: nullableObjectKey("covers/"),
     bannerKey: nullableObjectKey("banners/"),
@@ -329,7 +327,6 @@ export type AdminNovelRow = {
 
 export type AdminNovelDetail = AdminNovelRow & {
   synopsis: string;
-  contentRating: z.infer<typeof contentRatingSchema>;
   bannerKey: string | null;
   tags: { id: string; slug: string; name: string }[];
   scheduledFor: string | null;
@@ -698,7 +695,6 @@ export async function getAdminNovel(slugInput: string): Promise<AdminNovelDetail
     .select({
       ...novelListSelection,
       synopsis: novels.synopsis,
-      contentRating: novels.contentRating,
       bannerKey: novels.bannerKey,
       scheduledFor: novels.scheduledFor,
       publishedAt: novels.publishedAt,
@@ -719,7 +715,6 @@ export async function getAdminNovel(slugInput: string): Promise<AdminNovelDetail
   return {
     ...base,
     synopsis: row.synopsis,
-    contentRating: row.contentRating,
     bannerKey: row.bannerKey,
     tags: tagRows,
     scheduledFor: toIso(row.scheduledFor),
@@ -996,7 +991,6 @@ export async function createAdminNovel(inputValue: unknown) {
         bannerKey: input.bannerKey,
         status: input.status,
         publicationStatus: input.publicationStatus,
-        contentRating: input.contentRating,
         isFeatured: input.isFeatured,
         scheduledFor: input.publicationStatus === "SCHEDULED" ? new Date(input.scheduledFor!) : null,
         publishedAt: input.publicationStatus === "PUBLISHED" ? now : null,
@@ -1038,7 +1032,6 @@ export async function updateAdminNovel(slugInput: string, inputValue: unknown) {
         bannerKey: input.bannerKey,
         status: input.status,
         publicationStatus: input.publicationStatus,
-        contentRating: input.contentRating,
         isFeatured: input.isFeatured,
         scheduledFor: input.publicationStatus === "SCHEDULED" ? new Date(input.scheduledFor!) : null,
         publishedAt: input.publicationStatus === "PUBLISHED" ? before.publishedAt ?? now : before.publishedAt,

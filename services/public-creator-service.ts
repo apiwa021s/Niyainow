@@ -30,7 +30,6 @@ export async function getPublicStory(slug: string) {
     tagline: novels.tagline,
     synopsis: novels.synopsis,
     coverKey: novels.coverKey,
-    heatLevel: novels.heatLevel,
     storyType: novels.storyType,
     status: novels.status,
     publishedAt: novels.publishedAt,

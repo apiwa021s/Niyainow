@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
 
 type AccessMode = "free" | "paid" | "early_access" | "members_only";
-type Story = { id: string; slug: string; title: string; heatLevel: number | null };
+type Story = { id: string; slug: string; title: string };
 type Chapter = {
   id: string;
   chapterNumber: number;
@@ -17,8 +17,6 @@ type Chapter = {
   content: string;
   accessMode: AccessMode;
   coinPrice: number;
-  inheritStoryHeatLevel: boolean;
-  heatLevel: number | null;
   inheritStoryWarnings: boolean;
   contentWarningIds: string[];
   publicAvailableAt: Date | string | null;
@@ -42,8 +40,6 @@ export function ProductionChapterEditor({ story, chapterNumber, initialChapter }
   const [content, setContent] = useState(initialChapter?.content ?? "");
   const [accessMode, setAccessMode] = useState<AccessMode>(initialChapter?.accessMode ?? "free");
   const [coinPrice, setCoinPrice] = useState(initialChapter?.coinPrice || 3);
-  const [inheritHeat, setInheritHeat] = useState(initialChapter?.inheritStoryHeatLevel ?? true);
-  const [heatLevel, setHeatLevel] = useState(initialChapter?.heatLevel ?? story.heatLevel ?? 3);
   const [publicAvailableAt, setPublicAvailableAt] = useState(localDateTime(initialChapter?.publicAvailableAt ?? null));
   const [publicMode, setPublicMode] = useState<"free" | "paid">(initialChapter?.publicAccessModeAfterEarlyAccess ?? "free");
   const [publicCoinPrice, setPublicCoinPrice] = useState(initialChapter?.publicCoinPrice || 3);
@@ -64,8 +60,6 @@ export function ProductionChapterEditor({ story, chapterNumber, initialChapter }
       content,
       accessMode,
       coinPrice: accessMode === "paid" ? coinPrice : 0,
-      inheritStoryHeatLevel: inheritHeat,
-      heatLevel: inheritHeat ? null : heatLevel,
       inheritStoryWarnings: initialChapter?.inheritStoryWarnings ?? true,
       contentWarningIds: initialChapter?.contentWarningIds ?? [],
       memberAvailableAt: null,
@@ -168,7 +162,6 @@ export function ProductionChapterEditor({ story, chapterNumber, initialChapter }
         </section>
         <aside className="grid content-start gap-4">
           <section className="rounded-[8px] border border-border bg-card p-4"><h2 className="font-semibold">การเข้าถึง</h2><div className="mt-4 grid gap-4"><Field label="ใครอ่านได้"><Select value={accessMode} onChange={(event) => setAccessMode(event.target.value as AccessMode)}><option value="free">อ่านฟรี</option><option value="paid">ใช้ Coins</option><option value="early_access">สมาชิกอ่านก่อน</option><option value="members_only">สมาชิกเท่านั้น</option></Select></Field>{accessMode === "paid" ? <Field label="ราคา Coins"><Input type="number" min={1} max={1_000_000} value={coinPrice} onChange={(event) => setCoinPrice(Number(event.target.value))} /></Field> : null}{accessMode === "early_access" ? <><Field label="เปิดให้ Public เมื่อ"><Input type="datetime-local" value={publicAvailableAt} onChange={(event) => setPublicAvailableAt(event.target.value)} /></Field><Field label="หลัง Early Access"><Select value={publicMode} onChange={(event) => setPublicMode(event.target.value as "free" | "paid")}><option value="free">อ่านฟรี</option><option value="paid">ใช้ Coins</option></Select></Field>{publicMode === "paid" ? <Field label="ราคา Public"><Input type="number" min={1} value={publicCoinPrice} onChange={(event) => setPublicCoinPrice(Number(event.target.value))} /></Field> : null}</> : null}</div></section>
-          <section className="rounded-[8px] border border-border bg-card p-4"><h2 className="font-semibold">เนื้อหา 20+</h2><label className="mt-3 flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={inheritHeat} onChange={(event) => setInheritHeat(event.target.checked)} />ใช้ Heat ระดับ {story.heatLevel ?? 3} ตามเรื่อง</label>{!inheritHeat ? <Input type="number" min={1} max={5} value={heatLevel} onChange={(event) => setHeatLevel(Number(event.target.value))} /> : null}</section>
           <section className="rounded-[8px] border border-border bg-card p-4"><h2 className="font-semibold">เผยแพร่</h2><Field label="ตั้งเวลา (ไม่บังคับ)"><Input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} /></Field><Button type="button" className="mt-4 w-full" onClick={() => void publish()} loading={publishing} disabled={!title.trim() || !content.trim() || saveState === "conflict"}>{scheduleAt ? <Clock3 className="h-4 w-4" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}{scheduleAt ? "ตั้งเวลาเผยแพร่" : "เผยแพร่ตอน"}</Button></section>
         </aside>
       </div>

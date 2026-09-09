@@ -36,7 +36,6 @@ import {
   fanPreferences,
   fanSource,
   fanSourceInsight,
-  intensityPreference,
   latestFans,
   membershipBenefits,
   membershipPlans,
@@ -219,7 +218,7 @@ export function FanSourceList() {
 
 export function FanPreferenceInsights() {
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid gap-3">
       <section className={sectionCard}>
         <div className="border-b border-border px-4 py-4 sm:px-5">
           <h2 className="font-semibold">แฟนของคุณชอบอะไร?</h2>
@@ -239,22 +238,6 @@ export function FanPreferenceInsights() {
         </ul>
       </section>
 
-      <section className={sectionCard}>
-        <div className="border-b border-border px-4 py-4 sm:px-5">
-          <h2 className="font-semibold">ระดับความเข้มข้นที่นิยม</h2>
-        </div>
-        <ul className="grid gap-3 px-4 py-4 sm:px-5">
-          {intensityPreference.map((item) => (
-            <li key={item.level} className="flex items-center justify-between rounded-lg bg-muted/35 px-3 py-3">
-              <span className="inline-flex items-center gap-1.5 text-sm">
-                <Flame aria-hidden className="h-4 w-4 text-brand-primary" />
-                ระดับ {item.level}
-              </span>
-              <span className="text-sm font-semibold tabular-nums">{item.value}%</span>
-            </li>
-          ))}
-        </ul>
-      </section>
     </div>
   );
 }
@@ -1483,11 +1466,6 @@ export function WriterSettingsLayout() {
         <SettingsSection title="การเขียนและเผยแพร่">
           <SettingsSelect label="ราคาตอนใหม่เริ่มต้น" options={["3 Coins", "5 Coins", "8 Coins"]} defaultValue="3 Coins" />
           <SettingsSelect label="จำนวนตอนฟรีเริ่มต้น" options={["3 ตอน", "5 ตอน", "7 ตอน"]} defaultValue="5 ตอน" />
-          <div className="rounded-lg border border-border bg-card px-3 py-3 text-sm">
-            <p className="mb-2">ระดับความเข้มข้นของตอน</p>
-            <p className="inline-flex items-center gap-1.5"><CircleDot aria-hidden className="h-4 w-4 text-[var(--brand-emphasis)]" /> ใช้ตามเรื่อง</p>
-            <p className="mt-1 inline-flex items-center gap-1.5 text-(--text-secondary)"><Circle aria-hidden className="h-4 w-4" /> ถามทุกครั้ง</p>
-          </div>
           <SettingsToggle label="เปิด Preview ก่อนเผยแพร่" defaultChecked />
         </SettingsSection>
 

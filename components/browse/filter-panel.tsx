@@ -1,15 +1,10 @@
 "use client";
 
-import { Flame } from "lucide-react";
-
 import {
-  HEAT_LEVELS,
   RELATIONSHIP_OPTIONS,
   SETTING_OPTIONS,
   TROPE_OPTIONS,
-  parseHeatParam,
   parseTropeParam,
-  type HeatLevel,
 } from "@/lib/domain/reader-taste";
 import { cn } from "@/lib/utils";
 import type { Genre } from "@/types/novel";
@@ -121,10 +116,6 @@ export function FilterPanel({
 }) {
   const selectedGenres = parseGenreParam(query.genre);
   const selectedTropes = parseTropeParam(query.trope);
-  const heatRange = parseHeatParam(query.heat);
-  const activeHeats: HeatLevel[] = heatRange
-    ? HEAT_LEVELS.filter((level) => level >= heatRange.min && level <= heatRange.max)
-    : [];
 
   const toggleGenre = (slug: string) => {
     const next = selectedGenres.includes(slug)
@@ -138,19 +129,6 @@ export function FilterPanel({
       ? selectedTropes.filter((item) => item !== value)
       : [...selectedTropes, value].slice(0, 6);
     onChange({ ...query, trope: next.length ? next.join(",") : undefined });
-  };
-
-  const toggleHeat = (level: HeatLevel) => {
-    const next = activeHeats.includes(level)
-      ? activeHeats.filter((item) => item !== level)
-      : [...activeHeats, level];
-    if (!next.length) {
-      onChange({ ...query, heat: undefined });
-      return;
-    }
-    const min = Math.min(...next);
-    const max = Math.max(...next);
-    onChange({ ...query, heat: min === max ? String(min) : `${min}-${max}` });
   };
 
   return (
@@ -210,17 +188,6 @@ export function FilterPanel({
           {TROPE_OPTIONS.map((option) => (
             <OptionChip key={option.id} active={selectedTropes.includes(option.id)} onClick={() => toggleTrope(option.id)}>
               {option.nameTh}
-            </OptionChip>
-          ))}
-        </div>
-      </FilterGroup>
-
-      <FilterGroup label="ระดับความเข้มข้น">
-        <div className="flex flex-wrap gap-1.5">
-          {HEAT_LEVELS.map((level) => (
-            <OptionChip key={level} active={activeHeats.includes(level)} onClick={() => toggleHeat(level)}>
-              <Flame className="h-3.5 w-3.5" aria-hidden />
-              {level}
             </OptionChip>
           ))}
         </div>

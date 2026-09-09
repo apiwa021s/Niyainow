@@ -8,7 +8,6 @@ const CHECKS: { key: keyof StoryHealth; label: string }[] = [
   { key: "hasCover", label: "มีปก" },
   { key: "hasTagline", label: "มีคำโปรย" },
   { key: "hasGenre", label: "เลือกหมวดแล้ว" },
-  { key: "hasMaturitySettings", label: "ระดับเนื้อหาครบ" },
   { key: "hasFreeIntroChapter", label: "มีตอนฟรีสำหรับผู้อ่านใหม่" },
 ];
 

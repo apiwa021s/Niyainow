@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BookMarked, FilePenLine, Flame, Plus } from "lucide-react";
+import { BookMarked, FilePenLine, Plus } from "lucide-react";
 
 import { EmptyState, StatusPill, StudioPageHeader, StudioRowLink } from "@/components/studio/studio-ui";
 import { ButtonLink } from "@/components/ui/button";
@@ -69,7 +69,6 @@ export default async function StudioWorksPage() {
                         {story.tagline ? <p className="mt-1 line-clamp-2 text-sm text-(--text-secondary)">{story.tagline}</p> : null}
                         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--text-tertiary)">
                           <span>แก้ไข {dateTime.format(story.updatedAt)}</span>
-                          {story.heatLevel ? <span className="inline-flex items-center gap-1"><Flame className="h-3.5 w-3.5" aria-hidden />Heat {story.heatLevel}</span> : null}
                           <span>{story.status === "COMPLETED" ? "จบแล้ว" : story.status === "HIATUS" ? "พักการเขียน" : "กำลังเขียน"}</span>
                         </div>
                       </div>

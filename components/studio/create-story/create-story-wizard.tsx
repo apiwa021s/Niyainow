@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import {
   GenreAndStyleForm,
-  MatureContentForm,
+  ContentWarningsForm,
   ReviewAndRightsForm,
   StoryBasicInfoForm,
 } from "@/components/studio/create-story/steps";
@@ -70,7 +70,6 @@ export function CreateStoryWizard() {
           relationshipIds: draft.relationshipIds,
           settingIds: draft.settingIds,
           tropeIds: draft.tropeIds,
-          heatLevel: draft.heatLevel,
           contentWarningIds: draft.contentWarningIds,
           storyType: draft.storyType,
           storyStatus: draft.status === "hiatus" ? "paused" : draft.status,
@@ -168,7 +167,7 @@ export function CreateStoryWizard() {
         <div className="min-w-0">
           {step === 1 ? <StoryBasicInfoForm draft={draft} errors={errors} update={update} /> : null}
           {step === 2 ? <GenreAndStyleForm draft={draft} errors={errors} update={update} /> : null}
-          {step === 3 ? <MatureContentForm draft={draft} errors={errors} update={update} /> : null}
+          {step === 3 ? <ContentWarningsForm draft={draft} errors={errors} update={update} /> : null}
           {step === 4 ? (
             <ReviewAndRightsForm draft={draft} errors={errors} update={update} onEditStep={goTo} />
           ) : null}

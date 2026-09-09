@@ -21,7 +21,6 @@ export type NovelQuery = {
   relationship?: string;
   setting?: string;
   trope?: string;
-  heat?: string;
 };
 
 export const parseGenreParam = (value?: string) =>

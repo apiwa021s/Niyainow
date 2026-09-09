@@ -182,10 +182,10 @@ export default async function NovelsPage({ searchParams }: { searchParams: Promi
     .filter((value): value is string => Boolean(value));
   const title = browseHeading(canonicalQuery, selected, activeTag?.name);
 
-  // Relationship/setting/trope/heat aren't DB columns yet (see lib/domain/reader-taste.ts),
+  // Relationship/setting/trope aren't DB columns yet (see lib/domain/reader-taste.ts),
   // so they're applied as a client-safe post-filter over the already-fetched page rather than
   // touching the DB query — a deliberate "UI mock first" scope boundary for this pass.
-  const hasTasteFilters = Boolean(query.relationship || query.setting || query.trope || query.heat);
+  const hasTasteFilters = Boolean(query.relationship || query.setting || query.trope);
   const visibleItems = hasTasteFilters ? result.items.filter((novel) => matchesTaste(novel, query)) : result.items;
 
   return (

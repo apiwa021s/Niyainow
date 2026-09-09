@@ -1,10 +1,9 @@
 "use client";
 
-import { Flame, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ChapterAccessSelector, type ChapterAccess } from "@/components/studio/publish/chapter-access-selector";
-import { ChapterHeatOverride } from "@/components/studio/publish/chapter-heat-override";
 import { ChapterWarningSelector } from "@/components/studio/publish/chapter-warning-selector";
 import { FreeIntroRecommendation } from "@/components/studio/publish/free-intro-recommendation";
 import { PublishConfirmationSummary, PublishSuccess } from "@/components/studio/publish/publish-confirmation";
@@ -41,8 +40,6 @@ export function PublishDrawer({
   const [timing, setTiming] = useState<PublishTiming>("now");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("20:00");
-  const [heatOverrideEnabled, setHeatOverrideEnabled] = useState(false);
-  const [heatOverrideLevel, setHeatOverrideLevel] = useState<number | null>(null);
   const [warningOverrideEnabled, setWarningOverrideEnabled] = useState(false);
   const [warningIds, setWarningIds] = useState<string[]>([]);
   const [publishing, setPublishing] = useState(false);
@@ -61,7 +58,6 @@ export function PublishDrawer({
   const label = `EP.${String(chapterNumber).padStart(2, "0")}`;
   const isNewStory = work.chapters === 0;
   const showFreeRec = chapterNumber === 1 && access === "paid" && isNewStory && !dismissedFreeRec;
-  const effectiveHeat = heatOverrideEnabled ? heatOverrideLevel ?? work.heatLevel : work.heatLevel;
 
   const priceLabel =
     access === "free"
@@ -71,12 +67,6 @@ export function PublishDrawer({
         : access === "early_access"
           ? "สมาชิกอ่านก่อน"
           : "สมาชิกเท่านั้น";
-  const heatLabel = (
-    <>
-      <Flame aria-hidden className="h-3.5 w-3.5" />
-      ระดับ {effectiveHeat}
-    </>
-  );
   const scheduleLabel =
     timing === "now"
       ? "เผยแพร่ทันที"
@@ -178,17 +168,6 @@ export function PublishDrawer({
 
               <hr className="border-border" />
 
-              <ChapterHeatOverride
-                storyHeatLevel={work.heatLevel}
-                overrideEnabled={heatOverrideEnabled}
-                overrideLevel={heatOverrideLevel}
-                onToggleOverride={(enabled) => {
-                  setHeatOverrideEnabled(enabled);
-                  if (enabled && heatOverrideLevel === null) setHeatOverrideLevel(work.heatLevel);
-                }}
-                onLevelChange={setHeatOverrideLevel}
-              />
-
               <ChapterWarningSelector
                 overrideEnabled={warningOverrideEnabled}
                 selected={warningIds}
@@ -205,7 +184,6 @@ export function PublishDrawer({
               chapterLabel={label}
               chapterTitle={chapterTitle}
               priceLabel={priceLabel}
-              heatLabel={heatLabel}
               scheduleLabel={scheduleLabel}
             />
           ) : null}

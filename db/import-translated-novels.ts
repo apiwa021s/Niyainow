@@ -804,7 +804,6 @@ async function upsertNovel(input: {
         language: "th",
         status: input.book.isFinished ? "COMPLETED" : "ONGOING",
         publicationStatus: "PUBLISHED",
-        contentRating: "TEEN",
         latestChapterAt: input.book.lastChapterUpdatedAt ?? null,
         publishedAt,
         createdAt: publishedAt,

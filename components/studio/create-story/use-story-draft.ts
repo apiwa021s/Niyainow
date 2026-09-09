@@ -16,7 +16,6 @@ export type StoryDraft = {
   relationshipIds: string[];
   settingIds: string[];
   tropeIds: string[];
-  heatLevel: number | null;
   contentWarningIds: string[];
   noContentWarnings: boolean;
   contentAccuracyConfirmed: boolean;
@@ -42,7 +41,6 @@ export const emptyDraft: StoryDraft = {
   relationshipIds: [],
   settingIds: [],
   tropeIds: [],
-  heatLevel: null,
   contentWarningIds: [],
   noContentWarnings: false,
   contentAccuracyConfirmed: false,
@@ -142,7 +140,6 @@ export function validateStep(step: number, draft: StoryDraft): StepErrors {
   }
 
   if (step === 3) {
-    if (!draft.heatLevel) errors.heatLevel = "กรุณาเลือกระดับความเข้มข้นของเรื่อง";
     if (!draft.contentAccuracyConfirmed || !draft.contentPolicyConfirmed)
       errors.confirm = "กรุณายืนยันทั้งสองข้อก่อนไปขั้นตอนถัดไป";
   }

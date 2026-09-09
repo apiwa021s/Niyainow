@@ -14,5 +14,5 @@ export default async function NewChapterPage({ params }: { params: Promise<{ slu
   try { story = await getWriterStoryBySlug(user.id, slug); } catch { notFound(); }
   const chapters = await listWriterChapters(user.id, story.id);
   const nextNumber = chapters.length ? Math.max(...chapters.map((chapter) => chapter.chapterNumber)) + 1 : 1;
-  return <ProductionChapterEditor story={{ id: story.id, slug: story.slug, title: story.title, heatLevel: story.heatLevel }} chapterNumber={nextNumber} />;
+  return <ProductionChapterEditor story={{ id: story.id, slug: story.slug, title: story.title }} chapterNumber={nextNumber} />;
 }

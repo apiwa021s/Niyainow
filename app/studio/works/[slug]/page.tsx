@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CalendarClock, FileText, Flame, PenLine, Plus } from "lucide-react";
+import { CalendarClock, FileText, PenLine, Plus } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { EmptyState, StatusPill, StudioPageHeader, StudioRowLink } from "@/components/studio/studio-ui";
@@ -33,10 +33,9 @@ export default async function StudioWorkDetailPage({ params }: { params: Promise
   return (
     <div className="grid gap-5">
       <StudioPageHeader eyebrow="MY WORKS / STORY" title={story.title} description={story.tagline || "จัดการตอน สถานะการเผยแพร่ และการเข้าถึงของผลงานนี้"} action={<ButtonLink href={`/studio/works/${story.slug}/chapters/new`}><Plus className="h-4 w-4" aria-hidden />เขียนตอนใหม่</ButtonLink>} />
-      <section className="grid gap-3 rounded-[8px] border border-border bg-card p-4 sm:grid-cols-3 sm:p-5">
+      <section className="grid gap-3 rounded-[8px] border border-border bg-card p-4 sm:grid-cols-2 sm:p-5">
         <div><p className="text-xs text-(--text-tertiary)">สถานะเรื่อง</p><p className="mt-1 font-semibold">{story.status === "COMPLETED" ? "จบแล้ว" : story.status === "HIATUS" ? "พักการเขียน" : "กำลังเขียน"}</p></div>
         <div><p className="text-xs text-(--text-tertiary)">การเผยแพร่</p><p className="mt-1 font-semibold">{story.publicationStatus === "PUBLISHED" ? "เผยแพร่แล้ว" : "ฉบับร่าง"}</p></div>
-        <div><p className="text-xs text-(--text-tertiary)">ระดับเนื้อหา</p><p className="mt-1 inline-flex items-center gap-1 font-semibold"><Flame className="h-4 w-4 text-brand-primary" aria-hidden />Heat {story.heatLevel ?? "-"}</p></div>
       </section>
       <StoryActions storyId={story.id} published={story.publicationStatus === "PUBLISHED"} status={story.status} />
       {chapters.length === 0 ? (

@@ -27,13 +27,10 @@ export async function GET(request: Request) {
       relationshipIds: list(params, "relationshipIds"),
       settingIds: list(params, "settingIds"),
       tropeIds: list(params, "tropeIds"),
-      heatMin: number(params, "heatMin"),
-      heatMax: number(params, "heatMax"),
       page: number(params, "page"),
       status: status as DiscoverFilters["status"],
       sort: sort as DiscoverFilters["sort"],
     };
-    if ((filters.heatMin ?? 1) < 1 || (filters.heatMax ?? 5) > 5 || (filters.heatMin ?? 1) > (filters.heatMax ?? 5)) throw new ApiError(400, "INVALID_FILTER", "Invalid heat range");
     return NextResponse.json({ data: await getDiscoverStories(filters) }, { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=120" } });
   } catch (error) {
     return apiErrorResponse(error);

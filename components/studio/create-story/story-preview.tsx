@@ -1,11 +1,10 @@
 "use client";
 
-import { BookMarked, Flame } from "lucide-react";
+import { BookMarked } from "lucide-react";
 
 import type { StoryDraft } from "@/components/studio/create-story/use-story-draft";
 import {
   CONTENT_WARNINGS,
-  HEAT_LEVELS,
   PRIMARY_GENRES,
   RELATIONSHIP_TYPES,
   STORY_SETTINGS,
@@ -14,21 +13,6 @@ import {
   labelsFor,
 } from "@/lib/studio/master-data";
 import { cn } from "@/lib/utils";
-
-export function HeatBadge({ level, className }: { level: number | null; className?: string }) {
-  if (!level) return null;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full bg-accent-subtle px-2.5 py-1 text-xs font-semibold text-[var(--brand-emphasis)]",
-        className,
-      )}
-    >
-      <Flame aria-hidden className="h-3.5 w-3.5" />
-      ระดับความเข้มข้น {level}
-    </span>
-  );
-}
 
 /**
  * The same card the reader will meet, kept beside the form.
@@ -44,7 +28,6 @@ export function StoryPreview({ draft, compact = false }: { draft: StoryDraft; co
   const settings = labelsFor(STORY_SETTINGS, draft.settingIds);
   const tropes = labelsFor(TROPES, draft.tropeIds);
   const warnings = labelsFor(CONTENT_WARNINGS, draft.contentWarningIds);
-  const heat = HEAT_LEVELS.find((item) => item.level === draft.heatLevel);
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -81,7 +64,6 @@ export function StoryPreview({ draft, compact = false }: { draft: StoryDraft; co
               </p>
             ) : null}
 
-            {draft.heatLevel ? <HeatBadge level={draft.heatLevel} className="mt-2" /> : null}
           </div>
         </div>
 
@@ -106,12 +88,6 @@ export function StoryPreview({ draft, compact = false }: { draft: StoryDraft; co
           </p>
         ) : null}
 
-        {!compact && heat ? (
-          <p className="mt-2 text-xs leading-6 text-(--text-tertiary)">
-            <span className="font-semibold text-(--text-secondary)">{heat.nameTh} · </span>
-            {heat.descriptionTh}
-          </p>
-        ) : null}
       </div>
     </div>
   );
@@ -128,7 +104,7 @@ export function StorySummaryCard({ draft }: { draft: StoryDraft }) {
     { label: "พล็อต", values: labelsFor(TROPES, draft.tropeIds) },
   ];
 
-  const filled = rows.some((row) => row.values.length > 0) || draft.heatLevel !== null;
+  const filled = rows.some((row) => row.values.length > 0);
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -154,14 +130,6 @@ export function StorySummaryCard({ draft }: { draft: StoryDraft }) {
                 </dd>
               </div>
             ))}
-          {draft.heatLevel ? (
-            <div>
-              <dt className="text-[11px] text-(--text-tertiary)">ความเข้มข้น</dt>
-              <dd className="mt-1">
-                <HeatBadge level={draft.heatLevel} />
-              </dd>
-            </div>
-          ) : null}
         </dl>
       )}
     </div>
