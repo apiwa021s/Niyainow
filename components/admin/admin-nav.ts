@@ -1,4 +1,4 @@
-import { BookOpen, FileStack, GalleryHorizontalEnd, Inbox, Languages, LayoutDashboard, MessageSquare, RefreshCw, ScrollText, Tags } from "lucide-react";
+import { BookOpen, FileStack, GalleryHorizontalEnd, Inbox, Languages, LayoutDashboard, MessageSquare, ScrollText, Tags } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type AdminNavItem = {
@@ -28,7 +28,8 @@ export const adminNavGroups: AdminNavGroup[] = [
       { href: "/admin/tags", label: "แท็ก", icon: Tags },
       { href: "/admin/banners", label: "แบนเนอร์", icon: GalleryHorizontalEnd },
       { href: "/admin/translation", label: "AI Translation Studio", icon: Languages },
-      { href: "/admin/sync", label: "Mongo Sync", icon: RefreshCw },
+      // Mongo Sync remains available by direct URL, but is intentionally hidden from Admin navigation.
+      // { href: "/admin/sync", label: "Mongo Sync", icon: RefreshCw },
     ],
   },
   {
