@@ -29,7 +29,7 @@ export type HomeData = {
 const HOME_CAROUSEL_ITEM_CLASS = "w-[128px] shrink-0 sm:w-[144px] lg:w-[160px] xl:w-[172px]";
 
 const genreNameOf = (novel: Novel, slug?: string) =>
-  slug ? (novel.genreNames?.[slug] ?? slug) : "";
+  slug ? (novel.genreNames?.[slug]?.trim() ?? "") : "";
 
 function HomeGridCard({ novel }: { novel: Novel }) {
   const badge = novel.isNew ? "ใหม่" : novel.status === "completed" ? "จบ" : null;
@@ -41,13 +41,13 @@ function HomeGridCard({ novel }: { novel: Novel }) {
   return (
     <article className="group min-w-0">
       <Link href={`/novel/${novel.slug}`} transitionTypes={["nav-forward"]} className="block">
-        <div className="relative aspect-2/3 overflow-hidden rounded-[4px] bg-surface-recessed shadow-sm ring-1 ring-border transition-shadow group-hover:ring-2 group-hover:ring-accent-base group-focus-within:ring-2 group-focus-within:ring-accent-base">
+        <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[6px] bg-surface-recessed shadow-[0_3px_12px_rgba(0,0,0,0.12)] ring-1 ring-border transition-[box-shadow] duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:shadow-[0_6px_18px_rgba(0,0,0,0.18)] group-hover:ring-2 group-hover:ring-accent-base group-focus-within:ring-2 group-focus-within:ring-accent-base">
           <Image
             src={novel.cover}
             alt=""
             fill
             sizes="(max-width: 640px) 128px, (max-width: 1024px) 144px, (max-width: 1280px) 160px, 172px"
-            className="object-cover"
+            className="object-cover object-center transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover:scale-[1.015] motion-reduce:transform-none"
           />
           {badge ? (
             <span className={cn(
@@ -65,9 +65,11 @@ function HomeGridCard({ novel }: { novel: Novel }) {
             {novel.thaiTitle}
           </h3>
         </Link>
-        <p className="mt-0.5 truncate text-xs text-(--text-secondary)">
-          {genreLabels.join(" · ") || "นิยาย"}
-        </p>
+        {genreLabels.length ? (
+          <p className="mt-0.5 truncate text-xs text-(--text-secondary)">
+            {genreLabels.join(" · ")}
+          </p>
+        ) : null}
         <p className="tabular mt-1 flex min-w-0 items-center gap-2.5 text-[11px] text-(--text-tertiary) sm:text-xs">
           <span className="inline-flex items-center gap-1" title="ยอดอ่าน"><Eye className="h-3 w-3 shrink-0" aria-hidden />{formatNumber(novel.views)}</span>
           <span className="inline-flex items-center gap-1" title="จำนวนตอน"><BookOpen className="h-3 w-3 shrink-0" aria-hidden />{formatNumber(novel.chapters)}</span>
