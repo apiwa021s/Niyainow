@@ -67,6 +67,35 @@ export const translationProfileVersions = pgTable("translation_profile_versions"
   uniqueIndex("translation_profile_versions_workspace_version_uidx").on(table.workspaceId, table.version),
 ]);
 
+/**
+ * Versioned editorial master data used to compose a story translation profile.
+ * Research evidence is retained for audit, but only APPROVED + active rules are
+ * eligible for runtime prompts.
+ */
+export const translationMasterRecords = pgTable("translation_master_records", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dataset: varchar("dataset", { length: 32 }).notNull(),
+  recordKey: varchar("record_key", { length: 160 }).notNull(),
+  version: varchar("version", { length: 40 }).notNull(),
+  reviewStatus: varchar("review_status", { length: 40 }).default("DRAFT_FOR_EDITOR_REVIEW").notNull(),
+  isActive: boolean("is_active").default(false).notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  sourceFile: varchar("source_file", { length: 255 }).notNull(),
+  contentHash: varchar("content_hash", { length: 64 }).notNull(),
+  importedBy: uuid("imported_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", timestampConfig),
+  createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", timestampConfig).defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex("translation_master_records_identity_uidx").on(table.dataset, table.recordKey, table.version),
+  index("translation_master_records_runtime_idx").on(table.dataset, table.reviewStatus, table.isActive),
+  check("translation_master_records_dataset_valid", sql`${table.dataset} in ('RESEARCH_EVIDENCE','GENRE_PROFILE','SCENE','GLOBAL_RULE','PRESET_RECIPE')`),
+  check("translation_master_records_status_valid", sql`${table.reviewStatus} in ('DRAFT_FOR_EDITOR_REVIEW','APPROVED','REJECTED','ARCHIVED')`),
+  check("translation_master_records_hash_format", sql`${table.contentHash} ~ '^[0-9a-f]{64}$'`),
+  check("translation_master_records_active_approved", sql`not ${table.isActive} or ${table.reviewStatus} = 'APPROVED'`),
+]);
+
 export const translationGlossaryEntries = pgTable("translation_glossary_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
   workspaceId: uuid("workspace_id").notNull().references(() => translationWorkspaces.id, { onDelete: "cascade" }),

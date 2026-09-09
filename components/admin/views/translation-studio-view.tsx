@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpen, Bot, Languages, LoaderCircle, Sparkles, WalletCards } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, Database, Languages, LoaderCircle, Sparkles, WalletCards } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
@@ -107,6 +107,30 @@ export function TranslationStudioView({ data }: { data: Data }) {
       <StatCard label="ตอนที่อนุมัติ" value={`${approvedChapters.toLocaleString("th-TH")} / ${totalChapters.toLocaleString("th-TH")}`} icon={<Bot className="h-5 w-5" />} />
       <StatCard label="ค่าใช้จ่าย AI ที่บันทึก" value={`$${totalCost.toFixed(4)}`} icon={<WalletCards className="h-5 w-5" />} />
     </div>
+
+    <Panel
+      title="Translation Master"
+      description="Master แบบมีเวอร์ชันสำหรับ map แนวหลัก + overlay + scene + style ก่อนสร้าง Profile รายเรื่อง"
+      action={<Link href="/admin/translation/masters" className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--brand-light-on-light)] hover:underline">ตรวจและอนุมัติ Master<ArrowRight className="h-4 w-4" /></Link>}
+    >
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {Object.entries(data.masterData.counts).map(([dataset, count]) => (
+            <div key={dataset} className="rounded-[12px] border border-border bg-muted/35 p-3">
+              <p className="truncate text-[11px] font-semibold tracking-wide text-muted-foreground">{dataset.replaceAll("_", " ")}</p>
+              <p className="mt-1 text-lg font-bold tabular-nums">{count.active}<span className="text-xs font-normal text-muted-foreground"> / {count.total} active</span></p>
+            </div>
+          ))}
+        </div>
+        <div className={`flex max-w-sm items-start gap-3 rounded-[12px] border p-4 ${data.masterData.runtimeReady ? "border-emerald-500/25 bg-emerald-500/8" : "border-amber-500/25 bg-amber-500/8"}`}>
+          <Database className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          <div>
+            <p className="font-semibold">{data.masterData.runtimeReady ? "Master พร้อมใช้สร้าง Profile" : "นำเข้าแล้ว รอ Editor อนุมัติ"}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">ทั้งหมด {data.masterData.total.toLocaleString("th-TH")} รายการ · Draft {data.masterData.draft.toLocaleString("th-TH")} · Active {data.masterData.active.toLocaleString("th-TH")}</p>
+          </div>
+        </div>
+      </div>
+    </Panel>
 
     <Panel title="เตรียมงานแปลเรื่องใหม่" description="ทำทีละขั้นเพื่อให้ Profile และตอนที่ส่งแปลถูกต้องก่อนเริ่มใช้ AI">
       <div className="grid gap-6">

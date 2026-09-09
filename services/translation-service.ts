@@ -43,6 +43,7 @@ import { countWords, segmentText, selectBestTranslationModel } from "@/lib/domai
 import { ApiError } from "@/lib/http/api-response";
 import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
 import { aiCallCostMicros, generateAiTranslationProfile, reviewNovelTitleWithAi, type AiStageEvent } from "@/services/ai/translation-pipeline";
+import { getTranslationMasterOverview, loadApprovedTranslationMasterBundle } from "@/services/translation-master-service";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
 const languageSchema = z.string().trim().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/).max(35);
@@ -76,6 +77,14 @@ const storedProfileAnalysisSchema = z.object({
   terminologyRisks: z.array(z.string()),
   translationStrategy: z.string(),
   genreContext: z.object({ key: z.string(), label: z.string(), guidance: z.string() }),
+  masterSelection: z.object({
+    mode: z.enum(["MASTER", "LEGACY_FALLBACK"]),
+    baseProfile: z.object({ id: z.string(), version: z.string(), name: z.string() }).nullable(),
+    overlays: z.array(z.object({ id: z.string(), version: z.string(), name: z.string() })),
+    recipe: z.object({ id: z.string(), version: z.string(), name: z.string() }).nullable(),
+    sceneCandidates: z.array(z.object({ id: z.string(), version: z.string(), name: z.string() })),
+    globalRuleVersions: z.array(z.string()),
+  }).optional(),
   profileReviewNotes: z.array(z.string()),
   sampledChapters: z.array(z.number().int().positive()),
 });
@@ -417,13 +426,17 @@ export async function createTranslationWorkspace(
   if (!samples.length && !sourceText.synopsis?.trim()) {
     throw new ApiError(409, "PROFILE_CONTEXT_MISSING", "ต้องมีเรื่องย่อหรือตอนต้นฉบับอย่างน้อย 1 ตอนเพื่อสร้าง Translation Profile คุณภาพสูง");
   }
-  const models = await getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "PROFILE_QUALITY_REVIEW", "ENTITY_EXTRACTION"] as const);
+  const [models, masterBundle] = await Promise.all([
+    getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "PROFILE_QUALITY_REVIEW", "ENTITY_EXTRACTION"] as const),
+    loadApprovedTranslationMasterBundle(),
+  ]);
   const generated = await generateAiTranslationProfile({
     title: sourceText.title,
     synopsis: sourceText.synopsis,
     sourceLanguage: source.sourceLanguage,
     targetLanguage: input.targetLanguage,
     samples,
+    masterBundle,
     models,
     onStage,
   });
@@ -531,7 +544,7 @@ export async function getTranslationStudio() {
   const actor = await assertTranslationPermission("translation.view");
   await ensureAutomaticAiConfiguration(actor);
   const db = getDb();
-  const [workspaceRows, sourceRows, modelRows, promptRows] = await Promise.all([
+  const [workspaceRows, sourceRows, modelRows, promptRows, masterData] = await Promise.all([
     db.select({
       workspace: translationWorkspaces,
       sourceTitle: novelImportSourceTexts.title,
@@ -562,6 +575,7 @@ export async function getTranslationStudio() {
       .where(eq(novelImportSources.status, "ready")).orderBy(desc(novelImportSources.updatedAt)),
     db.select().from(translationAiModels).where(eq(translationAiModels.isActive, true)).orderBy(asc(translationAiModels.name)),
     db.select().from(translationPromptVersions).where(eq(translationPromptVersions.isActive, true)).orderBy(desc(translationPromptVersions.createdAt)),
+    getTranslationMasterOverview(),
   ]);
   return {
     workspaces: workspaceRows.map(({ workspace, sourceTitle, translatedTitle, chapterCount, approvedCount, jobCostMicros }) => ({
@@ -570,6 +584,7 @@ export async function getTranslationStudio() {
     sources: sourceRows.map((row) => ({ ...row, title: row.title ?? "Imported novel" })),
     models: modelRows.map((row) => ({ ...row, inputCostMicrosPerMillion: Number(row.inputCostMicrosPerMillion), outputCostMicrosPerMillion: Number(row.outputCostMicrosPerMillion), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     prompts: promptRows.map((row) => ({ id: row.id, name: row.name, version: row.version })),
+    masterData,
   };
 }
 

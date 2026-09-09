@@ -233,9 +233,21 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ต้นฉบับ</dt><dd className="max-w-40 truncate font-semibold">{data.source.provider}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ตอนที่พร้อม</dt><dd className="font-semibold">{eligibleChapters.length.toLocaleString("th-TH")}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Genre context</dt><dd className="max-w-44 text-right font-semibold">{data.profileAnalysis?.genreContext.label ?? "Profile รุ่นเดิม"}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Master routing</dt><dd className="max-w-44 text-right font-semibold">{data.profileAnalysis?.masterSelection?.mode === "MASTER" ? "Pinned version" : "Legacy fallback"}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-muted-foreground">ตัวอย่างที่อ่าน</dt><dd className="font-semibold">{data.profileAnalysis?.sampledChapters.length ? `${data.profileAnalysis.sampledChapters.length} ตอน` : "เฉพาะ metadata"}</dd></div>
             </dl>
           </div>
+          {data.profileAnalysis?.masterSelection?.mode === "MASTER" ? (
+            <div className="mt-4 rounded-[12px] border border-emerald-500/25 bg-emerald-500/8 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Master ที่ใช้สร้าง Profile นี้</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                {data.profileAnalysis.masterSelection.baseProfile ? <span className="rounded-full border border-border bg-card px-2.5 py-1">Base · {data.profileAnalysis.masterSelection.baseProfile.name} · {data.profileAnalysis.masterSelection.baseProfile.id}@{data.profileAnalysis.masterSelection.baseProfile.version}</span> : null}
+                {data.profileAnalysis.masterSelection.overlays.map((row) => <span key={row.id} className="rounded-full border border-border bg-card px-2.5 py-1">Overlay · {row.name} · {row.id}@{row.version}</span>)}
+                {data.profileAnalysis.masterSelection.recipe ? <span className="rounded-full border border-border bg-card px-2.5 py-1">Recipe · {data.profileAnalysis.masterSelection.recipe.name} · {data.profileAnalysis.masterSelection.recipe.id}@{data.profileAnalysis.masterSelection.recipe.version}</span> : null}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Scene {data.profileAnalysis.masterSelection.sceneCandidates.length} รายการเป็นเพียง candidate และจะใช้เมื่อเนื้อหาตอนนั้นเข้าเงื่อนไขเท่านั้น · Global rules {data.profileAnalysis.masterSelection.globalRuleVersions.length} รายการ</p>
+            </div>
+          ) : null}
           {titleReview ? (
             <div className="mt-4 rounded-[12px] border border-sky-500/25 bg-sky-500/8 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">ผล Review ชื่อเรื่อง</p>{translatedTitle !== titleReview.reviewedTitle ? <p className="text-xs text-amber-700 dark:text-amber-300">ชื่อถูกแก้หลัง Review — กด Review อีกครั้งเพื่อประเมินชื่อปัจจุบัน</p> : null}</div><span className="rounded-full bg-card px-2.5 py-1 text-xs font-bold">{titleReview.score}/100 · {titleReview.verdict === "NATURAL" ? "เป็นธรรมชาติ" : "ควรปรับ"}</span></div>

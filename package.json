@@ -32,6 +32,7 @@
     "db:verify-stripe": "node --conditions=react-server --import tsx db/verify-stripe-backend.ts",
     "db:seed": "tsx db/seed.ts",
     "db:import-translated-novels": "tsx db/import-translated-novels.ts",
+    "db:import-translation-masters": "node --conditions=react-server --import tsx db/import-translation-masters.ts",
     "db:reconcile-engagement": "tsx db/reconcile-engagement.ts",
     "benchmark:cache": "node scripts/cache-benchmark.mjs",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run db:check && npm run build"

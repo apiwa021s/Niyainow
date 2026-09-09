@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { translationAiModels, translationPromptVersions } from "@/db/schema";
 import type { AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
 import { selectTranslationGenreContext } from "@/lib/domain/translation-genre-context";
+import { selectTranslationMasterContext, type TranslationMasterBundle, type TranslationMasterSelection } from "@/lib/domain/translation-master";
 import { getTranslationProvider, type StructuredAiResult } from "@/services/ai/translation-provider";
 
 type AiModel = typeof translationAiModels.$inferSelect;
@@ -152,6 +153,7 @@ export async function generateAiTranslationProfile(input: {
   sourceLanguage: string;
   targetLanguage: string;
   samples: Array<{ chapterNumber: number; title: string | null; content: string }>;
+  masterBundle: TranslationMasterBundle;
   models: Record<"PROFILE_ANALYSIS" | "FOUNDATION" | "PROFILE_QUALITY_REVIEW" | "ENTITY_EXTRACTION", AiModel>;
   onStage?: (event: AiStageEvent) => void | Promise<void>;
 }) {
@@ -177,12 +179,22 @@ export async function generateAiTranslationProfile(input: {
     parser: analysisSchema,
     timeoutMs: 65_000,
   });
-  const genreContext = selectTranslationGenreContext({
+  const legacyGenreContext = selectTranslationGenreContext({
     genre: analysis.value.genre,
     subgenres: analysis.value.subgenres,
     tone: analysis.value.tone,
     targetLanguage: input.targetLanguage,
   });
+  const masterGenreContext = selectTranslationMasterContext(input.masterBundle, analysis.value);
+  const masterSelection: TranslationMasterSelection = masterGenreContext?.selection ?? {
+    mode: "LEGACY_FALLBACK",
+    baseProfile: null,
+    overlays: [],
+    recipe: null,
+    sceneCandidates: [],
+    globalRuleVersions: [],
+  };
+  const genreContext = masterGenreContext ?? legacyGenreContext;
 
   await input.onStage?.({ stage: "FOUNDATION", label: `AI กำลังสร้าง Style guide สำหรับแนว ${genreContext.label}`, modelName: input.models.FOUNDATION.modelName });
   const foundation = await structured({
@@ -242,7 +254,7 @@ export async function generateAiTranslationProfile(input: {
   return {
     profile,
     metadata: { title: translatedTitle.trim(), synopsis: translatedSynopsis?.trim() || null },
-    analysis: { ...analysis.value, genreContext, profileReviewNotes: reviewNotes, sampledChapters: samples.map((sample) => sample.chapterNumber) },
+    analysis: { ...analysis.value, genreContext: { key: genreContext.key, label: genreContext.label, guidance: genreContext.guidance }, masterSelection, profileReviewNotes: reviewNotes, sampledChapters: samples.map((sample) => sample.chapterNumber) },
     ...entities.value,
     calls: [analysis.call, foundation.call, qualityReview.call, entities.call],
   };
