@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { loadEnvConfig } from "@next/env";
-import { sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 
 import {
   CONTENT_WARNINGS,
@@ -12,16 +12,59 @@ import {
   TROPES,
   type MasterItem,
 } from "@/lib/studio/master-data";
+import { LEGACY_GENRE_REDIRECTS } from "@/lib/domain/genre-taxonomy";
 
 import { closeDbConnection, getDb } from "./index";
-import { contentWarnings, genres, membershipBenefits, relationshipTypes, storySettings, tropes } from "./schema";
+import { contentWarnings, genres, membershipBenefits, novelGenres, relationshipTypes, storySettings, tropes } from "./schema";
 
 loadEnvConfig(process.cwd());
 
 type NormalizedMasterTable = typeof contentWarnings | typeof relationshipTypes | typeof storySettings | typeof tropes;
+type SeedTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+async function redirectGenreRelations(tx: SeedTransaction, sourceSlug: string, targetSlug: string) {
+  const [source, target] = await Promise.all([
+    tx.select({ id: genres.id }).from(genres).where(eq(genres.slug, sourceSlug)).limit(1),
+    tx.select({ id: genres.id }).from(genres).where(eq(genres.slug, targetSlug)).limit(1),
+  ]);
+  if (!source[0] || !target[0]) return 0;
+  const sourceId = source[0].id;
+  const targetId = target[0].id;
+
+  const relations = await tx
+    .select({ novelId: novelGenres.novelId, isPrimary: novelGenres.isPrimary, sortOrder: novelGenres.sortOrder })
+    .from(novelGenres)
+    .where(eq(novelGenres.genreId, sourceId));
+  if (!relations.length) return 0;
+
+  await tx
+    .insert(novelGenres)
+    .values(relations.map((relation) => ({
+      novelId: relation.novelId,
+      genreId: targetId,
+      isPrimary: false,
+      sortOrder: relation.sortOrder,
+    })))
+    .onConflictDoNothing();
+
+  const primaryNovelIds = relations.filter((relation) => relation.isPrimary).map((relation) => relation.novelId);
+  if (primaryNovelIds.length) {
+    await tx
+      .update(novelGenres)
+      .set({ isPrimary: false })
+      .where(and(eq(novelGenres.genreId, sourceId), inArray(novelGenres.novelId, primaryNovelIds)));
+    await tx
+      .update(novelGenres)
+      .set({ isPrimary: true, sortOrder: 0 })
+      .where(and(eq(novelGenres.genreId, targetId), inArray(novelGenres.novelId, primaryNovelIds)));
+  }
+
+  await tx.delete(novelGenres).where(eq(novelGenres.genreId, sourceId));
+  return relations.length;
+}
 
 async function upsertNormalizedMaster(
-  tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
+  tx: SeedTransaction,
   table: NormalizedMasterTable,
   items: readonly MasterItem[],
 ) {
@@ -52,6 +95,8 @@ async function upsertNormalizedMaster(
 
 export async function seedMasterData() {
   const db = getDb();
+  let remappedGenreRelations = 0;
+  let removedGenres = 0;
   await db.transaction(async (tx) => {
     await tx
       .insert(genres)
@@ -74,6 +119,28 @@ export async function seedMasterData() {
           updatedAt: new Date(),
         },
       });
+
+    for (const [sourceSlug, targetSlug] of Object.entries(LEGACY_GENRE_REDIRECTS)) {
+      remappedGenreRelations += await redirectGenreRelations(tx, sourceSlug, targetSlug);
+    }
+
+    const standardGenreSlugs = PRIMARY_GENRES.map((item) => item.slug);
+    const referencedNonstandardGenres = await tx
+      .select({ slug: genres.slug })
+      .from(genres)
+      .innerJoin(novelGenres, eq(novelGenres.genreId, genres.id))
+      .where(notInArray(genres.slug, standardGenreSlugs))
+      .groupBy(genres.slug);
+    if (referencedNonstandardGenres.length) {
+      throw new Error(
+        `Cannot remove referenced nonstandard genres without an explicit mapping: ${referencedNonstandardGenres.map((row) => row.slug).join(", ")}`,
+      );
+    }
+    const removed = await tx
+      .delete(genres)
+      .where(notInArray(genres.slug, standardGenreSlugs))
+      .returning({ id: genres.id });
+    removedGenres = removed.length;
 
     await upsertNormalizedMaster(tx, relationshipTypes, RELATIONSHIP_TYPES);
     await upsertNormalizedMaster(tx, storySettings, STORY_SETTINGS);
@@ -98,6 +165,8 @@ export async function seedMasterData() {
 
   return {
     genres: PRIMARY_GENRES.length,
+    remappedGenreRelations,
+    removedGenres,
     relationships: RELATIONSHIP_TYPES.length,
     settings: STORY_SETTINGS.length,
     tropes: TROPES.length,

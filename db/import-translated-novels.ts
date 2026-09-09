@@ -23,8 +23,10 @@ import {
   tags,
 } from "@/db/schema";
 import { countChapterWords } from "@/lib/domain/chapter";
+import { canonicalGenreSlug } from "@/lib/domain/genre-taxonomy";
 import { requireMongoEnv, requireR2Env } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { PRIMARY_GENRES } from "@/lib/studio/master-data";
 import { destroyR2Client, getR2Client } from "@/lib/r2/client";
 import { detectImageContentType } from "@/lib/r2/signatures";
 import { slugify } from "@/lib/validation/slug";
@@ -627,19 +629,25 @@ async function ensureCover(book: MongoBook, existingCoverKey: string | null, opt
 
 async function ensureGenres(tx: Tx, bookTypes: readonly string[], mongoGenreMap: Map<string, MongoTag>, now: Date) {
   if (bookTypes.length === 0) return [];
-  const rows = bookTypes.map((type, index) => {
-    const source = mongoGenreMap.get(type);
+  const standardGenreBySlug = new Map(PRIMARY_GENRES.map((genre) => [genre.slug, genre]));
+  const normalizedTypes = [...new Map(bookTypes.map((type) => {
+    const slug = canonicalGenreSlug(sourceGenreSlug(type));
+    return [slug, { slug, source: mongoGenreMap.get(type) }] as const;
+  })).values()].filter((item) => standardGenreBySlug.has(item.slug));
+  const rows = normalizedTypes.map(({ slug, source }) => {
+    const standard = standardGenreBySlug.get(slug)!;
     return {
-      slug: sourceGenreSlug(type),
-      name: source?.language?.en || type,
-      thaiName: source?.language?.th || null,
-      description: cleanText(source?.description, 2_000),
-      sortOrder: source?.order ?? index + 1,
-      isActive: source?.isActive ?? true,
+      slug,
+      name: standard.nameEn,
+      thaiName: standard.nameTh,
+      description: standard.descriptionTh ?? cleanText(source?.description, 2_000),
+      sortOrder: standard.sortOrder,
+      isActive: true,
       createdAt: now,
       updatedAt: now,
     };
   });
+  if (!rows.length) return [];
   return tx
     .insert(genres)
     .values(rows)

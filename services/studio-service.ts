@@ -27,7 +27,7 @@ import {
 import { ApiError } from "@/lib/http/api-response";
 import { createUniqueSlug } from "@/lib/validation/slug";
 
-const masterSlug = z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:_[a-z0-9]+)*$/u);
+const masterSlug = z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u);
 
 export const writerProfileInputSchema = z.object({
   username: z.string().trim().toLowerCase().min(3).max(80).regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u),

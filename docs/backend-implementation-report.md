@@ -32,7 +32,7 @@ Date: 2026-08-22
 - Fresh Drizzle baseline and corrective migrations generated under `drizzle/`
 - `pg_trgm` enabled by the baseline migration
 - Migrations applied successfully to the configured database
-- Frozen taxonomy seeded idempotently: 8 genres, 5 relationships, 14 settings, 30 tropes, 14 content warnings
+- Frozen taxonomy seeded idempotently: 17 standard genres, 5 relationships, 14 settings, 30 tropes, 14 content warnings
 - Migration graph passes `drizzle-kit check`
 
 ## 5. APIs implemented
