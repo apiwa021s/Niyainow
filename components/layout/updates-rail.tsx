@@ -12,7 +12,7 @@ import { getUpdates } from "@/services/novel-service";
  */
 export async function UpdatesRail() {
   "use cache";
-  cacheLife(PUBLIC_CACHE_LIFE.discovery);
+  cacheLife(PUBLIC_CACHE_LIFE.live);
   cacheTag("public-chapters", "public-novels");
 
   const updates = await getUpdates("all", undefined, 24);

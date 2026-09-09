@@ -1,17 +1,11 @@
-"use client";
-
 import { ChevronRight, Rss } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
-import { studioHomeUpdates } from "@/data/studio-reader-home";
 import type { NovelUpdate } from "@/services/novel-service";
 
 export function UpdatesRailView({ updates }: { updates: NovelUpdate[] }) {
-  const pathname = usePathname();
-  const visibleUpdates = pathname === "/" ? studioHomeUpdates : updates;
-  if (!visibleUpdates.length) return null;
+  if (!updates.length) return null;
 
   return (
     <aside
@@ -33,7 +27,7 @@ export function UpdatesRailView({ updates }: { updates: NovelUpdate[] }) {
       </div>
 
       <ol className="pane-scroll flex min-h-0 flex-1 flex-col gap-1 p-1.5">
-        {visibleUpdates.map((item) => (
+        {updates.map((item) => (
           <li key={`${item.novelSlug}-${item.chapter}`}>
             <Link
               href={`/novel/${item.novelSlug}/chapter/${item.chapter}`}
