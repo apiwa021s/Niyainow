@@ -7,6 +7,7 @@ vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 import {
   adminBannerInputSchema,
   adminChapterInputSchema,
+  adminChapterReorderSchema,
   adminGenreInputSchema,
   adminNovelInputSchema,
   adminReviewModerationSchema,
@@ -71,6 +72,19 @@ describe("admin chapter validation", () => {
     expect(snapshot).not.toHaveProperty("excerpt");
     expect(snapshot.contentSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(snapshot.contentLength).toBe("private manuscript text".length);
+  });
+
+  it("accepts an ordered chapter page and rejects duplicate reorder slots", () => {
+    const firstId = "00000000-0000-4000-8000-000000000001";
+    const secondId = "00000000-0000-4000-8000-000000000002";
+    expect(adminChapterReorderSchema.safeParse({
+      novelSlug: "stable-story",
+      chapters: [{ id: secondId, sortOrder: 2 }, { id: firstId, sortOrder: 1 }],
+    }).success).toBe(true);
+    expect(adminChapterReorderSchema.safeParse({
+      novelSlug: "stable-story",
+      chapters: [{ id: firstId, sortOrder: 1 }, { id: secondId, sortOrder: 1 }],
+    }).success).toBe(false);
   });
 });
 

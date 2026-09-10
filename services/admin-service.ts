@@ -226,6 +226,35 @@ export const adminChapterBulkActionSchema = z
     }
   });
 
+export const adminChapterReorderSchema = z
+  .object({
+    novelSlug: slugSchema,
+    chapters: z
+      .array(
+        z.object({
+          id: z.uuid(),
+          sortOrder: z.number().int().positive().max(2_147_483_647),
+        }).strict(),
+      )
+      .min(1)
+      .max(CHAPTER_PAGE_SIZE),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    const ids = new Set<string>();
+    const sortOrders = new Set<number>();
+    input.chapters.forEach((chapter, index) => {
+      if (ids.has(chapter.id)) {
+        context.addIssue({ code: "custom", path: ["chapters", index, "id"], message: "Chapter IDs must be unique" });
+      }
+      if (sortOrders.has(chapter.sortOrder)) {
+        context.addIssue({ code: "custom", path: ["chapters", index, "sortOrder"], message: "Sort orders must be unique" });
+      }
+      ids.add(chapter.id);
+      sortOrders.add(chapter.sortOrder);
+    });
+  });
+
 export const adminChapterBulkImportSchema = z
   .object({
     novelSlug: slugSchema,
@@ -280,6 +309,7 @@ export type AdminNovelUpdate = z.infer<typeof adminNovelUpdateSchema>;
 export type AdminChapterInput = z.infer<typeof adminChapterInputSchema>;
 export type AdminChapterUpdate = z.infer<typeof adminChapterUpdateSchema>;
 export type AdminChapterBulkAction = z.infer<typeof adminChapterBulkActionSchema>;
+export type AdminChapterReorder = z.infer<typeof adminChapterReorderSchema>;
 export type AdminChapterBulkImport = z.infer<typeof adminChapterBulkImportSchema>;
 export type PublicationStatus = z.infer<typeof publicationStatusSchema>;
 export type ChapterStatus = z.infer<typeof chapterStatusSchema>;
@@ -381,6 +411,8 @@ export type AdminChapterQuery = {
   q?: string;
   novel?: string;
   status?: ChapterStatus | "all";
+  sort?: "updated" | "order-asc" | "order-desc" | "number-asc" | "number-desc";
+  mode?: "reorder";
   page?: string | number;
 };
 
@@ -1174,6 +1206,15 @@ export async function getAdminChapters(query: AdminChapterQuery = {}): Promise<A
     );
   }
   const where = and(...conditions)!;
+  const sorting = query.sort === "order-asc"
+    ? [asc(chapters.sortOrder), asc(chapters.id)]
+    : query.sort === "order-desc"
+      ? [desc(chapters.sortOrder), desc(chapters.id)]
+      : query.sort === "number-asc"
+        ? [asc(chapters.chapterNumber), asc(chapters.id)]
+        : query.sort === "number-desc"
+          ? [desc(chapters.chapterNumber), desc(chapters.id)]
+          : [desc(chapters.updatedAt), desc(chapters.id)];
   const db = getDb();
   const [rows, totals] = await Promise.all([
     db
@@ -1181,7 +1222,7 @@ export async function getAdminChapters(query: AdminChapterQuery = {}): Promise<A
       .from(chapters)
       .innerJoin(novels, eq(novels.id, chapters.novelId))
       .where(where)
-      .orderBy(desc(chapters.updatedAt), desc(chapters.id))
+      .orderBy(...sorting)
       .limit(CHAPTER_PAGE_SIZE)
       .offset((page - 1) * CHAPTER_PAGE_SIZE),
     db.select({ value: count() }).from(chapters).innerJoin(novels, eq(novels.id, chapters.novelId)).where(where),
@@ -1496,6 +1537,75 @@ export async function bulkUpdateAdminChapters(inputValue: unknown) {
     return { count: beforeRows.length, novelSlugs: lockedNovels.map((novel) => novel.slug) };
   });
   await Promise.all(result.novelSlugs.map((slug) => revalidatePublicContent("chapter", slug)));
+  return result;
+}
+
+export async function reorderAdminChapters(inputValue: unknown) {
+  const actor = await assertAdmin();
+  const input = adminChapterReorderSchema.parse(inputValue);
+  const requestedIds = input.chapters.map((chapter) => chapter.id);
+  const expectedSortOrders = new Map(input.chapters.map((chapter) => [chapter.id, chapter.sortOrder]));
+  const result = await getDb().transaction(async (tx) => {
+    const [novel] = await tx
+      .select({ id: novels.id, slug: novels.slug })
+      .from(novels)
+      .where(and(eq(novels.slug, input.novelSlug), isNull(novels.deletedAt)))
+      .for("no key update")
+      .limit(1);
+    if (!novel) throw new AdminDataError("NOVEL_NOT_FOUND", "Novel not found", 404);
+
+    const beforeRows = await tx
+      .select()
+      .from(chapters)
+      .where(and(eq(chapters.novelId, novel.id), inArray(chapters.id, requestedIds), isNull(chapters.deletedAt)))
+      .orderBy(asc(chapters.id))
+      .for("update");
+    if (beforeRows.length !== requestedIds.length) {
+      throw new AdminDataError("CHAPTER_NOT_FOUND", "ไม่พบตอนอย่างน้อยหนึ่งรายการ หรือรายการถูกลบไปแล้ว", 404);
+    }
+    if (beforeRows.some((chapter) => expectedSortOrders.get(chapter.id) !== chapter.sortOrder)) {
+      throw new AdminDataError(
+        "CHAPTER_ORDER_CONFLICT",
+        "ลำดับตอนมีการเปลี่ยนแปลงจากที่แสดง กรุณาโหลดหน้าใหม่แล้วจัดลำดับอีกครั้ง",
+        409,
+      );
+    }
+
+    const originalSortOrders = beforeRows.map((chapter) => chapter.sortOrder).toSorted((left, right) => left - right);
+    const beforeById = new Map(beforeRows.map((chapter) => [chapter.id, chapter]));
+    const [maximum] = await tx
+      .select({ value: sql<number>`coalesce(max(${chapters.sortOrder}), 0)`.mapWith(Number) })
+      .from(chapters)
+      .where(eq(chapters.novelId, novel.id));
+    const temporaryStart = Number(maximum?.value ?? 0) + 1;
+    if (temporaryStart + requestedIds.length - 1 > 2_147_483_647) {
+      throw new AdminDataError("CHAPTER_ORDER_EXHAUSTED", "ไม่สามารถสร้างลำดับชั่วคราวสำหรับการย้ายตอนได้", 409);
+    }
+
+    const now = new Date();
+    // The unique index is immediate, so first vacate every original slot before
+    // assigning the same slots to chapters in their new order.
+    for (const [index, id] of requestedIds.entries()) {
+      await tx
+        .update(chapters)
+        .set({ sortOrder: temporaryStart + index, updatedBy: actor.id, updatedAt: now })
+        .where(eq(chapters.id, id));
+    }
+
+    for (const [index, id] of requestedIds.entries()) {
+      const before = beforeById.get(id)!;
+      const [updated] = await tx
+        .update(chapters)
+        .set({ sortOrder: originalSortOrders[index], updatedBy: actor.id, updatedAt: now })
+        .where(eq(chapters.id, id))
+        .returning();
+      await writeAudit(tx, actor, "chapter.reorder", "chapter", id, chapterAuditSnapshot(before), chapterAuditSnapshot(updated));
+    }
+
+    await syncNovelStatistics(tx, novel.id);
+    return { count: requestedIds.length, novelSlug: novel.slug };
+  });
+  await revalidatePublicContent("chapter", result.novelSlug);
   return result;
 }
 
