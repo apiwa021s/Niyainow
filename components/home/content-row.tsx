@@ -103,15 +103,15 @@ export function ContentRow({
       {description ? <p className="-mt-1 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}
 
       {/*
-       * The bleed must match the page gutter exactly. It used to pull -16px
-       * against a 12px gutter, which pushed 4px past the viewport on each side
-       * and let the whole page scroll sideways on a phone.
+       * The track bleeds to the viewport edge, while its mobile padding keeps
+       * tall cover artwork away from that edge. Negative margins stay matched
+       * to the page gutter so the page itself never scrolls sideways.
        */}
       <div
         ref={trackRef}
         className={cn(
           "rail-scroll flex snap-x snap-mandatory gap-2.5 [&>*:first-child]:ms-auto",
-          bleed ? "-mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0" : "mx-0 px-0",
+          bleed ? "-mx-3 px-5 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0" : "mx-0 px-0",
         )}
       >
         {children}
