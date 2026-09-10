@@ -31,6 +31,8 @@ export type Novel = {
   synopsis: string;
   cover: string;
   backdrop: string;
+  /** True when backdrop comes from an editorial banner instead of the cover fallback. */
+  hasBanner?: boolean;
   updatedAt: string;
   featured?: boolean;
   completed?: boolean;

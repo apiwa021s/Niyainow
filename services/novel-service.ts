@@ -652,7 +652,8 @@ async function hydrateNovels(rows: BaseNovelRow[], mode: "list" | "detail" = "li
       chapters: row.chapters,
       synopsis: row.synopsis,
       cover,
-      backdrop: assetUrl(row.bannerKey, publicAssetFallbacks.novelBackdrop),
+      backdrop: row.bannerKey ? assetUrl(row.bannerKey) : cover,
+      hasBanner: Boolean(row.bannerKey),
       updatedAt: formatThaiDate(latestDate),
       updatedHoursAgo: hoursAgo,
       publishedAt: row.publishedAt?.toISOString(),
@@ -743,7 +744,7 @@ export const getNovels = cache(getNovelsUncached);
 async function getNovelBySlugFromRedis(slug: string) {
   return getOrSetVersioned({
     versionKeys: [cacheKeys.versions.novel(slug), cacheKeys.versions.taxonomy()],
-    key: ([version, taxonomyVersion]) => cacheKeys.novel(slug, version, taxonomyVersion),
+    key: ([version, taxonomyVersion]) => `${cacheKeys.novel(slug, version, taxonomyVersion)}:artwork-v2`,
     ttlSeconds: CACHE_TTL_SECONDS.NOVEL_DETAIL,
     category: "novel",
     loader: async () => {
@@ -757,7 +758,7 @@ async function getNovelBySlugFromRedis(slug: string) {
   });
 }
 
-const getNovelBySlugCached = unstable_cache(getNovelBySlugFromRedis, ["public-novel-by-slug-v5"], {
+const getNovelBySlugCached = unstable_cache(getNovelBySlugFromRedis, ["public-novel-by-slug-v6"], {
   revalidate: PUBLIC_CACHE_SECONDS,
   tags: ["public-novels"],
 });

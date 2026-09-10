@@ -153,6 +153,7 @@ function mapNovel(row: NovelProjectionRow): Novel {
   const updatedAt = row.latestChapterAt ?? row.publishedAt;
   const status: Novel["status"] =
     row.status === "COMPLETED" ? "completed" : row.status === "ONGOING" ? "ongoing" : "hiatus";
+  const cover = assetUrl(row.coverKey, publicAssetFallbacks.novelCover);
 
   return {
     id: row.novelId,
@@ -168,8 +169,9 @@ function mapNovel(row: NovelProjectionRow): Novel {
     views: Number(row.viewCount ?? 0),
     chapters: row.publishedChapters ?? 0,
     synopsis: row.synopsis,
-    cover: assetUrl(row.coverKey, publicAssetFallbacks.novelCover),
-    backdrop: assetUrl(row.bannerKey, publicAssetFallbacks.novelBackdrop),
+    cover,
+    backdrop: row.bannerKey ? assetUrl(row.bannerKey) : cover,
+    hasBanner: Boolean(row.bannerKey),
     updatedAt: updatedAt?.toISOString() ?? "",
     featured: row.isFeatured,
     completed: status === "completed",

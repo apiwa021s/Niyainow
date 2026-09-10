@@ -30,14 +30,17 @@ export function NovelHero({
     <header className="relative isolate overflow-hidden rounded-(--r-lg) bg-surface px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <Image
-          src={novel.cover}
+          src={novel.backdrop}
           alt=""
           fill
-          sizes="384px"
-          className="scale-125 object-cover object-center opacity-40 blur-3xl saturate-150 dark:opacity-50"
+          preload
+          sizes="(max-width: 1535px) 100vw, 1536px"
+          className={novel.hasBanner
+            ? "scale-[1.02] object-cover object-center opacity-70 saturate-110 dark:opacity-60"
+            : "scale-125 object-cover object-center opacity-35 blur-3xl saturate-150 dark:opacity-45"}
         />
-        <div className="absolute inset-0 bg-linear-to-r from-surface/70 via-surface/88 to-surface/95" />
-        <div className="absolute inset-0 bg-linear-to-b from-surface/25 via-transparent to-surface/90" />
+        <div className="absolute inset-0 bg-linear-to-r from-surface/55 via-surface/75 to-surface/95" />
+        <div className="absolute inset-0 bg-linear-to-b from-surface/20 via-transparent to-surface/90" />
       </div>
 
       <div className="relative grid gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:items-center md:gap-x-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-x-10">
@@ -57,7 +60,6 @@ export function NovelHero({
                 src={novel.cover}
                 alt={`ปกนิยาย ${novel.thaiTitle}`}
                 fill
-                preload
                 sizes="(max-width: 767px) 164px, 220px"
                 className="object-cover"
               />
