@@ -19,6 +19,28 @@ describe("translation domain", () => {
     expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING" && issue.severity === "CRITICAL")).toBe(true);
   });
 
+  it("accepts one context-appropriate option from a slash-separated locked target", () => {
+    const polite = runDeterministicQa({
+      source: "You should enter, Your Grace.",
+      translation: "ท่านควรเข้าไปขอรับ",
+      lockedTerms: [{ sourceTerm: "you", targetTerm: "คุณ / ท่าน" }],
+    });
+    const casual = runDeterministicQa({
+      source: "You can come with me.",
+      translation: "คุณไปกับฉันได้นะ",
+      lockedTerms: [{ sourceTerm: "you", targetTerm: "คุณ / ท่าน" }],
+    });
+    const missing = runDeterministicQa({
+      source: "You can come with me.",
+      translation: "ไปกับฉันได้นะ",
+      lockedTerms: [{ sourceTerm: "you", targetTerm: "คุณ / ท่าน" }],
+    });
+
+    expect(polite.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(false);
+    expect(casual.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(false);
+    expect(missing.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(true);
+  });
+
   it("parses structured provider output and rejects partial output", () => {
     expect(parseProviderTranslation('```json\n{"title":"ตอนหนึ่ง","content":"เนื้อหา"}\n```')).toEqual({
       title: "ตอนหนึ่ง",

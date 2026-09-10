@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, lte, ne, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -20,7 +20,7 @@ import {
   translationVersions,
   translationWorkspaces,
 } from "@/db/schema";
-import { estimateTokens, sha256 } from "@/lib/domain/translation";
+import { estimateTokens, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
 import { automaticModelNameForTask, type AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
 import { logger } from "@/lib/logger";
 import { aiCallCostMicros, analyzeChapterWithAi, qaTranslationWithAi, reviseTranslationWithAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
@@ -29,6 +29,42 @@ import { insertTranslationVersion, replaceQaIssues } from "@/services/translatio
 
 const workerLogger = logger.child({ component: "translation-worker" });
 const MAX_ATTEMPTS = 3;
+const MAX_QA_CORRECTION_ROUNDS = 2;
+
+type AiQaResult = Awaited<ReturnType<typeof qaTranslationWithAi>>["value"];
+
+function requiresCorrection(qa: AiQaResult, deterministicIssues: TranslationQaIssue[]) {
+  return !qa.passed
+    || qa.correctionInstructions.length > 0
+    || qa.issues.some((issue) => issue.severity !== "INFO")
+    || deterministicIssues.some((issue) => issue.severity !== "INFO");
+}
+
+function qaForAutomaticCorrection(qa: AiQaResult, deterministicIssues: TranslationQaIssue[]): AiQaResult {
+  const deterministicAiIssues = deterministicIssues.map((issue) => ({
+    code: issue.code,
+    severity: issue.severity,
+    message: issue.message,
+    location: "CONTENT" as const,
+    currentText: null,
+    suggestedText: null,
+  }));
+  const deterministicInstructions = deterministicIssues.map((issue) => {
+    const sourceTerm = typeof issue.metadata?.sourceTerm === "string" ? issue.metadata.sourceTerm : null;
+    const targetTerm = typeof issue.metadata?.targetTerm === "string" ? issue.metadata.targetTerm : null;
+    if (issue.code === "LOCKED_GLOSSARY_MISSING" && sourceTerm && targetTerm) {
+      return `แก้คำแปลของ “${sourceTerm}” ให้ใช้หนึ่งรูปจาก glossary “${targetTerm}” ตามบริบทและระดับภาษาอย่างสม่ำเสมอ`;
+    }
+    return `แก้ปัญหา deterministic QA: ${issue.message}`;
+  });
+  return {
+    ...qa,
+    passed: false,
+    score: Math.min(qa.score, 60),
+    issues: [...qa.issues, ...deterministicAiIssues].slice(0, 100),
+    correctionInstructions: [...qa.correctionInstructions, ...deterministicInstructions].slice(0, 50),
+  };
+}
 
 type ClaimedItem = {
   item: typeof translationJobItems.$inferSelect;
@@ -263,18 +299,28 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const qaModel = modelForTask(automaticModels, "FIRST_QA");
     currentTask = "FIRST_QA";
     currentModelId = qaModel.id;
-    let qa = await qaTranslationWithAi({
-      model: qaModel,
-      sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-      sourceContent: built.source.content,
-      translatedTitle: translation.title,
-      translatedContent: translation.content,
-      context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
+    const runAiQa = async () => {
+      const checked = await qaTranslationWithAi({
+        model: qaModel,
+        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+        sourceContent: built.source.content,
+        translatedTitle: translation.title,
+        translatedContent: translation.content,
+        context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
+      });
+      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, checked.call);
+      return checked;
+    };
+    const runCodeQa = () => runDeterministicQa({
+      source: built.source.content,
+      translation: translation.content,
+      lockedTerms: built.context.glossary.map((term) => ({ sourceTerm: term.source, targetTerm: term.target })),
     });
-    await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, qa.call);
 
-    if (!qa.value.passed) {
-      await db.update(translationJobItems).set({ progressPercent: 82, progressStage: "ESCALATION" }).where(eq(translationJobItems.id, claimed.item.id));
+    let qa = await runAiQa();
+    let deterministicIssues = runCodeQa();
+    for (let correctionRound = 0; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa.value, deterministicIssues); correctionRound += 1) {
+      await db.update(translationJobItems).set({ progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" }).where(eq(translationJobItems.id, claimed.item.id));
       const escalationModel = modelForTask(automaticModels, "ESCALATION");
       currentTask = "ESCALATION";
       currentModelId = escalationModel.id;
@@ -286,25 +332,18 @@ async function processClaimedItem(claimed: ClaimedItem) {
         translatedTitle: translation.title,
         translatedContent: translation.content,
         context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
-        qa: qa.value,
+        qa: qaForAutomaticCorrection(qa.value, deterministicIssues),
       });
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, revision.call);
       translation = revision.value;
-      await db.update(translationJobItems).set({ progressPercent: 87, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+      await db.update(translationJobItems).set({ progressPercent: 84 + correctionRound * 5, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
       currentTask = "FIRST_QA";
       currentModelId = qaModel.id;
-      qa = await qaTranslationWithAi({
-        model: qaModel,
-        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-        sourceContent: built.source.content,
-        translatedTitle: translation.title,
-        translatedContent: translation.content,
-        context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
-      });
-      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, qa.call);
+      qa = await runAiQa();
+      deterministicIssues = runCodeQa();
     }
 
-    await db.update(translationJobItems).set({ progressPercent: 92, progressStage: "CODE_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+    await db.update(translationJobItems).set({ progressPercent: 94, progressStage: "CODE_QA" }).where(eq(translationJobItems.id, claimed.item.id));
     await db.update(translationJobItems).set({ progressPercent: 96, progressStage: "SAVING" }).where(eq(translationJobItems.id, claimed.item.id));
     await db.transaction(async (tx) => {
       const [latest] = await tx.select().from(translationVersions).where(eq(translationVersions.translationChapterId, built.chapter.id)).orderBy(desc(translationVersions.revision)).limit(1);
@@ -331,10 +370,38 @@ async function processClaimedItem(claimed: ClaimedItem) {
           suggestedText: issue.suggestedText,
         },
       })));
-      const hasCriticalIssue = !qa.value.passed || issues.some((issue) => issue.severity === "CRITICAL") || qa.value.issues.some((issue) => issue.severity === "CRITICAL");
+      const hasBlockingIssue = requiresCorrection(qa.value, issues);
       const now = new Date();
-      await tx.update(translationJobItems).set({ status: "COMPLETED", progressPercent: 100, progressStage: "DONE", finishedAt: now, lastError: null }).where(eq(translationJobItems.id, claimed.item.id));
-      await tx.update(translationChapters).set({ status: hasCriticalIssue ? "QA_FAILED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
+      const retryQaAutomatically = hasBlockingIssue && claimed.item.attempts < MAX_ATTEMPTS;
+      const autoApproved = !hasBlockingIssue && Boolean(claimed.job.requestedBy);
+      const qaFailureMessage = hasBlockingIssue
+        ? `QA ยังไม่ผ่านหลังแก้อัตโนมัติ: ${[
+          ...qa.value.issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
+          ...issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
+          ...qa.value.correctionInstructions,
+        ].slice(0, 3).join("; ") || "AI ระบุว่าฉบับแปลยังต้องแก้ไข"}`.slice(0, 1_000)
+        : null;
+      if (autoApproved) {
+        await tx.update(translationVersions).set({ status: "SUPERSEDED" }).where(and(
+          eq(translationVersions.translationChapterId, built.chapter.id),
+          eq(translationVersions.status, "APPROVED"),
+          ne(translationVersions.id, version.id),
+        ));
+        await tx.update(translationVersions).set({
+          status: "APPROVED",
+          approvedBy: claimed.job.requestedBy,
+          approvedAt: now,
+        }).where(eq(translationVersions.id, version.id));
+      }
+      await tx.update(translationJobItems).set({
+        status: retryQaAutomatically ? "QUEUED" : hasBlockingIssue ? "FAILED" : "COMPLETED",
+        progressPercent: retryQaAutomatically ? 0 : 100,
+        progressStage: retryQaAutomatically ? "QUEUED" : hasBlockingIssue ? "FAILED" : "DONE",
+        availableAt: retryQaAutomatically ? new Date(Date.now() + 2 ** claimed.item.attempts * 30_000) : claimed.item.availableAt,
+        finishedAt: retryQaAutomatically ? null : now,
+        lastError: qaFailureMessage,
+      }).where(eq(translationJobItems.id, claimed.item.id));
+      await tx.update(translationChapters).set({ status: retryQaAutomatically ? "QUEUED" : hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
         eq(translationChapters.id, built.chapter.id),
         eq(translationChapters.lockVersion, built.chapter.lockVersion),
         eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),

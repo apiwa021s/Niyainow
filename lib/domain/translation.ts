@@ -30,6 +30,15 @@ export function countWords(value: string) {
   return words?.length ?? 0;
 }
 
+/** A slash in a locked target means the editor allows any one of those forms. */
+export function glossaryTargetAlternatives(targetTerm: string) {
+  const alternatives = targetTerm
+    .split(/\s*(?:\/|／|\|)\s*/u)
+    .map((term) => term.trim())
+    .filter(Boolean);
+  return alternatives.length ? [...new Set(alternatives)] : [targetTerm.trim()];
+}
+
 export type TranslationModelCandidate = {
   id: string;
   selectionPriority: number;
@@ -97,12 +106,15 @@ export function runDeterministicQa(input: {
   }
 
   for (const term of input.lockedTerms) {
-    if (source.toLocaleLowerCase().includes(term.sourceTerm.toLocaleLowerCase()) && !translation.includes(term.targetTerm)) {
+    const targetAlternatives = glossaryTargetAlternatives(term.targetTerm);
+    const translatedLower = translation.toLocaleLowerCase();
+    const hasAllowedTarget = targetAlternatives.some((target) => translatedLower.includes(target.toLocaleLowerCase()));
+    if (source.toLocaleLowerCase().includes(term.sourceTerm.toLocaleLowerCase()) && !hasAllowedTarget) {
       issues.push({
         code: "LOCKED_GLOSSARY_MISSING",
         severity: "CRITICAL",
-        message: `ไม่พบคำศัพท์ที่ล็อกไว้: ${term.targetTerm}`,
-        metadata: { sourceTerm: term.sourceTerm, targetTerm: term.targetTerm },
+        message: `ไม่พบคำศัพท์ที่ล็อกไว้: ${targetAlternatives.join(" / ")}`,
+        metadata: { sourceTerm: term.sourceTerm, targetTerm: term.targetTerm, targetAlternatives },
       });
     }
   }

@@ -29,8 +29,8 @@ const PROGRESS_STAGE_LABELS: Record<string, string> = {
   AI_QA: "AI ตรวจเทียบต้นฉบับ",
   ESCALATION: "AI รุ่นใหญ่กำลังแก้จุดผิดพลาด",
   CODE_QA: "ระบบตรวจ Glossary และโครงสร้าง",
-  SAVING: "บันทึกฉบับร่าง",
-  DONE: "เสร็จแล้ว",
+  SAVING: "อนุมัติผล QA และเตรียมเผยแพร่",
+  DONE: "QA ผ่าน · พร้อมเผยแพร่",
   FAILED: "แปลไม่สำเร็จ",
   CANCELLED: "ยกเลิกแล้ว",
 };
