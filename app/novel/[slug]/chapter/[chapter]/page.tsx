@@ -12,13 +12,10 @@ import { canAccessAdmin } from "@/lib/auth/permissions";
 import { parseChapterNumberSegment, splitChapterParagraphs } from "@/lib/domain/chapter";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
+import { slugSchema } from "@/lib/validation/slug";
+import { getReadableChapterContent } from "@/services/chapter-access-service";
 import { getAdjacentChapters, getChapterWindow, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
-import {
-  getStaffPublishedChapterContent,
-  getUnlockedChapterIds,
-  getUnlockedPublishedChapterContent,
-  getWalletBalance,
-} from "@/services/coin-service";
+import { getUnlockedChapterIds, getWalletBalance } from "@/services/coin-service";
 import { getUserNovelState } from "@/services/user-service";
 
 type ChapterRouteProps = { params: Promise<{ slug: string; chapter: string }> };
@@ -26,7 +23,7 @@ type ChapterRouteProps = { params: Promise<{ slug: string; chapter: string }> };
 export async function generateMetadata({ params }: ChapterRouteProps): Promise<Metadata> {
   const { slug, chapter } = await params;
   const parsed = parseChapterNumberSegment(chapter);
-  if (!parsed) {
+  if (!parsed || !slugSchema.safeParse(slug).success) {
     return pageMetadata({
       title: "ไม่พบตอน",
       description: "ไม่พบตอนที่ต้องการ",
@@ -62,7 +59,7 @@ export async function generateMetadata({ params }: ChapterRouteProps): Promise<M
 export default async function ChapterPage({ params }: ChapterRouteProps) {
   const { slug, chapter } = await params;
   const parsed = parseChapterNumberSegment(chapter);
-  if (!parsed) notFound();
+  if (!parsed || !slugSchema.safeParse(slug).success) notFound();
   await connection();
 
   const [novel, published, adjacent, chapterWindow, currentUser] = await Promise.all([
@@ -84,24 +81,28 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
     ...(chapterSummary.id ? [chapterSummary.id] : []),
     ...chapterWindow.items.flatMap((item) => item.id ? [item.id] : []),
   ])];
-  const [userState, unlockedChapterIds, walletBalance, fullPaidContent] = await Promise.all([
+  const [userState, unlockedChapterIds, walletBalance, authorizedChapter] = await Promise.all([
     activeUser ? getUserNovelState(activeUser.id, novel.slug) : Promise.resolve(null),
     activeUser && !staffAccess ? getUnlockedChapterIds(activeUser.id, chapterIds) : Promise.resolve([]),
     activeUser && commerciallyLocked && !staffAccess ? getWalletBalance(activeUser.id) : Promise.resolve(0),
     activeUser && commerciallyLocked && chapterSummary.id
-      ? staffAccess
-        ? getStaffPublishedChapterContent(activeUser, chapterSummary.id)
-        : getUnlockedPublishedChapterContent(activeUser.id, chapterSummary.id)
+      ? getReadableChapterContent(activeUser.id, chapterSummary.id, { staffAccess })
       : Promise.resolve(null),
   ]);
   const unlocked = new Set(unlockedChapterIds);
-  const hasPaidAccess = staffAccess || Boolean(chapterSummary.id && unlocked.has(chapterSummary.id));
+  const hasPaidAccess = Boolean(authorizedChapter?.access?.allowed);
   const locked = commerciallyLocked && !hasPaidAccess;
-  const content = commerciallyLocked && hasPaidAccess ? fullPaidContent : published.content;
+  const content = commerciallyLocked && hasPaidAccess ? authorizedChapter?.content : published.content;
   if (commerciallyLocked && hasPaidAccess && content === null) notFound();
 
   const applyAccess = (item: typeof chapterSummary | undefined) => item
-    ? { ...item, locked: Boolean(item.locked && !staffAccess && !(item.id && unlocked.has(item.id))) }
+    ? {
+        ...item,
+        locked: Boolean(item.locked
+          && !staffAccess
+          && !(item.id && unlocked.has(item.id))
+          && !(item.id === chapterSummary.id && hasPaidAccess)),
+      }
     : undefined;
   const accessibleWindow = {
     ...chapterWindow,

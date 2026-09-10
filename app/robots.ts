@@ -8,9 +8,24 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // Private HTML routes expose their own noindex directive. They must stay
-        // crawlable for search engines to read it; only non-public surfaces are blocked here.
-        disallow: ["/admin", "/api/", "/studio"],
+        disallow: [
+          "/account",
+          "/admin",
+          "/api/",
+          "/history",
+          "/library",
+          "/notifications",
+          "/profile",
+          "/settings",
+          "/studio",
+          "/wallet",
+        ],
+      },
+      {
+        // This is a declared content-use preference, not an authorization control.
+        // Verified search crawlers remain allowed by the general rule above.
+        userAgent: ["Amazonbot", "Applebot-Extended", "Bytespider", "CCBot", "ClaudeBot", "Google-Extended", "GPTBot"],
+        disallow: "/",
       },
     ],
     sitemap: absoluteUrl("/sitemap.xml"),

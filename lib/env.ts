@@ -64,6 +64,13 @@ const runtimeEnvSchema = z.object({
   REDIS_DEBUG: booleanEnv(false),
   REDIS_CACHE_PREFIX: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(64).default("niyainow")),
   REDIS_MAX_ITEM_BYTES: z.coerce.number().int().min(16_384).max(10_485_760).default(1_048_576),
+  SECURITY_HASH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
+  SECURITY_LOG_ENABLED: booleanEnv(true),
+  CHAPTER_RATE_LIMIT_5M: z.coerce.number().int().min(5).max(1_000).default(30),
+  CHAPTER_RATE_LIMIT_1H: z.coerce.number().int().min(10).max(10_000).default(120),
+  CHAPTER_RATE_LIMIT_ANONYMOUS_5M: z.coerce.number().int().min(3).max(1_000).default(15),
+  CHAPTER_RATE_LIMIT_ANONYMOUS_1H: z.coerce.number().int().min(5).max(10_000).default(60),
+  SCRAPER_SEQUENTIAL_THRESHOLD: z.coerce.number().int().min(3).max(100).default(10),
   AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
   AUTH_GOOGLE_ID: optionalString,
   AUTH_GOOGLE_SECRET: optionalString,
@@ -105,6 +112,18 @@ export type RedisRuntimeEnv = Pick<
   | "REDIS_DEBUG"
   | "REDIS_CACHE_PREFIX"
   | "REDIS_MAX_ITEM_BYTES"
+>;
+export type SecurityRuntimeEnv = Pick<
+  RuntimeEnv,
+  | "NODE_ENV"
+  | "AUTH_SECRET"
+  | "SECURITY_HASH_SECRET"
+  | "SECURITY_LOG_ENABLED"
+  | "CHAPTER_RATE_LIMIT_5M"
+  | "CHAPTER_RATE_LIMIT_1H"
+  | "CHAPTER_RATE_LIMIT_ANONYMOUS_5M"
+  | "CHAPTER_RATE_LIMIT_ANONYMOUS_1H"
+  | "SCRAPER_SEQUENTIAL_THRESHOLD"
 >;
 export type RequiredMongoEnv = Pick<RuntimeEnv, "MONGODB_URL"> & {
   MONGODB_URL: string;
@@ -182,6 +201,21 @@ export function getRedisRuntimeEnv(source: NodeJS.ProcessEnv = process.env): Red
     REDIS_DEBUG: env.REDIS_DEBUG,
     REDIS_CACHE_PREFIX: env.REDIS_CACHE_PREFIX,
     REDIS_MAX_ITEM_BYTES: env.REDIS_MAX_ITEM_BYTES,
+  };
+}
+
+export function getSecurityRuntimeEnv(source: NodeJS.ProcessEnv = process.env): SecurityRuntimeEnv {
+  const env = getRuntimeEnv(source);
+  return {
+    NODE_ENV: env.NODE_ENV,
+    AUTH_SECRET: env.AUTH_SECRET,
+    SECURITY_HASH_SECRET: env.SECURITY_HASH_SECRET,
+    SECURITY_LOG_ENABLED: env.SECURITY_LOG_ENABLED,
+    CHAPTER_RATE_LIMIT_5M: env.CHAPTER_RATE_LIMIT_5M,
+    CHAPTER_RATE_LIMIT_1H: env.CHAPTER_RATE_LIMIT_1H,
+    CHAPTER_RATE_LIMIT_ANONYMOUS_5M: env.CHAPTER_RATE_LIMIT_ANONYMOUS_5M,
+    CHAPTER_RATE_LIMIT_ANONYMOUS_1H: env.CHAPTER_RATE_LIMIT_ANONYMOUS_1H,
+    SCRAPER_SEQUENTIAL_THRESHOLD: env.SCRAPER_SEQUENTIAL_THRESHOLD,
   };
 }
 

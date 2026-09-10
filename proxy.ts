@@ -5,6 +5,9 @@ import type { NextFetchEvent, NextMiddleware } from "next/server";
 import { auth } from "@/auth";
 import { decideProxyAccess } from "@/lib/auth/proxy-policy";
 import { isWriterModeApiPath, isWriterModeEnabled, isWriterModePagePath } from "@/lib/features/writer-mode";
+import { inspectChapterRequest } from "@/lib/security/chapter-request";
+import { attachAnonymousSessionCookie } from "@/lib/security/request-identity";
+import { recordSecurityEvent } from "@/lib/security/security-events";
 
 type AuthProxyMiddleware = (request: NextAuthRequest, event: NextFetchEvent) => ReturnType<NextMiddleware>;
 
@@ -14,8 +17,44 @@ function loginRedirect(request: NextAuthRequest, admin = false): NextResponse {
   return NextResponse.redirect(url);
 }
 
-const authorizeRequest: AuthProxyMiddleware = (request) => {
+const CHAPTER_READER_PATH = /^\/novel\/([a-z0-9]+(?:-[a-z0-9]+)*)\/chapter\/(\d+(?:\.\d{1,2})?)$/u;
+
+const authorizeRequest: AuthProxyMiddleware = async (request) => {
   const pathname = request.nextUrl.pathname;
+  const chapterMatch = CHAPTER_READER_PATH.exec(pathname);
+  if (chapterMatch) {
+    const inspection = await inspectChapterRequest({
+      request,
+      userId: request.auth?.user?.id,
+      novelId: chapterMatch[1],
+      chapterNumber: Number(chapterMatch[2]),
+    });
+    if (!inspection.risk.allowed) {
+      return attachAnonymousSessionCookie(
+        NextResponse.json(
+          { error: "RATE_LIMITED" },
+          {
+            status: 429,
+            headers: {
+              "Cache-Control": "private, no-store, max-age=0",
+              "Retry-After": String(inspection.risk.retryAfterSeconds),
+            },
+          },
+        ),
+        inspection.identity,
+      );
+    }
+    await recordSecurityEvent({
+      event: "CHAPTER_READ",
+      subjectHash: inspection.identity.subjectHash,
+      ipHash: inspection.identity.ipHash,
+      novelId: chapterMatch[1],
+      result: "REQUEST_ACCEPTED",
+      riskLevel: inspection.risk.riskLevel,
+    });
+    return attachAnonymousSessionCookie(NextResponse.next(), inspection.identity);
+  }
+
   const decision = decideProxyAccess(pathname, request.auth?.user);
 
   if (decision.kind === "allow") return NextResponse.next();
@@ -56,5 +95,6 @@ export const config = {
     "/api/studio/:path*",
     "/creators/apply/:path*",
     "/wallet/:path*",
+    "/novel/:slug/chapter/:chapter",
   ],
 };

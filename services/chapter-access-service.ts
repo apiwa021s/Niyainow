@@ -23,18 +23,21 @@ function publishedCondition(now: Date) {
 export type ChapterAccessResult = ChapterAccessDecision & {
   chapterId: string;
   novelId: string;
+  chapterNumber: number;
 };
 
 export async function canReadChapter(
   userId: string | null,
   chapterId: string,
   now = new Date(),
+  options: { staffAccess?: boolean } = {},
 ): Promise<ChapterAccessResult | null> {
   const db = getDb();
   const [chapter] = await db
     .select({
       chapterId: chapters.id,
       novelId: chapters.novelId,
+      chapterNumber: chapters.chapterNumber,
       writerId: novels.writerId,
       status: chapters.status,
       chapterPublishedAt: chapters.publishedAt,
@@ -60,6 +63,16 @@ export async function canReadChapter(
     && !chapter.chapterDeletedAt
     && Boolean(chapter.chapterPublishedAt && chapter.chapterPublishedAt <= now)
     && Boolean(chapter.novelPublishedAt && chapter.novelPublishedAt <= now);
+
+  if (isPublished && options.staffAccess) {
+    return {
+      chapterId: chapter.chapterId,
+      novelId: chapter.novelId,
+      chapterNumber: chapter.chapterNumber,
+      allowed: true,
+      reason: "STAFF",
+    };
+  }
 
   let isPurchased = false;
   let isActiveMember = false;
@@ -91,6 +104,7 @@ export async function canReadChapter(
   return {
     chapterId: chapter.chapterId,
     novelId: chapter.novelId,
+    chapterNumber: chapter.chapterNumber,
     ...evaluateChapterAccess({
       isPublished,
       accessMode: chapter.accessMode,
@@ -105,16 +119,25 @@ export async function canReadChapter(
   };
 }
 
-export async function getReadableChapterContent(userId: string | null, chapterId: string) {
+export async function getAuthorizedChapterContent(access: ChapterAccessResult) {
+  if (!access.allowed) return null;
   const now = new Date();
-  const access = await canReadChapter(userId, chapterId, now);
-  if (!access?.allowed) return { access, content: null };
-
   const [chapter] = await getDb()
     .select({ content: chapters.content })
     .from(chapters)
     .innerJoin(novels, eq(novels.id, chapters.novelId))
-    .where(and(eq(chapters.id, chapterId), publishedCondition(now)))
+    .where(and(eq(chapters.id, access.chapterId), publishedCondition(now)))
     .limit(1);
-  return { access, content: chapter?.content ?? null };
+  return chapter?.content ?? null;
+}
+
+export async function getReadableChapterContent(
+  userId: string | null,
+  chapterId: string,
+  options: { staffAccess?: boolean } = {},
+) {
+  const now = new Date();
+  const access = await canReadChapter(userId, chapterId, now, options);
+  if (!access?.allowed) return { access, content: null };
+  return { access, content: await getAuthorizedChapterContent(access) };
 }

@@ -14,7 +14,6 @@ import {
   novels,
   type CoinLedgerType,
 } from "@/db/schema";
-import { canAccessAdmin, type AuthorizationSubject } from "@/lib/auth/permissions";
 import { evaluateChapterUnlock } from "@/lib/domain/coin";
 import { allocatePaidCoinValue, splitCreatorRevenue } from "@/lib/domain/creator-revenue";
 
@@ -129,41 +128,6 @@ export async function listPurchasedChapters(userId: string, limit = 50) {
     .where(and(eq(chapterUnlocks.userId, userId), isNull(chapterUnlocks.refundedAt)))
     .orderBy(desc(chapterUnlocks.unlockedAt), desc(chapterUnlocks.chapterId))
     .limit(Math.min(Math.max(limit, 1), 100));
-}
-
-/** Full paid content is never shared-cached and is selected only through entitlement. */
-export async function getUnlockedPublishedChapterContent(userId: string, chapterId: string) {
-  const now = new Date();
-  const [row] = await getDb()
-    .select({ content: chapters.content })
-    .from(chapterUnlocks)
-    .innerJoin(chapters, eq(chapters.id, chapterUnlocks.chapterId))
-    .innerJoin(novels, eq(novels.id, chapters.novelId))
-    .where(
-      and(
-        eq(chapterUnlocks.userId, userId),
-        eq(chapterUnlocks.chapterId, chapterId),
-        isNull(chapterUnlocks.refundedAt),
-        publicNovelAndChapterCondition(now),
-      ),
-    )
-    .limit(1);
-  return row?.content ?? null;
-}
-
-export async function getStaffPublishedChapterContent(
-  subject: AuthorizationSubject,
-  chapterId: string,
-) {
-  if (!canAccessAdmin(subject)) return null;
-  const now = new Date();
-  const [row] = await getDb()
-    .select({ content: chapters.content })
-    .from(chapters)
-    .innerJoin(novels, eq(novels.id, chapters.novelId))
-    .where(and(eq(chapters.id, chapterId), publicNovelAndChapterCondition(now)))
-    .limit(1);
-  return row?.content ?? null;
 }
 
 export type UnlockChapterResult =

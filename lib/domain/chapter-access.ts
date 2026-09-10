@@ -4,7 +4,7 @@ export type ChapterAccessMode = (typeof CHAPTER_ACCESS_MODES)[number];
 export type PublicAccessMode = "free" | "paid";
 
 export type ChapterAccessDecision =
-  | { allowed: true; reason: "FREE" | "PURCHASED" | "MEMBER" | "EARLY_ACCESS_PUBLIC" }
+  | { allowed: true; reason: "FREE" | "PURCHASED" | "MEMBER" | "STAFF" | "EARLY_ACCESS_PUBLIC" }
   | {
       allowed: false;
       reason: "PAID_REQUIRED";

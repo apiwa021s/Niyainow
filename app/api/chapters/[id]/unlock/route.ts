@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { handleUserRoute } from "@/app/api/me/_shared";
-import { parseJson } from "@/lib/http/api-response";
+import { ApiError, parseJson } from "@/lib/http/api-response";
 import { canReadChapter } from "@/services/chapter-access-service";
 import { unlockChapterWithCoins } from "@/services/coin-service";
 
@@ -11,16 +11,19 @@ const unlockSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(128),
   expectedPrice: z.number().int().positive().max(1_000_000),
 });
+const chapterIdSchema = z.uuid();
 
 export async function POST(request: Request, context: Context) {
   return handleUserRoute(
     request,
     { mutation: true, scope: "chapter-unlock", rateLimit: { limit: 20, windowMs: 60_000 } },
     async (userId) => {
-      const [{ id }, input] = await Promise.all([context.params, parseJson(request, unlockSchema)]);
+      const [{ id: idInput }, input] = await Promise.all([context.params, parseJson(request, unlockSchema)]);
+      const parsedId = chapterIdSchema.safeParse(idInput);
+      if (!parsedId.success) throw new ApiError(400, "INVALID_CHAPTER_ID", "Invalid chapter identifier");
       const result = await unlockChapterWithCoins({
         userId,
-        chapterId: id,
+        chapterId: parsedId.data,
         expectedPrice: input.expectedPrice,
         idempotencyKey: input.idempotencyKey,
       });
@@ -40,7 +43,7 @@ export async function POST(request: Request, context: Context) {
         };
       }
 
-      const access = await canReadChapter(userId, id);
+      const access = await canReadChapter(userId, parsedId.data);
       return {
         success: true,
         alreadyPurchased: result.kind === "already-accessible",

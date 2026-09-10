@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { getCurrentUser } from "@/lib/auth/dal";
 import { logger } from "@/lib/logger";
+import { takeDistributedRateLimit } from "@/lib/security/distributed-rate-limit";
+import { resolveRequestIdentity } from "@/lib/security/request-identity";
 import { unlockChapterWithCoins } from "@/services/coin-service";
 
 const unlockInputSchema = z.object({
@@ -35,6 +38,17 @@ export async function unlockChapterAction(
   const user = await getCurrentUser();
   if (!user) return { status: "auth-required", message: "กรุณาเข้าสู่ระบบก่อนปลดล็อกตอน" };
   if (user.status !== "ACTIVE") return { status: "account-disabled", message: "บัญชีนี้ไม่สามารถใช้เหรียญได้" };
+
+  const requestHeaders = await headers();
+  const request = new Request("http://chapter-unlock.internal", { headers: requestHeaders });
+  const identity = resolveRequestIdentity(request, user.id);
+  const limit = await takeDistributedRateLimit(`chapter-unlock-action:${identity.subjectHash}`, {
+    limit: 10,
+    windowMs: 60_000,
+  });
+  if (!limit.allowed) {
+    return { status: "error", message: "Too many unlock attempts. Please wait and try again." };
+  }
 
   let result: Awaited<ReturnType<typeof unlockChapterWithCoins>>;
   try {
