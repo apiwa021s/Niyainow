@@ -19,6 +19,26 @@ describe("translation domain", () => {
     expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING" && issue.severity === "CRITICAL")).toBe(true);
   });
 
+  it("does not match a locked Latin term inside a longer word", () => {
+    const issues = runDeterministicQa({
+      source: "The tea party was hosted by Viscountess Bray.",
+      translation: "งานเลี้ยงน้ำชาจัดโดยไวเคาน์เตสเบรย์",
+      lockedTerms: [{ sourceTerm: "viscount", targetTerm: "ไวเคานต์" }],
+    });
+
+    expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(false);
+  });
+
+  it("still requires a complete case-insensitive Latin glossary match", () => {
+    const issues = runDeterministicQa({
+      source: "The Viscount entered.",
+      translation: "ขุนนางเดินเข้ามา",
+      lockedTerms: [{ sourceTerm: "viscount", targetTerm: "ไวเคานต์" }],
+    });
+
+    expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(true);
+  });
+
   it("accepts one context-appropriate option from a slash-separated locked target", () => {
     const polite = runDeterministicQa({
       source: "You should enter, Your Grace.",

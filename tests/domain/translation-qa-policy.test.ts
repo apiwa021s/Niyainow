@@ -30,6 +30,19 @@ describe("translation QA policy", () => {
       minimumScore: 90,
     }).needsCorrection).toBe(true);
   });
+
+  it("routes a low score without critical issues to human review after correction", () => {
+    const decision = decideTranslationQa({
+      score: 88,
+      aiIssues: [{ code: "FLUENCY", severity: "WARNING", message: "Review wording" }],
+      deterministicIssues: [],
+      minimumScore: 90,
+    });
+
+    expect(decision.needsCorrection).toBe(true);
+    expect(decision.canProceedToReview).toBe(true);
+    expect(decision.canAutoApprove).toBe(false);
+  });
 });
 
 describe("translation QA patches", () => {

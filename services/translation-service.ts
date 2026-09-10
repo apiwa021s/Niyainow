@@ -526,7 +526,10 @@ export async function createTranslationWorkspace(
         await tx.delete(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, current.id));
         await tx.delete(translationCharacters).where(eq(translationCharacters.workspaceId, current.id));
       }
-      if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
+      // AI-extracted terms are suggestions until an editor explicitly locks them.
+      // Treating every generated term as binding caused ordinary/polysemous words
+      // such as "gate" to block otherwise valid chapter translations.
+      if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: false, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
       if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
       await tx.insert(translationProfileVersions).values({
         workspaceId: current.id,
@@ -550,7 +553,7 @@ export async function createTranslationWorkspace(
     if (!created) throw new ApiError(409, "TRANSLATION_WORKSPACE_CONFLICT", "มีการสร้าง Workspace เดียวกันจากหน้าต่างอื่น กรุณาลองใหม่");
     await tx.insert(translationProfiles).values({ workspaceId: created.id, ...generated.profile, updatedBy: actor.id });
     await persistTranslatedMetadata();
-    if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: true, workspaceId: created.id, createdBy: actor.id })));
+    if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: false, workspaceId: created.id, createdBy: actor.id })));
     if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: created.id, createdBy: actor.id })));
     await tx.insert(translationProfileVersions).values({
       workspaceId: created.id,

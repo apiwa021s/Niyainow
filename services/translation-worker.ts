@@ -552,9 +552,10 @@ async function processClaimedItem(claimed: ClaimedItem) {
           suggestedText: issue.suggestedText,
         },
       })));
-      const hasBlockingIssue = requiresCorrection(qa.value, issues);
+      const finalDecision = qaDecision(qa.value, issues);
+      const hasBlockingIssue = !finalDecision.canProceedToReview;
       const now = new Date();
-      const autoApproved = !hasBlockingIssue && Boolean(claimed.job.requestedBy);
+      const autoApproved = finalDecision.canAutoApprove && Boolean(claimed.job.requestedBy);
       const qaFailureMessage = hasBlockingIssue
         ? `QA ยังไม่ผ่านหลังแก้อัตโนมัติ: ${[
           ...qa.value.issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),

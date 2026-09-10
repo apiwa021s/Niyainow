@@ -139,6 +139,12 @@ Rewrite the complete draft wherever it sounds literal, stiff, generic, culturall
 For Thai: explicitly check modifier order, pronouns, particles, dialogue register, genre terminology, title naturalness, and translationese. Do not invent story details or lock uncertain names.
 Return the complete revised foundation plus concise reviewNotes. Return only the requested structured output.`;
 
+const PROFILE_ENTITY_EXTRACTION_PROMPT = `${PROFILE_SYSTEM_PROMPT}
+Extract glossary entries only for proper names, ranks, places, techniques, objects, and recurring coined terms that require consistency across chapters.
+Do not add ordinary vocabulary or a short polysemous word such as "gate", "name", or "human". Use the complete disambiguating source phrase instead, such as "summoning gate".
+Keep distinct source forms distinct: for example, never use "viscount" as the entry for "viscountess". When the same source concept legitimately permits multiple target-language surface forms, separate the target alternatives with " / ".
+Glossary output is advisory until a human editor locks it. Notes must state the exact sense and context. Return only the requested structured output.`;
+
 const CHAPTER_ANALYSIS_PROMPT = `You are a continuity analyst for serialized-fiction translation.
 Analyze the complete source chapter faithfully. Identify canon, entities, difficulty, and translation risks without adding facts.
 Extract only reusable names, ranks, places, techniques, objects, and recurring coined terms as glossaryCandidates. Suggest a target-language rendering grounded in context and attach a calibrated confidence score. Do not add ordinary vocabulary.
@@ -290,7 +296,7 @@ export async function generateAiTranslationProfile(input: {
   const entities = await structured({
     model: input.models.ENTITY_EXTRACTION,
     task: "ENTITY_EXTRACTION",
-    systemPrompt: PROFILE_SYSTEM_PROMPT,
+    systemPrompt: PROFILE_ENTITY_EXTRACTION_PROMPT,
     payload: { source, openingChapterSamples: samples, analysis: analysis.value, genreContext, approvedFoundation: qualityReview.value },
     schemaName: "novel_profile_entities",
     jsonSchema: jsonObject({

@@ -38,6 +38,7 @@ export function decideTranslationQa(input: TranslationQaDecisionInput) {
     warnings,
     scoreNeedsImprovement,
     needsCorrection: blockingIssues.length > 0 || scoreNeedsImprovement,
+    canProceedToReview: blockingIssues.length === 0,
     canAutoApprove: blockingIssues.length === 0 && !scoreNeedsImprovement,
   };
 }
@@ -151,6 +152,21 @@ export function glossaryTargetAlternatives(targetTerm: string) {
   return alternatives.length ? [...new Set(alternatives)] : [targetTerm.trim()];
 }
 
+function sourceContainsGlossaryTerm(source: string, sourceTerm: string) {
+  const term = sourceTerm.trim();
+  if (!term) return false;
+
+  // Latin glossary terms must match complete words/phrases. A plain includes()
+  // made entries such as "viscount" fire for "Viscountess".
+  if (/[A-Za-z]/u.test(term)) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "iu").test(source);
+  }
+
+  // Scripts without reliable whitespace word boundaries keep phrase matching.
+  return source.toLocaleLowerCase().includes(term.toLocaleLowerCase());
+}
+
 export type TranslationModelCandidate = {
   id: string;
   selectionPriority: number;
@@ -221,7 +237,7 @@ export function runDeterministicQa(input: {
     const targetAlternatives = glossaryTargetAlternatives(term.targetTerm);
     const translatedLower = translation.toLocaleLowerCase();
     const hasAllowedTarget = targetAlternatives.some((target) => translatedLower.includes(target.toLocaleLowerCase()));
-    if (source.toLocaleLowerCase().includes(term.sourceTerm.toLocaleLowerCase()) && !hasAllowedTarget) {
+    if (sourceContainsGlossaryTerm(source, term.sourceTerm) && !hasAllowedTarget) {
       issues.push({
         code: "LOCKED_GLOSSARY_MISSING",
         severity: "CRITICAL",
