@@ -62,7 +62,7 @@ function HomeGridCard({ novel }: { novel: Novel }) {
       <div className="mt-1.5 w-full min-w-0 max-w-full overflow-hidden">
         <Link href={`/novel/${novel.slug}`} className="block w-full min-w-0 max-w-full overflow-hidden">
           <h3
-            className="block w-full max-w-full overflow-hidden whitespace-nowrap text-ellipsis text-sm font-semibold leading-[1.35] text-[var(--brand-light-on-light)] group-hover:text-[var(--brand-emphasis)]"
+            className="block w-full max-w-full overflow-hidden whitespace-nowrap text-ellipsis text-sm font-semibold leading-[1.35] text-foreground transition-colors group-hover:text-[var(--brand-emphasis)] group-focus-visible:text-[var(--brand-emphasis)]"
             style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
           >
             {novel.thaiTitle}
