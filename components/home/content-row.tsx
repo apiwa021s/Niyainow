@@ -110,13 +110,13 @@ export function ContentRow({
       <div
         ref={trackRef}
         className={cn(
-          "rail-scroll flex snap-x snap-mandatory gap-2.5",
+          "rail-scroll flex snap-x snap-mandatory gap-2.5 [&>*:first-child]:ms-auto",
           bleed ? "-mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0" : "mx-0 px-0",
         )}
       >
         {children}
         {/* ตัวเว้นท้ายแถว ให้การ์ดสุดท้ายไม่ชิดขอบจอ */}
-        <span aria-hidden className="w-1 shrink-0" />
+        <span aria-hidden className="ms-auto w-1 shrink-0" />
       </div>
     </section>
   );
