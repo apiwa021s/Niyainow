@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ExternalLink, FileStack, Pencil } from "lucide-react";
 
@@ -5,6 +6,7 @@ import { Panel } from "@/components/admin/admin-ui";
 import { StatusPill } from "@/components/admin/status-pill";
 import { ButtonLink } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form-controls";
+import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
 import type { AdminNovelQuery, AdminNovelRow, AdminPage, AdminReferenceData, PublicationStatus } from "@/services/admin-service";
 
 const statusLabels: Record<PublicationStatus, { label: string; tone: "neutral" | "warning" | "info" | "success" }> = {
@@ -79,8 +81,22 @@ export function NovelsView({
               {result.items.map((novel) => (
                 <tr key={novel.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-3">
-                    <Link href={`/admin/novels/${novel.slug}`} title={novel.title} className="block max-w-[28rem] truncate font-semibold hover:underline">{novel.title}</Link>
-                    <p className="mt-0.5 max-w-[28rem] truncate text-xs text-muted-foreground">{novel.authors.join(", ") || "ไม่ระบุผู้แต่ง"} · {novel.genres.map((genre) => genre.name).join(", ")}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Link href={`/admin/novels/${novel.slug}`} className="relative h-[72px] w-12 shrink-0 overflow-hidden rounded-[7px] border border-border bg-muted">
+                        <Image
+                          src={assetUrl(novel.coverKey, publicAssetFallbacks.novelCover)}
+                          alt={`ปก ${novel.title}`}
+                          fill
+                          sizes="48px"
+                          className="object-cover"
+                        />
+                      </Link>
+                      <div className="min-w-0">
+                        <Link href={`/admin/novels/${novel.slug}`} title={novel.title} className="block max-w-[25rem] truncate font-semibold hover:underline">{novel.title}</Link>
+                        <p className="mt-0.5 max-w-[25rem] truncate text-xs text-muted-foreground">{novel.authors.join(", ") || "ไม่ระบุผู้แต่ง"}</p>
+                        <p className="mt-1 max-w-[25rem] truncate text-xs text-muted-foreground">{novel.genres.map((genre) => genre.name).join(", ") || "ยังไม่ระบุแนว"}</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3"><StatusPill {...statusLabels[novel.publicationStatus]} /></td>
                   <td className="tabular px-4 py-3">{novel.publishedChapters.toLocaleString("th-TH")} / {novel.totalChapters.toLocaleString("th-TH")}</td>

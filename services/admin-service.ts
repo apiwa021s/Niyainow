@@ -210,6 +210,48 @@ function validateChapterPublication(
 export const adminChapterInputSchema = adminChapterBaseSchema.superRefine(validateChapterPublication);
 export const adminChapterUpdateSchema = adminChapterBaseSchema.omit({ novelSlug: true }).superRefine(validateChapterPublication);
 
+const adminChapterImportItemSchema = adminChapterBaseSchema
+  .omit({ novelSlug: true, status: true, scheduledFor: true })
+  .superRefine((input, context) => validateChapterPublication({ ...input, status: "DRAFT" }, context));
+
+export const adminChapterBulkActionSchema = z
+  .object({
+    chapterIds: z.array(z.uuid()).min(1).max(100),
+    action: z.enum(["PUBLISH", "UNPUBLISH", "ARCHIVE", "DELETE"]),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (new Set(input.chapterIds).size !== input.chapterIds.length) {
+      context.addIssue({ code: "custom", path: ["chapterIds"], message: "Chapter IDs must be unique" });
+    }
+  });
+
+export const adminChapterBulkImportSchema = z
+  .object({
+    novelSlug: slugSchema,
+    chapters: z.array(adminChapterImportItemSchema).min(1).max(50),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    const chapterNumbers = new Set<number>();
+    const sortOrders = new Set<number>();
+    let totalCharacters = 0;
+    input.chapters.forEach((chapter, index) => {
+      if (chapterNumbers.has(chapter.chapterNumber)) {
+        context.addIssue({ code: "custom", path: ["chapters", index, "chapterNumber"], message: "Chapter number is duplicated" });
+      }
+      if (sortOrders.has(chapter.sortOrder)) {
+        context.addIssue({ code: "custom", path: ["chapters", index, "sortOrder"], message: "Sort order is duplicated" });
+      }
+      chapterNumbers.add(chapter.chapterNumber);
+      sortOrders.add(chapter.sortOrder);
+      totalCharacters += chapter.content.length;
+    });
+    if (totalCharacters > 10_000_000) {
+      context.addIssue({ code: "custom", path: ["chapters"], message: "An import cannot exceed 10,000,000 characters" });
+    }
+  });
+
 export const adminReviewModerationSchema = z
   .object({
     status: moderationStatusSchema,
@@ -237,6 +279,8 @@ export type AdminNovelInput = z.infer<typeof adminNovelInputSchema>;
 export type AdminNovelUpdate = z.infer<typeof adminNovelUpdateSchema>;
 export type AdminChapterInput = z.infer<typeof adminChapterInputSchema>;
 export type AdminChapterUpdate = z.infer<typeof adminChapterUpdateSchema>;
+export type AdminChapterBulkAction = z.infer<typeof adminChapterBulkActionSchema>;
+export type AdminChapterBulkImport = z.infer<typeof adminChapterBulkImportSchema>;
 export type PublicationStatus = z.infer<typeof publicationStatusSchema>;
 export type ChapterStatus = z.infer<typeof chapterStatusSchema>;
 export type ReviewStatus = z.infer<typeof reviewStatusSchema>;
@@ -344,6 +388,7 @@ export type AdminChapterRow = {
   id: string;
   novelSlug: string;
   novelTitle: string;
+  novelCoverKey: string | null;
   chapterNumber: number;
   sortOrder: number;
   slug: string;
@@ -1081,6 +1126,7 @@ const chapterSelection = {
   id: chapters.id,
   novelSlug: novels.slug,
   novelTitle: novels.title,
+  novelCoverKey: novels.coverKey,
   chapterNumber: chapters.chapterNumber,
   sortOrder: chapters.sortOrder,
   slug: chapters.slug,
@@ -1095,7 +1141,7 @@ const chapterSelection = {
 };
 
 type ChapterSelectionRow = {
-  id: string; novelSlug: string; novelTitle: string; chapterNumber: number; sortOrder: number; slug: string; title: string;
+  id: string; novelSlug: string; novelTitle: string; novelCoverKey: string | null; chapterNumber: number; sortOrder: number; slug: string; title: string;
   status: ChapterStatus; wordCount: number; isFree: boolean; coinPrice: number; scheduledFor: Date | null; publishedAt: Date | null; updatedAt: Date;
 };
 
@@ -1295,6 +1341,161 @@ export async function createAdminChapter(inputValue: unknown) {
     return { id: created.id, novelSlug: novel.slug, chapterNumber: created.chapterNumber };
   });
   await revalidatePublicContent("chapter", result.novelSlug);
+  return result;
+}
+
+export async function bulkImportAdminChapters(inputValue: unknown) {
+  const actor = await assertAdmin();
+  const input = adminChapterBulkImportSchema.parse(inputValue);
+  const result = await getDb().transaction(async (tx) => {
+    const [novel] = await tx
+      .select({ id: novels.id, slug: novels.slug })
+      .from(novels)
+      .where(and(eq(novels.slug, input.novelSlug), isNull(novels.deletedAt)))
+      .for("no key update")
+      .limit(1);
+    if (!novel) throw new AdminDataError("NOVEL_NOT_FOUND", "Novel not found", 404);
+
+    const chapterNumbers = input.chapters.map((chapter) => chapter.chapterNumber);
+    const sortOrders = input.chapters.map((chapter) => chapter.sortOrder);
+    const conflicts = await tx
+      .select({ chapterNumber: chapters.chapterNumber, sortOrder: chapters.sortOrder })
+      .from(chapters)
+      // Soft-deleted rows still reserve their unique number and sort order.
+      .where(and(eq(chapters.novelId, novel.id), or(inArray(chapters.chapterNumber, chapterNumbers), inArray(chapters.sortOrder, sortOrders))));
+    if (conflicts.length) {
+      const numbers = [...new Set(conflicts.map((chapter) => chapter.chapterNumber))].join(", ");
+      throw new AdminDataError(
+        "CHAPTER_IMPORT_CONFLICT",
+        `เลขตอนหรือลำดับซ้ำกับข้อมูลเดิม${numbers ? ` (เลขตอน ${numbers})` : ""}`,
+        409,
+      );
+    }
+
+    const created: Array<{ id: string; chapterNumber: number }> = [];
+    for (const chapter of input.chapters) {
+      const slug = await createUniqueSlug(
+        `chapter-${String(chapter.chapterNumber).replace(".", "-")}-${chapter.title}`,
+        async (candidate) => Boolean((await tx.select({ id: chapters.id }).from(chapters).where(and(eq(chapters.novelId, novel.id), eq(chapters.slug, candidate))).limit(1))[0]),
+        "chapter",
+      );
+      const [row] = await tx
+        .insert(chapters)
+        .values({
+          novelId: novel.id,
+          chapterNumber: chapter.chapterNumber,
+          sortOrder: chapter.sortOrder,
+          slug,
+          title: chapter.title,
+          content: chapter.content,
+          excerpt: chapter.excerpt,
+          wordCount: countWords(chapter.content),
+          status: "DRAFT",
+          isFree: chapter.isFree,
+          coinPrice: chapter.coinPrice,
+          scheduledFor: null,
+          publishedAt: null,
+          createdBy: actor.id,
+          updatedBy: actor.id,
+        })
+        .returning();
+      await writeAudit(tx, actor, "chapter.import", "chapter", row.id, null, chapterAuditSnapshot(row));
+      created.push({ id: row.id, chapterNumber: row.chapterNumber });
+    }
+    await syncNovelStatistics(tx, novel.id);
+    return { novelSlug: novel.slug, count: created.length, chapters: created };
+  });
+  await revalidatePublicContent("chapter", result.novelSlug);
+  return result;
+}
+
+export async function bulkUpdateAdminChapters(inputValue: unknown) {
+  const actor = await assertAdmin();
+  const input = adminChapterBulkActionSchema.parse(inputValue);
+  const result = await getDb().transaction(async (tx) => {
+    const located = await tx
+      .select({ novelId: chapters.novelId })
+      .from(chapters)
+      .innerJoin(novels, eq(novels.id, chapters.novelId))
+      .where(and(inArray(chapters.id, input.chapterIds), isNull(chapters.deletedAt), isNull(novels.deletedAt)));
+    if (located.length !== input.chapterIds.length) {
+      throw new AdminDataError("CHAPTER_NOT_FOUND", "ไม่พบตอนอย่างน้อยหนึ่งรายการ หรือรายการถูกลบไปแล้ว", 404);
+    }
+
+    const novelIds = [...new Set(located.map((chapter) => chapter.novelId))].sort();
+    const lockedNovels = await tx
+      .select({ id: novels.id, slug: novels.slug })
+      .from(novels)
+      .where(and(inArray(novels.id, novelIds), isNull(novels.deletedAt)))
+      .orderBy(asc(novels.id))
+      .for("no key update");
+    if (lockedNovels.length !== novelIds.length) throw new AdminDataError("NOVEL_NOT_FOUND", "Novel not found", 404);
+
+    const beforeRows = await tx
+      .select()
+      .from(chapters)
+      .where(and(inArray(chapters.id, input.chapterIds), isNull(chapters.deletedAt)))
+      .orderBy(asc(chapters.id))
+      .for("update");
+    if (beforeRows.length !== input.chapterIds.length) {
+      throw new AdminDataError("CHAPTER_NOT_FOUND", "ไม่พบตอนอย่างน้อยหนึ่งรายการ หรือรายการถูกลบไปแล้ว", 404);
+    }
+
+    const targetStatus: ChapterStatus = input.action === "PUBLISH"
+      ? "PUBLISHED"
+      : input.action === "UNPUBLISH"
+        ? "UNPUBLISHED"
+        : "ARCHIVED";
+    if (input.action === "PUBLISH") {
+      for (const chapter of beforeRows) {
+        const parsed = adminChapterUpdateSchema.safeParse({
+          chapterNumber: chapter.chapterNumber,
+          sortOrder: chapter.sortOrder,
+          title: chapter.title,
+          content: chapter.content,
+          excerpt: chapter.excerpt,
+          status: targetStatus,
+          isFree: chapter.isFree,
+          coinPrice: chapter.coinPrice,
+          scheduledFor: null,
+        });
+        if (!parsed.success) {
+          throw new AdminDataError(
+            "CHAPTER_NOT_PUBLISHABLE",
+            `ตอน ${chapter.chapterNumber} ยังเผยแพร่ไม่ได้: ${parsed.error.issues[0]?.message ?? "ข้อมูลไม่ครบ"}`,
+            400,
+          );
+        }
+      }
+    }
+
+    const now = new Date();
+    for (const before of beforeRows) {
+      const [updated] = await tx
+        .update(chapters)
+        .set({
+          status: targetStatus,
+          scheduledFor: null,
+          publishedAt: targetStatus === "PUBLISHED" ? before.publishedAt ?? now : before.publishedAt,
+          deletedAt: input.action === "DELETE" ? now : before.deletedAt,
+          updatedBy: actor.id,
+          updatedAt: now,
+        })
+        .where(eq(chapters.id, before.id))
+        .returning();
+      const action = input.action === "PUBLISH"
+        ? "chapter.publish"
+        : input.action === "UNPUBLISH"
+          ? "chapter.unpublish"
+          : input.action === "DELETE"
+            ? "chapter.delete"
+            : "chapter.archive";
+      await writeAudit(tx, actor, action, "chapter", before.id, chapterAuditSnapshot(before), chapterAuditSnapshot(updated));
+    }
+    for (const novelId of novelIds) await syncNovelStatistics(tx, novelId);
+    return { count: beforeRows.length, novelSlugs: lockedNovels.map((novel) => novel.slug) };
+  });
+  await Promise.all(result.novelSlugs.map((slug) => revalidatePublicContent("chapter", slug)));
   return result;
 }
 
