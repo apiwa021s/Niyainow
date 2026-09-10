@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProviderTranslation, runDeterministicQa, segmentText, selectBestTranslationModel, sha256 } from "./translation";
+import { applySafeQaSuggestions, parseProviderTranslation, runDeterministicQa, segmentText, selectBestTranslationModel, sha256 } from "./translation";
 
 describe("translation domain", () => {
   it("creates stable paragraph segments", () => {
@@ -47,6 +47,18 @@ describe("translation domain", () => {
       content: "เนื้อหา",
     });
     expect(() => parseProviderTranslation('{"title":"ตอนหนึ่ง"}')).toThrow();
+  });
+
+  it("applies unique QA replacements and leaves ambiguous suggestions for AI correction", () => {
+    const result = applySafeQaSuggestions({ title: "Old title", content: "The duke paused. The guard waited. waited." }, [
+      { severity: "WARNING", location: "TITLE", currentText: "Old title", suggestedText: "A Better Title" },
+      { severity: "CRITICAL", location: "CONTENT", currentText: "The duke paused.", suggestedText: "The duke hesitated." },
+      { severity: "WARNING", location: "CONTENT", currentText: "waited", suggestedText: "stood by" },
+    ]);
+
+    expect(result.translation).toEqual({ title: "A Better Title", content: "The duke hesitated. The guard waited. waited." });
+    expect(result.appliedCount).toBe(2);
+    expect(result.remainingIssues).toHaveLength(1);
   });
 
   it("selects the most specific compatible translation model before cost", () => {

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, asc, count, desc, eq, inArray, isNull, lt, lte, ne, sql } from "drizzle-orm";
+import { z } from "zod";
 
 import { getDb } from "@/db";
 import {
@@ -20,7 +21,7 @@ import {
   translationVersions,
   translationWorkspaces,
 } from "@/db/schema";
-import { estimateTokens, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
+import { applySafeQaSuggestions, estimateTokens, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
 import { automaticModelNameForTask, type AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
 import { logger } from "@/lib/logger";
 import { aiCallCostMicros, analyzeChapterWithAi, qaTranslationWithAi, reviseTranslationWithAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
@@ -30,6 +31,43 @@ import { insertTranslationVersion, replaceQaIssues } from "@/services/translatio
 const workerLogger = logger.child({ component: "translation-worker" });
 const MAX_ATTEMPTS = 3;
 const MAX_QA_CORRECTION_ROUNDS = 2;
+
+const checkpointChapterAnalysisSchema = z.object({
+  summary: z.string(),
+  continuityFacts: z.array(z.string()),
+  entities: z.array(z.string()),
+  glossaryCandidates: z.array(z.object({
+    sourceTerm: z.string(),
+    targetTerm: z.string(),
+    note: z.string().nullable(),
+    confidence: z.number().int().min(0).max(100),
+  })),
+  difficulty: z.enum(["NORMAL", "HARD"]),
+  translationNotes: z.array(z.string()),
+});
+
+const translationCheckpointSchema = z.object({ title: z.string().min(1), content: z.string().min(1) });
+const jobCheckpointSchema = z.object({
+  version: z.literal(1),
+  sourceSnapshotId: z.string().uuid(),
+  chapterAnalysis: checkpointChapterAnalysisSchema.nullable(),
+  translation: translationCheckpointSchema.nullable(),
+});
+type JobCheckpoint = z.infer<typeof jobCheckpointSchema>;
+
+function readCheckpoint(value: unknown, sourceSnapshotId: string): JobCheckpoint {
+  const parsed = jobCheckpointSchema.safeParse(value);
+  if (parsed.success && parsed.data.sourceSnapshotId === sourceSnapshotId) {
+    return parsed.data.translation && !parsed.data.chapterAnalysis
+      ? { ...parsed.data, translation: null }
+      : parsed.data;
+  }
+  return { version: 1, sourceSnapshotId, chapterAnalysis: null, translation: null };
+}
+
+async function saveCheckpoint(jobItemId: string, checkpoint: JobCheckpoint) {
+  await getDb().update(translationJobItems).set({ checkpoint }).where(eq(translationJobItems.id, jobItemId));
+}
 
 type AiQaResult = Awaited<ReturnType<typeof qaTranslationWithAi>>["value"];
 
@@ -81,13 +119,19 @@ async function claimNextItem(): Promise<ClaimedItem | null> {
     const [row] = await tx.select({ item: translationJobItems, job: translationJobs })
       .from(translationJobItems)
       .innerJoin(translationJobs, eq(translationJobs.id, translationJobItems.jobId))
+      .innerJoin(translationChapters, eq(translationChapters.id, translationJobItems.translationChapterId))
       .where(and(
         eq(translationJobItems.status, "QUEUED"),
         lte(translationJobItems.availableAt, new Date()),
         inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
         isNull(translationJobs.cancelRequestedAt),
       ))
-      .orderBy(asc(translationJobItems.availableAt), asc(translationJobItems.id))
+      .orderBy(
+        asc(translationJobs.createdAt),
+        asc(translationChapters.chapterNumber),
+        asc(translationJobItems.availableAt),
+        asc(translationJobItems.id),
+      )
       .limit(1)
       .for("update", { skipLocked: true });
     if (!row) return null;
@@ -132,7 +176,7 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
         inArray(translationVersions.status, ["APPROVED", "PUBLISHED"]),
       ))
       .orderBy(desc(translationChapters.chapterNumber), desc(translationVersions.revision))
-      .limit(2),
+      .limit(1),
     db.select({ snapshot: translationProfileVersions.snapshot }).from(translationProfileVersions).where(and(
       eq(translationProfileVersions.workspaceId, job.workspaceId),
       sql`${translationProfileVersions.snapshot} ? 'analysis'`,
@@ -167,7 +211,7 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
     })(),
     glossary: relevantTerms,
     characters: relevantCharacters,
-    previousApproved: previousApproved.map((entry) => ({ chapterNumber: entry.chapterNumber, title: entry.title, ending: entry.content.slice(-4_000) })),
+    previousApproved: previousApproved.map((entry) => ({ chapterNumber: entry.chapterNumber, title: entry.title, ending: entry.content.slice(-2_500) })),
   };
   const serialized = JSON.stringify(context);
   const [snapshot] = await db.insert(translationContextSnapshots).values({
@@ -244,58 +288,88 @@ async function processClaimedItem(claimed: ClaimedItem) {
     if (!config.model || !config.prompt || !config.model.isActive || !config.prompt.isActive) throw new Error("AI model or prompt is disabled");
     const built = await buildContext(claimed.job, claimed.item.translationChapterId, claimed.item.sourceSnapshotId);
     contextSnapshotId = built.contextSnapshot.id;
+    let checkpoint = readCheckpoint(claimed.item.checkpoint, claimed.item.sourceSnapshotId);
+    let chapterAnalysis = checkpoint.chapterAnalysis;
 
-    await db.update(translationJobItems).set({ progressPercent: 15, progressStage: "CANON_ANALYSIS" }).where(eq(translationJobItems.id, claimed.item.id));
-    const canonModel = modelForTask(automaticModels, "CANON_EXTRACTION");
-    currentTask = "CANON_EXTRACTION";
-    currentModelId = canonModel.id;
-    const chapterAnalysis = await analyzeChapterWithAi({
-      model: canonModel,
-      sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-      sourceContent: built.source.content,
-      context: built.context,
-    });
-    await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, chapterAnalysis.call);
-    const learnedTerms = chapterAnalysis.value.glossaryCandidates
-      .filter((entry) => entry.confidence >= 70)
-      .filter((entry) => entry.sourceTerm.trim() && entry.targetTerm.trim())
-      .filter((entry, index, rows) => rows.findIndex((candidate) => candidate.sourceTerm.trim().toLocaleLowerCase() === entry.sourceTerm.trim().toLocaleLowerCase()) === index);
-    if (learnedTerms.length) {
-      await db.insert(translationGlossaryEntries).values(learnedTerms.map((entry) => ({
-        workspaceId: claimed.job.workspaceId,
-        sourceTerm: entry.sourceTerm.trim(),
-        targetTerm: entry.targetTerm.trim(),
-        note: entry.note?.trim() || `AI เสนอจากตอน ${built.chapter.chapterNumber} · ความมั่นใจ ${entry.confidence}%`,
-        isLocked: false,
-        createdBy: claimed.job.requestedBy,
-      }))).onConflictDoNothing();
+    if (!chapterAnalysis) {
+      await db.update(translationJobItems).set({ progressPercent: 15, progressStage: "CANON_ANALYSIS" }).where(eq(translationJobItems.id, claimed.item.id));
+      const canonModel = modelForTask(automaticModels, "CANON_EXTRACTION");
+      currentTask = "CANON_EXTRACTION";
+      currentModelId = canonModel.id;
+      const analysisResult = await analyzeChapterWithAi({
+        model: canonModel,
+        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+        sourceContent: built.source.content,
+        context: built.context,
+      });
+      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, analysisResult.call);
+      chapterAnalysis = analysisResult.value;
+      checkpoint = { ...checkpoint, chapterAnalysis };
+      await saveCheckpoint(claimed.item.id, checkpoint);
+      const learnedTerms = chapterAnalysis.glossaryCandidates
+        .filter((entry) => entry.confidence >= 70)
+        .filter((entry) => entry.sourceTerm.trim() && entry.targetTerm.trim())
+        .filter((entry, index, rows) => rows.findIndex((candidate) => candidate.sourceTerm.trim().toLocaleLowerCase() === entry.sourceTerm.trim().toLocaleLowerCase()) === index);
+      if (learnedTerms.length) {
+        await db.insert(translationGlossaryEntries).values(learnedTerms.map((entry) => ({
+          workspaceId: claimed.job.workspaceId,
+          sourceTerm: entry.sourceTerm.trim(),
+          targetTerm: entry.targetTerm.trim(),
+          note: entry.note?.trim() || `AI เสนอจากตอน ${built.chapter.chapterNumber} · ความมั่นใจ ${entry.confidence}%`,
+          isLocked: false,
+          createdBy: claimed.job.requestedBy,
+        }))).onConflictDoNothing();
+      }
     }
 
-    await db.update(translationJobItems).set({ progressPercent: 35, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
-    currentTask = "MAIN_TRANSLATION";
-    currentModelId = config.model.id;
-    const result = await getTranslationProvider(config.model.provider).translate({
-      model: config.model,
-      prompt: config.prompt,
-      context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
-      sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-      sourceContent: built.source.content,
-    });
-    await db.insert(translationAiInvocations).values({
-      jobItemId: claimed.item.id,
-      modelId: config.model.id,
-      task: "MAIN_TRANSLATION",
-      contextSnapshotId: built.contextSnapshot.id,
-      providerRequestId: result.providerRequestId,
-      inputTokens: result.inputTokens,
-      outputTokens: result.outputTokens,
-      costMicros: Math.round((result.inputTokens * Number(config.model.inputCostMicrosPerMillion) + result.outputTokens * Number(config.model.outputCostMicrosPerMillion)) / 1_000_000),
-      latencyMs: result.latencyMs,
-      status: "SUCCESS",
-    });
+    const savedTranslation = checkpoint.translation;
+    let translation: z.infer<typeof translationCheckpointSchema>;
+    if (savedTranslation) {
+      translation = savedTranslation;
+    } else {
+      await db.update(translationJobItems).set({ progressPercent: 35, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
+      currentTask = "MAIN_TRANSLATION";
+      currentModelId = config.model.id;
+      const result = await getTranslationProvider(config.model.provider).translate({
+        model: config.model,
+        prompt: config.prompt,
+        context: { ...built.context, chapterAnalysis },
+        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+        sourceContent: built.source.content,
+      });
+      await db.insert(translationAiInvocations).values({
+        jobItemId: claimed.item.id,
+        modelId: config.model.id,
+        task: "MAIN_TRANSLATION",
+        contextSnapshotId: built.contextSnapshot.id,
+        providerRequestId: result.providerRequestId,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        costMicros: Math.round((result.inputTokens * Number(config.model.inputCostMicrosPerMillion) + result.outputTokens * Number(config.model.outputCostMicrosPerMillion)) / 1_000_000),
+        latencyMs: result.latencyMs,
+        status: "SUCCESS",
+      });
+      translation = result.translation;
+      checkpoint = { ...checkpoint, translation };
+      await saveCheckpoint(claimed.item.id, checkpoint);
+    }
+
+    const reviewContext = {
+      sourceLanguage: built.context.sourceLanguage,
+      targetLanguage: built.context.targetLanguage,
+      chapterNumber: built.context.chapterNumber,
+      profile: built.context.profile,
+      glossary: built.context.glossary,
+      characters: built.context.characters,
+      chapterAnalysis: {
+        summary: chapterAnalysis.summary,
+        continuityFacts: chapterAnalysis.continuityFacts.slice(0, 24),
+        difficulty: chapterAnalysis.difficulty,
+        translationNotes: chapterAnalysis.translationNotes.slice(0, 20),
+      },
+    };
 
     await db.update(translationJobItems).set({ progressPercent: 70, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
-    let translation = result.translation;
     const qaModel = modelForTask(automaticModels, "FIRST_QA");
     currentTask = "FIRST_QA";
     currentModelId = qaModel.id;
@@ -306,7 +380,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         sourceContent: built.source.content,
         translatedTitle: translation.title,
         translatedContent: translation.content,
-        context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
+        context: reviewContext,
       });
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, checked.call);
       return checked;
@@ -319,9 +393,36 @@ async function processClaimedItem(claimed: ClaimedItem) {
 
     let qa = await runAiQa();
     let deterministicIssues = runCodeQa();
-    for (let correctionRound = 0; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa.value, deterministicIssues); correctionRound += 1) {
+    let correctionRound = 0;
+    if (requiresCorrection(qa.value, deterministicIssues)) {
+      const patched = applySafeQaSuggestions(translation, qa.value.issues);
+      if (patched.appliedCount > 0) {
+        translation = patched.translation;
+        checkpoint = { ...checkpoint, translation };
+        await saveCheckpoint(claimed.item.id, checkpoint);
+        deterministicIssues = runCodeQa();
+        const unresolvedBlocking = patched.remainingIssues.some((issue) => issue.severity !== "INFO");
+        if (!unresolvedBlocking && !deterministicIssues.some((issue) => issue.severity !== "INFO")) {
+          await db.update(translationJobItems).set({ progressPercent: 80, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+          qa = await runAiQa();
+          deterministicIssues = runCodeQa();
+          correctionRound = 1;
+        } else {
+          qa = {
+            ...qa,
+            value: {
+              ...qa.value,
+              issues: patched.remainingIssues,
+              correctionInstructions: unresolvedBlocking ? qa.value.correctionInstructions : [],
+            },
+          };
+        }
+      }
+    }
+    for (; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa.value, deterministicIssues); correctionRound += 1) {
       await db.update(translationJobItems).set({ progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" }).where(eq(translationJobItems.id, claimed.item.id));
-      const escalationModel = modelForTask(automaticModels, "ESCALATION");
+      const usePremiumCorrection = chapterAnalysis.difficulty === "HARD" || correctionRound > 0;
+      const escalationModel = modelForTask(automaticModels, usePremiumCorrection ? "ESCALATION" : "MAIN_TRANSLATION");
       currentTask = "ESCALATION";
       currentModelId = escalationModel.id;
       const revision = await reviseTranslationWithAi({
@@ -331,11 +432,13 @@ async function processClaimedItem(claimed: ClaimedItem) {
         sourceContent: built.source.content,
         translatedTitle: translation.title,
         translatedContent: translation.content,
-        context: { ...built.context, chapterAnalysis: chapterAnalysis.value },
+        context: reviewContext,
         qa: qaForAutomaticCorrection(qa.value, deterministicIssues),
       });
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, revision.call);
       translation = revision.value;
+      checkpoint = { ...checkpoint, translation };
+      await saveCheckpoint(claimed.item.id, checkpoint);
       await db.update(translationJobItems).set({ progressPercent: 84 + correctionRound * 5, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
       currentTask = "FIRST_QA";
       currentModelId = qaModel.id;
@@ -400,6 +503,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         availableAt: retryQaAutomatically ? new Date(Date.now() + 2 ** claimed.item.attempts * 30_000) : claimed.item.availableAt,
         finishedAt: retryQaAutomatically ? null : now,
         lastError: qaFailureMessage,
+        checkpoint: retryQaAutomatically || hasBlockingIssue ? checkpoint : {},
       }).where(eq(translationJobItems.id, claimed.item.id));
       await tx.update(translationChapters).set({ status: retryQaAutomatically ? "QUEUED" : hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
         eq(translationChapters.id, built.chapter.id),

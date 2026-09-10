@@ -18,6 +18,7 @@ pnpm-debug.log*
 
 # editor and local tooling
 .codesight/
+.codex-runtime/
 .tmp/
 .DS_Store
 *.tsbuildinfo

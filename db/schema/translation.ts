@@ -303,6 +303,7 @@ export const translationJobItems = pgTable("translation_job_items", {
   progressPercent: integer("progress_percent").default(0).notNull(),
   progressStage: varchar("progress_stage", { length: 24 }).default("QUEUED").notNull(),
   attempts: integer("attempts").default(0).notNull(),
+  checkpoint: jsonb("checkpoint").$type<Record<string, unknown>>().default({}).notNull(),
   availableAt: timestamp("available_at", timestampConfig).defaultNow().notNull(),
   lastError: text("last_error"),
   startedAt: timestamp("started_at", timestampConfig),

@@ -1,0 +1,1 @@
+ALTER TABLE "translation_job_items" ADD COLUMN "checkpoint" jsonb DEFAULT '{}'::jsonb NOT NULL;

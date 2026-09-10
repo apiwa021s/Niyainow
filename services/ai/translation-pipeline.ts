@@ -126,6 +126,7 @@ Return the complete revised foundation plus concise reviewNotes. Return only the
 const CHAPTER_ANALYSIS_PROMPT = `You are a continuity analyst for serialized-fiction translation.
 Analyze the complete source chapter faithfully. Identify canon, entities, difficulty, and translation risks without adding facts.
 Extract only reusable names, ranks, places, techniques, objects, and recurring coined terms as glossaryCandidates. Suggest a target-language rendering grounded in context and attach a calibrated confidence score. Do not add ordinary vocabulary.
+Keep the result compact: include only facts and terms that materially help translate this chapter or preserve continuity in later chapters. Merge duplicates instead of restating the same fact.
 Return only the requested structured output.`;
 
 const QA_SYSTEM_PROMPT = `You are a rigorous bilingual QA editor for serialized fiction.
@@ -143,6 +144,14 @@ function jsonObject(properties: Record<string, unknown>, required = Object.keys(
 }
 
 const stringArray = { type: "array", items: { type: "string" } };
+
+function boundedStringArray(maxItems: number, minItems?: number) {
+  return {
+    ...stringArray,
+    ...(minItems === undefined ? {} : { minItems }),
+    maxItems,
+  };
+}
 
 async function structured<T>(input: {
   model: AiModel;
@@ -185,15 +194,15 @@ export async function generateAiTranslationProfile(input: {
     payload: { source, openingChapterSamples: samples, translationMasterCatalog: masterCatalog },
     schemaName: "novel_profile_analysis",
     jsonSchema: jsonObject({
-      genre: { type: "string" }, subgenres: stringArray, tone: { type: "string" }, narrativeVoice: { type: "string" },
-      terminologyRisks: stringArray, translationStrategy: { type: "string" },
+      genre: { type: "string" }, subgenres: boundedStringArray(10), tone: { type: "string" }, narrativeVoice: { type: "string" },
+      terminologyRisks: boundedStringArray(30), translationStrategy: { type: "string" },
       masterRouting: jsonObject({
         baseProfileId: { type: ["string", "null"] },
-        overlayProfileIds: stringArray,
+        overlayProfileIds: boundedStringArray(4),
         recipeId: { type: ["string", "null"] },
         confidence: { type: "integer", minimum: 0, maximum: 100 },
         reason: { type: "string" },
-        sourceSignals: stringArray,
+        sourceSignals: boundedStringArray(8),
       }),
     }),
     parser: analysisSchema,
@@ -248,7 +257,7 @@ export async function generateAiTranslationProfile(input: {
       preserveParagraphs: { type: "boolean" },
       translatedTitle: { type: "string" },
       translatedSynopsis: { type: ["string", "null"] },
-      reviewNotes: stringArray,
+      reviewNotes: boundedStringArray(30),
     }),
     parser: profileQualitySchema,
   });
@@ -261,8 +270,8 @@ export async function generateAiTranslationProfile(input: {
     payload: { source, openingChapterSamples: samples, analysis: analysis.value, genreContext, approvedFoundation: qualityReview.value },
     schemaName: "novel_profile_entities",
     jsonSchema: jsonObject({
-      glossary: { type: "array", items: jsonObject({ sourceTerm: { type: "string" }, targetTerm: { type: "string" }, note: { type: ["string", "null"] } }) },
-      characters: { type: "array", items: jsonObject({ sourceName: { type: "string" }, targetName: { type: "string" }, aliases: stringArray, description: { type: ["string", "null"] }, speakingStyle: { type: ["string", "null"] } }) },
+      glossary: { type: "array", maxItems: 100, items: jsonObject({ sourceTerm: { type: "string" }, targetTerm: { type: "string" }, note: { type: ["string", "null"] } }) },
+      characters: { type: "array", maxItems: 100, items: jsonObject({ sourceName: { type: "string" }, targetName: { type: "string" }, aliases: boundedStringArray(30), description: { type: ["string", "null"] }, speakingStyle: { type: ["string", "null"] } }) },
     }),
     parser: entitiesSchema,
   });
@@ -291,10 +300,11 @@ export async function analyzeChapterWithAi(input: {
     schemaName: "chapter_canon_analysis",
     jsonSchema: jsonObject({
       summary: { type: "string" },
-      continuityFacts: stringArray,
-      entities: stringArray,
+      continuityFacts: boundedStringArray(24),
+      entities: boundedStringArray(40),
       glossaryCandidates: {
         type: "array",
+        maxItems: 30,
         items: jsonObject({
           sourceTerm: { type: "string" },
           targetTerm: { type: "string" },
@@ -303,7 +313,7 @@ export async function analyzeChapterWithAi(input: {
         }),
       },
       difficulty: { type: "string", enum: ["NORMAL", "HARD"] },
-      translationNotes: stringArray,
+      translationNotes: boundedStringArray(20),
     }),
     parser: chapterAnalysisSchema,
   });
@@ -333,10 +343,12 @@ export async function reviewNovelTitleWithAi(input: {
     jsonSchema: jsonObject({
       score: { type: "integer", minimum: 0, maximum: 100 },
       verdict: { type: "string", enum: ["NATURAL", "NEEDS_REVISION"] },
-      issues: stringArray,
+      issues: boundedStringArray(20),
       recommendedTitle: { type: "string" },
       candidates: {
         type: "array",
+        minItems: 1,
+        maxItems: 5,
         items: jsonObject({ title: { type: "string" }, rationale: { type: "string" } }),
       },
     }),
@@ -367,6 +379,7 @@ export async function qaTranslationWithAi(input: {
       passed: { type: "boolean" }, score: { type: "integer", minimum: 0, maximum: 100 },
       issues: {
         type: "array",
+        maxItems: 100,
         items: jsonObject({
           code: { type: "string" },
           severity: { type: "string", enum: ["INFO", "WARNING", "CRITICAL"] },
@@ -376,7 +389,7 @@ export async function qaTranslationWithAi(input: {
           suggestedText: { type: ["string", "null"] },
         }),
       },
-      correctionInstructions: stringArray,
+      correctionInstructions: boundedStringArray(50),
     }),
     parser: qaSchema,
   });

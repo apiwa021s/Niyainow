@@ -7,6 +7,49 @@ export type TranslationQaIssue = {
   metadata?: Record<string, unknown>;
 };
 
+export type QaTextSuggestion = {
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  location: "TITLE" | "CONTENT" | null;
+  currentText: string | null;
+  suggestedText: string | null;
+};
+
+/** Applies only unambiguous QA replacements; uncertain edits remain for an AI editor. */
+export function applySafeQaSuggestions<T extends QaTextSuggestion>(
+  translation: { title: string; content: string },
+  issues: T[],
+) {
+  let next = { ...translation };
+  let appliedCount = 0;
+  const remainingIssues: T[] = [];
+
+  for (const issue of issues) {
+    const current = issue.currentText;
+    const suggested = issue.suggestedText;
+    if (issue.severity === "INFO" || !issue.location || !current || !suggested || current === suggested) {
+      remainingIssues.push(issue);
+      continue;
+    }
+
+    const field = issue.location === "TITLE" ? "title" : "content";
+    const value = next[field];
+    const firstIndex = value.indexOf(current);
+    const occursOnce = firstIndex >= 0 && value.indexOf(current, firstIndex + current.length) === -1;
+    if (!occursOnce) {
+      remainingIssues.push(issue);
+      continue;
+    }
+
+    next = {
+      ...next,
+      [field]: `${value.slice(0, firstIndex)}${suggested}${value.slice(firstIndex + current.length)}`,
+    };
+    appliedCount += 1;
+  }
+
+  return { translation: next, appliedCount, remainingIssues };
+}
+
 export function sha256(value: string) {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
