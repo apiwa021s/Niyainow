@@ -102,21 +102,19 @@ export function ContentRow({
 
       {description ? <p className="-mt-1 line-clamp-1 text-xs text-(--text-secondary)">{description}</p> : null}
 
-      {/*
-       * The track bleeds to the viewport edge, while its mobile padding keeps
-       * tall cover artwork away from that edge. Negative margins stay matched
-       * to the page gutter so the page itself never scrolls sideways.
-       */}
+      {/* Mobile keeps the scroll viewport inside the page gutter. Wider screens
+       * can bleed to their larger gutter without risking an unreachable first
+       * item when scroll snapping is active. */}
       <div
         ref={trackRef}
         className={cn(
-          "rail-scroll flex snap-x snap-mandatory gap-2.5 [&>*:first-child]:ms-auto",
-          bleed ? "-mx-3 px-5 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0" : "mx-0 px-0",
+          "rail-scroll flex snap-x snap-mandatory gap-2.5",
+          bleed ? "mx-0 px-2 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0" : "mx-0 px-0",
         )}
       >
         {children}
         {/* ตัวเว้นท้ายแถว ให้การ์ดสุดท้ายไม่ชิดขอบจอ */}
-        <span aria-hidden className="ms-auto w-1 shrink-0" />
+        <span aria-hidden className="w-2 shrink-0" />
       </div>
     </section>
   );
