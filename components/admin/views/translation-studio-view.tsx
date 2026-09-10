@@ -101,6 +101,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profileRegenerate, setProfileRegenerate] = useState(false);
+  const [profileCanResume, setProfileCanResume] = useState(false);
   const [profileStage, setProfileStage] = useState<ProfileStage | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState("");
@@ -110,7 +111,8 @@ export function TranslationStudioView({ data }: { data: Data }) {
   const normalizedTargetLanguage = targetLanguage.trim().toLocaleLowerCase();
   const targetLanguageValid = /^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/.test(normalizedTargetLanguage);
   const existingWorkspace = data.workspaces.find((workspace) => workspace.importSourceId === selectedSourceId && workspace.targetLanguage.toLocaleLowerCase() === normalizedTargetLanguage);
-  const existingSourceIds = useMemo(() => new Set(data.workspaces.filter((workspace) => workspace.targetLanguage.toLocaleLowerCase() === normalizedTargetLanguage).map((workspace) => workspace.importSourceId)), [data.workspaces, normalizedTargetLanguage]);
+  const profileGenerationPending = Boolean(existingWorkspace?.profileGenerationStage && existingWorkspace.profileGenerationStage !== "COMPLETE");
+  const existingSourceIds = useMemo(() => new Set(data.workspaces.filter((workspace) => workspace.status !== "SETUP" && workspace.targetLanguage.toLocaleLowerCase() === normalizedTargetLanguage).map((workspace) => workspace.importSourceId)), [data.workspaces, normalizedTargetLanguage]);
   const totalChapters = data.workspaces.reduce((sum, row) => sum + row.chapterCount, 0);
   const approvedChapters = data.workspaces.reduce((sum, row) => sum + row.approvedCount, 0);
   const totalCost = data.workspaces.reduce((sum, row) => sum + row.jobCostMicros, 0) / 1_000_000;
@@ -122,10 +124,11 @@ export function TranslationStudioView({ data }: { data: Data }) {
     return () => window.clearInterval(timer);
   }, [busy]);
 
-  async function runProfileCreation(regenerate = false) {
+  async function runProfileCreation(regenerate = false, resume = false) {
     if (busy) return;
     setError("");
     setProfileError("");
+    setProfileCanResume(false);
     setProfileRegenerate(regenerate);
     setProfileDialogOpen(true);
     setElapsedSeconds(0);
@@ -137,7 +140,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
       const response = await fetch("/api/admin/translation/workspaces", {
         method: "POST",
         headers: { accept: "application/x-ndjson", "content-type": "application/json" },
-        body: JSON.stringify({ importSourceId: selectedSourceId, targetLanguage: targetLanguage.trim(), regenerate }),
+        body: JSON.stringify({ importSourceId: selectedSourceId, targetLanguage: targetLanguage.trim(), regenerate, resume }),
       });
       if (!response.ok || !response.body) {
         const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
@@ -165,7 +168,23 @@ export function TranslationStudioView({ data }: { data: Data }) {
       setProfileStage({ stage: "COMPLETE", label: "สร้าง AI Profile สำเร็จ กำลังเปิด Workspace", modelName: "Automatic routing" });
       router.push(`/admin/translation/${workspaceId}`);
     } catch (cause) {
-      setProfileError(cause instanceof Error ? cause.message : "สร้าง Workspace ไม่สำเร็จ");
+      const originalMessage = cause instanceof Error ? cause.message : "สร้าง Workspace ไม่สำเร็จ";
+      const query = new URLSearchParams({ importSourceId: selectedSourceId, targetLanguage: targetLanguage.trim() });
+      const recovery = await fetch(`/api/admin/translation/workspaces?${query.toString()}`, { cache: "no-store" })
+        .then(async (response) => response.ok ? response.json() as Promise<{ progress: { id: string; ready: boolean; stage: string | null; error: string | null; completedStages: string[] } | null }> : null)
+        .catch(() => null);
+      if (recovery?.progress?.ready) {
+        setProfileStage({ stage: "COMPLETE", label: "พบ Profile ที่บันทึกสำเร็จแล้ว กำลังเปิด Workspace", modelName: "Automatic routing" });
+        router.push(`/admin/translation/${recovery.progress.id}`);
+        return;
+      }
+      if (recovery?.progress) {
+        const completed = recovery.progress.completedStages.length;
+        setProfileCanResume(true);
+        setProfileError(`${recovery.progress.error || originalMessage} · Workspace และ checkpoint ถูกบันทึกไว้แล้ว${completed ? ` ${completed}/4 ขั้น` : ""} กดทำต่อได้โดยไม่เริ่มขั้นที่สำเร็จแล้วใหม่`);
+      } else {
+        setProfileError(originalMessage);
+      }
       setBusy(false);
     }
   }
@@ -174,6 +193,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
     if (busy) return;
     setProfileDialogOpen(false);
     setProfileError("");
+    setProfileCanResume(false);
     setProfileStage(null);
     setElapsedSeconds(0);
   }
@@ -184,11 +204,11 @@ export function TranslationStudioView({ data }: { data: Data }) {
       setError("กรุณาเลือกเรื่องและระบุรหัสภาษาปลายทางให้ถูกต้อง เช่น th หรือ en-us");
       return;
     }
-    if (existingWorkspace && existingWorkspace.status !== "SETUP") {
+    if (existingWorkspace && existingWorkspace.status !== "SETUP" && !profileGenerationPending) {
       router.push(`/admin/translation/${existingWorkspace.id}`);
       return;
     }
-    void runProfileCreation(false);
+    void runProfileCreation(Boolean(profileGenerationPending && existingWorkspace?.status !== "SETUP"), profileGenerationPending);
   }
 
   function regenerateExistingProfile() {
@@ -217,7 +237,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
               </div>
               <div className="mt-4 flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="outline" onClick={closeProfileDialog}>ปิดหน้าต่าง</Button>
-                <Button type="button" onClick={() => void runProfileCreation(profileRegenerate)}>ลองสร้าง Profile ใหม่</Button>
+                <Button type="button" onClick={() => void runProfileCreation(profileRegenerate, profileCanResume)}>{profileCanResume ? "ทำต่อจาก Checkpoint" : "ลองสร้าง Profile ใหม่"}</Button>
               </div>
             </>
           ) : (
@@ -293,7 +313,7 @@ export function TranslationStudioView({ data }: { data: Data }) {
                       <p className="mt-2 text-xs font-medium text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden />ข้อมูลวิเคราะห์: ชื่อเรื่อง + เรื่องย่อ + ตัวอย่างสูงสุด 3 ตอนแรก</p>
                       {existingWorkspace ? (
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-emerald-500/20 bg-emerald-500/5 p-3">
-                          <div><p className="text-sm font-semibold">{existingWorkspace.status === "SETUP" ? `มี Workspace ภาษา ${normalizedTargetLanguage} ที่ยังไม่เสร็จ` : `มี Profile ภาษา ${normalizedTargetLanguage} แล้ว`}</p><p className="mt-0.5 text-xs text-muted-foreground">{existingWorkspace.status === "SETUP" ? "ระบบจะสร้าง Profile ต่อใน Workspace เดิมโดยไม่สร้างรายการซ้ำ" : "เปิดงานเดิมได้ทันที หรือเลือกสร้างใหม่จาก Master ล่าสุด"}</p></div>
+                          <div><p className="text-sm font-semibold">{profileGenerationPending || existingWorkspace.status === "SETUP" ? `มี Workspace ภาษา ${normalizedTargetLanguage} ที่ยังไม่เสร็จ` : `มี Profile ภาษา ${normalizedTargetLanguage} แล้ว`}</p><p className="mt-0.5 text-xs text-muted-foreground">{profileGenerationPending || existingWorkspace.status === "SETUP" ? "ระบบจะทำต่อจาก Checkpoint ล่าสุดโดยไม่เรียกขั้นที่สำเร็จแล้วซ้ำ" : "เปิดงานเดิมได้ทันที หรือเลือกสร้างใหม่จาก Master ล่าสุด"}</p></div>
                           <StatusPill label={existingWorkspace.status} tone={existingWorkspace.status === "COMPLETED" ? "success" : existingWorkspace.status === "TRANSLATING" ? "info" : existingWorkspace.status === "SETUP" ? "warning" : "neutral"} />
                         </div>
                       ) : null}
@@ -307,9 +327,9 @@ export function TranslationStudioView({ data }: { data: Data }) {
                     disabled={!selectedSourceId || !targetLanguageValid || ((!existingWorkspace || existingWorkspace.status === "SETUP") && !data.masterData.runtimeReady)}
                     title={!data.masterData.runtimeReady && (!existingWorkspace || existingWorkspace.status === "SETUP") ? "อนุมัติ Translation Master ก่อนสร้าง Profile พร้อมใช้" : undefined}
                   >
-                    {existingWorkspace && existingWorkspace.status !== "SETUP" ? <><BookOpen className="h-4 w-4" />เปิด Profile เดิม<ArrowRight className="h-4 w-4" /></> : <><Sparkles className="h-4 w-4" />{existingWorkspace ? "สร้าง Profile ต่อให้เสร็จ" : "สร้าง Profile พร้อมใช้"}<ArrowRight className="h-4 w-4" /></>}
+                    {existingWorkspace && existingWorkspace.status !== "SETUP" && !profileGenerationPending ? <><BookOpen className="h-4 w-4" />เปิด Profile เดิม<ArrowRight className="h-4 w-4" /></> : <><Sparkles className="h-4 w-4" />{profileGenerationPending ? "ทำต่อจาก Checkpoint" : existingWorkspace ? "สร้าง Profile ต่อให้เสร็จ" : "สร้าง Profile พร้อมใช้"}<ArrowRight className="h-4 w-4" /></>}
                   </Button>
-                  {existingWorkspace && existingWorkspace.status !== "SETUP" ? (
+                  {existingWorkspace && existingWorkspace.status !== "SETUP" && !profileGenerationPending ? (
                     <Button type="button" variant="outline" loading={busy} disabled={!data.masterData.runtimeReady} title={!data.masterData.runtimeReady ? "อนุมัติ Translation Master ก่อนสร้าง Profile ใหม่" : undefined} onClick={regenerateExistingProfile}>
                       <Sparkles className="h-4 w-4" />สร้างใหม่จาก Master ล่าสุด
                     </Button>

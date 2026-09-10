@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { and, asc, count, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath, revalidateTag } from "next/cache";
@@ -110,6 +112,12 @@ export const createTranslationWorkspaceSchema = z.object({
   importSourceId: uuidSchema,
   targetLanguage: languageSchema,
   regenerate: z.boolean().default(false),
+  resume: z.boolean().default(false),
+});
+
+export const getTranslationWorkspaceProgressSchema = createTranslationWorkspaceSchema.pick({
+  importSourceId: true,
+  targetLanguage: true,
 });
 
 const glossaryEntrySchema = z.object({
@@ -227,7 +235,17 @@ async function writeAudit(tx: Parameters<Parameters<ReturnType<typeof getDb>["tr
 }
 
 function serializeWorkspace(row: typeof translationWorkspaces.$inferSelect) {
-  return { id: row.id, importSourceId: row.importSourceId, novelId: row.novelId, sourceLanguage: row.sourceLanguage, targetLanguage: row.targetLanguage, status: row.status, version: row.version };
+  return {
+    id: row.id,
+    importSourceId: row.importSourceId,
+    novelId: row.novelId,
+    sourceLanguage: row.sourceLanguage,
+    targetLanguage: row.targetLanguage,
+    status: row.status,
+    version: row.version,
+    profileGenerationStage: row.profileGenerationStage,
+    profileGenerationError: row.profileGenerationError,
+  };
 }
 
 async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
@@ -464,6 +482,55 @@ export async function createTranslationWorkspace(
   if (!masterBundle.genres.some((profile) => profile.profile_kind === "BASE_GENRE")) {
     throw new ApiError(409, "TRANSLATION_MASTER_NOT_READY", "กรุณาตรวจและอนุมัติ Translation Master ก่อนสร้าง Profile พร้อมใช้");
   }
+  const isNewWorkspace = !existingWorkspace;
+  let generationWorkspace = existingWorkspace;
+  if (!generationWorkspace) {
+    const [created] = await db.insert(translationWorkspaces).values({
+      importSourceId: source.id,
+      novelId: null,
+      sourceLanguage: source.sourceLanguage,
+      targetLanguage: input.targetLanguage,
+      status: "SETUP",
+      createdBy: actor.id,
+      assignedEditorId: actor.id,
+      profileGenerationStage: "CONNECTING",
+    }).onConflictDoNothing({ target: [translationWorkspaces.importSourceId, translationWorkspaces.targetLanguage] }).returning();
+    generationWorkspace = created;
+    if (!generationWorkspace) {
+      [generationWorkspace] = await db.select().from(translationWorkspaces).where(and(
+        eq(translationWorkspaces.importSourceId, source.id),
+        eq(translationWorkspaces.targetLanguage, input.targetLanguage),
+      )).limit(1);
+    }
+    if (!generationWorkspace) throw new ApiError(409, "TRANSLATION_WORKSPACE_CONFLICT", "มีการสร้าง Workspace เดียวกันจากหน้าต่างอื่น กรุณาลองใหม่");
+    if (generationWorkspace.status !== "SETUP") {
+      await syncTranslationWorkspaceSources(generationWorkspace.id);
+      return generationWorkspace;
+    }
+  }
+
+  const checkpointSignature = createHash("sha256").update(JSON.stringify({
+    source: { title: sourceText.title, synopsis: sourceText.synopsis, language: source.sourceLanguage },
+    targetLanguage: input.targetLanguage,
+    samples,
+    masterBundle: {
+      genres: [...masterBundle.genres].sort((left, right) => left.profile_id.localeCompare(right.profile_id)),
+      scenes: [...masterBundle.scenes].sort((left, right) => left.scene_id.localeCompare(right.scene_id)),
+      globalRules: [...masterBundle.globalRules].sort((left, right) => left.rule_id.localeCompare(right.rule_id)),
+      recipes: [...masterBundle.recipes].sort((left, right) => left.recipe_id.localeCompare(right.recipe_id)),
+    },
+    models: Object.fromEntries(Object.entries(models).sort(([left], [right]) => left.localeCompare(right)).map(([task, model]) => [task, { id: model.id, modelName: model.modelName, updatedAt: model.updatedAt }])),
+  })).digest("hex");
+  if (input.regenerate && !input.resume) {
+    await db.update(translationWorkspaces).set({
+      profileGenerationStage: "CONNECTING",
+      profileGenerationCheckpoint: {},
+      profileGenerationError: null,
+      updatedAt: new Date(),
+    }).where(eq(translationWorkspaces.id, generationWorkspace.id));
+    generationWorkspace = { ...generationWorkspace, profileGenerationCheckpoint: {}, profileGenerationError: null, profileGenerationStage: "CONNECTING" };
+  }
+
   const generated = await generateAiTranslationProfile({
     title: sourceText.title,
     synopsis: sourceText.synopsis,
@@ -472,7 +539,29 @@ export async function createTranslationWorkspace(
     samples,
     masterBundle,
     models,
-    onStage,
+    checkpoint: generationWorkspace.profileGenerationCheckpoint,
+    checkpointSignature,
+    onCheckpoint: async (checkpoint) => {
+      await db.update(translationWorkspaces).set({
+        profileGenerationCheckpoint: checkpoint,
+        profileGenerationError: null,
+        updatedAt: new Date(),
+      }).where(eq(translationWorkspaces.id, generationWorkspace.id));
+    },
+    onStage: async (event) => {
+      await db.update(translationWorkspaces).set({
+        profileGenerationStage: event.stage,
+        profileGenerationError: null,
+        updatedAt: new Date(),
+      }).where(eq(translationWorkspaces.id, generationWorkspace.id));
+      await onStage?.(event);
+    },
+  }).catch(async (error: unknown) => {
+    await db.update(translationWorkspaces).set({
+      profileGenerationError: error instanceof Error ? error.message : "AI Profile pipeline failed",
+      updatedAt: new Date(),
+    }).where(eq(translationWorkspaces.id, generationWorkspace.id));
+    throw error;
   });
   const glossary = uniqueBySource(generated.glossary);
   const characters = uniqueBySource(generated.characters);
@@ -507,79 +596,89 @@ export async function createTranslationWorkspace(
       },
     });
 
-    if (existingWorkspace) {
-      const [current] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, existingWorkspace.id)).limit(1).for("update");
-      const [currentProfile] = await tx.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, existingWorkspace.id)).limit(1).for("update");
-      if (!current) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
-      if (!input.regenerate && (current.status !== "SETUP" || (currentProfile?.version ?? 0) > 1)) return current;
-      if (input.regenerate) {
-        const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
-          eq(translationJobs.workspaceId, current.id),
-          inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
-        )).limit(1);
-        if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "รอให้งานแปลปัจจุบันเสร็จก่อนสร้าง Profile ใหม่");
-      }
-      const nextVersion = current.version + 1;
-      const [updated] = await tx.update(translationWorkspaces).set({
-        status: current.status === "SETUP" ? "READY" : current.status,
-        version: nextVersion,
-        updatedAt: new Date(),
-      })
-        .where(eq(translationWorkspaces.id, current.id)).returning();
-      await tx.insert(translationProfiles).values({ workspaceId: current.id, ...generated.profile, version: nextVersion, updatedBy: actor.id })
-        .onConflictDoUpdate({ target: translationProfiles.workspaceId, set: { ...generated.profile, version: nextVersion, updatedBy: actor.id, updatedAt: new Date() } });
-      await persistTranslatedMetadata();
-      if (input.regenerate) {
-        await tx.update(translationChapters).set({ status: "STALE", updatedAt: new Date() }).where(and(
-          eq(translationChapters.workspaceId, current.id),
-          inArray(translationChapters.status, ["DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]),
-        ));
-      }
-      if (!input.regenerate) {
-        await tx.delete(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, current.id));
-        await tx.delete(translationCharacters).where(eq(translationCharacters.workspaceId, current.id));
-      }
-      // AI-extracted terms are suggestions until an editor explicitly locks them.
-      // Treating every generated term as binding caused ordinary/polysemous words
-      // such as "gate" to block otherwise valid chapter translations.
-      if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: false, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
-      if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
-      await tx.insert(translationProfileVersions).values({
-        workspaceId: current.id,
-        version: nextVersion,
-        snapshot: { profile: generated.profile, metadata: generated.metadata, glossary, characters, analysis: generated.analysis, aiPipeline, source: { title: sourceText.title, synopsis: sourceText.synopsis } },
-        createdBy: actor.id,
-      });
-      await writeAudit(tx, actor, input.regenerate ? "translation.profile.ai_regenerate" : "translation.profile.ai_generate", "translation_workspace", current.id, serializeWorkspace(current), serializeWorkspace(updated));
-      return updated;
+    const [current] = await tx.select().from(translationWorkspaces).where(eq(translationWorkspaces.id, generationWorkspace.id)).limit(1).for("update");
+    const [currentProfile] = await tx.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, generationWorkspace.id)).limit(1).for("update");
+    if (!current) throw new ApiError(404, "TRANSLATION_WORKSPACE_NOT_FOUND", "ไม่พบ Translation Workspace");
+    if (!input.regenerate && (current.status !== "SETUP" || (currentProfile?.version ?? 0) > 1)) return current;
+    if (input.regenerate) {
+      const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
+        eq(translationJobs.workspaceId, current.id),
+        inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
+      )).limit(1);
+      if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "รอให้งานแปลปัจจุบันเสร็จก่อนสร้าง Profile ใหม่");
     }
-
-    const [created] = await tx.insert(translationWorkspaces).values({
-      importSourceId: source.id,
-      novelId: null,
-      sourceLanguage: source.sourceLanguage,
-      targetLanguage: input.targetLanguage,
-      status: "READY",
-      createdBy: actor.id,
-      assignedEditorId: actor.id,
-    }).onConflictDoNothing({ target: [translationWorkspaces.importSourceId, translationWorkspaces.targetLanguage] }).returning();
-    if (!created) throw new ApiError(409, "TRANSLATION_WORKSPACE_CONFLICT", "มีการสร้าง Workspace เดียวกันจากหน้าต่างอื่น กรุณาลองใหม่");
-    await tx.insert(translationProfiles).values({ workspaceId: created.id, ...generated.profile, updatedBy: actor.id });
+    const nextVersion = currentProfile ? Math.max(current.version, currentProfile.version) + 1 : current.version;
+    const [updated] = await tx.update(translationWorkspaces).set({
+      status: current.status === "SETUP" ? "READY" : current.status,
+      version: nextVersion,
+      profileGenerationStage: "COMPLETE",
+      profileGenerationCheckpoint: {},
+      profileGenerationError: null,
+      updatedAt: new Date(),
+    })
+      .where(eq(translationWorkspaces.id, current.id)).returning();
+    await tx.insert(translationProfiles).values({ workspaceId: current.id, ...generated.profile, version: nextVersion, updatedBy: actor.id })
+      .onConflictDoUpdate({ target: translationProfiles.workspaceId, set: { ...generated.profile, version: nextVersion, updatedBy: actor.id, updatedAt: new Date() } });
     await persistTranslatedMetadata();
-    if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: false, workspaceId: created.id, createdBy: actor.id })));
-    if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: created.id, createdBy: actor.id })));
+    if (input.regenerate) {
+      await tx.update(translationChapters).set({ status: "STALE", updatedAt: new Date() }).where(and(
+        eq(translationChapters.workspaceId, current.id),
+        inArray(translationChapters.status, ["DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]),
+      ));
+    }
+    if (!input.regenerate) {
+      await tx.delete(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, current.id));
+      await tx.delete(translationCharacters).where(eq(translationCharacters.workspaceId, current.id));
+    }
+    // AI-extracted terms are suggestions until an editor explicitly locks them.
+    if (glossary.length) await tx.insert(translationGlossaryEntries).values(glossary.map((entry) => ({ ...entry, isLocked: false, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
+    if (characters.length) await tx.insert(translationCharacters).values(characters.map((entry) => ({ ...entry, isLocked: true, workspaceId: current.id, createdBy: actor.id }))).onConflictDoNothing();
     await tx.insert(translationProfileVersions).values({
-      workspaceId: created.id,
-      version: 1,
+      workspaceId: current.id,
+      version: nextVersion,
       snapshot: { profile: generated.profile, metadata: generated.metadata, glossary, characters, analysis: generated.analysis, aiPipeline, source: { title: sourceText.title, synopsis: sourceText.synopsis } },
       createdBy: actor.id,
     });
-    await writeAudit(tx, actor, "translation.workspace.create_with_ai_profile", "translation_workspace", created.id, null, serializeWorkspace(created));
-    return created;
+    const action = input.regenerate
+      ? "translation.profile.ai_regenerate"
+      : isNewWorkspace ? "translation.workspace.create_with_ai_profile" : "translation.profile.ai_generate";
+    await writeAudit(tx, actor, action, "translation_workspace", current.id, isNewWorkspace ? null : serializeWorkspace(current), serializeWorkspace(updated));
+    return updated;
+  }).catch(async (error: unknown) => {
+    await db.update(translationWorkspaces).set({
+      profileGenerationError: error instanceof Error ? error.message : "Saving AI Profile failed",
+      updatedAt: new Date(),
+    }).where(eq(translationWorkspaces.id, generationWorkspace.id));
+    throw error;
   });
 
   await syncTranslationWorkspaceSources(workspace.id);
   return workspace;
+}
+
+export async function getTranslationWorkspaceProgress(input: z.infer<typeof getTranslationWorkspaceProgressSchema>) {
+  await assertTranslationPermission("translation.view");
+  const db = getDb();
+  const [workspace] = await db.select().from(translationWorkspaces).where(and(
+    eq(translationWorkspaces.importSourceId, input.importSourceId),
+    eq(translationWorkspaces.targetLanguage, input.targetLanguage),
+  )).limit(1);
+  if (!workspace) return null;
+  const [profile] = await db.select({ version: translationProfiles.version }).from(translationProfiles)
+    .where(eq(translationProfiles.workspaceId, workspace.id)).limit(1);
+  const checkpoint = workspace.profileGenerationCheckpoint && typeof workspace.profileGenerationCheckpoint === "object"
+    ? workspace.profileGenerationCheckpoint
+    : {};
+  const completedStages = ["analysis", "foundation", "qualityReview", "entities"].filter((stage) => stage in checkpoint);
+  const generationInProgress = Boolean(workspace.profileGenerationStage && workspace.profileGenerationStage !== "COMPLETE");
+  return {
+    id: workspace.id,
+    status: workspace.status,
+    ready: workspace.status !== "SETUP" && Boolean(profile) && !generationInProgress,
+    stage: workspace.profileGenerationStage,
+    error: workspace.profileGenerationError,
+    completedStages,
+  };
 }
 
 export async function getTranslationStudio() {

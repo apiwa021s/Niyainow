@@ -3,9 +3,27 @@ import { NextResponse } from "next/server";
 import { adminApiError, parseAdminMutation } from "@/app/api/admin/_shared";
 import { ApiError } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
-import { createTranslationWorkspace, createTranslationWorkspaceSchema } from "@/services/translation-service";
+import {
+  createTranslationWorkspace,
+  createTranslationWorkspaceSchema,
+  getTranslationWorkspaceProgress,
+  getTranslationWorkspaceProgressSchema,
+} from "@/services/translation-service";
 
-export const maxDuration = 300;
+export const maxDuration = 800;
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const input = getTranslationWorkspaceProgressSchema.parse({
+      importSourceId: url.searchParams.get("importSourceId"),
+      targetLanguage: url.searchParams.get("targetLanguage"),
+    });
+    return NextResponse.json({ progress: await getTranslationWorkspaceProgress(input) });
+  } catch (error) {
+    return adminApiError(error, request);
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -22,6 +40,7 @@ export async function POST(request: Request) {
             importSourceId: input.importSourceId,
             targetLanguage: input.targetLanguage,
             regenerate: input.regenerate,
+            resume: input.resume,
             requestId: request.headers.get("x-vercel-id") ?? request.headers.get("x-request-id") ?? undefined,
           };
           const send = (value: unknown) => {

@@ -68,6 +68,27 @@ const entitiesSchema = z.object({
   })).max(100),
 });
 
+const aiProfileResultMetricsSchema = z.object({
+  providerRequestId: z.string().nullable(),
+  inputTokens: z.number().int().nonnegative(),
+  promptCacheEnabled: z.boolean(),
+  cachedInputTokens: z.number().int().nonnegative(),
+  cacheWriteInputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  latencyMs: z.number().int().nonnegative(),
+});
+
+export const aiProfileGenerationCheckpointSchema = z.object({
+  version: z.literal(1),
+  signature: z.string().min(1),
+  analysis: z.object({ value: analysisSchema, result: aiProfileResultMetricsSchema }).optional(),
+  foundation: z.object({ value: foundationSchema, result: aiProfileResultMetricsSchema }).optional(),
+  qualityReview: z.object({ value: profileQualitySchema, result: aiProfileResultMetricsSchema }).optional(),
+  entities: z.object({ value: entitiesSchema, result: aiProfileResultMetricsSchema }).optional(),
+});
+
+export type AiProfileGenerationCheckpoint = z.infer<typeof aiProfileGenerationCheckpointSchema>;
+
 const chapterAnalysisSchema = z.object({
   summary: z.string().min(1).max(8_000),
   continuityFacts: z.array(z.string().min(1).max(1_000)).max(50),
@@ -205,6 +226,9 @@ export async function generateAiTranslationProfile(input: {
   samples: Array<{ chapterNumber: number; title: string | null; content: string }>;
   masterBundle: TranslationMasterBundle;
   models: Record<"PROFILE_ANALYSIS" | "FOUNDATION" | "PROFILE_QUALITY_REVIEW" | "ENTITY_EXTRACTION", AiModel>;
+  checkpoint?: unknown;
+  checkpointSignature: string;
+  onCheckpoint?: (checkpoint: AiProfileGenerationCheckpoint) => void | Promise<void>;
   onStage?: (event: AiStageEvent) => void | Promise<void>;
 }) {
   const source = { title: input.title, synopsis: input.synopsis?.trim() || null, sourceLanguage: input.sourceLanguage, targetLanguage: input.targetLanguage };
@@ -216,8 +240,32 @@ export async function generateAiTranslationProfile(input: {
       ? sample.content
       : `${sample.content.slice(0, 7_500)}\n\n[…bounded sample…]\n\n${sample.content.slice(-2_500)}`,
   }));
-  await input.onStage?.({ stage: "PROFILE_ANALYSIS", label: "AI กำลังวิเคราะห์เรื่องและเลือก Translation Master", modelName: input.models.PROFILE_ANALYSIS.modelName });
-  const analysis = await structured({
+  const parsedCheckpoint = aiProfileGenerationCheckpointSchema.safeParse(input.checkpoint);
+  let checkpoint: AiProfileGenerationCheckpoint = parsedCheckpoint.success && parsedCheckpoint.data.signature === input.checkpointSignature
+    ? parsedCheckpoint.data
+    : { version: 1, signature: input.checkpointSignature };
+  const storeCheckpoint = async (next: AiProfileGenerationCheckpoint) => {
+    checkpoint = next;
+    await input.onCheckpoint?.(checkpoint);
+  };
+  const checkpointMetrics = (result: StructuredAiResult) => ({
+    providerRequestId: result.providerRequestId,
+    inputTokens: result.inputTokens,
+    promptCacheEnabled: result.promptCacheEnabled,
+    cachedInputTokens: result.cachedInputTokens,
+    cacheWriteInputTokens: result.cacheWriteInputTokens,
+    outputTokens: result.outputTokens,
+    latencyMs: result.latencyMs,
+  });
+  await input.onStage?.({ stage: "PROFILE_ANALYSIS", label: checkpoint.analysis ? "ใช้ผลวิเคราะห์เรื่องจาก Checkpoint" : "AI กำลังวิเคราะห์เรื่องและเลือก Translation Master", modelName: input.models.PROFILE_ANALYSIS.modelName });
+  const analysis = checkpoint.analysis ? {
+    value: checkpoint.analysis.value,
+    call: {
+      task: "PROFILE_ANALYSIS" as const,
+      model: input.models.PROFILE_ANALYSIS,
+      result: { ...checkpoint.analysis.result, output: checkpoint.analysis.value },
+    },
+  } : await structured({
     model: input.models.PROFILE_ANALYSIS,
     task: "PROFILE_ANALYSIS",
     systemPrompt: PROFILE_ANALYSIS_SYSTEM_PROMPT,
@@ -237,6 +285,9 @@ export async function generateAiTranslationProfile(input: {
     }),
     parser: analysisSchema,
   });
+  if (!checkpoint.analysis) {
+    await storeCheckpoint({ ...checkpoint, analysis: { value: analysis.value, result: checkpointMetrics(analysis.call.result) } });
+  }
   const legacyGenreContext = selectTranslationGenreContext({
     genre: analysis.value.genre,
     subgenres: analysis.value.subgenres,
@@ -255,8 +306,15 @@ export async function generateAiTranslationProfile(input: {
   };
   const genreContext = masterGenreContext ?? legacyGenreContext;
 
-  await input.onStage?.({ stage: "FOUNDATION", label: `AI กำลังสร้าง Style guide สำหรับแนว ${genreContext.label}`, modelName: input.models.FOUNDATION.modelName });
-  const foundation = await structured({
+  await input.onStage?.({ stage: "FOUNDATION", label: checkpoint.foundation ? "ใช้ Style guide จาก Checkpoint" : `AI กำลังสร้าง Style guide สำหรับแนว ${genreContext.label}`, modelName: input.models.FOUNDATION.modelName });
+  const foundation = checkpoint.foundation ? {
+    value: checkpoint.foundation.value,
+    call: {
+      task: "FOUNDATION" as const,
+      model: input.models.FOUNDATION,
+      result: { ...checkpoint.foundation.result, output: checkpoint.foundation.value },
+    },
+  } : await structured({
     model: input.models.FOUNDATION,
     task: "FOUNDATION",
     systemPrompt: PROFILE_SYSTEM_PROMPT,
@@ -272,9 +330,19 @@ export async function generateAiTranslationProfile(input: {
     }),
     parser: foundationSchema,
   });
+  if (!checkpoint.foundation) {
+    await storeCheckpoint({ ...checkpoint, foundation: { value: foundation.value, result: checkpointMetrics(foundation.call.result) } });
+  }
 
-  await input.onStage?.({ stage: "PROFILE_QUALITY_REVIEW", label: "บรรณาธิการ AI กำลังแก้สำนวนทื่อและตรวจความเป็นธรรมชาติ", modelName: input.models.PROFILE_QUALITY_REVIEW.modelName });
-  const qualityReview = await structured({
+  await input.onStage?.({ stage: "PROFILE_QUALITY_REVIEW", label: checkpoint.qualityReview ? "ใช้ผลตรวจ Profile จาก Checkpoint" : "บรรณาธิการ AI กำลังแก้สำนวนทื่อและตรวจความเป็นธรรมชาติ", modelName: input.models.PROFILE_QUALITY_REVIEW.modelName });
+  const qualityReview = checkpoint.qualityReview ? {
+    value: checkpoint.qualityReview.value,
+    call: {
+      task: "PROFILE_QUALITY_REVIEW" as const,
+      model: input.models.PROFILE_QUALITY_REVIEW,
+      result: { ...checkpoint.qualityReview.result, output: checkpoint.qualityReview.value },
+    },
+  } : await structured({
     model: input.models.PROFILE_QUALITY_REVIEW,
     task: "PROFILE_QUALITY_REVIEW",
     systemPrompt: PROFILE_QUALITY_REVIEW_PROMPT,
@@ -291,9 +359,19 @@ export async function generateAiTranslationProfile(input: {
     }),
     parser: profileQualitySchema,
   });
+  if (!checkpoint.qualityReview) {
+    await storeCheckpoint({ ...checkpoint, qualityReview: { value: qualityReview.value, result: checkpointMetrics(qualityReview.call.result) } });
+  }
 
-  await input.onStage?.({ stage: "ENTITY_EXTRACTION", label: "AI กำลังสกัดชื่อ ตัวละคร และศัพท์เริ่มต้น", modelName: input.models.ENTITY_EXTRACTION.modelName });
-  const entities = await structured({
+  await input.onStage?.({ stage: "ENTITY_EXTRACTION", label: checkpoint.entities ? "ใช้รายชื่อและคำศัพท์จาก Checkpoint" : "AI กำลังสกัดชื่อ ตัวละคร และศัพท์เริ่มต้น", modelName: input.models.ENTITY_EXTRACTION.modelName });
+  const entities = checkpoint.entities ? {
+    value: checkpoint.entities.value,
+    call: {
+      task: "ENTITY_EXTRACTION" as const,
+      model: input.models.ENTITY_EXTRACTION,
+      result: { ...checkpoint.entities.result, output: checkpoint.entities.value },
+    },
+  } : await structured({
     model: input.models.ENTITY_EXTRACTION,
     task: "ENTITY_EXTRACTION",
     systemPrompt: PROFILE_ENTITY_EXTRACTION_PROMPT,
@@ -305,6 +383,9 @@ export async function generateAiTranslationProfile(input: {
     }),
     parser: entitiesSchema,
   });
+  if (!checkpoint.entities) {
+    await storeCheckpoint({ ...checkpoint, entities: { value: entities.value, result: checkpointMetrics(entities.call.result) } });
+  }
 
   const { translatedTitle, translatedSynopsis, reviewNotes, ...profile } = qualityReview.value;
   return {
