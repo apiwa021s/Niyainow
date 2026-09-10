@@ -1,6 +1,8 @@
 [
   {
     "AllowedOrigins": [
+      "https://novelnow.co",
+      "https://www.novelnow.co",
       "https://niyainow.vercel.app",
       "http://localhost:3000"
     ],

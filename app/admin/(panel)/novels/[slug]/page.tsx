@@ -18,7 +18,7 @@ export default async function AdminNovelPage({ params }: Props) {
   const [novel, references] = await Promise.all([getAdminNovel(slug), getAdminReferenceData()]);
   if (!novel) notFound();
   return <>
-    <AdminPageHeader title={novel.title} description={`slug คงที่: ${novel.slug}`} crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "นิยาย", href: "/admin/novels" }, { label: novel.title }]} actions={<><ButtonLink href={`/admin/novels/${novel.slug}/chapters`} variant="outline"><FileStack className="h-4 w-4" />จัดการตอน</ButtonLink><ButtonLink href={`/admin/novels/${novel.slug}/chapters/new`}><Plus className="h-4 w-4" />เพิ่มตอน</ButtonLink></>} />
+    <AdminPageHeader title={novel.title} description="แก้ไขข้อมูล หน้าปก หมวดหมู่ และสถานะการเผยแพร่ของนิยาย" crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "นิยาย", href: "/admin/novels" }, { label: novel.title }]} actions={<><ButtonLink href={`/admin/novels/${novel.slug}/chapters`} variant="outline"><FileStack className="h-4 w-4" />จัดการตอน</ButtonLink><ButtonLink href={`/admin/novels/${novel.slug}/chapters/new`}><Plus className="h-4 w-4" />เพิ่มตอน</ButtonLink></>} />
     <NovelFormView novel={novel} references={references} />
   </>;
 }

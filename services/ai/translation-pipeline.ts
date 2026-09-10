@@ -147,6 +147,7 @@ Return only the requested structured output.`;
 
 const QA_SYSTEM_PROMPT = `You are a rigorous bilingual QA editor for serialized fiction.
 Compare the complete source and translation for omissions, additions, mistranslations, name inconsistency, tone, and paragraph integrity.
+Treat context.glossary as binding editor-approved terminology. Treat context.suggestedGlossary as advisory terminology learned from prior chapters: preserve it when the source meaning and current context match, but never let it override the source or a binding glossary entry.
 For every actionable issue, include an exact currentText excerpt from the supplied translation and a complete suggestedText replacement. Set location to TITLE or CONTENT. Use null for these fields only when an exact safe replacement is impossible.
 Mark passed=false when revision is required. Return only the requested structured output.`;
 
@@ -356,7 +357,7 @@ export async function translateChapterWithCanonAi(input: {
   return structured({
     model: input.model,
     task: "MAIN_TRANSLATION",
-    systemPrompt: `${input.prompt.systemPrompt}\nTranslate the complete chapter and, in the same response, return a compact canon analysis grounded only in the source. Keep canon fields concise so translation quality remains the priority.`,
+    systemPrompt: `${input.prompt.systemPrompt}\nTreat context.glossary as binding editor-approved terminology. Treat context.suggestedGlossary as advisory terminology learned from prior chapters: prefer it when the source meaning and current context match, but never let it override the source or a binding glossary entry.\nTranslate the complete chapter and, in the same response, return a compact canon analysis grounded only in the source. Keep canon fields concise so translation quality remains the priority.`,
     cache: input.cache,
     payload: { context: input.context, source: { title: input.sourceTitle, content: input.sourceContent } },
     schemaName: "novel_translation_with_canon",

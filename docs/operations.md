@@ -91,6 +91,10 @@ the Auth.js adapter.
   app origin can pass preflight. Add each Vercel preview origin explicitly when
   testing uploads from preview deployments; do not add a trailing slash to any
   origin.
+- The admin uploader retries a failed browser-to-R2 `PUT` through the
+  authenticated, rate-limited same-origin `/api/admin/uploads/proxy` route.
+  This is a resilience path for stale CORS rollout, not a replacement for the
+  bucket CORS policy; large uploads should continue to use the presigned URL.
 
 ### Media lifecycle cleanup
 

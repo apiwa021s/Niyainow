@@ -114,6 +114,38 @@ export async function deleteR2Object(objectKeyInput: string) {
   await getR2Client().send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: objectKey }));
 }
 
+/**
+ * Same-origin fallback for browsers that cannot reach the presigned R2 URL
+ * (most commonly while a new production origin is waiting for its CORS policy
+ * to be applied). Authorization and size checks happen in the route handler;
+ * this helper deliberately accepts only an already-validated staging key.
+ */
+export async function uploadStagingObject(input: {
+  stagingObjectKey: string;
+  contentType: ValidatedUploadRequest["contentType"];
+  contentLength: number;
+  body: Uint8Array;
+  assetType: ValidatedUploadRequest["assetType"];
+}) {
+  const stagingObjectKey = stagingObjectKeySchema.parse(input.stagingObjectKey);
+  if (!Number.isSafeInteger(input.contentLength) || input.contentLength <= 0) {
+    throw new Error("Upload content length must be a positive safe integer");
+  }
+  if (input.body.byteLength !== input.contentLength) {
+    throw new Error("Upload body length does not match the authorized upload");
+  }
+
+  const env = requireR2Env();
+  await getR2Client().send(new PutObjectCommand({
+    Bucket: env.R2_BUCKET_NAME,
+    Key: stagingObjectKey,
+    Body: input.body,
+    ContentType: input.contentType,
+    ContentLength: input.contentLength,
+    Metadata: { assetType: input.assetType },
+  }));
+}
+
 async function rejectAndDeleteUpload(input: {
   objectKeys: readonly string[];
   expectedContentType: ValidatedUploadRequest["contentType"];

@@ -1,6 +1,7 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, inArray, isNull, lt, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, lte, ne, notExists, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
 import { getDb } from "@/db";
@@ -31,6 +32,8 @@ import { insertTranslationVersion, replaceQaIssues } from "@/services/translatio
 const workerLogger = logger.child({ component: "translation-worker" });
 const MAX_ATTEMPTS = 3;
 const MAX_QA_CORRECTION_ROUNDS = 2;
+const activeTranslationJobItems = alias(translationJobItems, "active_translation_job_items");
+const activeTranslationJobs = alias(translationJobs, "active_translation_jobs");
 
 const checkpointChapterAnalysisSchema = z.object({
   summary: z.string(),
@@ -149,6 +152,18 @@ async function claimNextItem(): Promise<ClaimedItem | null> {
         lte(translationJobItems.availableAt, new Date()),
         inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
         isNull(translationJobs.cancelRequestedAt),
+        // The workspace row lock serializes concurrent claims. This persisted
+        // RUNNING guard keeps the next lane from claiming another chapter after
+        // the claim transaction commits and the AI work continues outside it.
+        notExists(
+          tx.select({ id: activeTranslationJobItems.id })
+            .from(activeTranslationJobItems)
+            .innerJoin(activeTranslationJobs, eq(activeTranslationJobs.id, activeTranslationJobItems.jobId))
+            .where(and(
+              eq(activeTranslationJobItems.status, "RUNNING"),
+              eq(activeTranslationJobs.workspaceId, translationJobs.workspaceId),
+            )),
+        ),
       ))
       .orderBy(
         asc(translationJobs.createdAt),
@@ -189,7 +204,7 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
   if (!row) throw new Error("Translation chapter is no longer available");
 
   const [allTerms, allCharacters, previousApproved, profileVersionRows] = await Promise.all([
-    db.select().from(translationGlossaryEntries).where(and(eq(translationGlossaryEntries.workspaceId, job.workspaceId), eq(translationGlossaryEntries.isLocked, true))),
+    db.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, job.workspaceId)),
     db.select().from(translationCharacters).where(and(eq(translationCharacters.workspaceId, job.workspaceId), eq(translationCharacters.isLocked, true))),
     db.select({ chapterNumber: translationChapters.chapterNumber, title: translationVersions.title, content: translationVersions.content })
       .from(translationVersions)
@@ -208,7 +223,9 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
   ]);
 
   const haystack = `${row.source.title ?? ""}\n${row.source.content}`.toLocaleLowerCase();
-  const relevantTerms = allTerms.filter((entry) => haystack.includes(entry.sourceTerm.toLocaleLowerCase())).map((entry) => ({ source: entry.sourceTerm, target: entry.targetTerm, note: entry.note }));
+  const chapterTerms = allTerms.filter((entry) => haystack.includes(entry.sourceTerm.toLocaleLowerCase()));
+  const relevantTerms = chapterTerms.filter((entry) => entry.isLocked).map((entry) => ({ source: entry.sourceTerm, target: entry.targetTerm, note: entry.note }));
+  const suggestedTerms = chapterTerms.filter((entry) => !entry.isLocked).map((entry) => ({ source: entry.sourceTerm, target: entry.targetTerm, note: entry.note }));
   const relevantCharacters = allCharacters.filter((character) => {
     const names = [character.sourceName, ...character.aliases];
     return names.some((name) => haystack.includes(name.toLocaleLowerCase()));
@@ -234,6 +251,7 @@ async function buildContext(job: typeof translationJobs.$inferSelect, translatio
       return "genreContext" in analysis ? analysis.genreContext : null;
     })(),
     glossary: relevantTerms,
+    suggestedGlossary: suggestedTerms,
     characters: relevantCharacters,
     previousApproved: previousApproved.map((entry) => ({ chapterNumber: entry.chapterNumber, title: entry.title, ending: entry.content.slice(-2_500) })),
   };
@@ -324,6 +342,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const chapterContext = {
       chapterNumber: built.context.chapterNumber,
       glossary: built.context.glossary,
+      suggestedGlossary: built.context.suggestedGlossary,
       characters: built.context.characters,
       previousApproved: built.context.previousApproved,
     };
@@ -405,6 +424,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const reviewContext = {
       chapterNumber: built.context.chapterNumber,
       glossary: built.context.glossary,
+      suggestedGlossary: built.context.suggestedGlossary,
       characters: built.context.characters,
       chapterAnalysis: {
         summary: chapterAnalysis.summary,
