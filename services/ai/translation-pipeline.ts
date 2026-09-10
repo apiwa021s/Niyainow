@@ -6,7 +6,7 @@ import type { translationAiModels, translationPromptVersions } from "@/db/schema
 import type { AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
 import { selectTranslationGenreContext } from "@/lib/domain/translation-genre-context";
 import { buildTranslationMasterRoutingCatalog, selectTranslationMasterContext, type TranslationMasterBundle, type TranslationMasterSelection } from "@/lib/domain/translation-master";
-import { getTranslationProvider, type StructuredAiResult } from "@/services/ai/translation-provider";
+import { getTranslationProvider, type PromptCacheInput, type StructuredAiResult } from "@/services/ai/translation-provider";
 
 type AiModel = typeof translationAiModels.$inferSelect;
 type PromptVersion = typeof translationPromptVersions.$inferSelect;
@@ -109,6 +109,22 @@ const qaSchema = z.object({
 
 const translationSchema = z.object({ title: z.string().min(1).max(1_000), content: z.string().min(1).max(2_000_000) });
 
+const chapterTranslationSchema = z.object({
+  translation: translationSchema,
+  chapterAnalysis: chapterAnalysisSchema,
+});
+
+const translationPatchSchema = z.object({
+  patches: z.array(z.object({
+    location: z.enum(["TITLE", "CONTENT"]),
+    currentText: z.string().min(1).max(4_000),
+    replacementText: z.string().max(4_000),
+    reason: z.string().min(1).max(1_000),
+  })).max(40),
+  requiresFullRewrite: z.boolean(),
+  rationale: z.string().min(1).max(2_000),
+});
+
 const PROFILE_SYSTEM_PROMPT = `You design production translation profiles for serialized fiction.
 Analyze the supplied title, synopsis, and bounded opening-chapter samples. Never invent plot facts. Produce actionable guidance in the target language.
 Translate the novel title and complete synopsis faithfully into the requested target language. Preserve names according to the profile strategy and do not summarize, omit, or add story details.
@@ -134,6 +150,12 @@ Compare the complete source and translation for omissions, additions, mistransla
 For every actionable issue, include an exact currentText excerpt from the supplied translation and a complete suggestedText replacement. Set location to TITLE or CONTENT. Use null for these fields only when an exact safe replacement is impossible.
 Mark passed=false when revision is required. Return only the requested structured output.`;
 
+const PATCH_EDITOR_SYSTEM_PROMPT = `You are a precise bilingual copy editor for serialized fiction.
+Resolve only the supplied QA findings. Return the smallest possible set of exact text replacements; never return the complete chapter.
+Each currentText must be copied exactly from the supplied translation and identify one unique occurrence. replacementText may be empty only to remove text that was added without source support.
+Preserve unaffected prose, paragraph boundaries, locked glossary choices, names, voice, and chronology.
+Set requiresFullRewrite=true only when omissions or structural corruption cannot be repaired safely with local replacements. Return only the requested structured output.`;
+
 const TITLE_REVIEW_SYSTEM_PROMPT = `You are a senior fiction-title editor specializing in the requested target language.
 Review the translated novel title against the source title, synopsis, genre, tone, and translation profile.
 Prioritize a natural, memorable target-language title that sounds locally published. Apply native genre conventions; when the target is Thai, explicitly reject stiff word-for-word syntax and unnatural abstract-noun compounds. Avoid invented plot facts and meaning drift.
@@ -158,6 +180,7 @@ async function structured<T>(input: {
   task: AutomaticTranslationTask;
   systemPrompt: string;
   payload: Record<string, unknown>;
+  cache?: PromptCacheInput;
   schemaName: string;
   jsonSchema: Record<string, unknown>;
   parser: z.ZodType<T>;
@@ -291,11 +314,13 @@ export async function analyzeChapterWithAi(input: {
   sourceTitle: string;
   sourceContent: string;
   context: Record<string, unknown>;
+  cache?: PromptCacheInput;
 }) {
   return structured({
     model: input.model,
     task: "CANON_EXTRACTION",
     systemPrompt: CHAPTER_ANALYSIS_PROMPT,
+    cache: input.cache,
     payload: { context: input.context, source: { title: input.sourceTitle, content: input.sourceContent } },
     schemaName: "chapter_canon_analysis",
     jsonSchema: jsonObject({
@@ -316,6 +341,46 @@ export async function analyzeChapterWithAi(input: {
       translationNotes: boundedStringArray(20),
     }),
     parser: chapterAnalysisSchema,
+  });
+}
+
+/** One production call returns the complete translation plus compact canon data. */
+export async function translateChapterWithCanonAi(input: {
+  model: AiModel;
+  prompt: PromptVersion;
+  sourceTitle: string;
+  sourceContent: string;
+  context: Record<string, unknown>;
+  cache?: PromptCacheInput;
+}) {
+  return structured({
+    model: input.model,
+    task: "MAIN_TRANSLATION",
+    systemPrompt: `${input.prompt.systemPrompt}\nTranslate the complete chapter and, in the same response, return a compact canon analysis grounded only in the source. Keep canon fields concise so translation quality remains the priority.`,
+    cache: input.cache,
+    payload: { context: input.context, source: { title: input.sourceTitle, content: input.sourceContent } },
+    schemaName: "novel_translation_with_canon",
+    jsonSchema: jsonObject({
+      translation: jsonObject({ title: { type: "string" }, content: { type: "string" } }),
+      chapterAnalysis: jsonObject({
+        summary: { type: "string" },
+        continuityFacts: boundedStringArray(24),
+        entities: boundedStringArray(40),
+        glossaryCandidates: {
+          type: "array",
+          maxItems: 30,
+          items: jsonObject({
+            sourceTerm: { type: "string" },
+            targetTerm: { type: "string" },
+            note: { type: ["string", "null"] },
+            confidence: { type: "integer", minimum: 0, maximum: 100 },
+          }),
+        },
+        difficulty: { type: "string", enum: ["NORMAL", "HARD"] },
+        translationNotes: boundedStringArray(20),
+      }),
+    }),
+    parser: chapterTranslationSchema,
   });
 }
 
@@ -364,11 +429,13 @@ export async function qaTranslationWithAi(input: {
   translatedTitle: string;
   translatedContent: string;
   context: Record<string, unknown>;
+  cache?: PromptCacheInput;
 }) {
   return structured({
     model: input.model,
     task: "FIRST_QA",
     systemPrompt: QA_SYSTEM_PROMPT,
+    cache: input.cache,
     payload: {
       context: input.context,
       source: { title: input.sourceTitle, content: input.sourceContent },
@@ -395,6 +462,46 @@ export async function qaTranslationWithAi(input: {
   });
 }
 
+export async function reviseTranslationWithPatchesAi(input: {
+  model: AiModel;
+  sourceTitle: string;
+  sourceContent: string;
+  translatedTitle: string;
+  translatedContent: string;
+  context: Record<string, unknown>;
+  qa: z.infer<typeof qaSchema>;
+  cache?: PromptCacheInput;
+}) {
+  return structured({
+    model: input.model,
+    task: "ESCALATION",
+    systemPrompt: PATCH_EDITOR_SYSTEM_PROMPT,
+    cache: input.cache,
+    payload: {
+      context: input.context,
+      source: { title: input.sourceTitle, content: input.sourceContent },
+      translation: { title: input.translatedTitle, content: input.translatedContent },
+      qa: input.qa,
+    },
+    schemaName: "translation_correction_patches",
+    jsonSchema: jsonObject({
+      patches: {
+        type: "array",
+        maxItems: 40,
+        items: jsonObject({
+          location: { type: "string", enum: ["TITLE", "CONTENT"] },
+          currentText: { type: "string" },
+          replacementText: { type: "string" },
+          reason: { type: "string" },
+        }),
+      },
+      requiresFullRewrite: { type: "boolean" },
+      rationale: { type: "string" },
+    }),
+    parser: translationPatchSchema,
+  });
+}
+
 export async function reviseTranslationWithAi(input: {
   model: AiModel;
   prompt: PromptVersion;
@@ -404,11 +511,13 @@ export async function reviseTranslationWithAi(input: {
   translatedContent: string;
   context: Record<string, unknown>;
   qa: z.infer<typeof qaSchema>;
+  cache?: PromptCacheInput;
 }) {
   return structured({
     model: input.model,
     task: "ESCALATION",
     systemPrompt: `${input.prompt.systemPrompt}\nRevise the supplied translation to resolve every QA issue. Return the complete corrected chapter, not a patch.`,
+    cache: input.cache,
     payload: {
       context: input.context,
       source: { title: input.sourceTitle, content: input.sourceContent },
@@ -421,9 +530,26 @@ export async function reviseTranslationWithAi(input: {
   });
 }
 
-export function aiCallCostMicros(call: AiCallRecord) {
+type AiUsageResult = Pick<StructuredAiResult, "inputTokens" | "cachedInputTokens" | "cacheWriteInputTokens" | "outputTokens">;
+
+export function aiUsageCostMicros(model: AiModel, result: AiUsageResult) {
+  const supportsModernCachePricing = /^gpt-(?:5\.(?:[6-9]|\d{2,})|[6-9](?:\.|-|$))/i.test(model.modelName);
+  const cachedInputTokens = supportsModernCachePricing
+    ? Math.min(result.inputTokens, Math.max(0, result.cachedInputTokens))
+    : 0;
+  const cacheWriteInputTokens = supportsModernCachePricing
+    ? Math.min(result.inputTokens - cachedInputTokens, Math.max(0, result.cacheWriteInputTokens))
+    : 0;
+  const uncachedInputTokens = result.inputTokens - cachedInputTokens - cacheWriteInputTokens;
+  const inputCost = Number(model.inputCostMicrosPerMillion);
   return Math.round((
-    call.result.inputTokens * Number(call.model.inputCostMicrosPerMillion)
-    + call.result.outputTokens * Number(call.model.outputCostMicrosPerMillion)
+    uncachedInputTokens * inputCost
+    + cachedInputTokens * inputCost * 0.1
+    + cacheWriteInputTokens * inputCost * 1.25
+    + result.outputTokens * Number(model.outputCostMicrosPerMillion)
   ) / 1_000_000);
+}
+
+export function aiCallCostMicros(call: AiCallRecord) {
+  return aiUsageCostMicros(call.model, call.result);
 }

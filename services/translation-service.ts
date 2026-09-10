@@ -18,6 +18,7 @@ import {
   novelStatistics,
   novels,
   translationAiModels,
+  translationAiInvocations,
   translationCharacters,
   translationChapters,
   translationGlossaryEntries,
@@ -640,7 +641,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     ))
     .where(eq(translationWorkspaces.id, workspaceId)).limit(1);
   if (!workspace) return undefined;
-  const [profile, glossary, characters, chapterRows, jobs, models, prompts, profileVersions, titleReviewRows] = await Promise.all([
+  const [profile, glossary, characters, chapterRows, jobs, models, prompts, profileVersions, titleReviewRows, aiUsageRows] = await Promise.all([
     db.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspaceId)).limit(1),
     db.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId)).orderBy(asc(translationGlossaryEntries.sourceTerm)),
     db.select().from(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId)).orderBy(asc(translationCharacters.sourceName)),
@@ -670,6 +671,15 @@ export async function getTranslationWorkspace(workspaceId: string) {
       eq(adminAuditLogs.entityType, "translation_workspace"),
       eq(adminAuditLogs.entityId, workspaceId),
     )).orderBy(desc(adminAuditLogs.createdAt)).limit(1),
+    db.select({
+      inputTokens: sql<number>`coalesce(sum(${translationAiInvocations.inputTokens}) filter (where ${translationAiInvocations.promptCacheEnabled}), 0)`.mapWith(Number),
+      cachedInputTokens: sql<number>`coalesce(sum(${translationAiInvocations.cachedInputTokens}), 0)`.mapWith(Number),
+      cacheWriteInputTokens: sql<number>`coalesce(sum(${translationAiInvocations.cacheWriteInputTokens}), 0)`.mapWith(Number),
+      cacheEnabledRequests: sql<number>`count(*) filter (where ${translationAiInvocations.promptCacheEnabled})`.mapWith(Number),
+    }).from(translationAiInvocations)
+      .innerJoin(translationJobItems, eq(translationJobItems.id, translationAiInvocations.jobItemId))
+      .innerJoin(translationJobs, eq(translationJobs.id, translationJobItems.jobId))
+      .where(eq(translationJobs.workspaceId, workspaceId)),
   ]);
   const storedPipeline = profileVersions[0]?.snapshot && typeof profileVersions[0].snapshot === "object"
     ? storedAiPipelineSchema.safeParse(profileVersions[0].snapshot.aiPipeline)
@@ -678,6 +688,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     ? storedProfileAnalysisSchema.safeParse(profileVersions[0].snapshot.analysis)
     : null;
   const storedTitleReview = storedTitleReviewSchema.safeParse(titleReviewRows[0]?.after);
+  const aiUsage = aiUsageRows[0] ?? { inputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0, cacheEnabledRequests: 0 };
   return {
     workspace: { ...serializeWorkspace(workspace.workspace), title: workspace.translatedTitle ?? workspace.sourceTitle ?? "Imported novel", updatedAt: workspace.workspace.updatedAt.toISOString() },
     source: {
@@ -694,6 +705,10 @@ export async function getTranslationWorkspace(workspaceId: string) {
     profileAiPipeline: storedPipeline?.success ? storedPipeline.data : [],
     profileAnalysis: storedProfileAnalysis?.success ? storedProfileAnalysis.data : null,
     titleReview: storedTitleReview.success ? storedTitleReview.data : null,
+    aiUsage: {
+      ...aiUsage,
+      cacheHitPercent: aiUsage.inputTokens > 0 ? Math.round((aiUsage.cachedInputTokens / aiUsage.inputTokens) * 1_000) / 10 : 0,
+    },
     glossary: glossary.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     characters: characters.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     chapters: chapterRows,

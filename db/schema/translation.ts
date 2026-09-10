@@ -326,6 +326,9 @@ export const translationAiInvocations = pgTable("translation_ai_invocations", {
   contextSnapshotId: uuid("context_snapshot_id").references(() => translationContextSnapshots.id, { onDelete: "set null" }),
   providerRequestId: text("provider_request_id"),
   inputTokens: integer("input_tokens").default(0).notNull(),
+  promptCacheEnabled: boolean("prompt_cache_enabled").default(false).notNull(),
+  cachedInputTokens: integer("cached_input_tokens").default(0).notNull(),
+  cacheWriteInputTokens: integer("cache_write_input_tokens").default(0).notNull(),
   outputTokens: integer("output_tokens").default(0).notNull(),
   costMicros: bigint("cost_micros", { mode: "number" }).default(0).notNull(),
   latencyMs: integer("latency_ms").default(0).notNull(),
@@ -334,7 +337,8 @@ export const translationAiInvocations = pgTable("translation_ai_invocations", {
   createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
 }, (table) => [
   index("translation_ai_invocations_item_idx").on(table.jobItemId, table.createdAt),
-  check("translation_ai_invocations_metrics_nonnegative", sql`${table.inputTokens} >= 0 and ${table.outputTokens} >= 0 and ${table.costMicros} >= 0 and ${table.latencyMs} >= 0`),
+  check("translation_ai_invocations_metrics_nonnegative", sql`${table.inputTokens} >= 0 and ${table.cachedInputTokens} >= 0 and ${table.cacheWriteInputTokens} >= 0 and ${table.outputTokens} >= 0 and ${table.costMicros} >= 0 and ${table.latencyMs} >= 0`),
+  check("translation_ai_invocations_cache_tokens_valid", sql`${table.cachedInputTokens} + ${table.cacheWriteInputTokens} <= ${table.inputTokens}`),
   check("translation_ai_invocations_status_valid", sql`${table.status} in ('SUCCESS','FAILED')`),
   check("translation_ai_invocations_task_valid", sql`${table.task} in ('CANON_EXTRACTION','MAIN_TRANSLATION','FIRST_QA','ESCALATION')`),
 ]);

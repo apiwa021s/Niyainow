@@ -21,10 +21,10 @@ import {
   translationVersions,
   translationWorkspaces,
 } from "@/db/schema";
-import { applySafeQaSuggestions, estimateTokens, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
+import { applySafeQaSuggestions, applyValidatedQaPatches, decideTranslationQa, estimateTokens, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
 import { automaticModelNameForTask, type AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
 import { logger } from "@/lib/logger";
-import { aiCallCostMicros, analyzeChapterWithAi, qaTranslationWithAi, reviseTranslationWithAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
+import { aiCallCostMicros, aiUsageCostMicros, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
 import { getTranslationProvider } from "@/services/ai/translation-provider";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
@@ -71,15 +71,36 @@ async function saveCheckpoint(jobItemId: string, checkpoint: JobCheckpoint) {
 
 type AiQaResult = Awaited<ReturnType<typeof qaTranslationWithAi>>["value"];
 
+function qaMinimumScore() {
+  const configured = Number(process.env.AI_TRANSLATION_QA_MIN_SCORE);
+  return Number.isFinite(configured) ? Math.max(0, Math.min(100, Math.round(configured))) : 90;
+}
+
+function qaDecision(qa: AiQaResult, deterministicIssues: TranslationQaIssue[]) {
+  return decideTranslationQa({
+    score: qa.score,
+    aiIssues: qa.issues.map((issue) => ({ code: issue.code, severity: issue.severity, message: issue.message })),
+    deterministicIssues,
+    minimumScore: qaMinimumScore(),
+  });
+}
+
 function requiresCorrection(qa: AiQaResult, deterministicIssues: TranslationQaIssue[]) {
-  return !qa.passed
-    || qa.correctionInstructions.length > 0
-    || qa.issues.some((issue) => issue.severity !== "INFO")
-    || deterministicIssues.some((issue) => issue.severity !== "INFO");
+  return qaDecision(qa, deterministicIssues).needsCorrection;
+}
+
+function hasStructuralCriticalIssue(qa: AiQaResult, deterministicIssues: TranslationQaIssue[]) {
+  return qaDecision(qa, deterministicIssues).blockingIssues.some((issue) =>
+    /EMPTY|MISSING|OMISSION|TRUNCAT|STRUCTUR|PARAGRAPH|ADDITION/i.test(issue.code),
+  );
 }
 
 function qaForAutomaticCorrection(qa: AiQaResult, deterministicIssues: TranslationQaIssue[]): AiQaResult {
-  const deterministicAiIssues = deterministicIssues.map((issue) => ({
+  const decision = qaDecision(qa, deterministicIssues);
+  const issuesToFix = decision.scoreNeedsImprovement
+    ? qa.issues.filter((issue) => issue.severity !== "INFO")
+    : qa.issues.filter((issue) => issue.severity === "CRITICAL");
+  const deterministicAiIssues = deterministicIssues.filter((issue) => issue.severity === "CRITICAL").map((issue) => ({
     code: issue.code,
     severity: issue.severity,
     message: issue.message,
@@ -87,7 +108,7 @@ function qaForAutomaticCorrection(qa: AiQaResult, deterministicIssues: Translati
     currentText: null,
     suggestedText: null,
   }));
-  const deterministicInstructions = deterministicIssues.map((issue) => {
+  const deterministicInstructions = deterministicIssues.filter((issue) => issue.severity === "CRITICAL").map((issue) => {
     const sourceTerm = typeof issue.metadata?.sourceTerm === "string" ? issue.metadata.sourceTerm : null;
     const targetTerm = typeof issue.metadata?.targetTerm === "string" ? issue.metadata.targetTerm : null;
     if (issue.code === "LOCKED_GLOSSARY_MISSING" && sourceTerm && targetTerm) {
@@ -99,7 +120,7 @@ function qaForAutomaticCorrection(qa: AiQaResult, deterministicIssues: Translati
     ...qa,
     passed: false,
     score: Math.min(qa.score, 60),
-    issues: [...qa.issues, ...deterministicAiIssues].slice(0, 100),
+    issues: [...issuesToFix, ...deterministicAiIssues].slice(0, 100),
     correctionInstructions: [...qa.correctionInstructions, ...deterministicInstructions].slice(0, 50),
   };
 }
@@ -120,6 +141,9 @@ async function claimNextItem(): Promise<ClaimedItem | null> {
       .from(translationJobItems)
       .innerJoin(translationJobs, eq(translationJobs.id, translationJobItems.jobId))
       .innerJoin(translationChapters, eq(translationChapters.id, translationJobItems.translationChapterId))
+      // Lock the workspace row too: concurrent workers may process different
+      // novels, but never two chapters from the same continuity stream.
+      .innerJoin(translationWorkspaces, eq(translationWorkspaces.id, translationJobs.workspaceId))
       .where(and(
         eq(translationJobItems.status, "QUEUED"),
         lte(translationJobItems.availableAt, new Date()),
@@ -259,6 +283,9 @@ async function recordStructuredInvocation(jobItemId: string, contextSnapshotId: 
     contextSnapshotId,
     providerRequestId: call.result.providerRequestId,
     inputTokens: call.result.inputTokens,
+    promptCacheEnabled: call.result.promptCacheEnabled,
+    cachedInputTokens: call.result.cachedInputTokens,
+    cacheWriteInputTokens: call.result.cacheWriteInputTokens,
     outputTokens: call.result.outputTokens,
     costMicros: aiCallCostMicros(call),
     latencyMs: call.result.latencyMs,
@@ -288,23 +315,40 @@ async function processClaimedItem(claimed: ClaimedItem) {
     if (!config.model || !config.prompt || !config.model.isActive || !config.prompt.isActive) throw new Error("AI model or prompt is disabled");
     const built = await buildContext(claimed.job, claimed.item.translationChapterId, claimed.item.sourceSnapshotId);
     contextSnapshotId = built.contextSnapshot.id;
+    const stableContext = {
+      sourceLanguage: built.context.sourceLanguage,
+      targetLanguage: built.context.targetLanguage,
+      profile: built.context.profile,
+      genreContext: built.context.genreContext,
+    };
+    const chapterContext = {
+      chapterNumber: built.context.chapterNumber,
+      glossary: built.context.glossary,
+      characters: built.context.characters,
+      previousApproved: built.context.previousApproved,
+    };
+    const cacheFor = (task: string) => ({
+      key: `nw:${sha256(`${claimed.job.workspaceId}:${built.profile.version}:${task}`).slice(0, 56)}`,
+      stablePayload: { context: stableContext },
+    });
     let checkpoint = readCheckpoint(claimed.item.checkpoint, claimed.item.sourceSnapshotId);
     let chapterAnalysis = checkpoint.chapterAnalysis;
 
     if (!chapterAnalysis) {
-      await db.update(translationJobItems).set({ progressPercent: 15, progressStage: "CANON_ANALYSIS" }).where(eq(translationJobItems.id, claimed.item.id));
-      const canonModel = modelForTask(automaticModels, "CANON_EXTRACTION");
-      currentTask = "CANON_EXTRACTION";
-      currentModelId = canonModel.id;
-      const analysisResult = await analyzeChapterWithAi({
-        model: canonModel,
+      await db.update(translationJobItems).set({ progressPercent: 25, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
+      currentTask = "MAIN_TRANSLATION";
+      currentModelId = config.model.id;
+      const combined = await translateChapterWithCanonAi({
+        model: config.model,
+        prompt: config.prompt,
         sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
         sourceContent: built.source.content,
-        context: built.context,
+        context: chapterContext,
+        cache: cacheFor("MAIN_TRANSLATION_WITH_CANON"),
       });
-      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, analysisResult.call);
-      chapterAnalysis = analysisResult.value;
-      checkpoint = { ...checkpoint, chapterAnalysis };
+      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, combined.call);
+      chapterAnalysis = combined.value.chapterAnalysis;
+      checkpoint = { ...checkpoint, chapterAnalysis, translation: combined.value.translation };
       await saveCheckpoint(claimed.item.id, checkpoint);
       const learnedTerms = chapterAnalysis.glossaryCandidates
         .filter((entry) => entry.confidence >= 70)
@@ -333,7 +377,8 @@ async function processClaimedItem(claimed: ClaimedItem) {
       const result = await getTranslationProvider(config.model.provider).translate({
         model: config.model,
         prompt: config.prompt,
-        context: { ...built.context, chapterAnalysis },
+        context: { ...chapterContext, chapterAnalysis },
+        cache: cacheFor("MAIN_TRANSLATION"),
         sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
         sourceContent: built.source.content,
       });
@@ -344,8 +389,11 @@ async function processClaimedItem(claimed: ClaimedItem) {
         contextSnapshotId: built.contextSnapshot.id,
         providerRequestId: result.providerRequestId,
         inputTokens: result.inputTokens,
+        promptCacheEnabled: result.promptCacheEnabled,
+        cachedInputTokens: result.cachedInputTokens,
+        cacheWriteInputTokens: result.cacheWriteInputTokens,
         outputTokens: result.outputTokens,
-        costMicros: Math.round((result.inputTokens * Number(config.model.inputCostMicrosPerMillion) + result.outputTokens * Number(config.model.outputCostMicrosPerMillion)) / 1_000_000),
+        costMicros: aiUsageCostMicros(config.model, result),
         latencyMs: result.latencyMs,
         status: "SUCCESS",
       });
@@ -355,10 +403,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     }
 
     const reviewContext = {
-      sourceLanguage: built.context.sourceLanguage,
-      targetLanguage: built.context.targetLanguage,
       chapterNumber: built.context.chapterNumber,
-      profile: built.context.profile,
       glossary: built.context.glossary,
       characters: built.context.characters,
       chapterAnalysis: {
@@ -381,6 +426,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         translatedTitle: translation.title,
         translatedContent: translation.content,
         context: reviewContext,
+        cache: cacheFor("FIRST_QA"),
       });
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, checked.call);
       return checked;
@@ -394,49 +440,62 @@ async function processClaimedItem(claimed: ClaimedItem) {
     let qa = await runAiQa();
     let deterministicIssues = runCodeQa();
     let correctionRound = 0;
-    if (requiresCorrection(qa.value, deterministicIssues)) {
-      const patched = applySafeQaSuggestions(translation, qa.value.issues);
-      if (patched.appliedCount > 0) {
-        translation = patched.translation;
-        checkpoint = { ...checkpoint, translation };
-        await saveCheckpoint(claimed.item.id, checkpoint);
+    const initialDecision = qaDecision(qa.value, deterministicIssues);
+    const safeSuggestions = applySafeQaSuggestions(translation, qa.value.issues);
+    if (safeSuggestions.appliedCount > 0) {
+      translation = safeSuggestions.translation;
+      checkpoint = { ...checkpoint, translation };
+      await saveCheckpoint(claimed.item.id, checkpoint);
+      qa = { ...qa, value: { ...qa.value, issues: safeSuggestions.remainingIssues } };
+      deterministicIssues = runCodeQa();
+      // Warnings are already fixed locally and do not justify another full QA
+      // request. Critical/low-score results are always verified again.
+      if (initialDecision.needsCorrection) {
+        await db.update(translationJobItems).set({ progressPercent: 78, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+        qa = await runAiQa();
         deterministicIssues = runCodeQa();
-        const unresolvedBlocking = patched.remainingIssues.some((issue) => issue.severity !== "INFO");
-        if (!unresolvedBlocking && !deterministicIssues.some((issue) => issue.severity !== "INFO")) {
-          await db.update(translationJobItems).set({ progressPercent: 80, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
-          qa = await runAiQa();
-          deterministicIssues = runCodeQa();
-          correctionRound = 1;
-        } else {
-          qa = {
-            ...qa,
-            value: {
-              ...qa.value,
-              issues: patched.remainingIssues,
-              correctionInstructions: unresolvedBlocking ? qa.value.correctionInstructions : [],
-            },
-          };
-        }
       }
     }
     for (; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa.value, deterministicIssues); correctionRound += 1) {
       await db.update(translationJobItems).set({ progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" }).where(eq(translationJobItems.id, claimed.item.id));
-      const usePremiumCorrection = chapterAnalysis.difficulty === "HARD" || correctionRound > 0;
+      const structuralCritical = hasStructuralCriticalIssue(qa.value, deterministicIssues);
+      const usePremiumCorrection = chapterAnalysis.difficulty === "HARD" || structuralCritical || correctionRound > 0;
       const escalationModel = modelForTask(automaticModels, usePremiumCorrection ? "ESCALATION" : "MAIN_TRANSLATION");
       currentTask = "ESCALATION";
       currentModelId = escalationModel.id;
-      const revision = await reviseTranslationWithAi({
+      const patchResult = await reviseTranslationWithPatchesAi({
         model: escalationModel,
-        prompt: config.prompt,
         sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
         sourceContent: built.source.content,
         translatedTitle: translation.title,
         translatedContent: translation.content,
         context: reviewContext,
         qa: qaForAutomaticCorrection(qa.value, deterministicIssues),
+        cache: cacheFor(usePremiumCorrection ? "ESCALATION_PATCH" : "MAIN_PATCH"),
       });
-      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, revision.call);
-      translation = revision.value;
+      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, patchResult.call);
+      const patched = applyValidatedQaPatches(translation, patchResult.value.patches);
+      translation = patched.translation;
+
+      // Full-chapter generation is a last resort reserved for source omissions
+      // or broken structure that cannot be repaired with validated local edits.
+      if ((patchResult.value.requiresFullRewrite || (patched.appliedCount === 0 && structuralCritical)) && structuralCritical) {
+        const premiumModel = modelForTask(automaticModels, "ESCALATION");
+        currentModelId = premiumModel.id;
+        const revision = await reviseTranslationWithAi({
+          model: premiumModel,
+          prompt: config.prompt,
+          sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+          sourceContent: built.source.content,
+          translatedTitle: translation.title,
+          translatedContent: translation.content,
+          context: reviewContext,
+          qa: qaForAutomaticCorrection(qa.value, deterministicIssues),
+          cache: cacheFor("ESCALATION_FULL_REWRITE"),
+        });
+        await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, revision.call);
+        translation = revision.value;
+      }
       checkpoint = { ...checkpoint, translation };
       await saveCheckpoint(claimed.item.id, checkpoint);
       await db.update(translationJobItems).set({ progressPercent: 84 + correctionRound * 5, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
@@ -475,7 +534,6 @@ async function processClaimedItem(claimed: ClaimedItem) {
       })));
       const hasBlockingIssue = requiresCorrection(qa.value, issues);
       const now = new Date();
-      const retryQaAutomatically = hasBlockingIssue && claimed.item.attempts < MAX_ATTEMPTS;
       const autoApproved = !hasBlockingIssue && Boolean(claimed.job.requestedBy);
       const qaFailureMessage = hasBlockingIssue
         ? `QA ยังไม่ผ่านหลังแก้อัตโนมัติ: ${[
@@ -497,15 +555,14 @@ async function processClaimedItem(claimed: ClaimedItem) {
         }).where(eq(translationVersions.id, version.id));
       }
       await tx.update(translationJobItems).set({
-        status: retryQaAutomatically ? "QUEUED" : hasBlockingIssue ? "FAILED" : "COMPLETED",
-        progressPercent: retryQaAutomatically ? 0 : 100,
-        progressStage: retryQaAutomatically ? "QUEUED" : hasBlockingIssue ? "FAILED" : "DONE",
-        availableAt: retryQaAutomatically ? new Date(Date.now() + 2 ** claimed.item.attempts * 30_000) : claimed.item.availableAt,
-        finishedAt: retryQaAutomatically ? null : now,
+        status: hasBlockingIssue ? "FAILED" : "COMPLETED",
+        progressPercent: 100,
+        progressStage: hasBlockingIssue ? "FAILED" : "DONE",
+        finishedAt: now,
         lastError: qaFailureMessage,
-        checkpoint: retryQaAutomatically || hasBlockingIssue ? checkpoint : {},
+        checkpoint: hasBlockingIssue ? checkpoint : {},
       }).where(eq(translationJobItems.id, claimed.item.id));
-      await tx.update(translationChapters).set({ status: retryQaAutomatically ? "QUEUED" : hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
+      await tx.update(translationChapters).set({ status: hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
         eq(translationChapters.id, built.chapter.id),
         eq(translationChapters.lockVersion, built.chapter.lockVersion),
         eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
@@ -546,14 +603,22 @@ async function processClaimedItem(claimed: ClaimedItem) {
 }
 
 /** Bounded and safe for cron/worker invocation. Concurrent workers use SKIP LOCKED. */
-export async function processTranslationJobs(limit = 10) {
+export async function processTranslationJobs(limit = 10, concurrency = Number(process.env.TRANSLATION_WORKER_CONCURRENCY ?? 2)) {
   const safeLimit = Math.max(1, Math.min(limit, 100));
+  const safeConcurrency = Number.isFinite(concurrency) ? Math.max(1, Math.min(Math.round(concurrency), 8, safeLimit)) : 1;
+  let nextClaim = 0;
   let processed = 0;
-  while (processed < safeLimit) {
-    const claimed = await claimNextItem();
-    if (!claimed) break;
-    await processClaimedItem(claimed);
-    processed += 1;
-  }
+
+  const runLane = async () => {
+    while (nextClaim < safeLimit) {
+      nextClaim += 1;
+      const claimed = await claimNextItem();
+      if (!claimed) return;
+      await processClaimedItem(claimed);
+      processed += 1;
+    }
+  };
+
+  await Promise.all(Array.from({ length: safeConcurrency }, () => runLane()));
   return { processed };
 }

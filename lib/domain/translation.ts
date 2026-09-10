@@ -14,6 +14,75 @@ export type QaTextSuggestion = {
   suggestedText: string | null;
 };
 
+export type TranslationQaDecisionInput = {
+  score: number;
+  aiIssues: TranslationQaIssue[];
+  deterministicIssues: TranslationQaIssue[];
+  minimumScore?: number;
+};
+
+/**
+ * Production QA gate. Only critical fidelity/structure/glossary failures block
+ * automatic approval. A low aggregate score still triggers one focused editor
+ * pass, while warnings remain visible to editors without stalling the queue.
+ */
+export function decideTranslationQa(input: TranslationQaDecisionInput) {
+  const minimumScore = Math.max(0, Math.min(100, input.minimumScore ?? 90));
+  const allIssues = [...input.aiIssues, ...input.deterministicIssues];
+  const blockingIssues = allIssues.filter((issue) => issue.severity === "CRITICAL");
+  const warnings = allIssues.filter((issue) => issue.severity === "WARNING");
+  const scoreNeedsImprovement = input.score < minimumScore;
+  return {
+    minimumScore,
+    blockingIssues,
+    warnings,
+    scoreNeedsImprovement,
+    needsCorrection: blockingIssues.length > 0 || scoreNeedsImprovement,
+    canAutoApprove: blockingIssues.length === 0 && !scoreNeedsImprovement,
+  };
+}
+
+export type QaTextPatch = {
+  location: "TITLE" | "CONTENT";
+  currentText: string;
+  replacementText: string;
+};
+
+/** Applies bounded AI editor patches only when the target text is unambiguous. */
+export function applyValidatedQaPatches(
+  translation: { title: string; content: string },
+  patches: QaTextPatch[],
+) {
+  let next = { ...translation };
+  let appliedCount = 0;
+  const rejectedPatches: Array<QaTextPatch & { reason: string }> = [];
+
+  for (const patch of patches) {
+    const current = patch.currentText;
+    if (!current || current === patch.replacementText) {
+      rejectedPatches.push({ ...patch, reason: "EMPTY_OR_UNCHANGED" });
+      continue;
+    }
+    const field = patch.location === "TITLE" ? "title" : "content";
+    const value = next[field];
+    const firstIndex = value.indexOf(current);
+    const occursOnce = firstIndex >= 0 && value.indexOf(current, firstIndex + current.length) === -1;
+    if (!occursOnce) {
+      rejectedPatches.push({ ...patch, reason: firstIndex < 0 ? "TARGET_NOT_FOUND" : "TARGET_NOT_UNIQUE" });
+      continue;
+    }
+    const updated = `${value.slice(0, firstIndex)}${patch.replacementText}${value.slice(firstIndex + current.length)}`.trim();
+    if (!updated) {
+      rejectedPatches.push({ ...patch, reason: "WOULD_EMPTY_FIELD" });
+      continue;
+    }
+    next = { ...next, [field]: updated };
+    appliedCount += 1;
+  }
+
+  return { translation: next, appliedCount, rejectedPatches };
+}
+
 /** Applies only unambiguous QA replacements; uncertain edits remain for an AI editor. */
 export function applySafeQaSuggestions<T extends QaTextSuggestion>(
   translation: { title: string; content: string },
@@ -26,7 +95,7 @@ export function applySafeQaSuggestions<T extends QaTextSuggestion>(
   for (const issue of issues) {
     const current = issue.currentText;
     const suggested = issue.suggestedText;
-    if (issue.severity === "INFO" || !issue.location || !current || !suggested || current === suggested) {
+    if (issue.severity === "INFO" || !issue.location || !current || suggested === null || current === suggested) {
       remainingIssues.push(issue);
       continue;
     }

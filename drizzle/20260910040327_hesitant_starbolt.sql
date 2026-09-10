@@ -1,0 +1,5 @@
+ALTER TABLE "translation_ai_invocations" DROP CONSTRAINT "translation_ai_invocations_metrics_nonnegative";--> statement-breakpoint
+ALTER TABLE "translation_ai_invocations" ADD COLUMN "cached_input_tokens" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "translation_ai_invocations" ADD COLUMN "cache_write_input_tokens" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "translation_ai_invocations" ADD CONSTRAINT "translation_ai_invocations_cache_tokens_valid" CHECK ("translation_ai_invocations"."cached_input_tokens" + "translation_ai_invocations"."cache_write_input_tokens" <= "translation_ai_invocations"."input_tokens");--> statement-breakpoint
+ALTER TABLE "translation_ai_invocations" ADD CONSTRAINT "translation_ai_invocations_metrics_nonnegative" CHECK ("translation_ai_invocations"."input_tokens" >= 0 and "translation_ai_invocations"."cached_input_tokens" >= 0 and "translation_ai_invocations"."cache_write_input_tokens" >= 0 and "translation_ai_invocations"."output_tokens" >= 0 and "translation_ai_invocations"."cost_micros" >= 0 and "translation_ai_invocations"."latency_ms" >= 0);

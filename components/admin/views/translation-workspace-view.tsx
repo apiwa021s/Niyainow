@@ -25,9 +25,9 @@ const PROGRESS_STAGE_LABELS: Record<string, string> = {
   QUEUED: "รอคิว",
   CONTEXT: "เตรียมบริบท",
   CANON_ANALYSIS: "AI วิเคราะห์เนื้อหาและ Canon",
-  AI_REQUEST: "AI กำลังแปลฉบับหลัก",
+  AI_REQUEST: "AI กำลังแปลและสกัด Canon พร้อมกัน",
   AI_QA: "AI ตรวจเทียบต้นฉบับ",
-  ESCALATION: "AI รุ่นใหญ่กำลังแก้จุดผิดพลาด",
+  ESCALATION: "AI Editor กำลังแก้เฉพาะจุดที่ QA ระบุ",
   CODE_QA: "ระบบตรวจ Glossary และโครงสร้าง",
   SAVING: "อนุมัติผล QA และเตรียมเผยแพร่",
   DONE: "QA ผ่าน · พร้อมเผยแพร่",
@@ -207,6 +207,15 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
       currentStage={currentChapter ? PROGRESS_STAGE_LABELS[currentChapter.progressStage] ?? currentChapter.progressStage : null}
       currentPercent={currentChapter?.progressPercent}
     /> : null}
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-sky-500/25 bg-sky-500/8 px-4 py-3 text-sm">
+      <div><strong><Bot className="mr-1 inline h-4 w-4 text-sky-600" />Prompt Cache</strong><p className="mt-0.5 text-xs text-muted-foreground">เก็บจาก usage จริงของ OpenAI · Profile คงที่อยู่ต้น prompt และเนื้อหาตอนอยู่ท้าย</p></div>
+      <div className="flex flex-wrap gap-2 text-xs tabular-nums">
+        <span className="rounded-full border border-border bg-card px-2.5 py-1">คำขอ <strong>{data.aiUsage.cacheEnabledRequests.toLocaleString("th-TH")}</strong></span>
+        <span className="rounded-full border border-sky-500/20 bg-card px-2.5 py-1">Cache hit <strong>{data.aiUsage.cacheHitPercent.toLocaleString("th-TH")}%</strong></span>
+        <span className="rounded-full border border-border bg-card px-2.5 py-1">อ่านซ้ำ <strong>{data.aiUsage.cachedInputTokens.toLocaleString("th-TH")}</strong> tokens</span>
+        <span className="rounded-full border border-border bg-card px-2.5 py-1">เขียน cache <strong>{data.aiUsage.cacheWriteInputTokens.toLocaleString("th-TH")}</strong> tokens</span>
+      </div>
+    </div>
 
     <TranslationSetupSteps activeStep={step} completedThrough={step === 2 ? 1 : 2} />
 

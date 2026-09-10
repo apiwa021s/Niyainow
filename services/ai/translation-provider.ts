@@ -10,14 +10,23 @@ export type TranslationProviderInput = {
   model: AiModel;
   prompt: PromptVersion;
   context: Record<string, unknown>;
+  cache?: PromptCacheInput;
   sourceTitle: string;
   sourceContent: string;
+};
+
+export type PromptCacheInput = {
+  key: string;
+  stablePayload: Record<string, unknown>;
 };
 
 export type TranslationProviderResult = {
   translation: { title: string; content: string };
   providerRequestId: string | null;
   inputTokens: number;
+  promptCacheEnabled: boolean;
+  cachedInputTokens: number;
+  cacheWriteInputTokens: number;
   outputTokens: number;
   latencyMs: number;
 };
@@ -26,6 +35,9 @@ export type StructuredAiResult = {
   output: unknown;
   providerRequestId: string | null;
   inputTokens: number;
+  promptCacheEnabled: boolean;
+  cachedInputTokens: number;
+  cacheWriteInputTokens: number;
   outputTokens: number;
   latencyMs: number;
 };
@@ -35,6 +47,7 @@ export type StructuredAiInput = {
   systemPrompt: string;
   task: string;
   payload: Record<string, unknown>;
+  cache?: PromptCacheInput;
   schemaName: string;
   jsonSchema: Record<string, unknown>;
   timeoutMs?: number;
@@ -48,7 +61,24 @@ export interface TranslationProvider {
 type CompatibleResponse = {
   id?: string;
   choices?: Array<{ message?: { content?: string | null } }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
+  };
+};
+
+type OpenAiResponsesResponse = {
+  id?: string;
+  output_text?: string;
+  output?: Array<{
+    content?: Array<{ type?: string; text?: string }>;
+  }>;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    input_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
+  };
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 180_000;
@@ -70,27 +100,23 @@ function isTimeoutError(error: unknown) {
   );
 }
 
-async function requestStructured(input: StructuredAiInput): Promise<StructuredAiResult> {
+function isOfficialOpenAiEndpoint(baseUrl: string) {
+  try {
+    return new URL(baseUrl).hostname.toLocaleLowerCase() === "api.openai.com";
+  } catch {
+    return false;
+  }
+}
+
+async function postAiRequest(input: StructuredAiInput, endpoint: string, body: Record<string, unknown>) {
   const secret = process.env[input.model.apiKeyEnv];
   if (!secret) throw new Error(`Missing configured AI credential: ${input.model.apiKeyEnv}`);
-  const startedAt = Date.now();
   const timeoutMs = requestTimeoutMs(input.timeoutMs);
-  let response: Response;
   try {
-    response = await fetch(`${input.model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    return await fetch(endpoint, {
       method: "POST",
       headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        model: input.model.modelName,
-        messages: [
-          { role: "developer", content: input.systemPrompt },
-          { role: "user", content: JSON.stringify({ task: input.task, ...input.payload }) },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: input.schemaName, strict: true, schema: input.jsonSchema },
-        },
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
@@ -99,26 +125,108 @@ async function requestStructured(input: StructuredAiInput): Promise<StructuredAi
     }
     throw error;
   }
+}
+
+function parseStructuredOutput(content: string | null | undefined) {
+  if (!content) throw new Error("Provider returned an empty response");
+  try {
+    return JSON.parse(content) as unknown;
+  } catch {
+    throw new Error("Provider returned invalid structured JSON");
+  }
+}
+
+function normalizedCacheUsage(inputTokens: number, cachedTokens: number | undefined, cacheWriteTokens: number | undefined) {
+  const cachedInputTokens = Math.min(inputTokens, Math.max(0, cachedTokens ?? 0));
+  const cacheWriteInputTokens = Math.min(inputTokens - cachedInputTokens, Math.max(0, cacheWriteTokens ?? 0));
+  return { cachedInputTokens, cacheWriteInputTokens };
+}
+
+async function requestStructuredWithResponses(input: StructuredAiInput, startedAt: number): Promise<StructuredAiResult> {
+  const stablePayload = JSON.stringify({ shared: input.cache?.stablePayload ?? {} });
+  const dynamicPayload = JSON.stringify({ task: input.task, ...input.payload });
+  const response = await postAiRequest(input, `${input.model.baseUrl.replace(/\/$/, "")}/responses`, {
+    model: input.model.modelName,
+    store: false,
+    input: [
+      { role: "developer", content: [{ type: "input_text", text: input.systemPrompt }] },
+      {
+        role: "developer",
+        content: [{ type: "input_text", text: stablePayload, prompt_cache_breakpoint: { mode: "explicit" } }],
+      },
+      { role: "user", content: [{ type: "input_text", text: dynamicPayload }] },
+    ],
+    prompt_cache_key: input.cache?.key,
+    prompt_cache_options: { mode: "explicit", ttl: "30m" },
+    text: {
+      format: { type: "json_schema", name: input.schemaName, strict: true, schema: input.jsonSchema },
+    },
+  });
+  if (!response.ok) {
+    const requestId = response.headers.get("x-request-id");
+    throw new Error(`Provider request failed with HTTP ${response.status}${requestId ? ` (${requestId})` : ""}`);
+  }
+  const body = await response.json() as OpenAiResponsesResponse;
+  const content = body.output_text
+    ?? body.output?.flatMap((item) => item.content ?? []).find((item) => item.type === "output_text")?.text;
+  const inputTokens = Math.max(0, body.usage?.input_tokens ?? 0);
+  const cacheUsage = normalizedCacheUsage(
+    inputTokens,
+    body.usage?.input_tokens_details?.cached_tokens,
+    body.usage?.input_tokens_details?.cache_write_tokens,
+  );
+  return {
+    output: parseStructuredOutput(content),
+    providerRequestId: body.id ?? response.headers.get("x-request-id"),
+    inputTokens,
+    promptCacheEnabled: true,
+    ...cacheUsage,
+    outputTokens: Math.max(0, body.usage?.output_tokens ?? 0),
+    latencyMs: Date.now() - startedAt,
+  };
+}
+
+async function requestStructuredWithChatCompletions(input: StructuredAiInput, startedAt: number): Promise<StructuredAiResult> {
+  const messages = [
+    { role: "developer", content: input.systemPrompt },
+    ...(input.cache ? [{ role: "developer", content: JSON.stringify({ shared: input.cache.stablePayload }) }] : []),
+    { role: "user", content: JSON.stringify({ task: input.task, ...input.payload }) },
+  ];
+  const response = await postAiRequest(input, `${input.model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    model: input.model.modelName,
+    messages,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: input.schemaName, strict: true, schema: input.jsonSchema },
+    },
+  });
   if (!response.ok) {
     const requestId = response.headers.get("x-request-id");
     throw new Error(`Provider request failed with HTTP ${response.status}${requestId ? ` (${requestId})` : ""}`);
   }
   const body = await response.json() as CompatibleResponse;
-  const content = body.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Provider returned an empty response");
-  let output: unknown;
-  try {
-    output = JSON.parse(content);
-  } catch {
-    throw new Error("Provider returned invalid structured JSON");
-  }
+  const inputTokens = Math.max(0, body.usage?.prompt_tokens ?? 0);
+  const cacheUsage = normalizedCacheUsage(
+    inputTokens,
+    body.usage?.prompt_tokens_details?.cached_tokens,
+    body.usage?.prompt_tokens_details?.cache_write_tokens,
+  );
   return {
-    output,
+    output: parseStructuredOutput(body.choices?.[0]?.message?.content),
     providerRequestId: body.id ?? response.headers.get("x-request-id"),
-    inputTokens: Math.max(0, body.usage?.prompt_tokens ?? 0),
+    inputTokens,
+    promptCacheEnabled: false,
+    ...cacheUsage,
     outputTokens: Math.max(0, body.usage?.completion_tokens ?? 0),
     latencyMs: Date.now() - startedAt,
   };
+}
+
+async function requestStructured(input: StructuredAiInput): Promise<StructuredAiResult> {
+  const startedAt = Date.now();
+  return input.cache && isOfficialOpenAiEndpoint(input.model.baseUrl)
+    ? requestStructuredWithResponses(input, startedAt)
+    : requestStructuredWithChatCompletions(input, startedAt);
 }
 
 const openAiCompatibleProvider: TranslationProvider = {
@@ -128,6 +236,7 @@ const openAiCompatibleProvider: TranslationProvider = {
       model: input.model,
       systemPrompt: input.prompt.systemPrompt,
       task: "Translate the source faithfully. Preserve paragraph breaks and return the complete chapter without summaries or commentary.",
+      cache: input.cache,
       payload: { context: input.context, source: { title: input.sourceTitle, content: input.sourceContent } },
       schemaName: "novel_translation",
       jsonSchema: {
@@ -144,6 +253,9 @@ const openAiCompatibleProvider: TranslationProvider = {
       translation: parseProviderTranslation(JSON.stringify(result.output)),
       providerRequestId: result.providerRequestId,
       inputTokens: result.inputTokens,
+      promptCacheEnabled: result.promptCacheEnabled,
+      cachedInputTokens: result.cachedInputTokens,
+      cacheWriteInputTokens: result.cacheWriteInputTokens,
       outputTokens: result.outputTokens,
       latencyMs: result.latencyMs,
     };

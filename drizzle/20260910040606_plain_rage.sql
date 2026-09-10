@@ -1,0 +1,1 @@
+ALTER TABLE "translation_ai_invocations" ADD COLUMN "prompt_cache_enabled" boolean DEFAULT false NOT NULL;
