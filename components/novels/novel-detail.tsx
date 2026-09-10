@@ -27,8 +27,12 @@ export function NovelHero({
   userState?: UserNovelState;
 }) {
   return (
-    <header className="relative isolate overflow-hidden rounded-(--r-lg) bg-surface px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <header className="relative overflow-hidden rounded-(--r-lg) bg-surface shadow-[var(--sh-1)]">
+      <div
+        className={novel.hasBanner
+          ? "relative aspect-[8/3] overflow-hidden bg-black/25"
+          : "relative h-[210px] overflow-hidden bg-black/25 sm:h-[280px] lg:h-[300px]"}
+      >
         <Image
           src={novel.backdrop}
           alt=""
@@ -36,44 +40,44 @@ export function NovelHero({
           preload
           sizes="(max-width: 1535px) 100vw, 1536px"
           className={novel.hasBanner
-            ? "scale-[1.02] object-cover object-center opacity-70 saturate-110 dark:opacity-60"
-            : "scale-125 object-cover object-center opacity-35 blur-3xl saturate-150 dark:opacity-45"}
+            ? "object-cover object-center saturate-110"
+            : "scale-110 object-cover object-center blur-2xl saturate-125"}
         />
-        <div className="absolute inset-0 bg-linear-to-r from-surface/55 via-surface/75 to-surface/95" />
-        <div className="absolute inset-0 bg-linear-to-b from-surface/20 via-transparent to-surface/90" />
+        <div aria-hidden className="absolute inset-0 bg-linear-to-b from-black/10 via-transparent to-transparent" />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-12 bg-linear-to-b from-transparent via-surface/40 to-surface sm:h-16 lg:h-20" />
       </div>
 
-      <div className="relative grid gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:items-center md:gap-x-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-x-10">
-        <div className="min-w-0 text-center md:col-start-2 md:row-start-1 md:text-left">
-          <span className="inline-flex min-h-7 items-center border-l-2 border-[var(--brand-emphasis)] pl-2 text-xs font-semibold">
-            {statusLabel(novel.status)}
-          </span>
-          <h1 className="mt-3 text-balance text-h1 font-semibold leading-[1.25] sm:text-4xl lg:text-5xl">
-            {novel.thaiTitle}
-          </h1>
-        </div>
-
-        <div className="mx-auto w-[164px] md:col-start-1 md:row-span-2 md:row-start-1 md:w-full">
+      <div className="relative grid gap-x-8 px-4 pb-6 sm:px-6 md:grid-cols-[190px_minmax(0,1fr)] lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-x-8 lg:px-8 lg:pb-7">
+        <div className="mx-auto -mt-20 w-[160px] md:col-start-1 md:row-span-3 md:row-start-1 md:-mt-24 md:w-full">
           <ViewTransition name={`cover-${novel.slug}`} share="morph" default="none">
-            <div className="relative aspect-[2/3] overflow-hidden rounded-[6px] border border-border bg-muted shadow-[var(--sh-2)]">
+            <div className="relative aspect-[2/3] overflow-hidden rounded-[10px] border-4 border-surface bg-muted shadow-[0_20px_48px_-16px_rgba(0,0,0,0.75)] ring-1 ring-border/70">
               <Image
                 src={novel.cover}
                 alt={`ปกนิยาย ${novel.thaiTitle}`}
                 fill
-                sizes="(max-width: 767px) 164px, 220px"
+                sizes="(max-width: 767px) 160px, (max-width: 1023px) 190px, 200px"
                 className="object-cover"
               />
             </div>
           </ViewTransition>
         </div>
 
-        <div className="min-w-0 text-center md:col-start-2 md:row-start-2 md:text-left">
+        <div className="min-w-0 pt-4 text-center md:col-start-2 md:row-start-1 md:pt-5 md:text-left lg:pt-6">
+          <span className="inline-flex min-h-7 items-center border-l-2 border-[var(--brand-emphasis)] pl-2 text-xs font-semibold">
+            {statusLabel(novel.status)}
+          </span>
+          <h1 className="mt-2 max-w-5xl text-balance text-h1 font-semibold leading-[1.2] sm:text-4xl lg:text-[2.75rem]">
+            {novel.thaiTitle}
+          </h1>
+        </div>
+
+        <div className="min-w-0 pt-4 text-center md:col-start-2 md:row-start-2 md:text-left">
           <div className="flex flex-wrap justify-center gap-2 md:justify-start">
             {novel.genres.map((genre) => (
               <Link
                 key={genre}
                 href={`/genre/${genre}`}
-                className="inline-flex min-h-9 items-center rounded-full border border-border bg-card/80 px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--brand-emphasis)] hover:text-[var(--brand-emphasis)]"
+                className="inline-flex min-h-9 items-center rounded-full border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--brand-emphasis)] hover:text-[var(--brand-emphasis)]"
               >
                 {novel.genreNames?.[genre] ?? genre}
               </Link>
@@ -89,20 +93,19 @@ export function NovelHero({
             bookmarkCount={novel.bookmarkCount}
           />
         </div>
+
+        <section
+          aria-label="ข้อมูลการอ่านของเรื่อง"
+          className="mt-5 overflow-hidden rounded-(--r-md) bg-surface-subtle md:col-start-2 md:row-start-3 md:mt-4 md:max-w-2xl"
+        >
+          <dl className="grid grid-cols-3 divide-x divide-border px-2 py-2.5 sm:px-3 sm:py-3">
+            <Signal label="ยอดอ่าน" value={formatNumber(novel.views)} />
+            <Signal label="จำนวนตอน" value={formatNumber(novel.chapters)} />
+            <Signal label="รีวิว" value={formatNumber(novel.reviewCount ?? 0)} />
+          </dl>
+        </section>
       </div>
     </header>
-  );
-}
-
-export function NovelSignals({ novel }: { novel: Novel }) {
-  return (
-    <section aria-label="ข้อมูลการอ่านของเรื่อง" className="mt-4 overflow-hidden rounded-(--r-md) bg-surface-subtle">
-      <dl className="grid grid-cols-3 divide-x divide-border px-2 py-4 sm:px-4 sm:py-5">
-        <Signal label="ยอดอ่าน" value={formatNumber(novel.views)} />
-        <Signal label="จำนวนตอน" value={formatNumber(novel.chapters)} />
-        <Signal label="รีวิว" value={formatNumber(novel.reviewCount ?? 0)} />
-      </dl>
-    </section>
   );
 }
 

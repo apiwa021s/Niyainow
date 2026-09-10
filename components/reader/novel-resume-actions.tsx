@@ -9,7 +9,8 @@ import {
   LibraryButton,
   type NovelLibraryStatus,
 } from "@/components/interactive/novel-actions";
-import { ButtonLink } from "@/components/ui/button";
+import { useNovelChapterDialog } from "@/components/novels/novel-chapter-dialog-context";
+import { Button, ButtonLink } from "@/components/ui/button";
 import {
   selectNovelResumeProgress,
   useReaderStore,
@@ -79,6 +80,7 @@ export function NovelResumeActions({
   libraryStatus,
   bookmarkCount,
 }: ResumeActionProps) {
+  const { openDialog } = useNovelChapterDialog();
   const selection = useNovelResumeProgress(slug, serverProgress);
   const href = selection ? progressHref(slug, selection) : startHref;
   const label = selection
@@ -93,6 +95,10 @@ export function NovelResumeActions({
           <BookOpen className="h-4 w-4" />
           {label}
         </ButtonLink>
+        <Button type="button" variant="outline" size="lg" onClick={openDialog}>
+          <ListOrdered className="h-4 w-4" />
+          สารบัญ
+        </Button>
         <LibraryButton slug={slug} initialStatus={libraryStatus} count={bookmarkCount} />
       </div>
 

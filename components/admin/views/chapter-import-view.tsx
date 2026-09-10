@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FilePlus2, FileText, GripVertical, Trash2, Upload } from "lucide-react";
+import { Download, FilePlus2, FileText, GripVertical, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
@@ -160,6 +160,25 @@ export function ChapterImportView({
                 }}
                 className="cursor-pointer file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-semibold"
               />
+              <details className="rounded-[10px] border border-border bg-muted/30">
+                <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold text-[var(--brand-light-on-light)]">
+                  ดูตัวอย่างไฟล์ที่นำเข้าได้
+                </summary>
+                <div className="grid gap-3 border-t border-border p-3">
+                  <div>
+                    <p className="text-xs font-semibold">ชื่อไฟล์</p>
+                    <code className="mt-1 block rounded-[6px] bg-card px-3 py-2 text-xs">ตอนที่ 2 - พบเจอ.txt</code>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold">เนื้อหาในไฟล์</p>
+                    <pre className="mt-1 max-h-36 overflow-auto whitespace-pre-wrap rounded-[6px] bg-card p-3 font-mono text-xs leading-relaxed text-muted-foreground">ค่ำคืนนั้นสายฝนโปรยปรายลงมาไม่ขาดสาย<br /><br />เขาหยุดยืนอยู่หน้าประตู ก่อนจะเอ่ยชื่อของเธอเป็นครั้งแรก...</pre>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">1 ไฟล์เท่ากับ 1 ตอน ระบบอ่านเลขตอนและชื่อจากชื่อไฟล์ หากชื่อไฟล์ไม่มีเลขตอน ระบบจะเรียงต่อจากตอนล่าสุดให้</p>
+                  <a href="/examples/chapter-import-sample.txt" download="ตอนที่ 2 - พบเจอ.txt" className="inline-flex h-10 items-center justify-center gap-2 rounded-[6px] border border-border bg-card px-3 text-xs font-semibold hover:bg-muted">
+                    <Download className="h-4 w-4" />ดาวน์โหลดไฟล์ตัวอย่าง
+                  </a>
+                </div>
+              </details>
             </div>
 
             <div className="grid gap-3 rounded-[12px] border border-border p-4">
@@ -184,6 +203,12 @@ export function ChapterImportView({
                     <label className="grid gap-1 text-xs font-medium text-muted-foreground">ลำดับ<Input type="number" min="1" step="1" value={row.sortOrder} onChange={(event) => updateRow(row.id, "sortOrder", Number(event.target.value))} /></label>
                     <label className="grid gap-1 text-xs font-medium text-muted-foreground">ชื่อตอน<Input value={row.title} maxLength={500} onChange={(event) => updateRow(row.id, "title", event.target.value)} /></label>
                     <button type="button" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))} aria-label={`นำรายการที่ ${index + 1} ออก`} className="grid h-11 w-11 place-items-center rounded-[6px] text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                  <div className="mt-3 rounded-[8px] border border-border/70 bg-card/70 px-3 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">ตัวอย่างเนื้อหาจาก {row.source}</p>
+                    <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-foreground/80">
+                      {row.content.trim().replace(/\s+/gu, " ").slice(0, 220) || "ไฟล์นี้ยังไม่มีเนื้อหา"}
+                    </p>
                   </div>
                   <details className="mt-3 border-t border-border/70 pt-3">
                     <summary className="cursor-pointer text-xs font-medium text-muted-foreground">ดู/แก้เนื้อหา · {row.content.length.toLocaleString("th-TH")} ตัวอักษร · {row.source}</summary>

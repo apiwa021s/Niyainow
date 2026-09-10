@@ -6,10 +6,10 @@ import { ViewTransition } from "react";
 
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
 import { NovelChapterBrowser } from "@/components/novels/novel-chapter-browser";
+import { NovelChapterDialogProvider } from "@/components/novels/novel-chapter-dialog-context";
 import {
   NovelCommunity,
   NovelHero,
-  NovelSignals,
   NovelSynopsis,
 } from "@/components/novels/novel-detail";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -80,7 +80,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
       exit={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "none" }}
       default="none"
     >
-    <PageShell className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-24">
+    <PageShell className="max-w-[1320px] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-24">
       <PublicViewTracker slug={novel.slug} />
       <JsonLd
         data={[
@@ -141,27 +141,28 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
         <span className="line-clamp-1 text-foreground">{novel.thaiTitle}</span>
       </nav>
 
-      <NovelHero
-        novel={novel}
-        startHref={startHref}
-        startLabel={startLabel}
-        userState={userState}
-      />
-      <NovelSignals novel={novel} />
-      <div className="mx-auto mt-8 grid max-w-4xl gap-8 sm:mt-10 sm:gap-10">
-        <NovelSynopsis novel={novel} />
-        <NovelChapterBrowser
-          slug={novel.slug}
-          firstChapters={detailSections.firstChapters}
-          latestChapters={detailSections.latestChapters}
-          chapterCount={novel.chapters}
+      <NovelChapterDialogProvider>
+        <NovelHero
+          novel={novel}
           startHref={startHref}
           startLabel={startLabel}
-          serverProgress={userState?.progress}
-          libraryStatus={userState?.libraryStatus}
+          userState={userState}
         />
-        <NovelCommunity novel={novel} userState={userState} reviews={detailSections.reviews} />
-      </div>
+        <div className="mx-auto mt-8 grid max-w-4xl gap-8 sm:mt-10 sm:gap-10">
+          <NovelSynopsis novel={novel} />
+          <NovelChapterBrowser
+            slug={novel.slug}
+            firstChapters={detailSections.firstChapters}
+            latestChapters={detailSections.latestChapters}
+            chapterCount={novel.chapters}
+            startHref={startHref}
+            startLabel={startLabel}
+            serverProgress={userState?.progress}
+            libraryStatus={userState?.libraryStatus}
+          />
+          <NovelCommunity novel={novel} userState={userState} reviews={detailSections.reviews} />
+        </div>
+      </NovelChapterDialogProvider>
     </PageShell>
     </ViewTransition>
   );

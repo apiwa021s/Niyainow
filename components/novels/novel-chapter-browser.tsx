@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { NovelLibraryStatus } from "@/components/interactive/novel-actions";
 import { NovelResumeMobileBar } from "@/components/reader/novel-resume-actions";
+import { useNovelChapterDialog } from "@/components/novels/novel-chapter-dialog-context";
 import { cn, formatNumber } from "@/lib/utils";
 import type {
   ChapterCatalogOrder,
@@ -128,7 +129,7 @@ export function NovelChapterBrowser({
   libraryStatus,
 }: NovelChapterBrowserProps) {
   const [order, setOrder] = useState<ChapterCatalogOrder>("latest");
-  const [open, setOpen] = useState(false);
+  const { open, openDialog, closeDialog, registerOpenHandler } = useNovelChapterDialog();
   const [catalog, setCatalog] = useState<ChapterCatalogPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -165,9 +166,8 @@ export function NovelChapterBrowser({
   }, [slug]);
 
   const openCatalog = useCallback(() => {
-    setOpen(true);
-    void loadCatalog(order);
-  }, [loadCatalog, order]);
+    openDialog();
+  }, [openDialog]);
 
   const changeOrder = useCallback((nextOrder: ChapterCatalogOrder) => {
     setOrder(nextOrder);
@@ -175,19 +175,25 @@ export function NovelChapterBrowser({
   }, [loadCatalog, open]);
 
   useEffect(() => {
+    return registerOpenHandler(() => {
+      void loadCatalog(order);
+    });
+  }, [loadCatalog, order, registerOpenHandler]);
+
+  useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") closeDialog();
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [open]);
+  }, [closeDialog, open]);
 
   useEffect(() => () => requestRef.current?.abort(), []);
 
@@ -251,11 +257,11 @@ export function NovelChapterBrowser({
       />
 
       {open ? (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-6">
           <button
             type="button"
             className="absolute inset-0 h-full w-full bg-black/55"
-            onClick={() => setOpen(false)}
+            onClick={closeDialog}
             aria-label="ปิดสารบัญ"
           />
           <div
@@ -263,7 +269,7 @@ export function NovelChapterBrowser({
             role="dialog"
             aria-modal="true"
             aria-labelledby="novel-chapter-dialog-title"
-            className="motion-sheet absolute inset-x-0 bottom-0 flex max-h-[88dvh] flex-col overflow-hidden rounded-t-[14px] bg-background pb-[env(safe-area-inset-bottom)] md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:max-h-[82dvh] md:w-[680px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-(--r-lg) md:border md:border-border"
+            className="motion-sheet relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[14px] bg-background pb-[env(safe-area-inset-bottom)] shadow-[var(--sh-3)] md:max-h-[82dvh] md:max-w-[680px] md:rounded-(--r-lg) md:border md:border-border md:pb-0"
           >
             <div aria-hidden className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-border md:hidden" />
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
@@ -274,7 +280,7 @@ export function NovelChapterBrowser({
               <button
                 ref={closeButtonRef}
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closeDialog}
                 aria-label="ปิดสารบัญ"
                 className="grid h-11 w-11 place-items-center rounded-[8px] hover:bg-muted"
               >
@@ -322,7 +328,7 @@ export function NovelChapterBrowser({
                   </div>
                 </div>
               ) : catalog?.items.length ? (
-                <ChapterRows slug={slug} chapters={catalog.items} onNavigate={() => setOpen(false)} />
+                <ChapterRows slug={slug} chapters={catalog.items} onNavigate={closeDialog} />
               ) : (
                 <p className="px-5 py-12 text-center text-sm text-muted-foreground">ยังไม่มีตอนที่เผยแพร่</p>
               )}
