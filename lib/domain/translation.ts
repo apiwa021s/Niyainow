@@ -152,6 +152,15 @@ export function glossaryTargetAlternatives(targetTerm: string) {
   return alternatives.length ? [...new Set(alternatives)] : [targetTerm.trim()];
 }
 
+export function appendGlossaryTargetAlternative(targetTerm: string, alternative: string) {
+  const next = alternative.trim();
+  const alternatives = glossaryTargetAlternatives(targetTerm);
+  if (!next || alternatives.some((entry) => entry.toLocaleLowerCase() === next.toLocaleLowerCase())) {
+    return alternatives.join(" / ");
+  }
+  return [...alternatives, next].join(" / ");
+}
+
 function sourceContainsGlossaryTerm(source: string, sourceTerm: string) {
   const term = sourceTerm.trim();
   if (!term) return false;

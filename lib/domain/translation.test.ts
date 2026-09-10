@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applySafeQaSuggestions, parseProviderTranslation, runDeterministicQa, segmentText, selectBestTranslationModel, sha256 } from "./translation";
+import { appendGlossaryTargetAlternative, applySafeQaSuggestions, parseProviderTranslation, runDeterministicQa, segmentText, selectBestTranslationModel, sha256 } from "./translation";
 
 describe("translation domain", () => {
   it("creates stable paragraph segments", () => {
@@ -59,6 +59,11 @@ describe("translation domain", () => {
     expect(polite.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(false);
     expect(casual.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(false);
     expect(missing.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(true);
+  });
+
+  it("appends a glossary alternative without creating case-insensitive duplicates", () => {
+    expect(appendGlossaryTargetAlternative("การอัญเชิญ", "เวทอัญเชิญ")).toBe("การอัญเชิญ / เวทอัญเชิญ");
+    expect(appendGlossaryTargetAlternative("Viscount / Earl", "viscount")).toBe("Viscount / Earl");
   });
 
   it("parses structured provider output and rejects partial output", () => {

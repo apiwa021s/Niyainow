@@ -40,7 +40,7 @@ import {
   automaticModelNameForTask,
   type AutomaticTranslationTask,
 } from "@/lib/domain/translation-ai-routing";
-import { countWords, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
+import { appendGlossaryTargetAlternative, countWords, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
 import { ApiError } from "@/lib/http/api-response";
 import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
 import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
@@ -177,6 +177,19 @@ export const saveTranslationSchema = z.object({
   parentVersionId: uuidSchema.nullable().optional(),
   title: z.string().trim().min(1).max(1_000),
   content: z.string().trim().min(1).max(2_000_000),
+});
+
+export const resolveLockedGlossaryIssueSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("ADD_ALTERNATIVE"),
+    alternative: z.string().trim().min(1).max(120).refine((value) => !/[\/|]/u.test(value), "Enter one alternative at a time"),
+  }),
+  z.object({ action: z.literal("UNLOCK_TERM") }),
+]);
+
+const lockedGlossaryIssueMetadataSchema = z.object({
+  sourceTerm: z.string().trim().min(1).max(300),
+  targetTerm: z.string().trim().min(1).max(300),
 });
 
 function isSafeProviderUrl(value: string) {
@@ -1029,6 +1042,132 @@ export async function saveTranslationDraft(workspaceId: string, chapterId: strin
   });
 }
 
+export async function resolveLockedGlossaryIssue(
+  workspaceId: string,
+  chapterId: string,
+  issueId: string,
+  input: z.infer<typeof resolveLockedGlossaryIssueSchema>,
+) {
+  const actor = await assertTranslationPermission("translation.configure");
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select({
+      issue: translationQaIssues,
+      version: translationVersions,
+      chapter: translationChapters,
+      workspace: translationWorkspaces,
+    }).from(translationQaIssues)
+      .innerJoin(translationVersions, eq(translationVersions.id, translationQaIssues.translationVersionId))
+      .innerJoin(translationChapters, eq(translationChapters.id, translationVersions.translationChapterId))
+      .innerJoin(translationWorkspaces, eq(translationWorkspaces.id, translationChapters.workspaceId))
+      .where(and(
+        eq(translationQaIssues.id, issueId),
+        eq(translationChapters.id, chapterId),
+        eq(translationWorkspaces.id, workspaceId),
+      )).limit(1).for("update");
+    if (!row) throw new ApiError(404, "QA_ISSUE_NOT_FOUND", "ไม่พบรายการ QA นี้");
+    if (row.issue.resolvedAt) {
+      return { issueId, alreadyResolved: true, remainingCritical: 0, chapterStatus: row.chapter.status };
+    }
+    if (row.issue.code !== "LOCKED_GLOSSARY_MISSING" || row.issue.severity !== "CRITICAL") {
+      throw new ApiError(400, "QA_ISSUE_NOT_FIXABLE_HERE", "รายการ QA นี้ต้องแก้ในเนื้อหาแปล");
+    }
+    const metadata = lockedGlossaryIssueMetadataSchema.safeParse(row.issue.metadata);
+    if (!metadata.success) throw new ApiError(409, "QA_ISSUE_METADATA_INVALID", "รายการ QA ไม่มีข้อมูล Glossary ที่ใช้แก้ไข");
+
+    const [latestVersion] = await tx.select({ id: translationVersions.id }).from(translationVersions)
+      .where(eq(translationVersions.translationChapterId, chapterId))
+      .orderBy(desc(translationVersions.revision)).limit(1);
+    if (latestVersion?.id !== row.version.id) {
+      throw new ApiError(409, "STALE_QA_ISSUE", "QA นี้มาจาก revision เก่า กรุณาโหลดหน้าใหม่");
+    }
+
+    const [glossaryEntry] = await tx.select().from(translationGlossaryEntries).where(and(
+      eq(translationGlossaryEntries.workspaceId, workspaceId),
+      eq(translationGlossaryEntries.sourceTerm, metadata.data.sourceTerm),
+    )).limit(1).for("update");
+    const now = new Date();
+    let glossaryChanged = false;
+    let nextTargetTerm = glossaryEntry?.targetTerm ?? metadata.data.targetTerm;
+    let nextLocked = glossaryEntry?.isLocked ?? false;
+
+    if (input.action === "ADD_ALTERNATIVE") {
+      if (!glossaryEntry) throw new ApiError(409, "GLOSSARY_ENTRY_MISSING", "ไม่พบคำนี้ใน Glossary แล้ว กรุณาโหลดหน้าใหม่");
+      if (!row.version.content.toLocaleLowerCase().includes(input.alternative.toLocaleLowerCase())) {
+        throw new ApiError(400, "ALTERNATIVE_NOT_IN_TRANSLATION", "ไม่พบคำแปลทางเลือกนี้ใน revision ล่าสุด กรุณาบันทึกเนื้อหาก่อน");
+      }
+      nextTargetTerm = appendGlossaryTargetAlternative(glossaryEntry.targetTerm, input.alternative);
+      if (nextTargetTerm.length > 300) throw new ApiError(400, "GLOSSARY_TARGET_TOO_LONG", "คำแปลทางเลือกรวมยาวเกิน 300 ตัวอักษร");
+      glossaryChanged = nextTargetTerm !== glossaryEntry.targetTerm;
+    } else if (glossaryEntry?.isLocked) {
+      nextLocked = false;
+      glossaryChanged = true;
+    }
+
+    if (glossaryEntry && glossaryChanged) {
+      const [activeJob] = await tx.select({ id: translationJobs.id }).from(translationJobs).where(and(
+        eq(translationJobs.workspaceId, workspaceId),
+        inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
+      )).limit(1);
+      if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "รองานแปลปัจจุบันเสร็จก่อนแก้ Glossary");
+      await tx.update(translationGlossaryEntries).set({
+        targetTerm: nextTargetTerm,
+        isLocked: nextLocked,
+        version: glossaryEntry.version + 1,
+        updatedAt: now,
+      }).where(eq(translationGlossaryEntries.id, glossaryEntry.id));
+
+      const [profile] = await tx.select().from(translationProfiles)
+        .where(eq(translationProfiles.workspaceId, workspaceId)).limit(1).for("update");
+      if (!profile) throw new ApiError(409, "TRANSLATION_PROFILE_MISSING", "ไม่พบ Translation Profile");
+      const nextProfileVersion = Math.max(row.workspace.version, profile.version) + 1;
+      await tx.update(translationProfiles).set({ version: nextProfileVersion, updatedBy: actor.id, updatedAt: now })
+        .where(eq(translationProfiles.workspaceId, workspaceId));
+      await tx.update(translationWorkspaces).set({ version: nextProfileVersion, updatedAt: now })
+        .where(eq(translationWorkspaces.id, workspaceId));
+      const [glossary, characters] = await Promise.all([
+        tx.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId)).orderBy(asc(translationGlossaryEntries.sourceTerm)),
+        tx.select().from(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId)).orderBy(asc(translationCharacters.sourceName)),
+      ]);
+      await tx.insert(translationProfileVersions).values({
+        workspaceId,
+        version: nextProfileVersion,
+        createdBy: actor.id,
+        snapshot: {
+          profile: { name: profile.name, styleGuide: profile.styleGuide, instructions: profile.instructions, preserveParagraphs: profile.preserveParagraphs },
+          glossary: glossary.map((entry) => ({ sourceTerm: entry.sourceTerm, targetTerm: entry.targetTerm, note: entry.note, isLocked: entry.isLocked })),
+          characters: characters.map((character) => ({ sourceName: character.sourceName, targetName: character.targetName, aliases: character.aliases, description: character.description, speakingStyle: character.speakingStyle, isLocked: character.isLocked })),
+          qaResolution: { issueId, action: input.action, changedAt: now.toISOString() },
+        },
+      });
+    }
+
+    const [resolved] = await tx.update(translationQaIssues).set({ resolvedAt: now, resolvedBy: actor.id })
+      .where(and(eq(translationQaIssues.id, issueId), isNull(translationQaIssues.resolvedAt))).returning({ id: translationQaIssues.id });
+    if (!resolved) throw new ApiError(409, "QA_ISSUE_ALREADY_RESOLVED", "รายการ QA นี้ถูกแก้แล้ว");
+    const [critical] = await tx.select({ value: count() }).from(translationQaIssues).where(and(
+      eq(translationQaIssues.translationVersionId, row.version.id),
+      eq(translationQaIssues.severity, "CRITICAL"),
+      isNull(translationQaIssues.resolvedAt),
+    ));
+    const remainingCritical = Number(critical?.value ?? 0);
+    const chapterStatus = remainingCritical > 0 ? "QA_FAILED" : "REVIEW";
+    await tx.update(translationChapters).set({ status: chapterStatus, updatedAt: now })
+      .where(and(eq(translationChapters.id, chapterId), inArray(translationChapters.status, ["DRAFT", "QA_FAILED", "REVIEW"])));
+    await writeAudit(tx, actor, "translation.qa.locked_glossary.resolve", "translation_qa_issue", issueId, {
+      sourceTerm: metadata.data.sourceTerm,
+      targetTerm: glossaryEntry?.targetTerm ?? metadata.data.targetTerm,
+      isLocked: glossaryEntry?.isLocked ?? false,
+    }, {
+      action: input.action,
+      targetTerm: nextTargetTerm,
+      isLocked: nextLocked,
+      remainingCritical,
+    });
+    return { issueId, alreadyResolved: false, remainingCritical, chapterStatus, glossary: { sourceTerm: metadata.data.sourceTerm, targetTerm: nextTargetTerm, isLocked: nextLocked } };
+  });
+}
+
 type TranslationPublicRow = {
   workspace: typeof translationWorkspaces.$inferSelect;
   translationChapter: typeof translationChapters.$inferSelect;
@@ -1126,24 +1265,15 @@ async function stageApprovedTranslationDraft(tx: TranslationTx, row: Translation
     await tx.update(novelImportSources).set({ linkedNovelId: publicNovelId, updatedAt: now }).where(and(eq(novelImportSources.id, row.workspace.importSourceId), isNull(novelImportSources.linkedNovelId)));
   }
 
-  // The profile creation step owns translated story metadata. Keep an already
-  // staged (or already published) catalog novel synchronized when the profile
-  // is regenerated or metadata is backfilled later.
-  await tx.update(novels).set({
-    title: localizedTitle,
-    titleOriginal: sourceText.title,
-    synopsis: localizedSynopsis,
-    synopsisOriginal: sourceText.synopsis,
-    coverKey: source.coverKey ?? publicNovel.coverKey,
-    updatedBy: actor.id,
-    updatedAt: now,
-  }).where(eq(novels.id, publicNovelId));
+  // Per-chapter approval/publishing must not overwrite editorial novel fields.
+  // Imported metadata is used when the public novel is first staged; later
+  // title, synopsis, cover, and banner edits belong to the novel editor flow.
   await tx.insert(novelSearchDocuments).values({
     novelId: publicNovelId,
-    searchText: [localizedTitle, sourceText.title].filter(Boolean).join(" "),
+    searchText: [publicNovel.title, publicNovel.titleOriginal].filter(Boolean).join(" "),
   }).onConflictDoUpdate({
     target: novelSearchDocuments.novelId,
-    set: { searchText: [localizedTitle, sourceText.title].filter(Boolean).join(" "), updatedAt: now },
+    set: { searchText: [publicNovel.title, publicNovel.titleOriginal].filter(Boolean).join(" "), updatedAt: now },
   });
 
   let publicChapterId = row.translationChapter.linkedChapterId;

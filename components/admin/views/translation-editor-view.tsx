@@ -30,6 +30,7 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [glossaryAlternatives, setGlossaryAlternatives] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const saved = Number(window.localStorage.getItem("translation-editor-source-width"));
@@ -44,7 +45,8 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
   }
 
   const chapterUrl = `/api/admin/translation/workspaces/${workspaceId}/chapters/${chapterId}`;
-  const criticalCount = data.issues.filter((issue) => issue.severity === "CRITICAL" && !issue.resolvedAt).length;
+  const unresolvedIssues = data.issues.filter((issue) => !issue.resolvedAt);
+  const criticalCount = unresolvedIssues.filter((issue) => issue.severity === "CRITICAL").length;
 
   function suggestionFor(issue: Data["issues"][number]) {
     const metadata = issue.metadata && typeof issue.metadata === "object" ? issue.metadata : {};
@@ -52,6 +54,30 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
     const currentText = typeof metadata.currentText === "string" ? metadata.currentText : null;
     const suggestedText = typeof metadata.suggestedText === "string" ? metadata.suggestedText : null;
     return location && suggestedText ? { location, currentText, suggestedText } : null;
+  }
+
+  function lockedGlossaryFor(issue: Data["issues"][number]) {
+    if (issue.code !== "LOCKED_GLOSSARY_MISSING") return null;
+    const metadata = issue.metadata && typeof issue.metadata === "object" ? issue.metadata : {};
+    const sourceTerm = typeof metadata.sourceTerm === "string" ? metadata.sourceTerm : null;
+    const targetTerm = typeof metadata.targetTerm === "string" ? metadata.targetTerm : null;
+    return sourceTerm && targetTerm ? { sourceTerm, targetTerm } : null;
+  }
+
+  function resolveLockedIssue(issue: Data["issues"][number], action: "ADD_ALTERNATIVE" | "UNLOCK_TERM") {
+    const alternative = glossaryAlternatives[issue.id]?.trim() ?? "";
+    if (action === "ADD_ALTERNATIVE" && !alternative) {
+      setError("กรอกคำแปลที่ใช้จริงก่อนเพิ่มเป็นคำทางเลือก");
+      return;
+    }
+    const body = action === "ADD_ALTERNATIVE" ? { action, alternative } : { action };
+    void perform(
+      `resolve-${issue.id}`,
+      () => post(`${chapterUrl}/qa-issues/${issue.id}/resolve`, "POST", body),
+      action === "ADD_ALTERNATIVE"
+        ? "เพิ่มคำแปลทางเลือกและแก้ QA รายการนี้แล้ว"
+        : "ปลดล็อก Glossary และแก้ QA รายการนี้แล้ว",
+    );
   }
 
   function applyQaSuggestion(issue: Data["issues"][number]) {
@@ -95,10 +121,47 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
       <section className="min-w-0 rounded-[14px] border border-border bg-card"><div className="border-b border-border px-4 py-3"><h2 className="font-semibold">คำแปล</h2><p className="text-xs text-muted-foreground">ทุกครั้งที่บันทึกจะสร้าง immutable revision ใหม่</p></div><div className="grid gap-3 p-4"><Input aria-label="ชื่อตอนแปล" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="ชื่อตอน" /><Textarea aria-label="เนื้อหาคำแปล" value={content} onChange={(event) => setContent(event.target.value)} className="min-h-[calc(100vh-390px)] resize-y font-sans leading-7" placeholder="คำแปลจะแสดงที่นี่ หรือพิมพ์คำแปลด้วยตนเอง" /><p className="text-right text-xs text-muted-foreground">{content.length.toLocaleString("th-TH")} ตัวอักษร</p></div></section>
 
       <aside className="grid content-start gap-4">
-        <details open className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">QA ({data.issues.length})</summary><div className="grid gap-2 border-t border-border p-3">{data.issues.map((issue) => {
-          const suggestion = suggestionFor(issue);
-          return <div key={issue.id} className={`rounded-[9px] px-3 py-2 text-xs ${issue.severity === "CRITICAL" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}><strong>{issue.code}</strong><p className="mt-1 leading-relaxed">{issue.message}</p>{suggestion ? <div className="mt-2 rounded-md bg-card/80 p-2 text-foreground"><p className="line-clamp-2 text-muted-foreground">เดิม: {suggestion.currentText || "ชื่อปัจจุบัน"}</p><p className="mt-1 line-clamp-3">แนะนำ: {suggestion.suggestedText}</p><Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => applyQaSuggestion(issue)}>ใช้คำแนะนำนี้</Button></div> : null}</div>;
-        })}{!data.issues.length ? <p className="text-xs text-muted-foreground">ยังไม่มีปัญหา QA</p> : null}</div></details>
+        <details open className="rounded-[14px] border border-border bg-card">
+          <summary className="cursor-pointer px-4 py-3 font-semibold">QA ({unresolvedIssues.length})</summary>
+          <div className="grid gap-2 border-t border-border p-3">
+            {unresolvedIssues.map((issue) => {
+              const suggestion = suggestionFor(issue);
+              const lockedGlossary = lockedGlossaryFor(issue);
+              const resolving = busy === `resolve-${issue.id}`;
+              return <div key={issue.id} className={`rounded-[9px] px-3 py-2 text-xs ${issue.severity === "CRITICAL" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+                <strong>{issue.code}</strong>
+                <p className="mt-1 leading-relaxed">{issue.message}</p>
+                {suggestion ? <div className="mt-2 rounded-md bg-card/80 p-2 text-foreground">
+                  <p className="line-clamp-2 text-muted-foreground">เดิม: {suggestion.currentText || "ชื่อปัจจุบัน"}</p>
+                  <p className="mt-1 line-clamp-3">แนะนำ: {suggestion.suggestedText}</p>
+                  <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => applyQaSuggestion(issue)}>ใช้คำแนะนำนี้</Button>
+                </div> : null}
+                {lockedGlossary ? <div className="mt-2 grid gap-2 rounded-md border border-destructive/20 bg-card/90 p-2 text-foreground">
+                  <div>
+                    <p><span className="text-muted-foreground">คำต้นฉบับ:</span> {lockedGlossary.sourceTerm}</p>
+                    <p className="mt-1"><span className="text-muted-foreground">คำที่ล็อก:</span> {lockedGlossary.targetTerm}</p>
+                  </div>
+                  <label className="grid gap-1 font-medium" htmlFor={`qa-alternative-${issue.id}`}>
+                    คำแปลที่ใช้จริงในตอนนี้
+                    <Input
+                      id={`qa-alternative-${issue.id}`}
+                      value={glossaryAlternatives[issue.id] ?? ""}
+                      onChange={(event) => setGlossaryAlternatives((current) => ({ ...current, [issue.id]: event.target.value }))}
+                      placeholder="คัดลอกคำจากเนื้อหาแปล"
+                      disabled={Boolean(busy)}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" loading={resolving} disabled={Boolean(busy) && !resolving} onClick={() => resolveLockedIssue(issue, "ADD_ALTERNATIVE")}>เพิ่มเป็นคำทางเลือก</Button>
+                    <Button type="button" size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => resolveLockedIssue(issue, "UNLOCK_TERM")}>คำนี้ขึ้นกับบริบท — ไม่ล็อก</Button>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">เพิ่มคำทางเลือกเมื่อคำในฉบับแปลถูกต้อง หรือปลดล็อกเมื่อคำนี้เปลี่ยนตามบริบทได้ ระบบจะเคลียร์ Critical รายการนี้ทันที</p>
+                </div> : null}
+              </div>;
+            })}
+            {!unresolvedIssues.length ? <p className="text-xs text-muted-foreground">ไม่มีปัญหา QA ที่ยังไม่ได้แก้</p> : null}
+          </div>
+        </details>
         <details open className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">Context</summary><div className="grid gap-4 border-t border-border p-3 text-xs"><div><h3 className="font-semibold">Glossary ที่เกี่ยวข้อง</h3>{data.glossary.map((term) => <p key={term.sourceTerm} className="mt-1 text-muted-foreground">{term.sourceTerm} → {term.targetTerm}</p>)}{!data.glossary.length ? <p className="mt-1 text-muted-foreground">ไม่มี</p> : null}</div><div><h3 className="font-semibold">Characters</h3>{data.characters.map((character) => <p key={character.sourceName} className="mt-1 text-muted-foreground">{character.sourceName} → {character.targetName}</p>)}{!data.characters.length ? <p className="mt-1 text-muted-foreground">ไม่มี</p> : null}</div><div><h3 className="font-semibold">Style</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{data.profile?.styleGuide || "ยังไม่ได้กำหนด"}</p></div></div></details>
         <details className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">Revision history ({data.history.length})</summary><div className="grid gap-1 border-t border-border p-3">{data.history.map((version) => <div key={version.id} className="flex justify-between gap-2 rounded px-2 py-1.5 text-xs"><span>v{version.revision} · {version.origin}</span><span>{version.status}</span></div>)}</div></details>
       </aside>
