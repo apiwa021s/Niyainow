@@ -161,19 +161,24 @@ export function appendGlossaryTargetAlternative(targetTerm: string, alternative:
   return [...alternatives, next].join(" / ");
 }
 
-function sourceContainsGlossaryTerm(source: string, sourceTerm: string) {
-  const term = sourceTerm.trim();
-  if (!term) return false;
+function glossaryTermMatch(value: string, glossaryTerm: string) {
+  const term = glossaryTerm.trim();
+  if (!term) return null;
 
   // Latin glossary terms must match complete words/phrases. A plain includes()
   // made entries such as "viscount" fire for "Viscountess".
   if (/[A-Za-z]/u.test(term)) {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "iu").test(source);
+    return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "iu").exec(value);
   }
 
   // Scripts without reliable whitespace word boundaries keep phrase matching.
-  return source.toLocaleLowerCase().includes(term.toLocaleLowerCase());
+  const index = value.toLocaleLowerCase().indexOf(term.toLocaleLowerCase());
+  return index >= 0 ? { 0: value.slice(index, index + term.length), index } : null;
+}
+
+function sourceContainsGlossaryTerm(source: string, sourceTerm: string) {
+  return glossaryTermMatch(source, sourceTerm) !== null;
 }
 
 export type TranslationModelCandidate = {
@@ -244,14 +249,37 @@ export function runDeterministicQa(input: {
 
   for (const term of input.lockedTerms) {
     const targetAlternatives = glossaryTargetAlternatives(term.targetTerm);
-    const translatedLower = translation.toLocaleLowerCase();
-    const hasAllowedTarget = targetAlternatives.some((target) => translatedLower.includes(target.toLocaleLowerCase()));
-    if (sourceContainsGlossaryTerm(source, term.sourceTerm) && !hasAllowedTarget) {
+    const sourceMatches = segmentText(source).filter((segment) => sourceContainsGlossaryTerm(segment.content, term.sourceTerm));
+    if (!sourceMatches.length) continue;
+
+    const translatedSegments = segmentText(translation);
+    for (const sourceSegment of sourceMatches) {
+      const translatedSegment = translatedSegments[sourceSegment.segmentIndex] ?? null;
+      const translatedText = translatedSegment?.content ?? "";
+      const hasAllowedTarget = targetAlternatives.some((target) => glossaryTermMatch(translatedText, target) !== null);
+      if (hasAllowedTarget) continue;
+
+      const retainedSource = glossaryTermMatch(translatedText, term.sourceTerm);
+      const safeCurrentText = retainedSource?.[0]
+        ?? (translatedText.length > 0 && translatedText.length <= 4_000 ? translatedText : null);
+      const safeSuggestedText = retainedSource?.[0] ? targetAlternatives[0] ?? term.targetTerm : null;
       issues.push({
         code: "LOCKED_GLOSSARY_MISSING",
         severity: "CRITICAL",
-        message: `ไม่พบคำศัพท์ที่ล็อกไว้: ${targetAlternatives.join(" / ")}`,
-        metadata: { sourceTerm: term.sourceTerm, targetTerm: term.targetTerm, targetAlternatives },
+        message: `ไม่พบคำศัพท์ที่ล็อกไว้ในย่อหน้า ${sourceSegment.segmentIndex + 1}: ${targetAlternatives.join(" / ")}`,
+        metadata: {
+          sourceTerm: term.sourceTerm,
+          targetTerm: term.targetTerm,
+          targetAlternatives,
+          location: "CONTENT",
+          sourceSegmentIndex: sourceSegment.segmentIndex,
+          translationSegmentIndex: translatedSegment?.segmentIndex ?? null,
+          sourceExcerpt: sourceSegment.content.slice(0, 1_000),
+          translatedExcerpt: translatedText.slice(0, 1_000) || null,
+          currentText: safeCurrentText,
+          suggestedText: safeSuggestedText,
+          mappingConfidence: segmentText(source).length === translatedSegments.length ? "HIGH" : "APPROXIMATE",
+        },
       });
     }
   }

@@ -42,7 +42,7 @@ import {
   automaticModelNameForTask,
   type AutomaticTranslationTask,
 } from "@/lib/domain/translation-ai-routing";
-import { appendGlossaryTargetAlternative, countWords, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
+import { appendGlossaryTargetAlternative, countWords, runDeterministicQa, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
 import { ApiError } from "@/lib/http/api-response";
 import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
 import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
@@ -193,6 +193,7 @@ export const resolveLockedGlossaryIssueSchema = z.discriminatedUnion("action", [
     alternative: z.string().trim().min(1).max(120).refine((value) => !/[\/|]/u.test(value), "Enter one alternative at a time"),
   }),
   z.object({ action: z.literal("UNLOCK_TERM") }),
+  z.object({ action: z.literal("RECHECK") }),
 ]);
 
 const lockedGlossaryIssueMetadataSchema = z.object({
@@ -1155,10 +1156,12 @@ export async function resolveLockedGlossaryIssue(
       version: translationVersions,
       chapter: translationChapters,
       workspace: translationWorkspaces,
+      source: translationSourceSnapshots,
     }).from(translationQaIssues)
       .innerJoin(translationVersions, eq(translationVersions.id, translationQaIssues.translationVersionId))
       .innerJoin(translationChapters, eq(translationChapters.id, translationVersions.translationChapterId))
       .innerJoin(translationWorkspaces, eq(translationWorkspaces.id, translationChapters.workspaceId))
+      .innerJoin(translationSourceSnapshots, eq(translationSourceSnapshots.id, translationChapters.sourceSnapshotId))
       .where(and(
         eq(translationQaIssues.id, issueId),
         eq(translationChapters.id, chapterId),
@@ -1190,7 +1193,24 @@ export async function resolveLockedGlossaryIssue(
     let nextTargetTerm = glossaryEntry?.targetTerm ?? metadata.data.targetTerm;
     let nextLocked = glossaryEntry?.isLocked ?? false;
 
-    if (input.action === "ADD_ALTERNATIVE") {
+    if (input.action === "RECHECK") {
+      const currentIssue = runDeterministicQa({
+        source: row.source.content,
+        translation: row.version.content,
+        lockedTerms: [{ sourceTerm: metadata.data.sourceTerm, targetTerm: nextTargetTerm }],
+      }).find((issue) => issue.code === "LOCKED_GLOSSARY_MISSING");
+      if (currentIssue) {
+        await tx.update(translationQaIssues).set({ metadata: currentIssue.metadata ?? row.issue.metadata })
+          .where(eq(translationQaIssues.id, issueId));
+        return {
+          issueId,
+          stillPresent: true,
+          resolved: false,
+          location: currentIssue.metadata ?? null,
+          chapterStatus: row.chapter.status,
+        };
+      }
+    } else if (input.action === "ADD_ALTERNATIVE") {
       if (!glossaryEntry) throw new ApiError(409, "GLOSSARY_ENTRY_MISSING", "ไม่พบคำนี้ใน Glossary แล้ว กรุณาโหลดหน้าใหม่");
       if (!row.version.content.toLocaleLowerCase().includes(input.alternative.toLocaleLowerCase())) {
         throw new ApiError(400, "ALTERNATIVE_NOT_IN_TRANSLATION", "ไม่พบคำแปลทางเลือกนี้ใน revision ล่าสุด กรุณาบันทึกเนื้อหาก่อน");

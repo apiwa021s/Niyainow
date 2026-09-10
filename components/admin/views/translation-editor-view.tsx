@@ -11,12 +11,13 @@ import { Input, Textarea } from "@/components/ui/form-controls";
 import type { getTranslationChapterEditor } from "@/services/translation-service";
 
 type Data = NonNullable<Awaited<ReturnType<typeof getTranslationChapterEditor>>>;
+type LockedGlossaryResolution = { stillPresent?: boolean; resolved?: boolean };
 
-async function post(url: string, method: "POST" | "PATCH", body?: unknown) {
+async function post<T = unknown>(url: string, method: "POST" | "PATCH", body?: unknown): Promise<T> {
   const response = await fetch(url, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
   if (!response.ok) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
-  return payload;
+  return payload as T;
 }
 
 export function TranslationEditorView({ data, canPublish }: { data: Data; canPublish: boolean }) {
@@ -37,9 +38,9 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
     if (saved >= 25 && saved <= 55) window.requestAnimationFrame(() => setSourceWidth(saved));
   }, []);
 
-  async function perform(key: string, action: () => Promise<unknown>, success: string) {
+  async function perform<T>(key: string, action: () => Promise<T>, success: string | ((result: T) => string)) {
     setBusy(key); setError(""); setMessage("");
-    try { await action(); setMessage(success); router.refresh(); }
+    try { const result = await action(); setMessage(typeof success === "function" ? success(result) : success); router.refresh(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "ดำเนินการไม่สำเร็จ"); }
     finally { setBusy(""); }
   }
@@ -61,10 +62,25 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
     const metadata = issue.metadata && typeof issue.metadata === "object" ? issue.metadata : {};
     const sourceTerm = typeof metadata.sourceTerm === "string" ? metadata.sourceTerm : null;
     const targetTerm = typeof metadata.targetTerm === "string" ? metadata.targetTerm : null;
-    return sourceTerm && targetTerm ? { sourceTerm, targetTerm } : null;
+    const sourceSegmentIndex = typeof metadata.sourceSegmentIndex === "number" ? metadata.sourceSegmentIndex : null;
+    const translationSegmentIndex = typeof metadata.translationSegmentIndex === "number" ? metadata.translationSegmentIndex : null;
+    const sourceExcerpt = typeof metadata.sourceExcerpt === "string" ? metadata.sourceExcerpt : null;
+    const translatedExcerpt = typeof metadata.translatedExcerpt === "string" ? metadata.translatedExcerpt : null;
+    const mappingConfidence = metadata.mappingConfidence === "HIGH" || metadata.mappingConfidence === "APPROXIMATE"
+      ? metadata.mappingConfidence
+      : null;
+    return sourceTerm && targetTerm ? {
+      sourceTerm,
+      targetTerm,
+      sourceSegmentIndex,
+      translationSegmentIndex,
+      sourceExcerpt,
+      translatedExcerpt,
+      mappingConfidence,
+    } : null;
   }
 
-  function resolveLockedIssue(issue: Data["issues"][number], action: "ADD_ALTERNATIVE" | "UNLOCK_TERM") {
+  function resolveLockedIssue(issue: Data["issues"][number], action: "ADD_ALTERNATIVE" | "UNLOCK_TERM" | "RECHECK") {
     const alternative = glossaryAlternatives[issue.id]?.trim() ?? "";
     if (action === "ADD_ALTERNATIVE" && !alternative) {
       setError("กรอกคำแปลที่ใช้จริงก่อนเพิ่มเป็นคำทางเลือก");
@@ -73,10 +89,14 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
     const body = action === "ADD_ALTERNATIVE" ? { action, alternative } : { action };
     void perform(
       `resolve-${issue.id}`,
-      () => post(`${chapterUrl}/qa-issues/${issue.id}/resolve`, "POST", body),
+      () => post<LockedGlossaryResolution>(`${chapterUrl}/qa-issues/${issue.id}/resolve`, "POST", body),
       action === "ADD_ALTERNATIVE"
         ? "เพิ่มคำแปลทางเลือกและแก้ QA รายการนี้แล้ว"
-        : "ปลดล็อก Glossary และแก้ QA รายการนี้แล้ว",
+        : action === "UNLOCK_TERM"
+          ? "ปลดล็อก Glossary และแก้ QA รายการนี้แล้ว"
+          : (result) => result.stillPresent
+            ? "พบคำต้นฉบับจริงและอัปเดตตำแหน่งที่ต้องแก้แล้ว"
+            : "ตรวจใหม่แล้วไม่พบคำต้นฉบับแบบตรงตัว จึงเคลียร์ QA เก่าที่ตรวจผิดแล้ว",
     );
   }
 
@@ -141,7 +161,18 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
                     <p><span className="text-muted-foreground">คำต้นฉบับ:</span> {lockedGlossary.sourceTerm}</p>
                     <p className="mt-1"><span className="text-muted-foreground">คำที่ล็อก:</span> {lockedGlossary.targetTerm}</p>
                   </div>
-                  <label className="grid gap-1 font-medium" htmlFor={`qa-alternative-${issue.id}`}>
+                  {lockedGlossary.sourceSegmentIndex !== null ? <div className="grid gap-2 rounded-md bg-muted/70 p-2">
+                    <p className="font-semibold text-foreground">
+                      พบที่ต้นฉบับย่อหน้า {lockedGlossary.sourceSegmentIndex + 1}
+                      {lockedGlossary.translationSegmentIndex !== null ? ` · คำแปลย่อหน้า ${lockedGlossary.translationSegmentIndex + 1}` : ""}
+                    </p>
+                    {lockedGlossary.sourceExcerpt ? <p className="line-clamp-3 text-muted-foreground">ต้นฉบับ: {lockedGlossary.sourceExcerpt}</p> : null}
+                    {lockedGlossary.translatedExcerpt ? <p className="line-clamp-4 text-foreground">คำแปลปัจจุบัน: {lockedGlossary.translatedExcerpt}</p> : null}
+                    {lockedGlossary.mappingConfidence === "APPROXIMATE" ? <p className="text-amber-700 dark:text-amber-300">จำนวนย่อหน้าไม่ตรงกัน ตำแหน่งคำแปลเป็นตำแหน่งประมาณการ</p> : null}
+                  </div> : <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-amber-800 dark:text-amber-200">
+                    QA รุ่นเก่ายังไม่มีตำแหน่ง กดตรวจใหม่เพื่อค้นหาคำแบบตรงตัวก่อนแก้
+                  </div>}
+                  {lockedGlossary.sourceSegmentIndex !== null ? <label className="grid gap-1 font-medium" htmlFor={`qa-alternative-${issue.id}`}>
                     คำแปลที่ใช้จริงในตอนนี้
                     <Input
                       id={`qa-alternative-${issue.id}`}
@@ -150,10 +181,13 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
                       placeholder="คัดลอกคำจากเนื้อหาแปล"
                       disabled={Boolean(busy)}
                     />
-                  </label>
+                  </label> : null}
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" loading={resolving} disabled={Boolean(busy) && !resolving} onClick={() => resolveLockedIssue(issue, "ADD_ALTERNATIVE")}>เพิ่มเป็นคำทางเลือก</Button>
-                    <Button type="button" size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => resolveLockedIssue(issue, "UNLOCK_TERM")}>คำนี้ขึ้นกับบริบท — ไม่ล็อก</Button>
+                    {lockedGlossary.sourceSegmentIndex !== null ? <>
+                      <Button type="button" size="sm" loading={resolving} disabled={Boolean(busy) && !resolving} onClick={() => resolveLockedIssue(issue, "ADD_ALTERNATIVE")}>เพิ่มเป็นคำทางเลือก</Button>
+                      <Button type="button" size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => resolveLockedIssue(issue, "UNLOCK_TERM")}>คำนี้ขึ้นกับบริบท — ไม่ล็อก</Button>
+                    </> : null}
+                    <Button type="button" size="sm" variant="outline" loading={resolving} disabled={Boolean(busy) && !resolving} onClick={() => resolveLockedIssue(issue, "RECHECK")}>ตรวจตำแหน่งใหม่</Button>
                   </div>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">เพิ่มคำทางเลือกเมื่อคำในฉบับแปลถูกต้อง หรือปลดล็อกเมื่อคำนี้เปลี่ยนตามบริบทได้ ระบบจะเคลียร์ Critical รายการนี้ทันที</p>
                 </div> : null}

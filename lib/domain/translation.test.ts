@@ -39,6 +39,34 @@ describe("translation domain", () => {
     expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(true);
   });
 
+  it("records the aligned paragraph and a safe replacement for a retained source term", () => {
+    const [issue] = runDeterministicQa({
+      source: "Trait unlocked.\n\nThe gate opened.",
+      translation: "Trait ถูกปลดล็อกแล้ว\n\nประตูเปิดออก",
+      lockedTerms: [{ sourceTerm: "trait", targetTerm: "ลักษณะเฉพาะ" }],
+    }).filter((candidate) => candidate.code === "LOCKED_GLOSSARY_MISSING");
+
+    expect(issue?.metadata).toMatchObject({
+      location: "CONTENT",
+      sourceSegmentIndex: 0,
+      translationSegmentIndex: 0,
+      currentText: "Trait",
+      suggestedText: "ลักษณะเฉพาะ",
+      mappingConfidence: "HIGH",
+    });
+  });
+
+  it("checks a locked term in its aligned paragraph rather than elsewhere in the chapter", () => {
+    const issues = runDeterministicQa({
+      source: "An unrelated line.\n\nThis trait is rare.",
+      translation: "ลักษณะเฉพาะอีกอย่างหนึ่ง\n\nสิ่งนี้หาได้ยาก",
+      lockedTerms: [{ sourceTerm: "trait", targetTerm: "ลักษณะเฉพาะ" }],
+    });
+
+    expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING"
+      && issue.metadata?.sourceSegmentIndex === 1)).toBe(true);
+  });
+
   it("accepts one context-appropriate option from a slash-separated locked target", () => {
     const polite = runDeterministicQa({
       source: "You should enter, Your Grace.",

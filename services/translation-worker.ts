@@ -103,14 +103,17 @@ function qaForAutomaticCorrection(qa: AiQaResult, deterministicIssues: Translati
   const issuesToFix = decision.scoreNeedsImprovement
     ? qa.issues.filter((issue) => issue.severity !== "INFO")
     : qa.issues.filter((issue) => issue.severity === "CRITICAL");
-  const deterministicAiIssues = deterministicIssues.filter((issue) => issue.severity === "CRITICAL").map((issue) => ({
-    code: issue.code,
-    severity: issue.severity,
-    message: issue.message,
-    location: "CONTENT" as const,
-    currentText: null,
-    suggestedText: null,
-  }));
+  const deterministicAiIssues = deterministicIssues.filter((issue) => issue.severity === "CRITICAL").map((issue) => {
+    const metadata = issue.metadata ?? {};
+    return {
+      code: issue.code,
+      severity: issue.severity,
+      message: issue.message,
+      location: metadata.location === "TITLE" ? "TITLE" as const : "CONTENT" as const,
+      currentText: typeof metadata.currentText === "string" ? metadata.currentText : null,
+      suggestedText: typeof metadata.suggestedText === "string" ? metadata.suggestedText : null,
+    };
+  });
   const deterministicInstructions = deterministicIssues.filter((issue) => issue.severity === "CRITICAL").map((issue) => {
     const sourceTerm = typeof issue.metadata?.sourceTerm === "string" ? issue.metadata.sourceTerm : null;
     const targetTerm = typeof issue.metadata?.targetTerm === "string" ? issue.metadata.targetTerm : null;
