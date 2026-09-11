@@ -148,7 +148,6 @@ export function ReaderView({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [chapterEndVisible, setChapterEndVisible] = useState(false);
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -257,17 +256,6 @@ export function ReaderView({
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [nextHref, persistProgress, router]);
-
-  useEffect(() => {
-    const chapterEnd = document.querySelector("[data-reader-chapter-end]");
-    if (!chapterEnd) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setChapterEndVisible(Boolean(entry?.isIntersecting)),
-      { threshold: 0 },
-    );
-    observer.observe(chapterEnd);
-    return () => observer.disconnect();
-  }, [chapterKey, locked]);
 
   useEffect(() => {
     if (!hasHydrated || restoration.current.chapterKey !== chapterKey || restoration.current.complete) return;
@@ -644,7 +632,7 @@ export function ReaderView({
         </article>
       </main>
 
-      <nav aria-label="เปลี่ยนตอน" aria-hidden={!chromeVisible || chapterEndVisible ? true : undefined} inert={!chromeVisible || chapterEndVisible} className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-paper)] pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible && !chapterEndVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0")}>
+      <nav aria-label="เปลี่ยนตอน" className="fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-paper)] pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid h-16 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
           {previousHref ? <Link href={previousHref} onClick={() => navigateChapter(previous!.number)} aria-label="ตอนก่อนหน้า" className={cn(READER_NAV_ACTION_CLASS, "justify-start")}><ChevronLeft className="h-4 w-4 shrink-0" /><span className="sm:hidden">ก่อน</span><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
           <button type="button" onClick={openSidebar} aria-controls="reader-chapter-sidebar" aria-expanded={sidebarOpen} className={cn(READER_NAV_ACTION_CLASS, "justify-center gap-2")}><List className="h-4 w-4" />สารบัญ</button>
