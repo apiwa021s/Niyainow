@@ -10,7 +10,7 @@ const groups = [
   {
     title: "NovelNow",
     links: [
-      ["เกี่ยวกับเรา", "/about"],
+      // ["เกี่ยวกับเรา", "/about"],
       ...(writerModeEnabled
         ? ([
             ["สำหรับนักเขียนและนักแปล", "/creators"],
