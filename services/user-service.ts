@@ -223,6 +223,7 @@ export async function requireApiUser() {
 export type UserNovelListItem = {
   novel: Novel;
   libraryStatus: LibraryStatus | null;
+  notificationsEnabled?: boolean | null;
   progressPercent: number | null;
   position: number | null;
   chapter: { number: number; slug: string; title: string } | null;
@@ -487,6 +488,7 @@ export async function listFollowedNovels(
       chapterSlug: chapters.slug,
       chapterTitle: chapters.title,
       followedAt: novelFollows.followedAt,
+      notificationsEnabled: novelFollows.notificationsEnabled,
     })
     .from(novelFollows)
     .innerJoin(novels, eq(novels.id, novelFollows.novelId))
@@ -508,6 +510,7 @@ export async function listFollowedNovels(
   return rows.map((row) => ({
     novel: mapNovel(row as NovelProjectionRow),
     libraryStatus: row.libraryStatus,
+    notificationsEnabled: row.notificationsEnabled,
     progressPercent: row.progressPercent,
     position: row.position,
     chapter:
@@ -574,6 +577,22 @@ export async function setFollow(
 
   if (followAdded) revalidateEngagement(novel.slug);
 
+  return { novelSlug: novel.slug, followed: true, notificationsEnabled };
+}
+
+export async function setFollowNotificationPreference(
+  userId: string,
+  novelSlug: string,
+  notificationsEnabled: boolean,
+) {
+  const novel = await resolvePublicNovel(novelSlug);
+  const [follow] = await getDb().update(novelFollows).set({ notificationsEnabled }).where(and(
+    eq(novelFollows.userId, userId),
+    eq(novelFollows.novelId, novel.id),
+  )).returning({ novelId: novelFollows.novelId });
+  if (!follow) {
+    throw new ApiError(404, "FOLLOW_NOT_FOUND", "ไม่พบเรื่องนี้ในรายการติดตาม");
+  }
   return { novelSlug: novel.slug, followed: true, notificationsEnabled };
 }
 
