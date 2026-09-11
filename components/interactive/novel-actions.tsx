@@ -21,6 +21,18 @@ type PendingNovelIntent = {
 
 const PENDING_NOVEL_INTENT_KEY = "niyainow-pending-novel-action-v1";
 const PENDING_NOVEL_INTENT_TTL = 20 * 60 * 1_000;
+const FOLLOW_STATE_EVENT = "niyainow:follow-state";
+
+type FollowStateDetail = {
+  slug: string;
+  followed: boolean;
+};
+
+function publishFollowState(slug: string, followed: boolean) {
+  window.dispatchEvent(new CustomEvent<FollowStateDetail>(FOLLOW_STATE_EVENT, {
+    detail: { slug, followed },
+  }));
+}
 
 function rememberPendingIntent(intent: PendingNovelIntent) {
   try {
@@ -94,6 +106,16 @@ function useNovelAction({
   const hasProgress = hasProgressOverride ?? initialHasProgress;
   const [pending, startTransition] = useTransition();
 
+  useEffect(() => {
+    if (kind !== "follow") return;
+    const syncFollowState = (event: Event) => {
+      const detail = (event as CustomEvent<FollowStateDetail>).detail;
+      if (detail?.slug === slug) setFollowOverride(detail.followed);
+    };
+    window.addEventListener(FOLLOW_STATE_EVENT, syncFollowState);
+    return () => window.removeEventListener(FOLLOW_STATE_EVENT, syncFollowState);
+  }, [kind, slug]);
+
   const loginPath = pathname || `/novel/${slug}`;
   const redirectToLogin = (intent: PendingNovelIntent) => {
     rememberPendingIntent(intent);
@@ -134,7 +156,10 @@ function useNovelAction({
           return;
         }
         if (!response.ok) throw new Error("pending_mutation_failed");
-        if (kind === "follow") setFollowOverride(true);
+        if (kind === "follow") {
+          setFollowOverride(true);
+          publishFollowState(slug, true);
+        }
         else setStatusOverride(status);
         if (kind !== "follow") router.refresh();
         toast({ tone: "success", message: kind === "follow" ? "ติดตามเรื่องนี้แล้ว" : "เพิ่มนิยายเข้าคลังแล้ว" });
@@ -171,6 +196,7 @@ function useNovelAction({
           previousStatus = payload.data?.libraryStatus ?? null;
           progressKnown = Boolean(payload.data?.progress);
           setFollowOverride(previousFollow);
+          if (kind === "follow") publishFollowState(slug, previousFollow);
           setStatusOverride(previousStatus);
           setHasProgressOverride(progressKnown);
         }
@@ -196,7 +222,10 @@ function useNovelAction({
         const method = kind === "follow"
           ? nextFollow ? "PUT" : "DELETE"
           : nextStatus === null ? "DELETE" : "PUT";
-        if (kind === "follow") setFollowOverride(nextFollow);
+        if (kind === "follow") {
+          setFollowOverride(nextFollow);
+          publishFollowState(slug, nextFollow);
+        }
         else setStatusOverride(nextStatus);
         const response = await fetch(endpoint, {
           method,
@@ -206,6 +235,7 @@ function useNovelAction({
 
         if (response.status === 401) {
           setFollowOverride(previousFollow);
+          if (kind === "follow") publishFollowState(slug, previousFollow);
           setStatusOverride(previousStatus);
           const activating = kind === "follow" ? nextFollow : nextStatus !== null;
           if (activating) redirectToLogin({ slug, kind, status: kind === "library" ? status : undefined, createdAt: Date.now() });
@@ -225,6 +255,7 @@ function useNovelAction({
         });
       } catch {
         setFollowOverride(previousFollow);
+        if (kind === "follow") publishFollowState(slug, previousFollow);
         setStatusOverride(previousStatus);
         toast({ tone: "error", message: "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง" });
       }
@@ -238,23 +269,31 @@ export function FollowButton({
   slug,
   initialActive,
   quiet = false,
+  iconOnly = false,
 }: {
   slug: string;
   initialActive?: boolean;
   quiet?: boolean;
+  iconOnly?: boolean;
 }) {
   const action = useNovelAction({ slug, kind: "follow", initialActive });
+  const label = action.active ? "เลิกติดตามเรื่องนี้" : "ติดตามเรื่องนี้";
   return (
     <Button
       variant={action.active ? "secondary" : quiet ? "ghost" : "outline"}
+      size={iconOnly ? "icon" : "md"}
       onClick={action.toggle}
       disabled={action.pending}
       aria-busy={action.pending}
       aria-pressed={action.active}
+      aria-label={iconOnly ? label : undefined}
+      title={iconOnly ? label : undefined}
       className="disabled:cursor-wait disabled:opacity-100"
     >
       {action.active ? <Check className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-      {action.active ? "ติดตามแล้ว" : "ติดตามเรื่อง"}
+      <span className={iconOnly ? "sr-only" : undefined}>
+        {action.active ? "ติดตามแล้ว" : "ติดตามเรื่อง"}
+      </span>
     </Button>
   );
 }

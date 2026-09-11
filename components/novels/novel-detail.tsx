@@ -90,6 +90,7 @@ export function NovelHero({
             startLabel={startLabel}
             serverProgress={userState?.progress}
             libraryStatus={userState?.libraryStatus}
+            followed={userState?.followed}
             bookmarkCount={novel.bookmarkCount}
           />
         </div>

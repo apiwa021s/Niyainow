@@ -29,6 +29,7 @@ type NovelChapterBrowserProps = {
   startLabel: string;
   serverProgress?: NovelResumeServerProgress | null;
   libraryStatus?: NovelLibraryStatus | null;
+  followed?: boolean;
 };
 
 function formatChapterNumber(value: number) {
@@ -127,6 +128,7 @@ export function NovelChapterBrowser({
   startLabel,
   serverProgress,
   libraryStatus,
+  followed,
 }: NovelChapterBrowserProps) {
   const [order, setOrder] = useState<ChapterCatalogOrder>("latest");
   const { open, openDialog, closeDialog, registerOpenHandler } = useNovelChapterDialog();
@@ -253,6 +255,7 @@ export function NovelChapterBrowser({
         startLabel={startLabel}
         serverProgress={serverProgress}
         libraryStatus={libraryStatus}
+        followed={followed}
         onOpenChapters={openCatalog}
       />
 
