@@ -3,10 +3,12 @@ import type { Metadata } from "next";
 import { SettingsPanel } from "@/components/interactive/account-panels";
 import { PageShell } from "@/components/ui/section";
 import { requireActiveUser } from "@/lib/auth/dal";
+import { getPrivacySettings } from "@/services/public-creator-service";
 
 export const metadata: Metadata = { title: "ตั้งค่า", robots: { index: false, follow: false } };
 
 export default async function SettingsPage() {
   const user = await requireActiveUser("/settings");
-  return <PageShell className="space-y-6"><header className="py-2 sm:py-3"><p className="editorial-kicker">ปรับให้เหมาะกับคุณ</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">ตั้งค่า</h1><p className="mt-2 text-sm text-muted-foreground">บัญชี รูปลักษณ์เว็บไซต์ และค่าการอ่านบนอุปกรณ์นี้</p></header><SettingsPanel user={user} /></PageShell>;
+  const privacy = await getPrivacySettings(user.id);
+  return <PageShell className="space-y-6"><header className="py-2 sm:py-3"><p className="editorial-kicker">ปรับให้เหมาะกับคุณ</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">ตั้งค่า</h1><p className="mt-2 text-sm text-muted-foreground">บัญชี รูปลักษณ์เว็บไซต์ และค่าการอ่านบนอุปกรณ์นี้</p></header><SettingsPanel user={user} initialPrivacy={privacy ?? { readingHistoryPrivate: true, libraryPrivate: true, hideStoryTitleInNotification: true }} /></PageShell>;
 }

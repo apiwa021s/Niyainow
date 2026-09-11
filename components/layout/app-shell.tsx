@@ -9,6 +9,7 @@ import { CookieConsentBanner } from "@/components/layout/cookie-consent-banner";
 import { SiteChrome } from "@/components/layout/site-chrome";
 import { UpdatesRail } from "@/components/layout/updates-rail";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { getUnreadNotificationCount } from "@/services/creator-relationship-service";
 
 /**
  * Session lookup is the only blocking read in the shell, so it suspends on its
@@ -31,7 +32,8 @@ async function PersonalizedTopbar() {
         role: currentUser.role,
       }
     : null;
-  return <AppTopbar viewer={viewer} />;
+  const unreadCount = viewer ? await getUnreadNotificationCount(currentUser!.id) : 0;
+  return <AppTopbar viewer={viewer} initialUnreadCount={unreadCount} />;
 }
 
 /**

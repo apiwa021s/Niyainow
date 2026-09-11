@@ -69,6 +69,7 @@ const runtimeEnvSchema = z.object({
   AUTH_GOOGLE_SECRET: optionalString,
   AUTH_TRUST_HOST: z.preprocess(emptyToUndefined, z.enum(["true", "false"]).optional()),
   NOVEL_IMPORT_TOKEN: z.preprocess(emptyToUndefined, z.string().trim().min(32).optional()),
+  CRON_SECRET: z.preprocess(emptyToUndefined, z.string().trim().min(32).optional()),
   TURNSTILE_SECRET_KEY: optionalString,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: optionalString,
   R2_ACCOUNT_ID: z.preprocess(emptyToUndefined, z.string().regex(/^[a-zA-Z0-9_-]+$/).optional()),
@@ -123,6 +124,7 @@ export type RequiredR2Env = Required<
   >
 >;
 export type RequiredNovelImportEnv = Required<Pick<RuntimeEnv, "NOVEL_IMPORT_TOKEN">>;
+export type RequiredCronEnv = Required<Pick<RuntimeEnv, "CRON_SECRET">>;
 export type RequiredStripeEnv = Required<Pick<RuntimeEnv, "NEXT_PUBLIC_APP_URL" | "STRIPE_SECRET_KEY" | "STRIPE_WEBHOOK_SECRET">>;
 
 export class EnvironmentConfigurationError extends Error {
@@ -211,6 +213,12 @@ export function requireR2Env(source: NodeJS.ProcessEnv = process.env): RuntimeEn
 export function requireNovelImportEnv(source: NodeJS.ProcessEnv = process.env): RuntimeEnv & RequiredNovelImportEnv {
   const env = getRuntimeEnv(source);
   requireKeys(env, ["NOVEL_IMPORT_TOKEN"], "Novel import API");
+  return env;
+}
+
+export function requireCronEnv(source: NodeJS.ProcessEnv = process.env): RuntimeEnv & RequiredCronEnv {
+  const env = getRuntimeEnv(source);
+  requireKeys(env, ["CRON_SECRET"], "Scheduled jobs");
   return env;
 }
 

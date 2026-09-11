@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Bookmark, CheckCircle2, Clock3, Compass, Heart, LibraryBig, Sparkles } from "lucide-react";
 
 import { LibraryMembershipList } from "@/components/interactive/library-membership-list";
+import { FollowNotificationToggle } from "@/components/interactive/follow-notification-toggle";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/section";
 import { cn } from "@/lib/utils";
@@ -237,27 +238,32 @@ function ShelfRow({ item, mode }: { item: UserNovelListItem; mode: "following" |
       ? "เก็บไว้เริ่มอ่านภายหลัง"
       : "ทำเครื่องหมายว่าอ่านจบแล้ว";
 
+  const href = `/novel/${item.novel.slug}`;
   return (
-    <Link
-      href={`/novel/${item.novel.slug}`}
-      className="group grid min-h-24 grid-cols-[56px_minmax(0,1fr)] items-center gap-4 py-4 sm:grid-cols-[56px_minmax(0,1fr)_auto]"
-    >
-      <div className="relative aspect-[2/3] w-14 overflow-hidden rounded-[5px] bg-muted">
+    <article className="group grid min-h-24 grid-cols-[56px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 py-4 sm:grid-cols-[56px_minmax(0,1fr)_auto]">
+      <Link href={href} className="relative aspect-[2/3] w-14 overflow-hidden rounded-[5px] bg-muted">
         <Image src={item.novel.cover} alt="" fill sizes="56px" className="object-cover" />
-      </div>
+      </Link>
       <div className="min-w-0">
-        <h2 className="truncate text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
-          {item.novel.thaiTitle}
-        </h2>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{meta}</p>
-        <p className="tabular mt-1 text-xs text-muted-foreground">
-          {item.novel.latestChapter ? `ล่าสุด ตอนที่ ${item.novel.latestChapter.number.toLocaleString("th-TH")}` : `${item.novel.chapters.toLocaleString("th-TH")} ตอน`}
-        </p>
+        <Link href={href} className="block">
+          <h2 className="truncate text-base font-semibold transition-colors group-hover:text-[var(--brand-emphasis)]">
+            {item.novel.thaiTitle}
+          </h2>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{meta}</p>
+          <p className="tabular mt-1 text-xs text-muted-foreground">
+            {item.novel.latestChapter ? `ล่าสุด ตอนที่ ${item.novel.latestChapter.number.toLocaleString("th-TH")}` : `${item.novel.chapters.toLocaleString("th-TH")} ตอน`}
+          </p>
+        </Link>
       </div>
-      <span className="col-start-2 inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-[var(--brand-emphasis)] sm:col-start-auto">
-        เปิดเรื่อง <ArrowRight className="h-4 w-4" />
-      </span>
-    </Link>
+      <div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto sm:row-span-1">
+        {mode === "following" ? (
+          <FollowNotificationToggle slug={item.novel.slug} initialEnabled={item.notificationsEnabled ?? true} />
+        ) : null}
+        <Link href={href} className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-[var(--brand-emphasis)]">
+          เปิดเรื่อง <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+    </article>
   );
 }
 

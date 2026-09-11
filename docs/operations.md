@@ -22,6 +22,13 @@ The Preview and Production environments must each point `DATABASE_URL` at their
 intended database. Do not promote a built artifact until the release job has
 completed `db:deploy`; migrations must never run from request handlers.
 
+Set a random `CRON_SECRET` of at least 32 characters in Production. The checked-in
+Vercel Cron calls `/api/cron/publishing` every five minutes; the endpoint verifies
+Vercel's bearer token, publishes at most 100 due chapters, and processes at most
+500 notification outbox events per run. Alert on non-2xx cron responses and on a
+non-zero `notifications.failed` result. Do not expose or invoke this endpoint
+without the bearer secret.
+
 To diagnose Auth.js `Failed query` errors without printing credentials:
 
 ```powershell

@@ -1,22 +1,15 @@
 "use client";
 
-import { BellOff, BookMarked, CheckCircle2, Clock3, Coins, Heart, LogOut, RotateCcw, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { BookMarked, CheckCircle2, Clock3, Coins, Heart, LogOut, RotateCcw, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { useState, useTransition } from "react";
 
-import { NotificationList } from "@/components/notifications/notification-list";
 import { ThemeSwitcher } from "@/components/interactive/theme-switcher";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/form-controls";
-import { useLocalMockStore } from "@/hooks/use-local-mock-store";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { signOutUser } from "@/lib/auth/actions";
 import type { CurrentUser } from "@/lib/auth/dal";
-import {
-  DEFAULT_PRIVACY_PREFS,
-  readPrivacyPrefs,
-  writePrivacyPrefs,
-  type PrivacyPrefs,
-} from "@/lib/domain/reader-privacy";
-import type { NovelUpdate } from "@/services/novel-service";
 import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import {
   FONT_SIZE_MAX_INDEX,
@@ -87,7 +80,19 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
   );
 }
 
-export function SettingsPanel({ user }: { user: CurrentUser }) {
+type AccountPrivacySettings = {
+  readingHistoryPrivate: boolean;
+  libraryPrivate: boolean;
+  hideStoryTitleInNotification: boolean;
+};
+
+export function SettingsPanel({
+  user,
+  initialPrivacy,
+}: {
+  user: CurrentUser;
+  initialPrivacy: AccountPrivacySettings;
+}) {
   // Same hook the reader uses, so a change made here syncs to the account and
   // is already applied the next time a chapter opens.
   const { prefs, hydrated, fontSizePx, setPrefs, resetPrefs } = useReaderPrefs({ signedIn: true });
@@ -144,22 +149,44 @@ export function SettingsPanel({ user }: { user: CurrentUser }) {
         <Button type="button" variant="outline" onClick={resetPrefs} className="mt-5"><RotateCcw className="h-4 w-4" />คืนค่าเริ่มต้นการอ่าน</Button>
       </SettingsSection>
 
-      <SettingsSection title="การแจ้งเตือน" description="ระบบยังไม่ส่งอีเมลหรือการแจ้งเตือนบนอุปกรณ์ จึงไม่มีสวิตช์ที่ทำงานไม่จริง">
-        <ButtonLink href="/notifications" variant="outline">ดูสถานะการแจ้งเตือน</ButtonLink>
+      <SettingsSection title="การแจ้งเตือน" description="รับการแจ้งเตือนในแอปเมื่อนิยายที่ติดตามมีตอนใหม่ และเลือกเปิดหรือปิดได้รายเรื่อง">
+        <div className="flex flex-wrap gap-2">
+          <ButtonLink href="/notifications" variant="outline">ดูการแจ้งเตือน</ButtonLink>
+          <ButtonLink href="/library/following" variant="outline">ตั้งค่ารายเรื่อง</ButtonLink>
+        </div>
       </SettingsSection>
 
       <SettingsSection title="ความเป็นส่วนตัว" description="ควบคุมว่าใครเห็นประวัติการอ่านและการแจ้งเตือนของคุณ">
-        <PrivacySettings />
+        <PrivacySettings initialSettings={initialPrivacy} />
       </SettingsSection>
     </div>
   );
 }
 
-function PrivacySettings() {
-  const prefs = useLocalMockStore(() => readPrivacyPrefs(), () => DEFAULT_PRIVACY_PREFS);
+function PrivacySettings({ initialSettings }: { initialSettings: AccountPrivacySettings }) {
+  const { toast } = useToast();
+  const [settings, setSettings] = useState(initialSettings);
+  const [pending, startTransition] = useTransition();
 
-  function update(patch: Partial<PrivacyPrefs>) {
-    writePrivacyPrefs({ ...prefs, ...patch });
+  function update(patch: Partial<AccountPrivacySettings>) {
+    if (pending) return;
+    const previous = settings;
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/me/privacy", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(next),
+        });
+        if (!response.ok) throw new Error("privacy_update_failed");
+        toast({ tone: "success", message: "บันทึกการตั้งค่าความเป็นส่วนตัวแล้ว" });
+      } catch {
+        setSettings(previous);
+        toast({ tone: "error", message: "บันทึกการตั้งค่าไม่สำเร็จ กรุณาลองอีกครั้ง" });
+      }
+    });
   }
 
   return (
@@ -167,20 +194,23 @@ function PrivacySettings() {
       <PrivacyToggle
         label="ประวัติการอ่าน"
         description="ซ่อนประวัติการอ่านจากคนอื่น"
-        checked={prefs.privateReadingHistory}
-        onChange={(value) => update({ privateReadingHistory: value })}
+        checked={settings.readingHistoryPrivate}
+        onChange={(value) => update({ readingHistoryPrivate: value })}
+        disabled={pending}
       />
       <PrivacyToggle
         label="Library"
         description="ซ่อนรายการในชั้นหนังสือจากคนอื่น"
-        checked={prefs.privateLibrary}
-        onChange={(value) => update({ privateLibrary: value })}
+        checked={settings.libraryPrivate}
+        onChange={(value) => update({ libraryPrivate: value })}
+        disabled={pending}
       />
       <PrivacyToggle
         label="ซ่อนชื่อเรื่องจาก Notification Preview"
         description="เมื่อเปิด การแจ้งเตือนจะไม่แสดงชื่อเรื่องที่คุณติดตาม"
-        checked={prefs.discreetNotifications}
-        onChange={(value) => update({ discreetNotifications: value })}
+        checked={settings.hideStoryTitleInNotification}
+        onChange={(value) => update({ hideStoryTitleInNotification: value })}
+        disabled={pending}
       />
     </div>
   );
@@ -231,42 +261,4 @@ function PrivacyToggle({
 
 function SettingsSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return <section className="grid gap-5 py-5 sm:py-6 lg:grid-cols-[240px_1fr]"><div><h2 className="text-h2 font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p></div><div>{children}</div></section>;
-}
-
-export function NotificationsPanel({ followingCount, updates }: { followingCount: number; updates: NovelUpdate[] }) {
-  if (!followingCount) {
-    return (
-      <section className="flex gap-4 py-2 sm:py-3">
-        <BellOff className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
-        <div>
-          <h2 className="text-xl font-semibold">ยังไม่มีเรื่องที่ติดตาม</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            ติดตามนิยายที่สนใจ แล้วตอนใหม่จะแจ้งเตือนที่นี่
-          </p>
-          <ButtonLink href="/novels" variant="outline" className="mt-4"><Heart className="h-4 w-4" />สำรวจนิยาย</ButtonLink>
-        </div>
-      </section>
-    );
-  }
-
-  if (!updates.length) {
-    return (
-      <section className="flex gap-4 py-2 sm:py-3">
-        <BellOff className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
-        <div>
-          <h2 className="text-xl font-semibold">ยังไม่มีการแจ้งเตือนใหม่</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            คุณกำลังติดตาม {followingCount.toLocaleString("th-TH")} เรื่อง เมื่อมีตอนใหม่จะปรากฏที่นี่
-          </p>
-          <ButtonLink href="/library/following" variant="outline" className="mt-4"><Heart className="h-4 w-4" />ดูเรื่องที่ติดตาม</ButtonLink>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="py-2 sm:py-3">
-      <NotificationList updates={updates} />
-    </section>
-  );
 }
