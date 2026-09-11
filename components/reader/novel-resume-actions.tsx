@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import {
   BookmarkButton,
+  FollowButton,
   LibraryButton,
   type NovelLibraryStatus,
 } from "@/components/interactive/novel-actions";
@@ -68,6 +69,7 @@ type ResumeActionProps = {
   startLabel: string;
   serverProgress?: NovelResumeServerProgress | null;
   libraryStatus?: NovelLibraryStatus | null;
+  followed?: boolean;
   bookmarkCount?: number;
   onOpenChapters?: () => void;
 };
@@ -78,6 +80,7 @@ export function NovelResumeActions({
   startLabel,
   serverProgress,
   libraryStatus,
+  followed,
   bookmarkCount,
 }: ResumeActionProps) {
   const { openDialog } = useNovelChapterDialog();
@@ -100,6 +103,7 @@ export function NovelResumeActions({
           สารบัญ
         </Button>
         <LibraryButton slug={slug} initialStatus={libraryStatus} count={bookmarkCount} />
+        <FollowButton slug={slug} initialActive={followed} />
       </div>
 
       {selection ? (
@@ -123,6 +127,7 @@ export function NovelResumeMobileBar({
   startLabel,
   serverProgress,
   libraryStatus,
+  followed,
   onOpenChapters,
 }: ResumeActionProps) {
   const selection = useNovelResumeProgress(slug, serverProgress);
@@ -161,6 +166,7 @@ export function NovelResumeMobileBar({
           <ListOrdered className="h-4 w-4" />
         </button>
         <BookmarkButton slug={slug} initialStatus={libraryStatus} />
+        <FollowButton slug={slug} initialActive={followed} iconOnly />
         <Link
           href={href}
           className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[var(--brand-primary)] px-3 text-base font-semibold text-white shadow-[var(--sh-brand)] active:translate-y-px"

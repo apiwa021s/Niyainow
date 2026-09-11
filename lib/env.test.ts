@@ -5,6 +5,7 @@ import {
   getRedisRuntimeEnv,
   getRuntimeEnv,
   requireDatabaseEnv,
+  requireCronEnv,
   requireNovelImportEnv,
 } from "./env";
 
@@ -65,6 +66,15 @@ describe("environment helpers", () => {
       REDIS_URL: "rediss://default:secret@cache.example.test:6379/0",
       REDIS_TIMEOUT_MS: 75,
     });
+  });
+
+  it("requires a strong secret for scheduled publishing", () => {
+    expect(() => requireCronEnv({ NODE_ENV: "test" })).toThrow(EnvironmentConfigurationError);
+    expect(() => requireCronEnv({ NODE_ENV: "test", CRON_SECRET: "too-short" })).toThrow(EnvironmentConfigurationError);
+    expect(requireCronEnv({
+      NODE_ENV: "test",
+      CRON_SECRET: "test-cron-secret-with-at-least-32-characters",
+    }).CRON_SECRET).toHaveLength(44);
   });
 
   it("rejects a non-Redis REDIS_URL", () => {

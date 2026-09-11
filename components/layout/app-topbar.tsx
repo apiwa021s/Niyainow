@@ -3,7 +3,7 @@
 import { Bell, LogIn, Search, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Logo } from "@/components/layout/logo";
 import { GlobalSearch } from "@/components/search/global-search";
@@ -24,9 +24,46 @@ export type TopbarViewer = {
  *
  * Desktop: the sidebar owns navigation, so the avatar appears here instead.
  */
-export function AppTopbar({ viewer }: { viewer: TopbarViewer | null | undefined }) {
+export function AppTopbar({
+  viewer,
+  initialUnreadCount = 0,
+}: {
+  viewer: TopbarViewer | null | undefined;
+  initialUnreadCount?: number;
+}) {
   const visible = useScrollChromeVisibility();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+
+  useEffect(() => {
+    if (!viewer) return;
+    const onCountUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ unreadCount?: number }>).detail;
+      if (typeof detail?.unreadCount === "number") setUnreadCount(Math.max(0, detail.unreadCount));
+    };
+    const refreshCount = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const response = await fetch("/api/me/notifications/unread-count", {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { data?: { unreadCount?: number } };
+        if (typeof payload.data?.unreadCount === "number") setUnreadCount(payload.data.unreadCount);
+      } catch {
+        // The server-rendered count remains useful while the network is unavailable.
+      }
+    };
+    const interval = window.setInterval(() => void refreshCount(), 60_000);
+    window.addEventListener("niyainow:notifications-updated", onCountUpdate);
+    document.addEventListener("visibilitychange", refreshCount);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("niyainow:notifications-updated", onCountUpdate);
+      document.removeEventListener("visibilitychange", refreshCount);
+    };
+  }, [viewer]);
 
   return (
     <header
@@ -69,10 +106,15 @@ export function AppTopbar({ viewer }: { viewer: TopbarViewer | null | undefined 
 
         <Link
           href="/notifications"
-          aria-label="การแจ้งเตือน"
-          className={`grid h-11 w-11 shrink-0 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary) ${searchOpen ? "hidden lg:grid" : ""}`}
+          aria-label={unreadCount ? `การแจ้งเตือนที่ยังไม่ได้อ่าน ${unreadCount} รายการ` : "การแจ้งเตือน"}
+          className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-(--r-md) text-(--text-secondary) hover:bg-surface-subtle hover:text-(--text-primary) ${searchOpen ? "hidden lg:grid" : ""}`}
         >
           <Bell className="h-4.5 w-4.5" />
+          {unreadCount ? (
+            <span className="absolute right-0.5 top-0.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-[var(--brand-pink)] px-1 text-[10px] font-bold leading-4 text-white ring-2 ring-[var(--bg-base)]">
+              {unreadCount > 99 ? "99+" : unreadCount.toLocaleString("th-TH")}
+            </span>
+          ) : null}
         </Link>
 
         {viewer === undefined ? (

@@ -53,7 +53,7 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 
 - Frozen Writer Studio routes are wired to authenticated PostgreSQL-backed services; hidden out-of-scope legacy Studio routes retain their existing mock data and remain outside navigation
 - Chapter editor keeps a local browser recovery copy in addition to versioned server autosave; local recovery is not a source of truth
-- Scheduled publishing and outbox processing are idempotent commands, but deployment still needs cron/worker invocations
+- Scheduled publishing and outbox processing are idempotent commands and are invoked by the protected Vercel Cron route in `vercel.json`
 - Fan taxonomy preferences query the operational database directly; a summary table may be needed at larger scale
 - Featured-story ownership is service-validated rather than enforced by a circular database foreign key
 - Several PostgreSQL auto-generated FK names are truncated to 63 characters; behavior is correct but naming can be cleaned up
@@ -61,7 +61,7 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 ## 8. Production risks
 
 - Stripe Checkout and signed webhook adapters are implemented, but live credentials and explicit Stripe approval for NovelNow's actual mature-fiction business category are still required
-- Transactional outbox is implemented, but no continuously running production worker/queue deployment is configured
+- Notification delivery depends on configuring `CRON_SECRET` and enabling the checked-in five-minute Vercel Cron schedule in Production
 - Authenticated HTTP session E2E still requires a browser/session harness; ownership and concurrency are covered at the service/database boundary
 - Existing `.env` uses a non-production public URL; production builds require a credential-free HTTPS `NEXT_PUBLIC_APP_URL`
 - Revenue attribution depends on trusted top-up adapters supplying paid monetary value and currency to `creditCoins`
@@ -71,8 +71,7 @@ Hidden legacy Studio routes and existing admin/catalogue modules were not delete
 - Live `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the deployment secret manager
 - Stripe Dashboard webhook registration for the events documented in `docs/stripe-setup.md`
 - Explicit Stripe approval for NovelNow's actual business/content category
-- Production scheduler invoking `npm run db:publish-scheduled`
-- Production worker invoking `npm run db:process-outbox`
+- Production `CRON_SECRET` and an enabled Vercel Cron deployment for `/api/cron/publishing`
 - Production HTTPS app URL and provider credentials
 
 ## 10. Test results for core scenarios

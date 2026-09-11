@@ -159,6 +159,7 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             startLabel={startLabel}
             serverProgress={userState?.progress}
             libraryStatus={userState?.libraryStatus}
+            followed={userState?.followed}
           />
           <NovelCommunity novel={novel} userState={userState} reviews={detailSections.reviews} />
         </div>
