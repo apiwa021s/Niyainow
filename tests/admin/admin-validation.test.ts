@@ -7,6 +7,7 @@ vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 import {
   adminBannerInputSchema,
   adminChapterInputSchema,
+  adminChapterTextExportSelectionSchema,
   adminChapterReorderSchema,
   adminGenreInputSchema,
   adminNovelInputSchema,
@@ -85,6 +86,13 @@ describe("admin chapter validation", () => {
       novelSlug: "stable-story",
       chapters: [{ id: firstId, sortOrder: 1 }, { id: secondId, sortOrder: 1 }],
     }).success).toBe(false);
+  });
+
+  it("accepts a bounded list of chapter IDs for selected text export", () => {
+    const chapterId = "00000000-0000-4000-8000-000000000001";
+    expect(adminChapterTextExportSelectionSchema.safeParse({ chapterIds: [chapterId] }).success).toBe(true);
+    expect(adminChapterTextExportSelectionSchema.safeParse({ chapterIds: [] }).success).toBe(false);
+    expect(adminChapterTextExportSelectionSchema.safeParse({ chapterIds: ["not-a-uuid"] }).success).toBe(false);
   });
 });
 

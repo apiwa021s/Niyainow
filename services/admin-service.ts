@@ -65,6 +65,10 @@ const storyStatusSchema = z.enum(["ONGOING", "COMPLETED", "HIATUS", "CANCELLED"]
 const reviewStatusSchema = z.enum(["PENDING", "PUBLISHED", "HIDDEN", "REJECTED"]);
 const moderationStatusSchema = z.enum(["PUBLISHED", "HIDDEN", "REJECTED"]);
 
+export const adminChapterTextExportSelectionSchema = z.object({
+  chapterIds: z.array(z.uuid()).min(1).max(CHAPTER_PAGE_SIZE),
+});
+
 function nullableObjectKey(prefix: "covers/" | "banners/") {
   return z
     .union([objectKeySchema, z.literal(""), z.null()])
@@ -438,6 +442,11 @@ export type AdminChapterDetail = AdminChapterRow & {
   content: string;
   excerpt: string | null;
 };
+
+export type AdminChapterTextExport = Pick<
+  AdminChapterDetail,
+  "chapterNumber" | "title" | "content"
+>;
 
 export type AdminReviewQuery = {
   q?: string;
@@ -1258,6 +1267,32 @@ export async function getAdminChapterById(idInput: string): Promise<AdminChapter
     .limit(1);
   const row = rows[0];
   return row ? { ...mapChapter(row), content: row.content, excerpt: row.excerpt } : undefined;
+}
+
+export async function getAdminChapterTextExport(
+  novelSlugInput: string,
+  chapterIdsInput?: string[],
+): Promise<AdminChapterTextExport[]> {
+  await assertAdmin();
+  const novelSlug = slugSchema.parse(novelSlugInput);
+  const chapterIds = chapterIdsInput
+    ? adminChapterTextExportSelectionSchema.parse({ chapterIds: chapterIdsInput }).chapterIds
+    : undefined;
+  return getDb()
+    .select({
+      chapterNumber: chapters.chapterNumber,
+      title: chapters.title,
+      content: chapters.content,
+    })
+    .from(chapters)
+    .innerJoin(novels, eq(novels.id, chapters.novelId))
+    .where(and(
+      eq(novels.slug, novelSlug),
+      chapterIds ? inArray(chapters.id, chapterIds) : undefined,
+      isNull(chapters.deletedAt),
+      isNull(novels.deletedAt),
+    ))
+    .orderBy(asc(chapters.sortOrder), asc(chapters.chapterNumber), asc(chapters.id));
 }
 
 export async function getNextChapterDefaults(novelSlugInput: string) {

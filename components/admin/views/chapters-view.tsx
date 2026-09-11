@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ChevronDown, ChevronUp, Eye, GripVertical, Pencil, Save, Send, Trash2, Undo2, X } from "lucide-react";
+import { Archive, ChevronDown, ChevronUp, Download, Eye, GripVertical, Pencil, Save, Send, Trash2, Undo2, X } from "lucide-react";
 import { useState } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
@@ -78,6 +78,7 @@ function ChaptersViewContent({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkAction, setBulkAction] = useState<BulkAction>("PUBLISH");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [orderedItems, setOrderedItems] = useState(() => result.items);
   const [isReordering, setIsReordering] = useState(query.mode === "reorder");
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -133,6 +134,39 @@ function ChaptersViewContent({
       toast({ tone: "error", message: error instanceof Error ? error.message : "ดำเนินการไม่สำเร็จ กรุณาลองอีกครั้ง" });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function downloadSelectedChapters() {
+    if (!fixedNovelSlug) return;
+    const chapterIds = visibleIds.filter((id) => selectedIds.has(id));
+    if (!chapterIds.length) return;
+
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`/api/admin/novels/${fixedNovelSlug}/chapters/export`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chapterIds }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as unknown;
+        throw new Error(apiErrorMessage(payload));
+      }
+
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${fixedNovelSlug}-selected-chapters.zip`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      toast({ tone: "success", message: `ดาวน์โหลด ${chapterIds.length} ตอนที่เลือกแล้ว` });
+    } catch (error) {
+      toast({ tone: "error", message: error instanceof Error ? error.message : "ดาวน์โหลดไม่สำเร็จ กรุณาลองอีกครั้ง" });
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -259,6 +293,15 @@ function ChaptersViewContent({
                 <GripVertical className="h-4 w-4" />ย้ายตอน
               </Button> : null}
               <span className="text-sm font-medium text-muted-foreground">เลือกแล้ว {visibleSelectedCount} ตอน</span>
+              {fixedNovelSlug ? <Button
+                type="button"
+                variant="outline"
+                onClick={downloadSelectedChapters}
+                loading={isDownloading}
+                disabled={!visibleSelectedCount || isSubmitting}
+              >
+                <Download className="h-4 w-4" />ดาวน์โหลดที่เลือก
+              </Button> : null}
               <Select
                 aria-label="คำสั่งสำหรับตอนที่เลือก"
                 value={bulkAction}
