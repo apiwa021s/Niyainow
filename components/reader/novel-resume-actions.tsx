@@ -2,7 +2,7 @@
 
 import { BookOpen, ListOrdered } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import {
   BookmarkButton,
@@ -126,13 +126,29 @@ export function NovelResumeMobileBar({
   onOpenChapters,
 }: ResumeActionProps) {
   const selection = useNovelResumeProgress(slug, serverProgress);
+  const [footerVisible, setFooterVisible] = useState(false);
   const href = selection ? progressHref(slug, selection) : startHref;
   const label = selection
     ? `อ่านต่อ ตอนที่ ${chapterLabel(selection.progress.chapterNumber)}`
     : startLabel;
 
+  useEffect(() => {
+    const footer = document.querySelector("[data-site-footer]");
+    if (!footer) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setFooterVisible(Boolean(entry?.isIntersecting)),
+      { threshold: 0 },
+    );
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="novel-resume-mobile-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] lg:hidden">
+    <div
+      aria-hidden={footerVisible ? true : undefined}
+      inert={footerVisible}
+      className={`novel-resume-mobile-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)] lg:hidden ${footerVisible ? "pointer-events-none translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}
+    >
       <div className="mx-auto flex max-w-md items-center gap-2">
         <button
           type="button"

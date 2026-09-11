@@ -35,7 +35,7 @@ export function ChapterEnd({
   onNavigateChapter?: (chapterNumber: number) => void;
 }) {
   return (
-    <footer className="mt-12 flex flex-col gap-6">
+    <footer data-reader-chapter-end className="mt-12 flex flex-col gap-6">
       <BrandDivider />
 
       <div className="text-center">

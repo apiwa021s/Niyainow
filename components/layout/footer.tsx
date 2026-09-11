@@ -57,7 +57,7 @@ export async function Footer() {
   const copyrightYear = await getCopyrightYear();
 
   return (
-    <footer className="mt-10 bg-surface text-(--text-primary)">
+    <footer data-site-footer className="mt-10 bg-surface text-(--text-primary)">
       <div className="mx-auto max-w-(--shell-max) px-3 py-6 sm:px-4 sm:py-8 lg:px-5">
         <div className="hidden gap-8 md:grid md:grid-cols-4">
           {groups.map((group) => (
