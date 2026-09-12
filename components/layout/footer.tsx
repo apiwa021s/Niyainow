@@ -18,7 +18,8 @@ const groups = [
           ] as const)
         : []),
       ["อ่านนิยายออนไลน์ทั้งหมด", "/novels"],
-      ["อันดับนิยายยอดนิยม", "/rankings"]
+      ["อันดับนิยายยอดนิยม", "/rankings"],
+      ["NovelNow World", "/world"]
     ]
   },
   {

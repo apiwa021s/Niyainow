@@ -5,6 +5,7 @@ const nextExecutable = isWindows ? "node_modules\\.bin\\next.cmd" : "./node_modu
 const children = [
   spawn(nextExecutable, ["dev"], { stdio: "inherit", shell: isWindows }),
   spawn(process.execPath, ["--conditions=react-server", "--import", "tsx", "db/watch-translation-jobs.ts"], { stdio: "inherit" }),
+  spawn(process.execPath, ["--conditions=react-server", "--import", "tsx", "world/server.ts"], { stdio: "inherit" }),
 ];
 
 let exiting = false;

@@ -3,8 +3,8 @@ import {
   BookOpen,
   Clock3,
   Compass,
+  Globe2,
   Home,
-  Info,
   Library,
   Sparkles,
   Tags,
@@ -33,6 +33,7 @@ const primaryNav: NavItem[] = [
   { href: "/rankings", label: "จัดอันดับ", icon: Trophy },
   { href: "/updates", label: "อัปเดตล่าสุด", icon: Sparkles },
   { href: "/tags", label: "แท็ก", icon: Tags, owns: ["/tag"] },
+  { href: "/world", label: "NovelNow World", icon: Globe2 },
 ];
 
 const libraryNav: NavItem[] = [
@@ -40,8 +41,6 @@ const libraryNav: NavItem[] = [
   { href: "/history", label: "ประวัติการอ่าน", icon: Clock3 },
   { href: "/wallet", label: "กระเป๋าเหรียญ", icon: CoinNavIcon },
 ];
-
-const supportNav: NavItem[] = [{ href: "/about", label: "ศูนย์ข้อมูล", icon: Info }];
 
 function CoinNavIcon({ className }: { className?: string; strokeWidth?: number }) {
   return (
@@ -118,7 +117,6 @@ export function AppSidebar() {
       <nav className="pane-scroll -mr-1 flex min-h-0 flex-1 flex-col gap-2 pr-1">
         {renderGroup(primaryNav)}
         {renderGroup(libraryNav, "ของฉัน")}
-        {/* {renderGroup(supportNav)} */}
       </nav>
       <div className="px-1 pt-3">
         <ThemeSwitcher compact={false} />

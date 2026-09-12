@@ -22,11 +22,30 @@ function buildPublicUrl(name: "NEXT_PUBLIC_APP_URL" | "NEXT_PUBLIC_ASSET_URL", p
   return url.toString().replace(/\/$/u, "");
 }
 
+function buildWorldSocketUrl(phase: string) {
+  const value = process.env.NEXT_PUBLIC_WORLD_SOCKET_URL;
+  if (!value) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("NEXT_PUBLIC_WORLD_SOCKET_URL must be a valid absolute URL");
+  }
+  if (!["http:", "https:", "ws:", "wss:"].includes(url.protocol) || url.username || url.password) {
+    throw new Error("NEXT_PUBLIC_WORLD_SOCKET_URL must be a credential-free HTTP(S) or WS(S) URL");
+  }
+  if (phase === PHASE_PRODUCTION_BUILD && !["https:", "wss:"].includes(url.protocol)) {
+    throw new Error("NEXT_PUBLIC_WORLD_SOCKET_URL must use HTTPS or WSS for production builds");
+  }
+  return url.toString().replace(/\/$/u, "");
+}
+
 export default function createNextConfig(phase: string): NextConfig {
   // Both values are embedded into the artifact. Validate the app URL even
   // though only the asset URL is needed to construct Next Image policy here.
   buildPublicUrl("NEXT_PUBLIC_APP_URL", phase);
   const assetUrl = buildPublicUrl("NEXT_PUBLIC_ASSET_URL", phase);
+  const worldSocketUrl = buildWorldSocketUrl(phase);
   const isProduction = process.env.NODE_ENV === "production";
   const vercelLiveOrigin = process.env.VERCEL === "1" ? "https://vercel.live" : null;
 
@@ -70,6 +89,7 @@ export default function createNextConfig(phase: string): NextConfig {
       "https://challenges.cloudflare.com",
       ...(assetOrigin ? [assetOrigin] : []),
       ...(vercelLiveOrigin ? [vercelLiveOrigin] : []),
+      ...(worldSocketUrl ? [new URL(worldSocketUrl).origin] : []),
       ...(isProduction ? [] : ["ws:", "wss:"]),
     ].join(" "),
     ["frame-src 'self'", "https://challenges.cloudflare.com", ...(vercelLiveOrigin ? [vercelLiveOrigin] : [])].join(" "),

@@ -34,6 +34,7 @@ import {
   reviews,
   userLibrary,
 } from "./user";
+import { worldCharacters } from "./world";
 
 export const usersRelations = relations(users, ({ many, one }) => ({
   accounts: many(accounts),
@@ -53,6 +54,11 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   coinWallet: one(coinWallets),
   coinLedger: many(coinLedgerEntries),
   chapterUnlocks: many(chapterUnlocks),
+  worldCharacter: one(worldCharacters),
+}));
+
+export const worldCharactersRelations = relations(worldCharacters, ({ one }) => ({
+  user: one(users, { fields: [worldCharacters.userId], references: [users.id] }),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({

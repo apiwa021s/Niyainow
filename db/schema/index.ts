@@ -10,3 +10,4 @@ export * from "./relations";
 export * from "./taxonomy";
 export * from "./translation";
 export * from "./user";
+export * from "./world";

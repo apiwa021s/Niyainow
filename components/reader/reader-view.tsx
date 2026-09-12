@@ -123,6 +123,7 @@ export function ReaderView({
   initialProgress,
   locked = false,
   lockedContent,
+  returnToWorld = false,
 }: {
   novel: ReaderNovel;
   chapter: ChapterSummary;
@@ -137,6 +138,7 @@ export function ReaderView({
   initialProgress?: ReaderInitialProgress | null;
   locked?: boolean;
   lockedContent?: ReactNode;
+  returnToWorld?: boolean;
 }) {
   const router = useRouter();
   const { prefs, stepFontSize, cycleTheme } = useReaderPrefs({ signedIn: isAuthenticated });
@@ -157,9 +159,10 @@ export function ReaderView({
       : null,
   );
 
-  const nextHref = next ? `/novel/${novel.slug}/chapter/${next.number}` : null;
-  const previousHref = previous ? `/novel/${novel.slug}/chapter/${previous.number}` : null;
-  const chaptersHref = `/novel/${novel.slug}/chapters`;
+  const worldSuffix = returnToWorld ? "?from=world" : "";
+  const nextHref = next ? `/novel/${novel.slug}/chapter/${next.number}${worldSuffix}` : null;
+  const previousHref = previous ? `/novel/${novel.slug}/chapter/${previous.number}${worldSuffix}` : null;
+  const chaptersHref = `/novel/${novel.slug}/chapters${worldSuffix}`;
   const chapterKey = `${novel.slug}:${chapter.id ?? chapter.number}`;
   const lastScrollY = useRef(0);
   const progressRef = useRef(0);
@@ -361,7 +364,7 @@ export function ReaderView({
           moreButtonRef.current?.focus();
         }
         else if (sidebarOpen) setSidebarOpen(false);
-        else if (!settingsOpen) router.push(`/novel/${novel.slug}`);
+        else if (!settingsOpen) router.push(returnToWorld ? "/world" : `/novel/${novel.slug}`);
         return;
       }
 
@@ -402,7 +405,7 @@ export function ReaderView({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cycleTheme, moreOpen, next, nextHref, novel.slug, previous, previousHref, router, setSidebarOpen, settingsOpen, sidebarOpen, stepFontSize]);
+  }, [cycleTheme, moreOpen, next, nextHref, novel.slug, previous, previousHref, returnToWorld, router, setSidebarOpen, settingsOpen, sidebarOpen, stepFontSize]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -552,7 +555,7 @@ export function ReaderView({
 
       <header aria-hidden={!chromeVisible ? true : undefined} inert={!chromeVisible} className={cn("fixed inset-x-0 top-0 z-40 h-[calc(4rem+env(safe-area-inset-top))] border-b border-current/10 bg-[var(--reader-paper)] pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]", chromeVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0")}>
         <div className="mx-auto flex h-16 max-w-[calc(var(--reader-measure)+12rem)] items-center gap-1 px-2 sm:px-4">
-          <Link href={`/novel/${novel.slug}`} aria-label="กลับไปหน้าเรื่อง" className={READER_ICON_ACTION_CLASS}><ArrowLeft className="h-5 w-5" /></Link>
+          <Link href={returnToWorld ? "/world" : `/novel/${novel.slug}`} aria-label={returnToWorld ? "กลับสู่ NovelNow World" : "กลับไปหน้าเรื่อง"} className={READER_ICON_ACTION_CLASS}><ArrowLeft className="h-5 w-5" /></Link>
           <div className="min-w-0 flex-1 px-1">
             <span className="block truncate text-xs opacity-65">{novel.thaiTitle}</span>
             <span className="block truncate text-sm font-semibold">ตอนที่ {chapter.number} · {chapter.title}</span>
@@ -641,7 +644,7 @@ export function ReaderView({
       </nav>
       </div>
 
-      <ReaderSidebar novel={novel} current={chapter} chapterWindow={chapterWindow} open={sidebarOpen} onClose={closeSidebar} onNavigateChapter={navigateChapter} returnFocusRef={modalReturnFocusRef} />
+      <ReaderSidebar novel={novel} current={chapter} chapterWindow={chapterWindow} open={sidebarOpen} onClose={closeSidebar} onNavigateChapter={navigateChapter} returnFocusRef={modalReturnFocusRef} returnToWorld={returnToWorld} />
       {settingsOpen ? <ReaderSettings open onClose={closeSettings} returnFocusRef={modalReturnFocusRef} signedIn={isAuthenticated} /> : null}
     </div>
   );
@@ -655,6 +658,7 @@ function ReaderSidebar({
   onClose,
   onNavigateChapter,
   returnFocusRef,
+  returnToWorld,
 }: {
   novel: ReaderNovel;
   current: ChapterSummary;
@@ -663,12 +667,14 @@ function ReaderSidebar({
   onClose: () => void;
   onNavigateChapter: (chapterNumber: number) => void;
   returnFocusRef: RefObject<HTMLElement | null>;
+  returnToWorld: boolean;
 }) {
   const [query, setQuery] = useState("");
   const panelRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const chaptersHref = `/novel/${novel.slug}/chapters`;
+  const worldCatalogSuffix = returnToWorld ? "&from=world" : "";
   const firstVisibleChapter = chapterWindow.items[0];
   const lastVisibleChapter = chapterWindow.items[chapterWindow.items.length - 1];
   const earlierJump = chapterWindow.earlierBoundary?.number
@@ -732,14 +738,14 @@ function ReaderSidebar({
           ตอนลำดับ {chapterWindow.startPosition.toLocaleString("th-TH")}–{chapterWindow.endPosition.toLocaleString("th-TH")} จาก {chapterWindow.total.toLocaleString("th-TH")}
         </p>
         <nav aria-label="รายชื่อตอน" className="min-h-0 flex-1 overflow-y-auto px-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-          {chapterWindow.hasEarlier && earlierJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${earlierJump}`} onClick={onClose} className="mb-1 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนก่อนหน้านี้ในสารบัญ</Link> : null}
+          {chapterWindow.hasEarlier && earlierJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${earlierJump}${worldCatalogSuffix}`} onClick={onClose} className="mb-1 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนก่อนหน้านี้ในสารบัญ</Link> : null}
           <div className="grid gap-1">
             {visible.map((item) => {
               const active = item.id ? item.id === current.id : item.number === current.number;
               return (
                 <Link
                   key={item.id ?? item.number}
-                  href={`/novel/${novel.slug}/chapter/${item.number}`}
+                  href={`/novel/${novel.slug}/chapter/${item.number}${returnToWorld ? "?from=world" : ""}`}
                   prefetch={false}
                   onClick={() => { onNavigateChapter(item.number); onClose(); }}
                   aria-current={active ? "page" : undefined}
@@ -762,7 +768,7 @@ function ReaderSidebar({
             })}
           </div>
           {visible.length === 0 ? <p className="px-3 py-8 text-center text-sm opacity-65">ไม่พบตอนในช่วงใกล้เคียงนี้</p> : null}
-          {chapterWindow.hasLater && laterJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${laterJump}`} onClick={onClose} className="mt-2 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนถัดไปในสารบัญ</Link> : null}
+          {chapterWindow.hasLater && laterJump !== undefined ? <Link href={`${chaptersHref}?order=oldest&jump=${laterJump}${worldCatalogSuffix}`} onClick={onClose} className="mt-2 flex min-h-11 items-center justify-center rounded-[6px] border border-current/12 bg-current/5 text-xs font-semibold hover:bg-current/10">ดูตอนถัดไปในสารบัญ</Link> : null}
         </nav>
       </aside>
     </>

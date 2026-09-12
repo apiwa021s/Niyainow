@@ -19,6 +19,7 @@ import { getUnlockedChapterIds, getWalletBalance } from "@/services/coin-service
 import { getUserNovelState } from "@/services/user-service";
 
 type ChapterRouteProps = { params: Promise<{ slug: string; chapter: string }> };
+type ChapterPageProps = ChapterRouteProps & { searchParams: Promise<{ from?: string }> };
 
 export async function generateMetadata({ params }: ChapterRouteProps): Promise<Metadata> {
   const { slug, chapter } = await params;
@@ -56,8 +57,9 @@ export async function generateMetadata({ params }: ChapterRouteProps): Promise<M
   });
 }
 
-export default async function ChapterPage({ params }: ChapterRouteProps) {
+export default async function ChapterPage({ params, searchParams }: ChapterPageProps) {
   const { slug, chapter } = await params;
+  const { from } = await searchParams;
   const parsed = parseChapterNumberSegment(chapter);
   if (!parsed || !slugSchema.safeParse(slug).success) notFound();
   await connection();
@@ -182,6 +184,7 @@ export default async function ChapterPage({ params }: ChapterRouteProps) {
         initialLibraryStatus={userState?.libraryStatus}
         initialFollowing={userState?.followed}
         initialProgress={userState?.progress}
+        returnToWorld={from === "world"}
       >
         <ChapterBody paragraphs={paragraphs} teaser={locked} />
       </ReaderView>

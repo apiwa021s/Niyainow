@@ -6,6 +6,12 @@ const httpUrl = z.url().refine((value) => value.startsWith("https://") || value.
   message: "must use the http:// or https:// protocol",
 });
 const optionalUrl = z.preprocess(emptyToUndefined, httpUrl.optional());
+const optionalWorldSocketUrl = z.preprocess(
+  emptyToUndefined,
+  z.string().url().refine((value) => /^(?:https?|wss?):\/\//u.test(value), {
+    message: "must use the http://, https://, ws://, or wss:// protocol",
+  }).optional(),
+);
 const optionalString = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
 const optionalRedisUrl = z.preprocess(
   emptyToUndefined,
@@ -36,6 +42,7 @@ const runtimeEnvSchema = z.object({
   NEXT_PHASE: optionalString,
   NEXT_PUBLIC_APP_URL: optionalUrl,
   NEXT_PUBLIC_ASSET_URL: optionalUrl,
+  NEXT_PUBLIC_WORLD_SOCKET_URL: optionalWorldSocketUrl,
   MONGODB_URL: z.preprocess(
     emptyToUndefined,
     z

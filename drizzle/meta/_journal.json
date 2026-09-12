@@ -169,6 +169,13 @@
       "when": 1789136086702,
       "tag": "20260911141446_mighty_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789194597485,
+      "tag": "20260912062957_cynical_terrax",
+      "breakpoints": true
     }
   ]
 }
