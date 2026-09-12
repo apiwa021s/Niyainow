@@ -6,7 +6,7 @@ import { TranslationStudioView } from "@/components/admin/views/translation-stud
 import { Skeleton } from "@/components/ui/section";
 import { getTranslationStudio } from "@/services/translation-service";
 
-export const metadata: Metadata = { title: "AI Translation Studio" };
+export const metadata: Metadata = { title: "สตูดิโอแปลนิยายด้วย AI" };
 
 async function TranslationStudioContent() {
   const data = await getTranslationStudio();
@@ -29,9 +29,9 @@ export default function TranslationStudioPage() {
   return (
     <>
       <AdminPageHeader
-        title="AI Translation Studio"
-        description="จัดการต้นฉบับ บริบท งานแปล การตรวจ QA และค่าใช้จ่ายจากจุดเดียว"
-        crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "Translation Studio" }]}
+        title="สตูดิโอแปลนิยายด้วย AI"
+        description="เริ่มงานแปล ติดตามความคืบหน้า ตรวจคุณภาพ และเผยแพร่จากที่เดียว"
+        crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "สตูดิโอแปลนิยาย" }]}
       />
       <Suspense fallback={<TranslationStudioFallback />}>
         <TranslationStudioContent />

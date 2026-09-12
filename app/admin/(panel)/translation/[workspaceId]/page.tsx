@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/section";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getTranslationWorkspace } from "@/services/translation-service";
 
-export const metadata: Metadata = { title: "Translation Workspace" };
+export const metadata: Metadata = { title: "จัดการงานแปล" };
 
 type TranslationWorkspacePageProps = PageProps<"/admin/translation/[workspaceId]">;
 
@@ -21,7 +21,7 @@ async function TranslationWorkspaceContent({ params }: TranslationWorkspacePageP
       <AdminPageHeader
         title={data.workspace.title}
         description={`${data.workspace.sourceLanguage} → ${data.workspace.targetLanguage}`}
-        crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "Translation Studio", href: "/admin/translation" }, { label: data.workspace.title }]}
+        crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "สตูดิโอแปลนิยาย", href: "/admin/translation" }, { label: data.workspace.title }]}
       />
       <TranslationWorkspaceView data={data} canCancelJobs={user.role === "ADMIN"} />
     </>

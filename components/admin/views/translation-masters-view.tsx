@@ -8,12 +8,14 @@ import { Panel, StatCard } from "@/components/admin/admin-ui";
 import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form-controls";
+import { useAppDialog } from "@/components/ui/modal";
 import type { getTranslationMasterAdminData } from "@/services/translation-master-service";
 
 type Data = Awaited<ReturnType<typeof getTranslationMasterAdminData>>;
 
 export function TranslationMastersView({ data }: { data: Data }) {
   const router = useRouter();
+  const dialogs = useAppDialog();
   const [dataset, setDataset] = useState("ALL");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
@@ -28,9 +30,14 @@ export function TranslationMastersView({ data }: { data: Data }) {
 
   async function review(action: "APPROVE_DRAFT_SET" | "REJECT_DRAFT_SET") {
     const approving = action === "APPROVE_DRAFT_SET";
-    if (!window.confirm(approving
-      ? `ยืนยันว่า Editor ตรวจชุด Draft ทั้ง ${data.overview.draft.toLocaleString("th-TH")} รายการแล้ว และอนุมัติให้ใช้สร้าง Profile?`
-      : `ปฏิเสธ Draft ทั้ง ${data.overview.draft.toLocaleString("th-TH")} รายการ?`)) return;
+    if (!await dialogs.confirm({
+      title: approving ? "อนุมัติกฎกลางชุดนี้หรือไม่?" : "ปฏิเสธกฎกลางชุดนี้หรือไม่?",
+      description: approving
+        ? `กฎที่รอตรวจทั้ง ${data.overview.draft.toLocaleString("th-TH")} รายการจะถูกเปิดใช้กับงานแปลที่สร้างใหม่`
+        : `กฎที่รอตรวจทั้ง ${data.overview.draft.toLocaleString("th-TH")} รายการจะถูกปฏิเสธและไม่ถูกนำไปใช้`,
+      confirmLabel: approving ? "อนุมัติทั้งหมด" : "ปฏิเสธทั้งหมด",
+      tone: approving ? "default" : "danger",
+    })) return;
     setBusy(approving ? "approve" : "reject");
     setError("");
     setMessage("");

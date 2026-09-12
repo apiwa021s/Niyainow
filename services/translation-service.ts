@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, count, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, max, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
@@ -186,6 +186,13 @@ export const enqueueTranslationSchema = z.object({
   operation: translationJobOperationSchema.default("TRANSLATE"),
   chapterIds: z.array(uuidSchema).min(1).max(100),
   idempotencyKey: z.string().trim().min(16).max(255),
+});
+
+export const bulkPublishTranslationSchema = z.object({
+  chapterIds: z.array(uuidSchema).min(1).max(100).refine(
+    (chapterIds) => new Set(chapterIds).size === chapterIds.length,
+    "Chapter IDs must be unique",
+  ),
 });
 
 export const saveTranslationSchema = z.object({
@@ -701,6 +708,9 @@ export async function getTranslationStudio() {
       translatedTitle: translatedImportSourceTexts.title,
       chapterCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id})`.mapWith(Number),
       approvedCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status in ('APPROVED','PUBLISHED'))`.mapWith(Number),
+      publishReadyCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status = 'APPROVED')`.mapWith(Number),
+      publishedCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status = 'PUBLISHED')`.mapWith(Number),
+      needsReviewCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status in ('REVIEW','QA_FAILED'))`.mapWith(Number),
       jobCostMicros: sql<number>`
         coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id join translation_jobs j on j.id = ji.job_id where j.workspace_id = ${translationWorkspaces.id}), 0)
         + coalesce((select sum((call->>'costMicros')::bigint) from translation_profile_versions tpv cross join lateral jsonb_array_elements(coalesce(tpv.snapshot->'aiPipeline', '[]'::jsonb)) call where tpv.workspace_id = ${translationWorkspaces.id}), 0)
@@ -730,8 +740,8 @@ export async function getTranslationStudio() {
     getTranslationMasterOverview(),
   ]);
   return {
-    workspaces: workspaceRows.map(({ workspace, sourceTitle, translatedTitle, chapterCount, approvedCount, jobCostMicros }) => ({
-      ...serializeWorkspace(workspace), title: translatedTitle ?? sourceTitle ?? "Imported novel", sourceTitle: sourceTitle ?? "Imported novel", chapterCount, approvedCount, jobCostMicros, updatedAt: workspace.updatedAt.toISOString(),
+    workspaces: workspaceRows.map(({ workspace, sourceTitle, translatedTitle, chapterCount, approvedCount, publishReadyCount, publishedCount, needsReviewCount, jobCostMicros }) => ({
+      ...serializeWorkspace(workspace), title: translatedTitle ?? sourceTitle ?? "Imported novel", sourceTitle: sourceTitle ?? "Imported novel", chapterCount, approvedCount, publishReadyCount, publishedCount, needsReviewCount, jobCostMicros, updatedAt: workspace.updatedAt.toISOString(),
     })),
     sources: sourceRows.map((row) => ({
       ...row,
@@ -780,6 +790,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
       jobItemStatus: sql<string | null>`(select ji.status from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1)`,
       revision: sql<number>`coalesce((select max(tv.revision) from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id}), 0)`.mapWith(Number),
       criticalIssues: sql<number>`(select count(*) from translation_qa_issues qi where qi.translation_version_id = (select tv.id from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id} order by tv.revision desc limit 1) and qi.severity = 'CRITICAL' and qi.resolved_at is null)`.mapWith(Number),
+      publishReady: sql<boolean>`exists (select 1 from translation_versions tv where tv.id = (select latest_tv.id from translation_versions latest_tv where latest_tv.translation_chapter_id = ${translationChapters.id} order by latest_tv.revision desc limit 1) and tv.status = 'APPROVED')`,
     }).from(translationChapters).innerJoin(translationSourceSnapshots, eq(translationSourceSnapshots.id, translationChapters.sourceSnapshotId))
       .where(eq(translationChapters.workspaceId, workspaceId)).orderBy(asc(translationChapters.chapterNumber)),
     db.select().from(translationJobs).where(eq(translationJobs.workspaceId, workspaceId)).orderBy(desc(translationJobs.createdAt)).limit(20),
@@ -1156,10 +1167,12 @@ export async function getTranslationChapterEditor(workspaceId: string, chapterId
     .leftJoin(translationProfiles, eq(translationProfiles.workspaceId, translationWorkspaces.id))
     .where(and(eq(translationChapters.id, chapterId), eq(translationChapters.workspaceId, workspaceId))).limit(1);
   if (!row) return undefined;
-  const [versions, glossary, characters] = await Promise.all([
+  const [versions, glossary, characters, previousChapters, nextChapters] = await Promise.all([
     db.select().from(translationVersions).where(eq(translationVersions.translationChapterId, chapterId)).orderBy(desc(translationVersions.revision)),
     db.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId)).orderBy(asc(translationGlossaryEntries.sourceTerm)),
     db.select().from(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId)).orderBy(asc(translationCharacters.sourceName)),
+    db.select({ id: translationChapters.id, chapterNumber: translationChapters.chapterNumber }).from(translationChapters).where(and(eq(translationChapters.workspaceId, workspaceId), lt(translationChapters.chapterNumber, row.chapter.chapterNumber))).orderBy(desc(translationChapters.chapterNumber)).limit(1),
+    db.select({ id: translationChapters.id, chapterNumber: translationChapters.chapterNumber }).from(translationChapters).where(and(eq(translationChapters.workspaceId, workspaceId), gt(translationChapters.chapterNumber, row.chapter.chapterNumber))).orderBy(asc(translationChapters.chapterNumber)).limit(1),
   ]);
   const latest = versions[0] ?? null;
   const issues = latest ? await db.select().from(translationQaIssues).where(eq(translationQaIssues.translationVersionId, latest.id)).orderBy(desc(translationQaIssues.severity)) : [];
@@ -1173,6 +1186,7 @@ export async function getTranslationChapterEditor(workspaceId: string, chapterId
     glossary: glossary.map((entry) => ({ sourceTerm: entry.sourceTerm, targetTerm: entry.targetTerm, isLocked: entry.isLocked })),
     characters: characters.map((character) => ({ sourceName: character.sourceName, targetName: character.targetName, speakingStyle: character.speakingStyle, isLocked: character.isLocked })),
     issues: issues.map((issue) => ({ ...issue, createdAt: issue.createdAt.toISOString(), resolvedAt: issue.resolvedAt?.toISOString() ?? null })),
+    navigation: { previous: previousChapters[0] ?? null, next: nextChapters[0] ?? null },
   };
 }
 
@@ -1510,8 +1524,7 @@ export async function approveTranslationVersion(workspaceId: string, chapterId: 
   });
 }
 
-export async function publishTranslationVersion(workspaceId: string, chapterId: string, versionId: string) {
-  const actor = await assertTranslationPermission("translation.publish");
+async function publishTranslationVersionAsActor(actor: CurrentUser, workspaceId: string, chapterId: string, versionId: string) {
   const db = getDb();
   const result = await db.transaction(async (tx) => {
     const [row] = await tx.select({ workspace: translationWorkspaces, translationChapter: translationChapters, version: translationVersions, novel: novels })
@@ -1570,16 +1583,87 @@ export async function publishTranslationVersion(workspaceId: string, chapterId: 
     return { versionId, publicChapterId, publicNovelId, novelSlug: publicNovel.slug };
   });
 
-  // Database commit happens before cache invalidation. If cache invalidation
-  // ever fails, the endpoint can safely be retried because publishing above is
-  // idempotent for an already-published version.
-  await invalidateChapterCache(result.novelSlug);
+  return result;
+}
+
+async function invalidatePublishedTranslations(results: Array<{ novelSlug: string }>) {
+  const novelSlugs = [...new Set(results.map((result) => result.novelSlug))];
+  for (const novelSlug of novelSlugs) {
+    await invalidateChapterCache(novelSlug);
+    revalidatePath(`/novel/${novelSlug}`);
+    revalidatePath(`/novel/${novelSlug}/chapters`);
+  }
   for (const tag of ["public-novels", "public-chapters", "public-search", "public-rankings", "public-sitemap"]) {
     revalidateTag(tag, { expire: 0 });
   }
   revalidatePath("/");
-  revalidatePath(`/novel/${result.novelSlug}`);
-  revalidatePath(`/novel/${result.novelSlug}/chapters`);
+}
 
+export async function publishTranslationVersion(workspaceId: string, chapterId: string, versionId: string) {
+  const actor = await assertTranslationPermission("translation.publish");
+  const result = await publishTranslationVersionAsActor(actor, workspaceId, chapterId, versionId);
+  // Database commit happens before cache invalidation. If cache invalidation
+  // ever fails, the endpoint can safely be retried because publishing above is
+  // idempotent for an already-published version.
+  await invalidatePublishedTranslations([result]);
   return result;
+}
+
+export async function publishTranslationChapters(
+  workspaceId: string,
+  input: z.infer<typeof bulkPublishTranslationSchema>,
+) {
+  const actor = await assertTranslationPermission("translation.publish");
+  const db = getDb();
+  const readyVersions = await db.select({
+    chapterId: translationChapters.id,
+    chapterNumber: translationChapters.chapterNumber,
+    versionId: translationVersions.id,
+  }).from(translationChapters)
+    .innerJoin(translationVersions, and(
+      eq(translationVersions.translationChapterId, translationChapters.id),
+      sql`${translationVersions.id} = (select tv.id from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id} order by tv.revision desc limit 1)`,
+    ))
+    .where(and(
+      eq(translationChapters.workspaceId, workspaceId),
+      inArray(translationChapters.status, ["APPROVED", "PUBLISHED"]),
+      inArray(translationVersions.status, ["APPROVED", "PUBLISHED"]),
+      inArray(translationChapters.id, input.chapterIds),
+    ))
+    .orderBy(asc(translationChapters.chapterNumber));
+
+  const readyChapterIds = new Set(readyVersions.map((row) => row.chapterId));
+  const notReadyCount = input.chapterIds.filter((chapterId) => !readyChapterIds.has(chapterId)).length;
+  if (notReadyCount > 0 || readyVersions.length !== input.chapterIds.length) {
+    throw new ApiError(
+      409,
+      "BULK_PUBLISH_NOT_READY",
+      `มี ${notReadyCount || input.chapterIds.length - readyVersions.length} ตอนที่ยังไม่ผ่านการอนุมัติหรือสถานะเปลี่ยน กรุณารีเฟรชแล้วเลือกใหม่`,
+    );
+  }
+
+  const failures: Array<{ chapterId: string; chapterNumber: number; message: string }> = [];
+  const results: Array<{ novelSlug: string }> = [];
+  let published = 0;
+  for (const row of readyVersions) {
+    try {
+      results.push(await publishTranslationVersionAsActor(actor, workspaceId, row.chapterId, row.versionId));
+      published += 1;
+    } catch (cause) {
+      failures.push({
+        chapterId: row.chapterId,
+        chapterNumber: row.chapterNumber,
+        message: cause instanceof ApiError ? cause.message : "เผยแพร่ไม่สำเร็จ",
+      });
+    }
+  }
+
+  if (results.length > 0) await invalidatePublishedTranslations(results);
+
+  return {
+    requested: input.chapterIds.length,
+    published,
+    failed: failures.length,
+    failures,
+  };
 }

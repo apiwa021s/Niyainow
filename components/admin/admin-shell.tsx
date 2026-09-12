@@ -9,6 +9,7 @@ import { adminNavGroups, isNavItemActive, type AdminNavItem } from "@/components
 import { TranslationQueueDock } from "@/components/admin/translation-queue-dock";
 import { ThemeSwitcher } from "@/components/interactive/theme-switcher";
 import { Logo } from "@/components/layout/logo";
+import { AppDialogProvider } from "@/components/ui/modal";
 import { signOutUser } from "@/lib/auth/actions";
 import { cn } from "@/lib/utils";
 
@@ -52,12 +53,13 @@ export function AdminShell({
   }, [accountOpen]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-subtle)]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-66 flex-col border-r border-border bg-background lg:flex">
+    <AppDialogProvider>
+      <div className="min-h-screen bg-[var(--bg-subtle)]">
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-66 flex-col border-r border-border bg-background lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-border px-4"><Logo /><span className="rounded-[6px] bg-[var(--brand-primary)]/12 px-1.5 py-0.5 text-[10px] font-bold text-[var(--brand-light-on-light)]">ADMIN</span></div>
         <NavList pathname={pathname} pending={pending} className="flex-1 overflow-y-auto px-3 py-4" />
         <SidebarFooter />
-      </aside>
+        </aside>
 
       {drawerOpen ? <div className="fixed inset-0 z-50 lg:hidden"><div className="absolute inset-0 bg-black/50" onClick={() => setDrawerOpen(false)} aria-hidden /><div role="dialog" aria-modal="true" aria-label="เมนูหลังบ้าน" className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-background shadow-[var(--sh-3)]"><div className="flex h-16 items-center justify-between border-b border-border px-4"><Logo /><button type="button" onClick={() => setDrawerOpen(false)} aria-label="ปิดเมนู" className="grid h-11 w-11 place-items-center rounded-[12px] hover:bg-muted"><X className="h-5 w-5" /></button></div><NavList pathname={pathname} pending={pending} className="flex-1 overflow-y-auto px-3 py-4" /><SidebarFooter /></div></div> : null}
 
@@ -87,8 +89,9 @@ export function AdminShell({
         </header>
         <main id="main" className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
-      <TranslationQueueDock />
-    </div>
+        <TranslationQueueDock />
+      </div>
+    </AppDialogProvider>
   );
 }
 function NavList({ pathname, pending, className }: { pathname: string | null; pending: PendingCounts; className?: string }) {

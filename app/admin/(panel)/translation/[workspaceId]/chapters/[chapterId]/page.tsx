@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/section";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getTranslationChapterEditor } from "@/services/translation-service";
 
-export const metadata: Metadata = { title: "Translation Editor" };
+export const metadata: Metadata = { title: "ตรวจและแก้คำแปล" };
 
 type TranslationEditorPageProps = PageProps<"/admin/translation/[workspaceId]/chapters/[chapterId]">;
 

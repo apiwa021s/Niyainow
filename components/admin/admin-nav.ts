@@ -27,7 +27,7 @@ export const adminNavGroups: AdminNavGroup[] = [
       { href: "/admin/genres", label: "แนวนิยาย", icon: Tags },
       { href: "/admin/tags", label: "แท็ก", icon: Tags },
       { href: "/admin/banners", label: "แบนเนอร์", icon: GalleryHorizontalEnd },
-      { href: "/admin/translation", label: "AI Translation Studio", icon: Languages },
+      { href: "/admin/translation", label: "สตูดิโอแปลด้วย AI", icon: Languages },
       // Mongo Sync remains available by direct URL, but is intentionally hidden from Admin navigation.
       // { href: "/admin/sync", label: "Mongo Sync", icon: RefreshCw },
     ],
