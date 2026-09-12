@@ -3,10 +3,12 @@ import path from "node:path";
 
 import sharp from "sharp";
 
+import { extractGeneratedAlpha } from "./lib/generated-art-alpha.mjs";
 import { WORLD_ART_ASSETS, WORLD_CHARACTER_EXPORTS } from "./world-art-spec.mjs";
 
 const root = process.cwd();
 const publicRoot = path.join(root, "public", "world");
+const rawRoot = path.join(root, "art", "world", "raw");
 const expectedAssets = [...WORLD_ART_ASSETS, ...WORLD_CHARACTER_EXPORTS];
 const maximumTotalBytes = 12 * 1024 * 1024;
 const maximumAssetBytes = 2 * 1024 * 1024;
@@ -57,6 +59,27 @@ for (const asset of expectedAssets) {
     }
     if (hiddenRgbPixels) failures.push(`${asset.id}: ${hiddenRgbPixels} fully transparent pixels retain RGB matte data`);
     if (subThresholdPixels) failures.push(`${asset.id}: ${subThresholdPixels} pixels remain below the alpha cleanup threshold`);
+
+    if (asset.id.startsWith("env_tree_")) {
+      const extracted = await extractGeneratedAlpha(path.join(rawRoot, `${asset.id}.png`), {
+        outputWidth: asset.exportWidth,
+        outputHeight: asset.exportHeight,
+        aggressiveEnclosedCheckerCleanup: true,
+      });
+      const expected = await sharp(extracted.data, {
+        raw: { width: extracted.info.width, height: extracted.info.height, channels: 4 },
+      })
+        .resize(asset.exportWidth, asset.exportHeight, { fit: "fill", kernel: sharp.kernel.lanczos3 })
+        .raw()
+        .toBuffer();
+      let opaqueCheckerLeaks = 0;
+      for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+        if (expected[pixel * 4 + 3] <= 8 && data[pixel * 4 + 3] >= 128) opaqueCheckerLeaks += 1;
+      }
+      if (opaqueCheckerLeaks > 8) {
+        failures.push(`${asset.id}: ${opaqueCheckerLeaks} opaque pixels disagree with the checker-background extraction mask`);
+      }
+    }
   } else if (minimumAlpha !== 255 || maximumAlpha !== 255) {
     failures.push(`${asset.id}: opaque texture unexpectedly contains transparency`);
   }

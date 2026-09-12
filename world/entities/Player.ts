@@ -84,7 +84,7 @@ export class Player extends Phaser.GameObjects.Container {
     this.add(this.figure);
     this.drawCharacter(options.appearance);
 
-    this.nameplate = scene.add.text(0, -120, options.title ? `${options.displayName}\n‹${options.title}›` : options.displayName, {
+    this.nameplate = scene.add.text(0, -136, options.title ? `${options.displayName}\n‹${options.title}›` : options.displayName, {
       color: "#302a2a",
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
@@ -96,11 +96,11 @@ export class Player extends Phaser.GameObjects.Container {
       strokeThickness: 2,
     }).setOrigin(0.5, 1).setResolution(2);
     this.add(this.nameplate);
-    this.setSize(46, 110);
+    this.setSize(52, 126);
     scene.add.existing(this);
     if (options.physics !== false) {
       scene.physics.add.existing(this);
-      this.body.setSize(38, 24).setOffset(4, 43).setCollideWorldBounds(true);
+      this.body.setSize(38, 24).setOffset(7, 51).setCollideWorldBounds(true);
     }
     this.setDepth(this.y);
   }
@@ -108,9 +108,10 @@ export class Player extends Phaser.GameObjects.Container {
   private drawCharacter(appearance: WorldCharacterAppearance) {
     const scene = this.scene;
     if (usesPilotCharacterArt(appearance) && scene.textures.exists(PILOT_CHARACTER_TEXTURE)) {
+      this.figure.add(scene.add.ellipse(0, 3, 48, 14, 0x302a2a, 0.14));
       this.productionSprite = scene.add.sprite(0, 0, PILOT_CHARACTER_TEXTURE, DIRECTION_FRAME[this.direction])
         .setOrigin(0.5, 0.92)
-        .setDisplaySize(64, 96);
+        .setDisplaySize(84, 126);
       this.figure.add(this.productionSprite);
       return;
     }
@@ -193,7 +194,7 @@ export class Player extends Phaser.GameObjects.Container {
       strokeThickness: 1,
     }).setOrigin(0.5, 1);
     const tail = this.scene.add.triangle(0, 5, -7, -8, 7, -8, 0, 2, 0xfff9ee).setOrigin(0.5, 0);
-    this.bubble = this.scene.add.container(0, -132, [text, tail]);
+    this.bubble = this.scene.add.container(0, -150, [text, tail]);
     this.add(this.bubble);
     this.scene.time.delayedCall(5_000, () => {
       this.bubble?.destroy(true);
@@ -203,7 +204,7 @@ export class Player extends Phaser.GameObjects.Container {
 
   showEmote(emote: WorldEmote) {
     this.emote?.destroy();
-    this.emote = this.scene.add.text(0, -145, EMOTE_GLYPHS[emote], {
+    this.emote = this.scene.add.text(0, -164, EMOTE_GLYPHS[emote], {
       color: emote === "heart" ? "#b34e60" : "#302a2a",
       fontFamily: "Georgia, serif",
       fontSize: emote === "laugh" ? "19px" : "28px",
@@ -214,7 +215,7 @@ export class Player extends Phaser.GameObjects.Container {
     this.add(this.emote);
     this.scene.tweens.add({
       targets: this.emote,
-      y: -175,
+      y: -194,
       alpha: 0,
       duration: 1_800,
       ease: "Cubic.easeOut",

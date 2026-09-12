@@ -39,6 +39,7 @@ async function processAsset(asset) {
       outputWidth: asset.exportWidth,
       outputHeight: asset.exportHeight,
       minComponentPixels: asset.folder === "vfx" ? 0 : undefined,
+      aggressiveEnclosedCheckerCleanup: asset.id.startsWith("env_tree_"),
     });
     extracted = result.extracted;
     featherPixels = result.featherPixels;

@@ -55,4 +55,11 @@ export const WORLD_CHARACTER_EXPORTS = [
     exportHeight: 192,
     transparent: true,
   },
+  {
+    id: "character_librarian_idle_001",
+    folder: "characters/composite",
+    exportWidth: 512,
+    exportHeight: 192,
+    transparent: true,
+  },
 ];

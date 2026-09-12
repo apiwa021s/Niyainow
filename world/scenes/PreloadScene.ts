@@ -11,6 +11,7 @@ import {
 const CENTRAL_WORLD_ASSET_KEYS = new Set([
   "ground_grass_001",
   "ground_plaza_stone_001",
+  "ground_path_straight_001",
   ...centralMapJson.objects.map((object) => object.asset),
 ]);
 

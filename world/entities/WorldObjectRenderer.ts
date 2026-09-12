@@ -185,18 +185,46 @@ export function renderWorldObject(scene: Phaser.Scene, object: WorldObject) {
 export function renderWorldGround(scene: Phaser.Scene, width: number, height: number) {
   if (!WORLD_USES_PROCEDURAL_PLACEHOLDERS && scene.textures.exists("ground_grass_001")) {
     scene.add.tileSprite(width / 2, height / 2, width, height, "ground_grass_001").setDepth(-10_000);
-    if (scene.textures.exists("ground_plaza_stone_001")) {
-      scene.add.image(width / 2, 945, "ground_plaza_stone_001")
-        .setDisplaySize(660, 650)
-        .setDepth(-9_995);
+
+    if (scene.textures.exists("ground_path_straight_001")) {
+      const addPath = (x: number, y: number, length: number, rotation = 0) => {
+        scene.add.image(x, y, "ground_path_straight_001")
+          .setDisplaySize(400, length)
+          .setRotation(rotation)
+          .setAlpha(0.96)
+          .setDepth(-9_998);
+      };
+      addPath(width / 2, 455, 520);
+      addPath(width / 2, 1485, 610);
+      addPath(600, 945, 590, -Math.PI / 2);
+      addPath(1800, 945, 590, Math.PI / 2);
     }
 
-    const paths = scene.add.graphics().setDepth(-9_990);
-    paths.fillStyle(0xd7cdbd, 0.7).fillRect(width / 2 - 105, 300, 210, 1370);
-    paths.fillStyle(0xd7cdbd, 0.7).fillRect(330, 805, width - 660, 190);
-    paths.lineStyle(2, INK, 0.18).strokeRect(width / 2 - 105, 300, 210, 1370);
-    paths.lineStyle(2, INK, 0.18).strokeRect(330, 805, width - 660, 190);
-    paths.lineStyle(4, PAPER, 0.5).strokeRect(36, 36, width - 72, height - 72);
+    if (scene.textures.exists("ground_plaza_stone_001")) {
+      const plazaWidth = 720;
+      const plazaHeight = 650;
+      const plazaY = 945;
+      const plazaLeft = width / 2 - plazaWidth / 2;
+      const plazaTop = plazaY - plazaHeight / 2;
+      const plazaMaskShape = scene.make.graphics({ x: 0, y: 0 }, false);
+      plazaMaskShape.fillStyle(0xffffff).fillRoundedRect(plazaLeft, plazaTop, plazaWidth, plazaHeight, 118);
+      scene.add.image(width / 2, plazaY, "ground_plaza_stone_001")
+        .setDisplaySize(plazaWidth, plazaHeight)
+        .setMask(plazaMaskShape.createGeometryMask())
+        .setDepth(-9_996);
+
+      scene.add.graphics()
+        .setDepth(-9_995)
+        .lineStyle(3, PAPER, 0.72)
+        .strokeRoundedRect(plazaLeft + 5, plazaTop + 5, plazaWidth - 10, plazaHeight - 10, 112)
+        .lineStyle(2, INK, 0.16)
+        .strokeRoundedRect(plazaLeft, plazaTop, plazaWidth, plazaHeight, 118);
+    }
+
+    scene.add.graphics()
+      .setDepth(-9_990)
+      .lineStyle(4, PAPER, 0.5)
+      .strokeRect(36, 36, width - 72, height - 72);
     return;
   }
 

@@ -1,3 +1,5 @@
+const TREE_ALPHA_REVISION = "20260912-alpha2";
+
 export const WORLD_ASSETS = {
   ground: {
     grass: "/world/ground/ground_grass_001.webp",
@@ -7,8 +9,8 @@ export const WORLD_ASSETS = {
     bridge: "/world/ground/ground_bridge_001.webp",
   },
   environment: {
-    oak: [1, 2, 3, 4].map((index) => `/world/environment/env_tree_oak_00${index}.webp`),
-    floweringTree: [1, 2].map((index) => `/world/environment/env_tree_flower_00${index}.webp`),
+    oak: [1, 2, 3, 4].map((index) => `/world/environment/env_tree_oak_00${index}.webp?v=${TREE_ALPHA_REVISION}`),
+    floweringTree: [1, 2].map((index) => `/world/environment/env_tree_flower_00${index}.webp?v=${TREE_ALPHA_REVISION}`),
     bush: [1, 2, 3].map((index) => `/world/environment/env_bush_00${index}.webp`),
     flowers: [1, 2, 3, 4].map((index) => `/world/environment/env_flowers_00${index}.webp`),
     rock: [1, 2, 3].map((index) => `/world/environment/env_rock_00${index}.webp`),
@@ -49,15 +51,24 @@ export const WORLD_ASSET_ENTRIES = [
   ...Object.values(WORLD_ASSETS.buildings),
   ...Object.values(WORLD_ASSETS.portals),
   ...Object.values(WORLD_ASSETS.vfx),
-].map((assetPath) => ({
-  key: assetPath.slice(assetPath.lastIndexOf("/") + 1, -".webp".length),
-  path: assetPath,
-}));
+].map((assetPath) => {
+  const pathname = assetPath.split("?")[0];
+  return {
+    key: pathname.slice(pathname.lastIndexOf("/") + 1, -".webp".length),
+    path: assetPath,
+  };
+});
 
 export const WORLD_CHARACTER_SPRITESHEETS = [
   {
     key: "character_default_idle_001",
     path: "/world/characters/composite/character_default_idle_001.webp",
+    frameWidth: 128,
+    frameHeight: 192,
+  },
+  {
+    key: "character_librarian_idle_001",
+    path: "/world/characters/composite/character_librarian_idle_001.webp",
     frameWidth: 128,
     frameHeight: 192,
   },

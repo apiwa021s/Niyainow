@@ -8,16 +8,12 @@ import {
   resizeTransparentForExport,
   transparentWebpOptions,
 } from "./lib/generated-art-alpha.mjs";
+import { WORLD_CHARACTER_EXPORTS } from "./world-art-spec.mjs";
 
 const root = process.cwd();
-const assetId = "character_default_idle_001";
-const rawPath = path.join(root, "art", "world", "characters", "raw", `${assetId}.png`);
 const masterRoot = path.join(root, "art", "world", "characters", "masters");
 const reviewRoot = path.join(root, "art", "world", "characters", "review");
 const publicRoot = path.join(root, "public", "world", "characters", "composite");
-const masterPath = path.join(masterRoot, `${assetId}.png`);
-const exportPath = path.join(publicRoot, `${assetId}.webp`);
-const reviewPath = path.join(reviewRoot, `${assetId}-registration.png`);
 
 const directions = ["NE", "NW", "SE", "SW"];
 const sourceFrame = { width: 512, height: 768 };
@@ -45,7 +41,12 @@ function alphaBounds(data, width, height) {
   return { left, top, width: right - left + 1, height: bottom - top + 1 };
 }
 
-async function build() {
+async function build(assetId) {
+  const rawPath = path.join(root, "art", "world", "characters", "raw", `${assetId}.png`);
+  const masterPath = path.join(masterRoot, `${assetId}.png`);
+  const exportPath = path.join(publicRoot, `${assetId}.webp`);
+  const reviewPath = path.join(reviewRoot, `${assetId}-registration.png`);
+
   await Promise.all([
     fs.mkdir(masterRoot, { recursive: true }),
     fs.mkdir(reviewRoot, { recursive: true }),
@@ -135,4 +136,4 @@ async function build() {
   for (const registration of registrations) console.info(registration);
 }
 
-await build();
+for (const asset of WORLD_CHARACTER_EXPORTS) await build(asset.id);

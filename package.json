@@ -12,7 +12,7 @@
     "world:server": "node --conditions=react-server --import tsx world/server.ts",
     "world:smoke": "node scripts/smoke-world-realtime.mjs",
     "world:art:build": "node scripts/process-world-art.mjs",
-    "world:art:review": "node scripts/create-world-art-review.mjs",
+    "world:art:review": "node scripts/create-world-art-review.mjs && node scripts/create-world-layout-review.mjs",
     "world:art:audit": "node scripts/audit-world-art.mjs",
     "world:art:production": "npm run world:art:build && npm run world:character:build && npm run world:art:review && npm run world:art:audit",
     "world:character:build": "node scripts/process-character-art.mjs",

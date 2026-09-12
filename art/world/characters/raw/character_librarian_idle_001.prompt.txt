@@ -1,0 +1,9 @@
+Use case: stylized-concept
+Asset type: production 2D game NPC four-direction sprite atlas
+Input images: Image 1 is the exact atlas registration/layout reference and current in-game character style; Image 2 is the broader NovelNow manga/anime art-direction reference.
+Primary request: Create a distinct female librarian NPC named Lin for the NovelNow world, matching the refined warm manga/anime linework, soft cream-and-sage palette, elegant fantasy-academy atmosphere, and character rendering quality of the references.
+Subject: adult female librarian, friendly calm expression, chestnut-brown hair in a tidy low bun with a few soft strands, cream blouse, sage long vest or cardigan, ankle-length dark brown skirt, practical brown shoes, small gold book-shaped brooch. No handheld object.
+Composition/framing: one single 2048x768 horizontal sprite atlas with exactly four equal 512x768 cells. Exactly one full-body figure centered in each cell, same identity/outfit/proportions and same scale. Cell order left to right must be NE/front three-quarter facing viewer-right, NW/front three-quarter facing viewer-left, SE/back three-quarter facing viewer-right, SW/back three-quarter facing viewer-left. Feet on one consistent baseline at about 92% of canvas height; generous transparent clearance above head and around silhouette. Do not crop hair, hands, clothing, or feet.
+Style/medium: polished 2D manga/anime game character render, delicate ink lines, subtle watercolor-paper shading, readable at small sprite size, consistent with the supplied world art.
+Lighting/mood: warm soft daylight, calm welcoming librarian.
+Constraints: genuinely transparent alpha background in every cell; no checkerboard pattern, no floor, no environment, no cast shadow, no text, no labels, no panel dividers, no extra props, no watermark. Exactly four figures total and one per cell. Preserve strict registration and directional order. This is a production sprite atlas, not a concept sheet.

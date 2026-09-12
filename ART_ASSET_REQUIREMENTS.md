@@ -1,6 +1,6 @@
 # NovelNow World — production art requirements
 
-V1 intentionally uses procedural ink-and-paper placeholders. No internet or copyrighted manga/game images are included. The stable IDs below match `world/assets/manifest.ts`, so approved artwork can replace placeholders without changing game systems.
+Production V1 ships processed original artwork for the central world, with procedural drawing retained only as a load-failure fallback. The stable IDs below match `world/assets/manifest.ts`, so approved revisions can replace artwork without changing game systems.
 
 ## Shared art direction
 
@@ -71,6 +71,12 @@ All environment assets use a 3/4 isometric camera, delicate clean ink linework, 
 
 ## Character production set
 
-The procedural paper doll proves the layer contract; production requires one four-direction atlas per layer and state (`idle`, `walk`, `run`, `sit`, `wave`, `read`). Master frame: 512×768; game frame: 128×192 WebP, transparent, bottom-center anchor at `(0.5, 0.92)`, foot collision `36×24` game pixels. Required layer IDs are `body_{classic,slender,athletic}`, `skin_{porcelain,warm,golden,deep}`, `face_{gentle,bright,calm}`, `eyes_{round,soft,sharp}`, `hair_{page,bob,long,wave}`, `top_{academy,cardigan,blouse}`, `bottom_{tailored,pleated,relaxed}`, `shoes_{loafers,boots,sneakers}`, and `accessory_{glasses,ribbon,earring,satchel}`.
+The shipped pilot uses two production composite atlases: `character_default_idle_001` for the player and `character_librarian_idle_001` for Librarian Lin. Each atlas contains `NE`, `NW`, `SE`, and `SW` in that order. Master frame: 512×768; game frame: 128×192 WebP, transparent, bottom-center anchor at `(0.5, 0.92)`, foot collision `38×24` game pixels.
+
+The next character expansion uses one four-direction atlas per layer and state (`idle`, `walk`, `run`, `sit`, `wave`, `read`). Required layer IDs are `body_{classic,slender,athletic}`, `skin_{porcelain,warm,golden,deep}`, `face_{gentle,bright,calm}`, `eyes_{round,soft,sharp}`, `hair_{page,bob,long,wave}`, `top_{academy,cardigan,blouse}`, `bottom_{tailored,pleated,relaxed}`, `shoes_{loafers,boots,sneakers}`, and `accessory_{glasses,ribbon,earring,satchel}`.
 
 Character prompt: manga/anime young-adult reader, elegant non-chibi proportions, readable silhouette, delicate ink contour, soft cel shading, subtle screentone, 3/4 isometric four-direction game sprite, consistent anatomy and bottom-center registration across every layer and animation frame.
+
+## Production export gate
+
+Run `npm run world:art:production` before release. It rebuilds transparent masters/exports, registers character feet to a common baseline, generates the multi-background contact sheet plus a full-resolution tree transparency review, and audits dimensions, alpha range, hidden matte RGB, low-alpha noise, enclosed checker leaks, per-file size, and the 12 MiB world-art budget.

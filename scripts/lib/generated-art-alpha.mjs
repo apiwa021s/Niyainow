@@ -101,7 +101,65 @@ function checkerLuminanceCenters(data, background) {
   return low <= high ? [low, high] : [high, low];
 }
 
-function markEnclosedCheckerComponents(data, background, width, height) {
+function markCheckerToneNeighborhoods(data, background, width, height, lowCenter, highCenter) {
+  const stride = width + 1;
+  const lowIntegral = new Uint32Array(stride * (height + 1));
+  const highIntegral = new Uint32Array(stride * (height + 1));
+  const toneTolerance = 18;
+
+  for (let y = 1; y <= height; y += 1) {
+    let lowRow = 0;
+    let highRow = 0;
+    for (let x = 1; x <= width; x += 1) {
+      const pixel = (y - 1) * width + x - 1;
+      const offset = pixel * 4;
+      if (isBakedTransparencyPixel(data, offset)) {
+        const luminance = (data[offset] + data[offset + 1] + data[offset + 2]) / 3;
+        if (Math.abs(luminance - lowCenter) <= toneTolerance) lowRow += 1;
+        if (Math.abs(luminance - highCenter) <= toneTolerance) highRow += 1;
+      }
+      const integralOffset = y * stride + x;
+      lowIntegral[integralOffset] = lowIntegral[integralOffset - stride] + lowRow;
+      highIntegral[integralOffset] = highIntegral[integralOffset - stride] + highRow;
+    }
+  }
+
+  const regionCount = (integral, left, top, right, bottom) => {
+    const x1 = Math.max(0, left);
+    const y1 = Math.max(0, top);
+    const x2 = Math.min(width, right + 1);
+    const y2 = Math.min(height, bottom + 1);
+    return integral[y2 * stride + x2] - integral[y1 * stride + x2] -
+      integral[y2 * stride + x1] + integral[y1 * stride + x1];
+  };
+
+  const radius = Math.max(8, Math.round(Math.min(width, height) / 100));
+  const newlyMarked = new Uint8Array(width * height);
+  let added = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pixel = y * width + x;
+      if (background[pixel] || !isBakedTransparencyPixel(data, pixel * 4)) continue;
+      const offset = pixel * 4;
+      const luminance = (data[offset] + data[offset + 1] + data[offset + 2]) / 3;
+      const isLowTone = Math.abs(luminance - lowCenter) <= toneTolerance;
+      const isHighTone = Math.abs(luminance - highCenter) <= toneTolerance;
+      if (!isLowTone && !isHighTone) continue;
+      const oppositeCount = isLowTone
+        ? regionCount(highIntegral, x - radius, y - radius, x + radius, y + radius)
+        : regionCount(lowIntegral, x - radius, y - radius, x + radius, y + radius);
+      if (oppositeCount < 6) continue;
+      newlyMarked[pixel] = 1;
+      added += 1;
+    }
+  }
+  for (let pixel = 0; pixel < newlyMarked.length; pixel += 1) {
+    if (newlyMarked[pixel]) background[pixel] = 1;
+  }
+  return added;
+}
+
+function markEnclosedCheckerComponents(data, background, width, height, aggressive = false) {
   const pixelCount = width * height;
   const visited = background.slice();
   const [lowCenter, highCenter] = checkerLuminanceCenters(data, background);
@@ -149,11 +207,22 @@ function markEnclosedCheckerComponents(data, background, width, height) {
     const highShare = nearHigh / size;
     // Enclosed checker gaps contain substantial amounts of both checker tones.
     // Pale petals and stone highlights usually cluster around only one tone.
-    const matchesChecker = size >= 20 && deviation >= 24 && lowShare >= 0.12 &&
-      highShare >= 0.12 && lowShare + highShare >= 0.7;
+    // Dense foliage splits enclosed checker gaps into lower-contrast islands.
+    // The aggressive tree profile still requires both learned checker tones,
+    // which protects warm bark, gold leaves, and pale blossoms.
+    const minimumSize = aggressive ? 12 : 20;
+    const minimumDeviation = aggressive ? 12 : 24;
+    const minimumToneShare = aggressive ? 0.06 : 0.12;
+    const minimumCombinedShare = aggressive ? 0.52 : 0.7;
+    const matchesChecker = size >= minimumSize && deviation >= minimumDeviation &&
+      lowShare >= minimumToneShare && highShare >= minimumToneShare &&
+      lowShare + highShare >= minimumCombinedShare;
     if (!matchesChecker) continue;
     for (const pixel of component) background[pixel] = 1;
     added += size;
+  }
+  if (aggressive) {
+    added += markCheckerToneNeighborhoods(data, background, width, height, lowCenter, highCenter);
   }
   return added;
 }
@@ -295,7 +364,14 @@ export async function extractGeneratedAlpha(inputPath, options = {}) {
   if (count === 0) {
     throw new Error(`Could not identify a baked transparency background in ${inputPath}.`);
   }
-  const backgroundPixels = count + markEnclosedCheckerComponents(data, background, info.width, info.height);
+  const enclosedBackgroundPixels = markEnclosedCheckerComponents(
+    data,
+    background,
+    info.width,
+    info.height,
+    options.aggressiveEnclosedCheckerCleanup ?? false,
+  );
+  const backgroundPixels = count + enclosedBackgroundPixels;
   const downsampleRatio = options.outputWidth && options.outputHeight
     ? Math.max(info.width / options.outputWidth, info.height / options.outputHeight)
     : 1;
@@ -316,7 +392,7 @@ export async function extractGeneratedAlpha(inputPath, options = {}) {
 
   let featherPixels = 0;
   for (const band of bands) if (band !== 0) featherPixels += 1;
-  return { data, info, extracted: true, backgroundPixels, featherPixels, removed };
+  return { data, info, extracted: true, backgroundPixels, enclosedBackgroundPixels, featherPixels, removed };
 }
 
 export function transparentWebpOptions() {
