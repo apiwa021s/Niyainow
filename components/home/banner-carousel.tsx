@@ -58,7 +58,7 @@ export function BannerCarousel({ slides }: { slides: BannerSlide[] }) {
     <div className="relative">
       <div
         ref={trackRef}
-        className="rail-scroll -mx-3 flex snap-x snap-mandatory gap-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0"
+        className="rail-scroll flex snap-x snap-mandatory gap-3"
       >
         {slides.map((slide) => (
           <Link
