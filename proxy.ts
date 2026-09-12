@@ -95,7 +95,7 @@ export const config = {
     "/api/studio/:path*",
     "/creators/apply/:path*",
     "/wallet/:path*",
-    "/world/:path*",
+    "/world((?!/(?:ground|environment|props|buildings|portals|vfx|characters)(?:/|$)).*)",
     "/novel/:slug/chapter/:chapter",
   ],
 };

@@ -1,6 +1,16 @@
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import type { NextConfig } from "next";
 
+const WORLD_STATIC_ASSET_FOLDERS = [
+  "ground",
+  "environment",
+  "props",
+  "buildings",
+  "portals",
+  "vfx",
+  "characters",
+] as const;
+
 function buildPublicUrl(name: "NEXT_PUBLIC_APP_URL" | "NEXT_PUBLIC_ASSET_URL", phase: string) {
   const value = process.env[name];
   if (phase !== PHASE_PRODUCTION_BUILD) return value;
@@ -122,6 +132,12 @@ export default function createNextConfig(phase: string): NextConfig {
     },
     async headers() {
       return [
+        ...(isProduction
+          ? WORLD_STATIC_ASSET_FOLDERS.map((folder) => ({
+            source: `/world/${folder}/:path*`,
+            headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+          }))
+          : []),
         {
           source: "/:path*",
           headers: [

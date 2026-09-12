@@ -33,6 +33,22 @@ const EMOTE_GLYPHS: Record<WorldEmote, string> = {
   sparkle: "✦",
 };
 
+const DIRECTION_FRAME: Record<CharacterDirection, number> = { NE: 0, NW: 1, SE: 2, SW: 3 };
+const PILOT_CHARACTER_TEXTURE = "character_default_idle_001";
+
+function usesPilotCharacterArt(appearance: WorldCharacterAppearance) {
+  return appearance.bodyPreset === "classic" &&
+    appearance.skinTone === "warm" &&
+    appearance.faceId === "gentle" &&
+    appearance.eyeId === "soft" &&
+    appearance.hairId === "page" &&
+    appearance.hairColor === "ink" &&
+    appearance.topId === "academy" &&
+    appearance.bottomId === "tailored" &&
+    appearance.shoesId === "loafers" &&
+    appearance.accessoryIds.length === 0;
+}
+
 export class Player extends Phaser.GameObjects.Container {
   declare body: Phaser.Physics.Arcade.Body;
 
@@ -44,6 +60,7 @@ export class Player extends Phaser.GameObjects.Container {
   private readonly nameplate: Phaser.GameObjects.Text;
   private bubble?: Phaser.GameObjects.Container;
   private emote?: Phaser.GameObjects.Text;
+  private productionSprite?: Phaser.GameObjects.Sprite;
   private motionTime = 0;
 
   constructor(
@@ -90,6 +107,14 @@ export class Player extends Phaser.GameObjects.Container {
 
   private drawCharacter(appearance: WorldCharacterAppearance) {
     const scene = this.scene;
+    if (usesPilotCharacterArt(appearance) && scene.textures.exists(PILOT_CHARACTER_TEXTURE)) {
+      this.productionSprite = scene.add.sprite(0, 0, PILOT_CHARACTER_TEXTURE, DIRECTION_FRAME[this.direction])
+        .setOrigin(0.5, 0.92)
+        .setDisplaySize(64, 96);
+      this.figure.add(this.productionSprite);
+      return;
+    }
+
     const skin = SKIN_COLORS[appearance.skinTone];
     const hair = HAIR_COLORS[appearance.hairColor];
     const top = TOP_COLORS[appearance.topId];
@@ -136,7 +161,12 @@ export class Player extends Phaser.GameObjects.Container {
   setMotion(state: CharacterState, direction = this.direction) {
     this.state = state;
     this.direction = direction;
-    this.figure.setScale(direction.endsWith("W") ? -1 : 1, 1);
+    if (this.productionSprite) {
+      this.productionSprite.setFrame(DIRECTION_FRAME[direction]);
+      this.figure.setScale(1, 1);
+    } else {
+      this.figure.setScale(direction.endsWith("W") ? -1 : 1, 1);
+    }
   }
 
   updateMotion(delta: number) {

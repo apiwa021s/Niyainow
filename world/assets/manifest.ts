@@ -54,5 +54,14 @@ export const WORLD_ASSET_ENTRIES = [
   path: assetPath,
 }));
 
+export const WORLD_CHARACTER_SPRITESHEETS = [
+  {
+    key: "character_default_idle_001",
+    path: "/world/characters/composite/character_default_idle_001.webp",
+    frameWidth: 128,
+    frameHeight: 192,
+  },
+] as const;
+
 /** Keep the procedural renderer available as a graceful load-failure fallback. */
 export const WORLD_USES_PROCEDURAL_PLACEHOLDERS = false;

@@ -1,7 +1,18 @@
 import * as Phaser from "phaser";
 
+import centralMapJson from "@/world/maps/central-plaza.json";
 import type { WorldGameBridge } from "@/world/engine/bridge";
-import { WORLD_ASSET_ENTRIES, WORLD_USES_PROCEDURAL_PLACEHOLDERS } from "@/world/assets/manifest";
+import {
+  WORLD_ASSET_ENTRIES,
+  WORLD_CHARACTER_SPRITESHEETS,
+  WORLD_USES_PROCEDURAL_PLACEHOLDERS,
+} from "@/world/assets/manifest";
+
+const CENTRAL_WORLD_ASSET_KEYS = new Set([
+  "ground_grass_001",
+  "ground_plaza_stone_001",
+  ...centralMapJson.objects.map((object) => object.asset),
+]);
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -14,7 +25,15 @@ export class PreloadScene extends Phaser.Scene {
     this.load.on("progress", (progress: number) => bridge.onLoading(0.05 + progress * 0.9));
 
     if (!WORLD_USES_PROCEDURAL_PLACEHOLDERS) {
-      for (const asset of WORLD_ASSET_ENTRIES) this.load.image(asset.key, asset.path);
+      for (const asset of WORLD_ASSET_ENTRIES) {
+        if (CENTRAL_WORLD_ASSET_KEYS.has(asset.key)) this.load.image(asset.key, asset.path);
+      }
+      for (const atlas of WORLD_CHARACTER_SPRITESHEETS) {
+        this.load.spritesheet(atlas.key, atlas.path, {
+          frameWidth: atlas.frameWidth,
+          frameHeight: atlas.frameHeight,
+        });
+      }
     }
   }
 

@@ -13,6 +13,9 @@
     "world:smoke": "node scripts/smoke-world-realtime.mjs",
     "world:art:build": "node scripts/process-world-art.mjs",
     "world:art:review": "node scripts/create-world-art-review.mjs",
+    "world:art:audit": "node scripts/audit-world-art.mjs",
+    "world:art:production": "npm run world:art:build && npm run world:character:build && npm run world:art:review && npm run world:art:audit",
+    "world:character:build": "node scripts/process-character-art.mjs",
     "build": "next build",
     "vercel-build": "next build",
     "start": "next start",
@@ -41,7 +44,7 @@
     "db:reconcile-engagement": "tsx db/reconcile-engagement.ts",
     "benchmark:cache": "node scripts/cache-benchmark.mjs",
     "security:scraper-test": "tsx scripts/security/scraper-test.ts",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run db:check && npm run build"
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run world:art:audit && npm run db:check && npm run build"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",

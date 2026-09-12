@@ -7,7 +7,7 @@ const root = process.cwd();
 const worldRoot = path.join(root, "public", "world");
 const reviewRoot = path.join(root, "art", "world", "review");
 const outputPath = path.join(reviewRoot, "world-assets-contact-sheet.png");
-const folders = ["ground", "environment", "props", "buildings", "portals", "vfx"];
+const folders = ["ground", "environment", "props", "buildings", "portals", "vfx", "characters/composite"];
 const files = [];
 
 for (const folder of folders) {
@@ -40,8 +40,10 @@ for (let index = 0; index < files.length; index += 1) {
   const top = Math.floor(index / columns) * tileHeight;
   const panel = Buffer.from(`
     <svg width="${tileWidth}" height="${tileHeight}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="160" height="260" fill="#233038"/>
-      <rect x="160" width="160" height="260" fill="#d9bda8"/>
+      <rect width="160" height="130" fill="#050709"/>
+      <rect x="160" width="160" height="130" fill="#fffdf8"/>
+      <rect y="130" width="160" height="130" fill="#126e82"/>
+      <rect x="160" y="130" width="160" height="130" fill="#b82d55"/>
       <rect y="260" width="320" height="40" fill="#11151a"/>
       <text x="160" y="284" text-anchor="middle" fill="#f6efe4" font-family="Arial, sans-serif" font-size="15">${asset.filename.replace(".webp", "")}</text>
     </svg>
