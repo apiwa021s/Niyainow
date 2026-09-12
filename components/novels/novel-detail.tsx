@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Star } from "lucide-react";
-import { ViewTransition } from "react";
+import { ViewTransition, type ReactNode } from "react";
 
 import { RatingForm } from "@/components/interactive/rating-form";
 import { NovelResumeActions } from "@/components/reader/novel-resume-actions";
@@ -20,11 +20,13 @@ export function NovelHero({
   startHref,
   startLabel,
   userState,
+  reportAction,
 }: {
   novel: Novel;
   startHref: string;
   startLabel: string;
   userState?: UserNovelState;
+  reportAction?: ReactNode;
 }) {
   return (
     <header className="relative overflow-hidden rounded-(--r-lg) bg-surface shadow-[var(--sh-1)]">
@@ -63,9 +65,12 @@ export function NovelHero({
         </div>
 
         <div className="min-w-0 pt-4 text-center md:col-start-2 md:row-start-1 md:pt-5 md:text-left lg:pt-6">
-          <span className="inline-flex min-h-7 items-center border-l-2 border-[var(--brand-emphasis)] pl-2 text-xs font-semibold">
-            {statusLabel(novel.status)}
-          </span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex min-h-7 items-center border-l-2 border-[var(--brand-emphasis)] pl-2 text-xs font-semibold">
+              {statusLabel(novel.status)}
+            </span>
+            {reportAction ? <div className="shrink-0">{reportAction}</div> : null}
+          </div>
           <h1 className="mt-2 max-w-5xl text-balance text-h1 font-semibold leading-[1.2] sm:text-4xl lg:text-[2.75rem]">
             {novel.thaiTitle}
           </h1>

@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { ViewTransition } from "react";
 
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
+import { ContentReportButton } from "@/components/novels/content-report-button";
 import { NovelChapterBrowser } from "@/components/novels/novel-chapter-browser";
 import { NovelChapterDialogProvider } from "@/components/novels/novel-chapter-dialog-context";
 import {
@@ -147,6 +148,14 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
           startHref={startHref}
           startLabel={startLabel}
           userState={userState}
+          reportAction={novel.id ? (
+            <ContentReportButton
+              entityId={novel.id}
+              storySlug={novel.slug}
+              storyTitle={novel.thaiTitle}
+              isAuthenticated={Boolean(userState)}
+            />
+          ) : null}
         />
         <div className="mx-auto mt-8 grid max-w-4xl gap-8 sm:mt-10 sm:gap-10">
           <NovelSynopsis novel={novel} />
