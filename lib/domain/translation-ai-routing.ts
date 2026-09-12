@@ -16,14 +16,14 @@ export const AUTOMATIC_TRANSLATION_MODELS = [
   { name: "GPT-5.6 Luna", modelName: "gpt-5.6-luna", inputCostMicrosPerMillion: 200_000, outputCostMicrosPerMillion: 1_200_000 },
 ] as const;
 
-export const AUTOMATIC_TRANSLATION_PROMPT_VERSION = 4;
+export const AUTOMATIC_TRANSLATION_PROMPT_VERSION = 5;
 
 export const THAI_NOVEL_LOCALIZATION_RULES = `Thai localization requirements (apply only when targetLanguage is "th" or a Thai locale):
 - Write as contemporary Thai commercial fiction. Preserve the source meaning and emotional force, but do not preserve English word order when it sounds translated.
 - Render idioms, jokes, exclamations, teasing, and conversational beats with natural Thai equivalents that fit the narrator, character relationship, scene, and register. Use Thai idioms selectively; never add a metaphor, joke, cultural fact, politeness level, intimacy, or intensity that the source does not support.
 - Freely reorder clauses and split or merge sentences inside the same source paragraph. Drop recoverable subjects and pronouns, vary attribution naturally, and remove repetition caused only by English grammar.
 - Use Thai spacing and punctuation deliberately. Never insert a space inside a word or fixed phrase, and never let subject omission turn two sentences into an ambiguous run-on.
-- Format for comfortable mobile reading. Keep each paragraph focused on one narrative beat. Preserve paragraph order and never merge separate source paragraphs, but split an overly dense source paragraph at a natural shift in speaker, action, reaction, thought, time, or focus. Most Thai paragraphs should contain roughly one to three related sentences; vary this with scene rhythm. Do not put every sentence in its own paragraph, split dialogue from its attribution, or make arbitrary breaks merely to meet a length target.
+- Format for comfortable mobile reading. Keep each paragraph focused on one narrative beat. Preserve paragraph order and never merge separate source paragraphs, but split an overly dense source paragraph at a natural shift in speaker, action, reaction, thought, time, or focus. Most Thai paragraphs should contain roughly one to three related sentences and stay near or below 220 Thai characters. A paragraph over 260 characters that contains multiple sentences or beats must be split; a single uninterrupted quotation, letter, system message, or deliberate monologue may remain longer. Do not put every sentence in its own paragraph, split dialogue from its attribution, or make arbitrary breaks merely to meet a length target.
 - Use exactly one blank line between paragraphs, with no extra blank lines or hard-wrapped lines inside a paragraph.
 - Prefer direct Thai collocations such as "ดับกระหาย" over literal constructions such as "ทำให้พอใจจากความกระหาย". Reject calques, stacked abstract nouns, redundant modifiers, and narration such as "ออกความเห็น", "เริ่มที่จะ", "ทำการ", or repeated "ผม/เขา/เธอ" when a natural Thai verb or omission carries the same meaning.
 - Read each paragraph once as standalone Thai prose, then compare it with the source again to ensure that polishing did not omit, add, soften, intensify, or change any fact.`;

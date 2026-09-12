@@ -23,10 +23,11 @@ describe("automatic translation AI routing", () => {
   });
 
   it("versions and injects the Thai-native prose requirements once", () => {
-    expect(AUTOMATIC_TRANSLATION_PROMPT_VERSION).toBe(4);
+    expect(AUTOMATIC_TRANSLATION_PROMPT_VERSION).toBe(5);
     expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("natural Thai equivalents");
     expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("ดับกระหาย");
     expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("exactly one blank line between paragraphs");
+    expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("over 260 characters");
 
     const repeated = withThaiNovelLocalizationRules(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT);
     expect(repeated.match(/Thai localization requirements/g)).toHaveLength(1);

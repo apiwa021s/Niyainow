@@ -98,6 +98,7 @@ describe("Thai novel localization prompts", () => {
     expect(translationPrompt).toContain("ดับกระหาย");
     expect(translationPrompt).toContain("no extra blank lines");
     expect(translationPrompt).toContain("comfortable mobile reading");
+    expect(translationPrompt).toContain("over 260 characters");
     expect(polishPrompt).toContain("currentTranslation as the base manuscript");
     expect(polishPrompt).toContain("do not merely make isolated word substitutions");
     expect(qaPrompt).toContain("THAI_TRANSLATIONESE");
