@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { appendGlossaryTargetAlternative, applySafeQaSuggestions, parseProviderTranslation, runDeterministicQa, segmentText, selectBestTranslationModel, sha256 } from "./translation";
+import { appendGlossaryTargetAlternative, applySafeQaSuggestions, normalizeTranslationFormatting, parseProviderTranslation, runDeterministicQa, segmentText, selectBestTranslationModel, sha256 } from "./translation";
 
 describe("translation domain", () => {
   it("creates stable paragraph segments", () => {
@@ -8,6 +8,16 @@ describe("translation domain", () => {
       { segmentIndex: 0, content: "First", contentHash: sha256("First") },
       { segmentIndex: 1, content: "Second", contentHash: sha256("Second") },
     ]);
+  });
+
+  it("normalizes invisible spacing and excessive blank lines in model output", () => {
+    expect(normalizeTranslationFormatting({
+      title: "  บทที่\u00a01\n",
+      content: "ประโยคแรก\u200b  จบ\r\n\r\n\r\n  ย่อหน้าที่\r\nสอง\u00a0 จบ  ",
+    })).toEqual({
+      title: "บทที่ 1",
+      content: "ประโยคแรก จบ\n\nย่อหน้าที่สอง จบ",
+    });
   });
 
   it("requires locked glossary terms that occur in the source", () => {
@@ -65,6 +75,16 @@ describe("translation domain", () => {
 
     expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING"
       && issue.metadata?.sourceSegmentIndex === 1)).toBe(true);
+  });
+
+  it("keeps glossary QA stable when Thai readability splits a source paragraph", () => {
+    const issues = runDeterministicQa({
+      source: "The guard opened the door. He stepped aside.\n\nThe Duke entered.",
+      translation: "ทหารยามเปิดประตู\n\nจากนั้นเขาก็ถอยไปด้านข้าง\n\nดยุกเดินเข้ามา",
+      lockedTerms: [{ sourceTerm: "Duke", targetTerm: "ดยุก" }],
+    });
+
+    expect(issues.some((issue) => issue.code === "LOCKED_GLOSSARY_MISSING")).toBe(false);
   });
 
   it("accepts one context-appropriate option from a slash-separated locked target", () => {

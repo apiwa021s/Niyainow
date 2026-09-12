@@ -22,10 +22,11 @@ import {
   translationVersions,
   translationWorkspaces,
 } from "@/db/schema";
-import { applySafeQaSuggestions, applyValidatedQaPatches, decideTranslationQa, estimateTokens, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
+import { applySafeQaSuggestions, applyValidatedQaPatches, decideTranslationQa, estimateTokens, normalizeTranslationFormatting, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
 import { automaticModelNameForTask, type AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
+import { createTranslationJobMetadata, readTranslationJobMetadata, translationJobMetadataSchema } from "@/lib/domain/translation-job";
 import { logger } from "@/lib/logger";
-import { aiCallCostMicros, aiUsageCostMicros, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
+import { aiCallCostMicros, aiUsageCostMicros, polishChapterWithCanonAi, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
 import { getTranslationProvider } from "@/services/ai/translation-provider";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
@@ -55,6 +56,7 @@ const jobCheckpointSchema = z.object({
   sourceSnapshotId: z.string().uuid(),
   chapterAnalysis: checkpointChapterAnalysisSchema.nullable(),
   translation: translationCheckpointSchema.nullable(),
+  job: translationJobMetadataSchema.default(createTranslationJobMetadata()),
 });
 type JobCheckpoint = z.infer<typeof jobCheckpointSchema>;
 
@@ -65,7 +67,7 @@ function readCheckpoint(value: unknown, sourceSnapshotId: string): JobCheckpoint
       ? { ...parsed.data, translation: null }
       : parsed.data;
   }
-  return { version: 1, sourceSnapshotId, chapterAnalysis: null, translation: null };
+  return { version: 1, sourceSnapshotId, chapterAnalysis: null, translation: null, job: createTranslationJobMetadata() };
 }
 
 async function saveCheckpoint(jobItemId: string, checkpoint: JobCheckpoint) {
@@ -323,6 +325,7 @@ function modelForTask(models: Array<typeof translationAiModels.$inferSelect>, ta
 async function processClaimedItem(claimed: ClaimedItem) {
   const db = getDb();
   const startedAt = Date.now();
+  const initialJobMetadata = readTranslationJobMetadata(claimed.item.checkpoint);
   let contextSnapshotId: string | null = null;
   let currentTask: "CANON_EXTRACTION" | "MAIN_TRANSLATION" | "FIRST_QA" | "ESCALATION" = "MAIN_TRANSLATION";
   let currentModelId = claimed.job.modelId;
@@ -358,19 +361,38 @@ async function processClaimedItem(claimed: ClaimedItem) {
 
     if (!chapterAnalysis) {
       await db.update(translationJobItems).set({ progressPercent: 25, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
-      currentTask = "MAIN_TRANSLATION";
-      currentModelId = config.model.id;
-      const combined = await translateChapterWithCanonAi({
-        model: config.model,
-        prompt: config.prompt,
-        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-        sourceContent: built.source.content,
-        context: chapterContext,
-        cache: cacheFor("MAIN_TRANSLATION_WITH_CANON"),
-      });
+      const isPolish = checkpoint.job.operation === "POLISH";
+      const polishModel = isPolish ? modelForTask(automaticModels, "PREMIUM_EDIT") : null;
+      const baseTranslation = isPolish && checkpoint.job.baseTranslationVersionId
+        ? (await db.select().from(translationVersions).where(and(
+            eq(translationVersions.id, checkpoint.job.baseTranslationVersionId),
+            eq(translationVersions.translationChapterId, built.chapter.id),
+          )).limit(1))[0]
+        : null;
+      if (isPolish && !baseTranslation) throw new Error("Polish base translation is no longer available");
+      currentTask = isPolish ? "ESCALATION" : "MAIN_TRANSLATION";
+      currentModelId = polishModel?.id ?? config.model.id;
+      const combined = isPolish && polishModel && baseTranslation
+        ? await polishChapterWithCanonAi({
+            model: polishModel,
+            sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+            sourceContent: built.source.content,
+            translatedTitle: baseTranslation.title,
+            translatedContent: baseTranslation.content,
+            context: chapterContext,
+            cache: cacheFor("POLISH_WITH_CANON"),
+          })
+        : await translateChapterWithCanonAi({
+            model: config.model,
+            prompt: config.prompt,
+            sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+            sourceContent: built.source.content,
+            context: chapterContext,
+            cache: cacheFor("MAIN_TRANSLATION_WITH_CANON"),
+          });
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, combined.call);
       chapterAnalysis = combined.value.chapterAnalysis;
-      checkpoint = { ...checkpoint, chapterAnalysis, translation: combined.value.translation };
+      checkpoint = { ...checkpoint, chapterAnalysis, translation: normalizeTranslationFormatting(combined.value.translation) };
       await saveCheckpoint(claimed.item.id, checkpoint);
       const learnedTerms = chapterAnalysis.glossaryCandidates
         .filter((entry) => entry.confidence >= 70)
@@ -391,7 +413,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const savedTranslation = checkpoint.translation;
     let translation: z.infer<typeof translationCheckpointSchema>;
     if (savedTranslation) {
-      translation = savedTranslation;
+      translation = normalizeTranslationFormatting(savedTranslation);
     } else {
       await db.update(translationJobItems).set({ progressPercent: 35, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
       currentTask = "MAIN_TRANSLATION";
@@ -419,13 +441,16 @@ async function processClaimedItem(claimed: ClaimedItem) {
         latencyMs: result.latencyMs,
         status: "SUCCESS",
       });
-      translation = result.translation;
+      translation = normalizeTranslationFormatting(result.translation);
       checkpoint = { ...checkpoint, translation };
       await saveCheckpoint(claimed.item.id, checkpoint);
     }
 
     const reviewContext = {
+      sourceLanguage: built.context.sourceLanguage,
+      targetLanguage: built.context.targetLanguage,
       chapterNumber: built.context.chapterNumber,
+      profile: built.context.profile,
       glossary: built.context.glossary,
       suggestedGlossary: built.context.suggestedGlossary,
       characters: built.context.characters,
@@ -449,6 +474,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         translatedTitle: translation.title,
         translatedContent: translation.content,
         context: reviewContext,
+        minimumScore: qaMinimumScore(),
         cache: cacheFor("FIRST_QA"),
       });
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, checked.call);
@@ -466,7 +492,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const initialDecision = qaDecision(qa.value, deterministicIssues);
     const safeSuggestions = applySafeQaSuggestions(translation, qa.value.issues);
     if (safeSuggestions.appliedCount > 0) {
-      translation = safeSuggestions.translation;
+      translation = normalizeTranslationFormatting(safeSuggestions.translation);
       checkpoint = { ...checkpoint, translation };
       await saveCheckpoint(claimed.item.id, checkpoint);
       qa = { ...qa, value: { ...qa.value, issues: safeSuggestions.remainingIssues } };
@@ -498,7 +524,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
       });
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, patchResult.call);
       const patched = applyValidatedQaPatches(translation, patchResult.value.patches);
-      translation = patched.translation;
+      translation = normalizeTranslationFormatting(patched.translation);
 
       // Full-chapter generation is a last resort reserved for source omissions
       // or broken structure that cannot be repaired with validated local edits.
@@ -517,7 +543,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
           cache: cacheFor("ESCALATION_FULL_REWRITE"),
         });
         await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, revision.call);
-        translation = revision.value;
+        translation = normalizeTranslationFormatting(revision.value);
       }
       checkpoint = { ...checkpoint, translation };
       await saveCheckpoint(claimed.item.id, checkpoint);
@@ -528,6 +554,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
       deterministicIssues = runCodeQa();
     }
 
+    translation = normalizeTranslationFormatting(translation);
     await db.update(translationJobItems).set({ progressPercent: 94, progressStage: "CODE_QA" }).where(eq(translationJobItems.id, claimed.item.id));
     await db.update(translationJobItems).set({ progressPercent: 96, progressStage: "SAVING" }).where(eq(translationJobItems.id, claimed.item.id));
     await db.transaction(async (tx) => {
@@ -584,7 +611,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         progressStage: hasBlockingIssue ? "FAILED" : "DONE",
         finishedAt: now,
         lastError: qaFailureMessage,
-        checkpoint: hasBlockingIssue ? checkpoint : {},
+        checkpoint: hasBlockingIssue ? checkpoint : { job: checkpoint.job },
       }).where(eq(translationJobItems.id, claimed.item.id));
       await tx.update(translationChapters).set({ status: hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
         eq(translationChapters.id, built.chapter.id),
@@ -596,6 +623,9 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const message = safeError(error);
     const retry = claimed.item.attempts < MAX_ATTEMPTS;
     const now = new Date();
+    const terminalChapterStatus = initialJobMetadata.operation === "POLISH" && initialJobMetadata.previousChapterStatus
+      ? initialJobMetadata.previousChapterStatus
+      : "FAILED";
     await db.transaction(async (tx) => {
       await tx.insert(translationAiInvocations).values({
         jobItemId: claimed.item.id,
@@ -614,7 +644,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         finishedAt: retry ? null : now,
         lastError: message,
       }).where(eq(translationJobItems.id, claimed.item.id));
-      await tx.update(translationChapters).set({ status: retry ? "QUEUED" : "FAILED", updatedAt: now }).where(and(
+      await tx.update(translationChapters).set({ status: retry ? "QUEUED" : terminalChapterStatus, updatedAt: now }).where(and(
         eq(translationChapters.id, claimed.item.translationChapterId),
         eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
         eq(translationChapters.status, "TRANSLATING"),

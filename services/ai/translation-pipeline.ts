@@ -3,7 +3,11 @@ import "server-only";
 import { z } from "zod";
 
 import type { translationAiModels, translationPromptVersions } from "@/db/schema";
-import type { AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
+import {
+  THAI_NOVEL_LOCALIZATION_RULES,
+  withThaiNovelLocalizationRules,
+  type AutomaticTranslationTask,
+} from "@/lib/domain/translation-ai-routing";
 import { selectTranslationGenreContext } from "@/lib/domain/translation-genre-context";
 import { buildTranslationMasterRoutingCatalog, selectTranslationMasterContext, type TranslationMasterBundle, type TranslationMasterSelection } from "@/lib/domain/translation-master";
 import { getTranslationProvider, type PromptCacheInput, type StructuredAiResult } from "@/services/ai/translation-provider";
@@ -174,6 +178,9 @@ Return only the requested structured output.`;
 
 const QA_SYSTEM_PROMPT = `You are a rigorous bilingual QA editor for serialized fiction.
 Compare the complete source and translation for omissions, additions, mistranslations, name inconsistency, tone, and paragraph integrity.
+${THAI_NOVEL_LOCALIZATION_RULES}
+For Thai translations, natural idiomatic prose is a release-quality requirement, not optional polish. Flag literal English syntax, missed idiomatic rendering, excessive explicit pronouns, repetitive sentence openings, unnatural dialogue, and stiff narration. When these problems recur or materially interrupt reading flow, set passed=false and assign a score below quality.minimumScore even if the facts are accurate. Use code THAI_TRANSLATIONESE and provide exact, context-safe replacements whenever possible.
+Also flag dense Thai paragraphs that combine several distinct narrative beats, and choppy formatting that isolates nearly every sentence. Use code THAI_PARAGRAPH_FLOW. A good correction may add or remove a blank line, but must not reorder, omit, duplicate, or invent text.
 Treat context.glossary as binding editor-approved terminology. Treat context.suggestedGlossary as advisory terminology learned from prior chapters: preserve it when the source meaning and current context match, but never let it override the source or a binding glossary entry.
 For each binding glossary mismatch, locate the exact source occurrence and its corresponding translated paragraph. Use code LOCKED_GLOSSARY_MISSING, copy the smallest unique mistranslated currentText exactly, and provide a complete suggestedText replacement that uses an allowed binding term. Never match a glossary source term inside a longer word.
 For every actionable issue, include an exact currentText excerpt from the supplied translation and a complete suggestedText replacement. Set location to TITLE or CONTENT. Use null for these fields only when an exact safe replacement is impossible.
@@ -181,9 +188,17 @@ Mark passed=false when revision is required. Return only the requested structure
 
 const PATCH_EDITOR_SYSTEM_PROMPT = `You are a precise bilingual copy editor for serialized fiction.
 Resolve only the supplied QA findings. Return the smallest possible set of exact text replacements; never return the complete chapter.
+${THAI_NOVEL_LOCALIZATION_RULES}
+For THAI_TRANSLATIONESE findings, replace the complete affected sentence or short passage when a word-level substitution would leave English syntax behind.
 Each currentText must be copied exactly from the supplied translation and identify one unique occurrence. replacementText may be empty only to remove text that was added without source support.
-Preserve unaffected prose, paragraph boundaries, locked glossary choices, names, voice, and chronology.
+Preserve unaffected prose, paragraph order, locked glossary choices, names, voice, and chronology. For THAI_PARAGRAPH_FLOW, a replacement may split a dense passage or recombine choppy fragments only at a natural narrative boundary.
 Set requiresFullRewrite=true only when omissions or structural corruption cannot be repaired safely with local replacements. Return only the requested structured output.`;
+
+const POLISH_SYSTEM_PROMPT = withThaiNovelLocalizationRules(`You are a senior bilingual fiction editor polishing an existing complete translation.
+Treat source as authoritative and currentTranslation as the base manuscript. Rewrite the complete translated title and content so they read as native, engaging commercial fiction in the requested target language.
+Preserve every supported fact, speaker, action, relationship, chronology, paragraph order, locked term, character voice, and deliberate repetition. Improve sentence rhythm, idiomatic expression, dialogue flow, collocations, narration, and mobile paragraph flow throughout; do not merely make isolated word substitutions. Never merge separate source paragraphs, but split an overly dense paragraph at a natural narrative beat when that improves Thai readability.
+Do not summarize, censor, add events, intensify romance or violence, explain your work, or include markdown fences.
+Return the complete polished translation plus a compact canon analysis grounded only in the source. Return only the requested structured output.`);
 
 const TITLE_REVIEW_SYSTEM_PROMPT = `You are a senior fiction-title editor specializing in the requested target language.
 Review the translated novel title against the source title, synopsis, genre, tone, and translation profile.
@@ -445,10 +460,54 @@ export async function translateChapterWithCanonAi(input: {
   return structured({
     model: input.model,
     task: "MAIN_TRANSLATION",
-    systemPrompt: `${input.prompt.systemPrompt}\nTreat context.glossary as binding editor-approved terminology. Treat context.suggestedGlossary as advisory terminology learned from prior chapters: prefer it when the source meaning and current context match, but never let it override the source or a binding glossary entry.\nTranslate the complete chapter and, in the same response, return a compact canon analysis grounded only in the source. Keep canon fields concise so translation quality remains the priority.`,
+    systemPrompt: withThaiNovelLocalizationRules(`${input.prompt.systemPrompt}\nTreat context.glossary as binding editor-approved terminology. Treat context.suggestedGlossary as advisory terminology learned from prior chapters: prefer it when the source meaning and current context match, but never let it override the source or a binding glossary entry.\nTranslate the complete chapter and, in the same response, return a compact canon analysis grounded only in the source. Keep canon fields concise so translation quality remains the priority.`),
     cache: input.cache,
     payload: { context: input.context, source: { title: input.sourceTitle, content: input.sourceContent } },
     schemaName: "novel_translation_with_canon",
+    jsonSchema: jsonObject({
+      translation: jsonObject({ title: { type: "string" }, content: { type: "string" } }),
+      chapterAnalysis: jsonObject({
+        summary: { type: "string" },
+        continuityFacts: boundedStringArray(24),
+        entities: boundedStringArray(40),
+        glossaryCandidates: {
+          type: "array",
+          maxItems: 30,
+          items: jsonObject({
+            sourceTerm: { type: "string" },
+            targetTerm: { type: "string" },
+            note: { type: ["string", "null"] },
+            confidence: { type: "integer", minimum: 0, maximum: 100 },
+          }),
+        },
+        difficulty: { type: "string", enum: ["NORMAL", "HARD"] },
+        translationNotes: boundedStringArray(20),
+      }),
+    }),
+    parser: chapterTranslationSchema,
+  });
+}
+
+export async function polishChapterWithCanonAi(input: {
+  model: AiModel;
+  sourceTitle: string;
+  sourceContent: string;
+  translatedTitle: string;
+  translatedContent: string;
+  context: Record<string, unknown>;
+  cache?: PromptCacheInput;
+}) {
+  return structured({
+    model: input.model,
+    task: "ESCALATION",
+    systemPrompt: POLISH_SYSTEM_PROMPT,
+    cache: input.cache,
+    payload: {
+      context: input.context,
+      source: { title: input.sourceTitle, content: input.sourceContent },
+      currentTranslation: { title: input.translatedTitle, content: input.translatedContent },
+    },
+    schemaName: "polished_novel_translation_with_canon",
     jsonSchema: jsonObject({
       translation: jsonObject({ title: { type: "string" }, content: { type: "string" } }),
       chapterAnalysis: jsonObject({
@@ -518,6 +577,7 @@ export async function qaTranslationWithAi(input: {
   translatedTitle: string;
   translatedContent: string;
   context: Record<string, unknown>;
+  minimumScore?: number;
   cache?: PromptCacheInput;
 }) {
   return structured({
@@ -527,6 +587,7 @@ export async function qaTranslationWithAi(input: {
     cache: input.cache,
     payload: {
       context: input.context,
+      quality: { minimumScore: input.minimumScore ?? 90 },
       source: { title: input.sourceTitle, content: input.sourceContent },
       translation: { title: input.translatedTitle, content: input.translatedContent },
     },
@@ -605,7 +666,7 @@ export async function reviseTranslationWithAi(input: {
   return structured({
     model: input.model,
     task: "ESCALATION",
-    systemPrompt: `${input.prompt.systemPrompt}\nRevise the supplied translation to resolve every QA issue. Return the complete corrected chapter, not a patch.`,
+    systemPrompt: withThaiNovelLocalizationRules(`${input.prompt.systemPrompt}\nRevise the supplied translation to resolve every QA issue. Return the complete corrected chapter, not a patch.`),
     cache: input.cache,
     payload: {
       context: input.context,

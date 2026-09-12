@@ -235,7 +235,7 @@ const openAiCompatibleProvider: TranslationProvider = {
     const result = await requestStructured({
       model: input.model,
       systemPrompt: input.prompt.systemPrompt,
-      task: "Translate the source faithfully. Preserve paragraph breaks and return the complete chapter without summaries or commentary.",
+      task: "Translate the source faithfully. Preserve paragraph order; for mobile readability, split only overly dense paragraphs at natural narrative beats. Return the complete chapter without summaries or commentary.",
       cache: input.cache,
       payload: { context: input.context, source: { title: input.sourceTitle, content: input.sourceContent } },
       schemaName: "novel_translation",

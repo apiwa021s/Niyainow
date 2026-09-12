@@ -38,11 +38,18 @@ import {
 import { assertTranslationPermission, type CurrentUser } from "@/lib/auth/dal";
 import {
   AUTOMATIC_TRANSLATION_MODELS,
+  AUTOMATIC_TRANSLATION_PROMPT_VERSION,
   AUTOMATIC_TRANSLATION_SYSTEM_PROMPT,
   automaticModelNameForTask,
   type AutomaticTranslationTask,
 } from "@/lib/domain/translation-ai-routing";
 import { appendGlossaryTargetAlternative, countWords, runDeterministicQa, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
+import {
+  chapterStatusAfterCancelledJob,
+  createTranslationJobMetadata,
+  readTranslationJobMetadata,
+  translationJobOperationSchema,
+} from "@/lib/domain/translation-job";
 import { ApiError } from "@/lib/http/api-response";
 import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
 import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
@@ -176,6 +183,7 @@ export const createTranslationModelSchema = z.object({
 export const enqueueTranslationSchema = z.object({
   modelId: uuidSchema.optional(),
   promptVersionId: uuidSchema.optional(),
+  operation: translationJobOperationSchema.default("TRANSLATE"),
   chapterIds: z.array(uuidSchema).min(1).max(100),
   idempotencyKey: z.string().trim().min(16).max(255),
 });
@@ -258,7 +266,7 @@ async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
     db.select({ modelName: translationAiModels.modelName }).from(translationAiModels)
       .where(and(eq(translationAiModels.provider, "openai-compatible"), eq(translationAiModels.isActive, true), inArray(translationAiModels.modelName, expectedModelNames))),
     db.select({ id: translationPromptVersions.id }).from(translationPromptVersions)
-      .where(and(eq(translationPromptVersions.name, "automatic-novel-translation"), eq(translationPromptVersions.version, 1), eq(translationPromptVersions.isActive, true))).limit(1),
+      .where(and(eq(translationPromptVersions.name, "automatic-novel-translation"), eq(translationPromptVersions.version, AUTOMATIC_TRANSLATION_PROMPT_VERSION), eq(translationPromptVersions.isActive, true))).limit(1),
   ]);
   if (existingModels.length === AUTOMATIC_TRANSLATION_MODELS.length && existingPrompt.length) return;
   await db.transaction(async (tx) => {
@@ -291,7 +299,7 @@ async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
     }
     await tx.insert(translationPromptVersions).values({
       name: "automatic-novel-translation",
-      version: 1,
+      version: AUTOMATIC_TRANSLATION_PROMPT_VERSION,
       systemPrompt: AUTOMATIC_TRANSLATION_SYSTEM_PROMPT,
       isActive: true,
       createdBy: actor.id,
@@ -805,6 +813,15 @@ export async function getTranslationWorkspace(workspaceId: string) {
     : null;
   const storedTitleReview = storedTitleReviewSchema.safeParse(titleReviewRows[0]?.after);
   const aiUsage = aiUsageRows[0] ?? { inputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0, cacheEnabledRequests: 0 };
+  const jobMetadataRows = jobs.length
+    ? await db.select({ jobId: translationJobItems.jobId, checkpoint: translationJobItems.checkpoint })
+        .from(translationJobItems)
+        .where(inArray(translationJobItems.jobId, jobs.map((job) => job.id)))
+    : [];
+  const operationByJob = new Map<string, ReturnType<typeof readTranslationJobMetadata>["operation"]>();
+  for (const item of jobMetadataRows) {
+    if (!operationByJob.has(item.jobId)) operationByJob.set(item.jobId, readTranslationJobMetadata(item.checkpoint).operation);
+  }
   return {
     workspace: { ...serializeWorkspace(workspace.workspace), title: workspace.translatedTitle ?? workspace.sourceTitle ?? "Imported novel", updatedAt: workspace.workspace.updatedAt.toISOString() },
     source: {
@@ -828,7 +845,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     glossary: glossary.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     characters: characters.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     chapters: chapterRows,
-    jobs: jobs.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), startedAt: row.startedAt?.toISOString() ?? null, finishedAt: row.finishedAt?.toISOString() ?? null })),
+    jobs: jobs.map((row) => ({ ...row, operation: operationByJob.get(row.id) ?? "TRANSLATE", createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), startedAt: row.startedAt?.toISOString() ?? null, finishedAt: row.finishedAt?.toISOString() ?? null })),
     models: [selectBestTranslationModel(models, workspace.workspace.sourceLanguage, workspace.workspace.targetLanguage), ...models]
       .filter((row, index, rows): row is typeof models[number] => Boolean(row) && rows.findIndex((candidate) => candidate?.id === row?.id) === index)
       .map((row) => ({ id: row.id, name: row.name, provider: row.provider, modelName: row.modelName })),
@@ -1056,17 +1073,52 @@ export async function enqueueTranslation(workspaceId: string, input: z.infer<typ
       ? await tx.select({ id: translationPromptVersions.id }).from(translationPromptVersions).where(and(eq(translationPromptVersions.id, input.promptVersionId), eq(translationPromptVersions.isActive, true))).limit(1)
       : await tx.select({ id: translationPromptVersions.id }).from(translationPromptVersions).where(eq(translationPromptVersions.isActive, true)).orderBy(desc(translationPromptVersions.createdAt)).limit(1);
     if (!model || !prompt) throw new ApiError(400, "AI_CONFIG_UNAVAILABLE", "Model หรือ Prompt ไม่พร้อมใช้งาน");
-    const selected = await tx.select({ id: translationChapters.id, sourceSnapshotId: translationChapters.sourceSnapshotId }).from(translationChapters).where(and(
+    const eligibleStatuses = input.operation === "POLISH"
+      ? ["DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "PUBLISHED", "FAILED"] as const
+      : ["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"] as const;
+    const selected = await tx.select({
+      id: translationChapters.id,
+      sourceSnapshotId: translationChapters.sourceSnapshotId,
+      status: translationChapters.status,
+    }).from(translationChapters).where(and(
       eq(translationChapters.workspaceId, workspaceId),
       inArray(translationChapters.id, uniqueChapterIds),
-      inArray(translationChapters.status, ["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]),
+      inArray(translationChapters.status, eligibleStatuses),
     )).for("update");
     if (selected.length !== uniqueChapterIds.length) throw new ApiError(400, "INVALID_CHAPTER_SELECTION", "รายการตอนมีตอนที่ไม่พร้อมแปล");
+    const baseVersions = input.operation === "POLISH"
+      ? await tx.select({ id: translationVersions.id, chapterId: translationVersions.translationChapterId })
+          .from(translationVersions)
+          .where(inArray(translationVersions.translationChapterId, selected.map((chapter) => chapter.id)))
+          .orderBy(desc(translationVersions.revision))
+      : [];
+    const baseVersionByChapter = new Map<string, string>();
+    for (const version of baseVersions) {
+      if (!baseVersionByChapter.has(version.chapterId)) baseVersionByChapter.set(version.chapterId, version.id);
+    }
+    if (input.operation === "POLISH" && baseVersionByChapter.size !== selected.length) {
+      throw new ApiError(400, "POLISH_BASE_TRANSLATION_MISSING", "มีตอนที่ยังไม่มีฉบับแปลสำหรับเกลาสำนวน");
+    }
     const [job] = await tx.insert(translationJobs).values({ workspaceId, modelId: model.id, promptVersionId: prompt.id, idempotencyKey: input.idempotencyKey, requestedBy: actor.id, totalItems: selected.length }).returning();
-    await tx.insert(translationJobItems).values(selected.map((chapter) => ({ jobId: job.id, translationChapterId: chapter.id, sourceSnapshotId: chapter.sourceSnapshotId })));
+    await tx.insert(translationJobItems).values(selected.map((chapter) => ({
+      jobId: job.id,
+      translationChapterId: chapter.id,
+      sourceSnapshotId: chapter.sourceSnapshotId,
+      checkpoint: {
+        version: 1,
+        sourceSnapshotId: chapter.sourceSnapshotId,
+        chapterAnalysis: null,
+        translation: null,
+        job: createTranslationJobMetadata(input.operation === "POLISH" ? {
+          operation: "POLISH",
+          baseTranslationVersionId: baseVersionByChapter.get(chapter.id) ?? null,
+          previousChapterStatus: chapter.status,
+        } : undefined),
+      },
+    })));
     await tx.update(translationChapters).set({ status: "QUEUED", updatedAt: new Date() }).where(inArray(translationChapters.id, selected.map((row) => row.id)));
     await tx.update(translationWorkspaces).set({ status: "TRANSLATING", updatedAt: new Date() }).where(eq(translationWorkspaces.id, workspaceId));
-    await writeAudit(tx, actor, "translation.job.enqueue", "translation_job", job.id, null, { workspaceId, totalItems: selected.length, modelId: model.id, promptVersionId: prompt.id });
+    await writeAudit(tx, actor, "translation.job.enqueue", "translation_job", job.id, null, { workspaceId, operation: input.operation, totalItems: selected.length, modelId: model.id, promptVersionId: prompt.id });
     return job;
   });
 }
@@ -1080,9 +1132,15 @@ export async function cancelTranslationJob(jobId: string) {
     if (["COMPLETED", "FAILED", "CANCELLED"].includes(before.status)) return before;
     const now = new Date();
     const [updated] = await tx.update(translationJobs).set({ cancelRequestedAt: now, status: before.status === "QUEUED" ? "CANCELLED" : before.status, finishedAt: before.status === "QUEUED" ? now : null, updatedAt: now }).where(eq(translationJobs.id, jobId)).returning();
-    const cancelledItems = await tx.update(translationJobItems).set({ status: "CANCELLED", progressPercent: 100, progressStage: "CANCELLED", finishedAt: now }).where(and(eq(translationJobItems.jobId, jobId), eq(translationJobItems.status, "QUEUED"))).returning({ chapterId: translationJobItems.translationChapterId });
-    if (cancelledItems.length) await tx.update(translationChapters).set({ status: "READY", updatedAt: now }).where(and(inArray(translationChapters.id, cancelledItems.map((item) => item.chapterId)), eq(translationChapters.status, "QUEUED")));
-    if (before.status === "QUEUED") await tx.update(translationWorkspaces).set({ status: "READY", updatedAt: now }).where(eq(translationWorkspaces.id, before.workspaceId));
+    const cancelledItems = await tx.update(translationJobItems).set({ status: "CANCELLED", progressPercent: 100, progressStage: "CANCELLED", finishedAt: now }).where(and(eq(translationJobItems.jobId, jobId), eq(translationJobItems.status, "QUEUED"))).returning({ chapterId: translationJobItems.translationChapterId, checkpoint: translationJobItems.checkpoint });
+    const restoreGroups = Map.groupBy(cancelledItems, (item) => chapterStatusAfterCancelledJob(item.checkpoint));
+    for (const [status, items] of restoreGroups) {
+      if (items.length) await tx.update(translationChapters).set({ status, updatedAt: now }).where(and(inArray(translationChapters.id, items.map((item) => item.chapterId)), eq(translationChapters.status, "QUEUED")));
+    }
+    if (before.status === "QUEUED") {
+      const cancelledPolish = cancelledItems.some((item) => readTranslationJobMetadata(item.checkpoint).operation === "POLISH");
+      await tx.update(translationWorkspaces).set({ status: cancelledPolish ? "REVIEW" : "READY", updatedAt: now }).where(eq(translationWorkspaces.id, before.workspaceId));
+    }
     await writeAudit(tx, actor, "translation.job.cancel", "translation_job", jobId, { status: before.status }, { status: updated.status, cancelRequested: true });
     return updated;
   });
@@ -1497,6 +1555,11 @@ export async function publishTranslationVersion(workspaceId: string, chapterId: 
       updatedAt: now,
     }).where(and(eq(novels.id, publicNovelId), isNull(novels.deletedAt))).returning({ id: novels.id });
     if (!publishedNovel) throw new ApiError(409, "PUBLIC_NOVEL_MISSING", "ไม่พบนิยายฉบับร่างสำหรับเผยแพร่");
+    await tx.update(translationVersions).set({ status: "SUPERSEDED" }).where(and(
+      eq(translationVersions.translationChapterId, chapterId),
+      eq(translationVersions.status, "PUBLISHED"),
+      ne(translationVersions.id, versionId),
+    ));
     await tx.update(translationVersions).set({ status: "PUBLISHED", publishedAt: row.version.publishedAt ?? now }).where(eq(translationVersions.id, versionId));
     await tx.update(translationChapters).set({ status: "PUBLISHED", updatedAt: now }).where(eq(translationChapters.id, chapterId));
     await syncPublicNovelStatistics(tx, publicNovelId, now);

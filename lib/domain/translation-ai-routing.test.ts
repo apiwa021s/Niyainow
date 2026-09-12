@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { AUTOMATIC_TRANSLATION_MODELS, automaticModelNameForTask } from "./translation-ai-routing";
+import {
+  AUTOMATIC_TRANSLATION_MODELS,
+  AUTOMATIC_TRANSLATION_PROMPT_VERSION,
+  AUTOMATIC_TRANSLATION_SYSTEM_PROMPT,
+  automaticModelNameForTask,
+  withThaiNovelLocalizationRules,
+} from "./translation-ai-routing";
 
 describe("automatic translation AI routing", () => {
   it("routes production translation and escalation to the intended models", () => {
@@ -14,5 +20,15 @@ describe("automatic translation AI routing", () => {
   it("contains one managed preset for every routed API model", () => {
     const configured = new Set(AUTOMATIC_TRANSLATION_MODELS.map((model) => model.modelName));
     expect(configured).toEqual(new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]));
+  });
+
+  it("versions and injects the Thai-native prose requirements once", () => {
+    expect(AUTOMATIC_TRANSLATION_PROMPT_VERSION).toBe(4);
+    expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("natural Thai equivalents");
+    expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("ดับกระหาย");
+    expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("exactly one blank line between paragraphs");
+
+    const repeated = withThaiNovelLocalizationRules(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT);
+    expect(repeated.match(/Thai localization requirements/g)).toHaveLength(1);
   });
 });

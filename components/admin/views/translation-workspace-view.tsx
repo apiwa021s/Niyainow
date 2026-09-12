@@ -20,7 +20,10 @@ type TitleReview = NonNullable<Data["titleReview"]>;
 type WizardStep = 2 | 3;
 type ProfileStage = { stage: string; label: string; modelName: string };
 
-const ELIGIBLE_STATUSES = new Set(["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]);
+type QueueOperation = "TRANSLATE" | "POLISH";
+
+const TRANSLATE_ELIGIBLE_STATUSES = new Set(["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"]);
+const POLISH_ELIGIBLE_STATUSES = new Set(["DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "PUBLISHED", "FAILED"]);
 const PROGRESS_STAGE_LABELS: Record<string, string> = {
   QUEUED: "รอคิว",
   CONTEXT: "เตรียมบริบท",
@@ -57,6 +60,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   const [titleReview, setTitleReview] = useState<TitleReview | null>(data.titleReview);
   const [profileStage, setProfileStage] = useState<ProfileStage | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [queueOperation, setQueueOperation] = useState<QueueOperation>("TRANSLATE");
   const [chapterQuery, setChapterQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const activeJobs = data.jobs.some((job) => job.status === "QUEUED" || job.status === "RUNNING");
@@ -70,7 +74,11 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     return () => window.clearInterval(timer);
   }, [activeJobs, router]);
 
-  const eligibleChapters = useMemo(() => data.chapters.filter((chapter) => ELIGIBLE_STATUSES.has(chapter.status)), [data.chapters]);
+  const eligibleStatuses = queueOperation === "POLISH" ? POLISH_ELIGIBLE_STATUSES : TRANSLATE_ELIGIBLE_STATUSES;
+  const eligibleChapters = useMemo(
+    () => data.chapters.filter((chapter) => eligibleStatuses.has(chapter.status) && (queueOperation !== "POLISH" || chapter.revision > 0)),
+    [data.chapters, eligibleStatuses, queueOperation],
+  );
   const visibleChapters = useMemo(() => {
     const query = chapterQuery.trim().toLocaleLowerCase();
     return data.chapters.filter((chapter) => {
@@ -79,7 +87,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
       return String(chapter.chapterNumber).includes(query) || (chapter.sourceTitle ?? "").toLocaleLowerCase().includes(query);
     });
   }, [chapterQuery, data.chapters, statusFilter]);
-  const visibleEligible = visibleChapters.filter((chapter) => ELIGIBLE_STATUSES.has(chapter.status));
+  const visibleEligible = visibleChapters.filter((chapter) => eligibleStatuses.has(chapter.status) && (queueOperation !== "POLISH" || chapter.revision > 0));
   const allVisibleSelected = visibleEligible.length > 0 && visibleEligible.slice(0, 100).every((chapter) => selected.has(chapter.id));
 
   async function perform(key: string, work: () => Promise<unknown>, success: string) {
@@ -171,9 +179,16 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   async function enqueue() {
     if (!selected.size) { setError("เลือกอย่างน้อย 1 ตอน"); return; }
     if (activeJobs) { setError("มีงานแปลกำลังทำงานอยู่ กรุณารอให้งานปัจจุบันเสร็จก่อน"); return; }
+    if (queueOperation === "POLISH" && [...selected].some((chapterId) => data.chapters.find((chapter) => chapter.id === chapterId)?.status === "PUBLISHED")) {
+      const confirmed = window.confirm("ระบบจะสร้าง revision ที่เกลาสำนวนใหม่ โดยฉบับที่เผยแพร่อยู่จะยังไม่เปลี่ยนจนกว่าคุณจะตรวจและกดเผยแพร่ revision ใหม่ ดำเนินการต่อหรือไม่?");
+      if (!confirmed) return;
+    }
     const queued = await perform("enqueue", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/jobs`, "POST", {
-      chapterIds: [...selected], idempotencyKey: `${data.workspace.id}:${crypto.randomUUID()}`,
-    }), `เพิ่ม ${selected.size.toLocaleString("th-TH")} ตอนลงคิวแปลแล้ว`);
+      operation: queueOperation,
+      chapterIds: [...selected], idempotencyKey: `${data.workspace.id}:${queueOperation.toLocaleLowerCase()}:${crypto.randomUUID()}`,
+    }), queueOperation === "POLISH"
+      ? `เพิ่ม ${selected.size.toLocaleString("th-TH")} ตอนลงคิวเกลาสำนวนใหม่แล้ว`
+      : `เพิ่ม ${selected.size.toLocaleString("th-TH")} ตอนลงคิวแปลแล้ว`);
     if (queued) setSelected(new Set());
   }
 
@@ -202,7 +217,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     {activeJob ? <AiTranslationProgress
       completed={activeJob.completedItems + activeJob.failedItems}
       total={activeJob.totalItems}
-      label={activeJob.status === "QUEUED" ? "กำลังรอ Worker รับงาน" : "AI pipeline กำลังทำงานจริง"}
+      label={activeJob.status === "QUEUED" ? "กำลังรอ Worker รับงาน" : activeJob.operation === "POLISH" ? "AI Editor กำลังเกลาสำนวน" : "AI pipeline กำลังแปล"}
       currentChapter={currentChapter?.chapterNumber}
       currentStage={currentChapter ? PROGRESS_STAGE_LABELS[currentChapter.progressStage] ?? currentChapter.progressStage : null}
       currentPercent={currentChapter?.progressPercent}
@@ -325,14 +340,28 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     ) : (
       <div className="grid gap-5">
         <Panel
-          title="3. เลือกตอนที่จะแปล"
-          description="ค้นหา กรอง และเลือกได้สูงสุด 100 ตอนต่อหนึ่งคิว"
+          title="3. เลือกตอนและประเภทงาน"
+          description="แปลตอนใหม่หรือเกลาสำนวนฉบับแปลเดิมได้สูงสุด 100 ตอนต่อหนึ่งคิว"
           action={<Button type="button" variant="outline" loading={busy === "sync"} onClick={() => perform("sync", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/sync`, "POST"), "ซิงก์ต้นฉบับแล้ว")}><RefreshCw className="h-4 w-4" />ซิงก์ต้นฉบับ</Button>}
         >
           <div className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-muted/50 p-3">
               <div><p className="text-sm font-semibold">Profile พร้อมใช้งาน</p><p className="text-xs text-muted-foreground">{data.profile?.name ?? "Default"} · เวอร์ชัน {data.profile?.version ?? 1} · คลังคำ {data.glossary.length} คำ ({data.glossary.filter((entry) => !entry.isLocked).length} คำรอตรวจ)</p></div>
               <Button type="button" variant="ghost" size="sm" onClick={() => { setGlossary(data.glossary); setStep(2); }}><ArrowLeft className="h-4 w-4" />Review ชื่อเรื่อง / แก้ Profile</Button>
+            </div>
+
+            <div className="grid gap-2 rounded-[12px] border border-border p-2 sm:grid-cols-2">
+              <Button type="button" variant={queueOperation === "TRANSLATE" ? "default" : "ghost"} onClick={() => { setQueueOperation("TRANSLATE"); setSelected(new Set()); }}>
+                <Bot className="h-4 w-4" />แปลจากต้นฉบับ
+              </Button>
+              <Button type="button" variant={queueOperation === "POLISH" ? "default" : "ghost"} onClick={() => { setQueueOperation("POLISH"); setSelected(new Set()); }}>
+                <Sparkles className="h-4 w-4" />เกลาสำนวนฉบับเดิม
+              </Button>
+              <p className="px-2 pb-1 text-xs text-muted-foreground sm:col-span-2">
+                {queueOperation === "POLISH"
+                  ? "AI Editor จะเทียบต้นฉบับกับคำแปลล่าสุด เกลาให้เป็นสำนวนไทย และสร้าง revision ใหม่โดยไม่เขียนทับฉบับที่เผยแพร่"
+                  : "สร้างคำแปลใหม่จากต้นฉบับ พร้อมตรวจ Canon, Glossary และ QA"}
+              </p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_190px]">
@@ -354,7 +383,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
         <Panel title={`ตอนทั้งหมด (${data.chapters.length.toLocaleString("th-TH")})`} description={`แสดง ${visibleChapters.length.toLocaleString("th-TH")} ตอน · พร้อมเลือก ${visibleEligible.length.toLocaleString("th-TH")} ตอน`} bodyClassName="p-0">
           <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[920px] text-sm"><thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} aria-label="เลือกตอนที่แสดง สูงสุด 100 ตอน" onChange={toggleVisible} /></th><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อต้นฉบับ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ความคืบหน้า</th><th className="px-4 py-3">Revision</th><th className="px-4 py-3">QA</th><th className="px-4 py-3" /></tr></thead><tbody>
             {visibleChapters.map((chapter) => {
-              const eligible = ELIGIBLE_STATUSES.has(chapter.status);
+              const eligible = eligibleStatuses.has(chapter.status) && (queueOperation !== "POLISH" || chapter.revision > 0);
               const progress = chapter.jobItemStatus ? chapter.progressPercent : chapter.status === "PUBLISHED" || chapter.status === "APPROVED" || chapter.revision > 0 ? 100 : 0;
               const stage = chapter.jobItemStatus ? PROGRESS_STAGE_LABELS[chapter.progressStage] ?? chapter.progressStage : progress === 100 ? "มีฉบับแปลแล้ว" : "ยังไม่เริ่ม";
               return <tr key={chapter.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-3"><input type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={`เลือกตอน ${chapter.chapterNumber}`} onChange={() => toggleChapter(chapter.id)} /></td><td className="px-4 py-3 font-semibold tabular">{chapter.chapterNumber}</td><td className="max-w-md truncate px-4 py-3">{chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</td><td className="px-4 py-3"><StatusPill label={chapter.status} tone={chapter.status === "PUBLISHED" || chapter.status === "APPROVED" ? "success" : chapter.status === "FAILED" || chapter.status === "QA_FAILED" ? "danger" : chapter.status === "TRANSLATING" || chapter.status === "QUEUED" ? "info" : "neutral"} /></td><td className="w-40 px-4 py-3"><div className="flex items-center justify-between gap-2 text-[11px]"><span className="truncate text-muted-foreground">{stage}</span><strong className="tabular-nums">{progress}%</strong></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-[var(--brand-primary)] transition-[width] duration-500" style={{ width: `${progress}%` }} /></div></td><td className="px-4 py-3 tabular">{chapter.revision}</td><td className="px-4 py-3">{chapter.criticalIssues ? <span className="text-destructive">{chapter.criticalIssues} critical</span> : "ผ่าน"}</td><td className="px-4 py-3 text-right"><Link className="font-semibold text-[var(--brand-light-on-light)] hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>เปิด</Link></td></tr>;
@@ -362,12 +391,15 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
             {!visibleChapters.length ? <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">ไม่พบตอนที่ตรงกับตัวกรอง</td></tr> : null}
           </tbody></table></div>
           <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
-            <p className="text-sm text-muted-foreground"><ListChecks className="mr-1 inline h-4 w-4" />เลือก {selected.size.toLocaleString("th-TH")} ตอน {activeJobs ? "· มีงานแปลกำลังทำงาน" : "· พร้อมสร้างคิว"}</p>
-            <Button type="button" loading={busy === "enqueue"} disabled={!profileConfirmed || !selected.size || activeJobs} onClick={enqueue}><Bot className="h-4 w-4" />เริ่มแปลตอนที่เลือก</Button>
+            <p className="text-sm text-muted-foreground"><ListChecks className="mr-1 inline h-4 w-4" />เลือก {selected.size.toLocaleString("th-TH")} ตอน {activeJobs ? "· มีงาน AI กำลังทำงาน" : `· พร้อม${queueOperation === "POLISH" ? "เกลาสำนวน" : "สร้างคำแปล"}`}</p>
+            <Button type="button" loading={busy === "enqueue"} disabled={!profileConfirmed || !selected.size || activeJobs} onClick={enqueue}>
+              {queueOperation === "POLISH" ? <Sparkles className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+              {queueOperation === "POLISH" ? "เกลาสำนวนตอนที่เลือก" : "เริ่มแปลตอนที่เลือก"}
+            </Button>
           </div>
         </Panel>
 
-        <Panel title="ประวัติงานแปล" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">Progress</th><th className="px-4 py-3">ผิดพลาด</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 last:border-0"><td className="whitespace-nowrap px-4 py-3">{new Date(job.createdAt).toLocaleString("th-TH")}</td><td className="px-4 py-3"><StatusPill label={job.status} tone={job.status === "COMPLETED" ? "success" : job.status === "FAILED" ? "danger" : "info"} /></td><td className="px-4 py-3 tabular">{job.completedItems + job.failedItems} / {job.totalItems}</td><td className="max-w-sm truncate px-4 py-3 text-xs text-destructive">{job.lastError}</td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" onClick={() => perform(`cancel-${job.id}`, () => mutate(`/api/admin/translation/jobs/${job.id}/cancel`, "POST"), "ส่งคำสั่งยกเลิกแล้ว")}>ยกเลิก</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">ยังไม่มีงานแปล เลือกตอนด้านบนเพื่อสร้างคิวแรก</td></tr> : null}</tbody></table></div></Panel>
+        <Panel title="ประวัติงาน AI" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[780px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">ประเภทงาน</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">Progress</th><th className="px-4 py-3">ผิดพลาด</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 last:border-0"><td className="whitespace-nowrap px-4 py-3">{new Date(job.createdAt).toLocaleString("th-TH")}</td><td className="px-4 py-3">{job.operation === "POLISH" ? "เกลาสำนวน" : "แปลต้นฉบับ"}</td><td className="px-4 py-3"><StatusPill label={job.status} tone={job.status === "COMPLETED" ? "success" : job.status === "FAILED" ? "danger" : "info"} /></td><td className="px-4 py-3 tabular">{job.completedItems + job.failedItems} / {job.totalItems}</td><td className="max-w-sm truncate px-4 py-3 text-xs text-destructive">{job.lastError}</td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" onClick={() => perform(`cancel-${job.id}`, () => mutate(`/api/admin/translation/jobs/${job.id}/cancel`, "POST"), "ส่งคำสั่งยกเลิกแล้ว")}>ยกเลิก</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">ยังไม่มีงาน AI เลือกตอนด้านบนเพื่อสร้างคิวแรก</td></tr> : null}</tbody></table></div></Panel>
       </div>
     )}
   </div>;

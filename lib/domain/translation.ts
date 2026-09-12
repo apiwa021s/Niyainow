@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { splitChapterParagraphs } from "./chapter";
+
 export type TranslationQaIssue = {
   code: string;
   severity: "INFO" | "WARNING" | "CRITICAL";
@@ -20,6 +22,38 @@ export type TranslationQaDecisionInput = {
   deterministicIssues: TranslationQaIssue[];
   minimumScore?: number;
 };
+
+const UNICODE_HORIZONTAL_SPACES = /[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu;
+const INVISIBLE_FORMATTING_MARKS = /[\u200b-\u200d\u2060\ufeff]/gu;
+
+/**
+ * Canonicalizes model output without changing its paragraph structure.
+ *
+ * LLMs occasionally return non-breaking/zero-width spaces, hard-wrapped
+ * lines, or several blank lines. Those characters are nearly invisible in
+ * the editor but produce conspicuous gaps and awkward wrapping in readers and
+ * exported TXT files. A single blank line remains the paragraph delimiter.
+ */
+export function normalizeTranslationFormatting(translation: { title: string; content: string }) {
+  const normalizeHorizontalWhitespace = (value: string) => value
+    .replace(UNICODE_HORIZONTAL_SPACES, " ")
+    .replace(INVISIBLE_FORMATTING_MARKS, "")
+    .replace(/[ \t]+/gu, " ");
+
+  const title = normalizeHorizontalWhitespace(translation.title.replace(/\r\n?/gu, "\n"))
+    .replace(/\n+/gu, " ")
+    .trim();
+  const cleanedContent = translation.content
+    .replace(/\r\n?/gu, "\n")
+    .split("\n")
+    .map((line) => normalizeHorizontalWhitespace(line).trim())
+    .join("\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
+  const content = splitChapterParagraphs(cleanedContent).join("\n\n");
+
+  return { title, content };
+}
 
 /**
  * Production QA gate. Only critical fidelity/structure/glossary failures block
@@ -227,8 +261,10 @@ export function runDeterministicQa(input: {
     return issues;
   }
 
-  const sourceSegments = segmentText(source).length;
-  const translatedSegments = segmentText(translation).length;
+  const sourceSegmentRows = segmentText(source);
+  const translatedSegmentRows = segmentText(translation);
+  const sourceSegments = sourceSegmentRows.length;
+  const translatedSegments = translatedSegmentRows.length;
   if (sourceSegments > 1 && translatedSegments < Math.ceil(sourceSegments * 0.6)) {
     issues.push({
       code: "MISSING_SEGMENTS",
@@ -249,12 +285,49 @@ export function runDeterministicQa(input: {
 
   for (const term of input.lockedTerms) {
     const targetAlternatives = glossaryTargetAlternatives(term.targetTerm);
-    const sourceMatches = segmentText(source).filter((segment) => sourceContainsGlossaryTerm(segment.content, term.sourceTerm));
+    const sourceMatches = sourceSegmentRows.filter((segment) => sourceContainsGlossaryTerm(segment.content, term.sourceTerm));
     if (!sourceMatches.length) continue;
 
-    const translatedSegments = segmentText(translation);
+    // Exact index alignment is strongest. When Thai readability introduces
+    // extra paragraph breaks, fall back to occurrence coverage so every later
+    // glossary term is not falsely shifted to the wrong paragraph.
+    if (sourceSegmentRows.length !== translatedSegmentRows.length) {
+      const translatedMatches = translatedSegmentRows.filter((segment) =>
+        targetAlternatives.some((target) => glossaryTermMatch(segment.content, target) !== null),
+      );
+      const missingSourceMatches = sourceMatches.slice(translatedMatches.length);
+      for (const sourceSegment of missingSourceMatches) {
+        const retainedSegment = translatedSegmentRows.find((segment) => glossaryTermMatch(segment.content, term.sourceTerm) !== null) ?? null;
+        const approximateIndex = Math.min(
+          translatedSegmentRows.length - 1,
+          Math.max(0, Math.round((sourceSegment.segmentIndex / Math.max(1, sourceSegmentRows.length - 1)) * Math.max(0, translatedSegmentRows.length - 1))),
+        );
+        const translatedSegment = retainedSegment ?? translatedSegmentRows[approximateIndex] ?? null;
+        const retainedSource = retainedSegment ? glossaryTermMatch(retainedSegment.content, term.sourceTerm) : null;
+        issues.push({
+          code: "LOCKED_GLOSSARY_MISSING",
+          severity: "CRITICAL",
+          message: `ไม่พบคำศัพท์ที่ล็อกไว้สำหรับย่อหน้าต้นฉบับ ${sourceSegment.segmentIndex + 1}: ${targetAlternatives.join(" / ")}`,
+          metadata: {
+            sourceTerm: term.sourceTerm,
+            targetTerm: term.targetTerm,
+            targetAlternatives,
+            location: "CONTENT",
+            sourceSegmentIndex: sourceSegment.segmentIndex,
+            translationSegmentIndex: translatedSegment?.segmentIndex ?? null,
+            sourceExcerpt: sourceSegment.content.slice(0, 1_000),
+            translatedExcerpt: translatedSegment?.content.slice(0, 1_000) || null,
+            currentText: retainedSource?.[0] ?? null,
+            suggestedText: retainedSource?.[0] ? targetAlternatives[0] ?? term.targetTerm : null,
+            mappingConfidence: "APPROXIMATE",
+          },
+        });
+      }
+      continue;
+    }
+
     for (const sourceSegment of sourceMatches) {
-      const translatedSegment = translatedSegments[sourceSegment.segmentIndex] ?? null;
+      const translatedSegment = translatedSegmentRows[sourceSegment.segmentIndex] ?? null;
       const translatedText = translatedSegment?.content ?? "";
       const hasAllowedTarget = targetAlternatives.some((target) => glossaryTermMatch(translatedText, target) !== null);
       if (hasAllowedTarget) continue;
@@ -278,7 +351,7 @@ export function runDeterministicQa(input: {
           translatedExcerpt: translatedText.slice(0, 1_000) || null,
           currentText: safeCurrentText,
           suggestedText: safeSuggestedText,
-          mappingConfidence: segmentText(source).length === translatedSegments.length ? "HIGH" : "APPROXIMATE",
+          mappingConfidence: "HIGH",
         },
       });
     }
