@@ -3,7 +3,6 @@ import {
   BookOpen,
   Clock3,
   Compass,
-  Globe2,
   Home,
   Library,
   Sparkles,
@@ -33,7 +32,6 @@ const primaryNav: NavItem[] = [
   { href: "/rankings", label: "จัดอันดับ", icon: Trophy },
   { href: "/updates", label: "อัปเดตล่าสุด", icon: Sparkles },
   { href: "/tags", label: "แท็ก", icon: Tags, owns: ["/tag"] },
-  { href: "/world", label: "NovelNow World", icon: Globe2 },
 ];
 
 const libraryNav: NavItem[] = [

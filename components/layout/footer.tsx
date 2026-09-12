@@ -19,7 +19,6 @@ const groups = [
         : []),
       ["อ่านนิยายออนไลน์ทั้งหมด", "/novels"],
       ["อันดับนิยายยอดนิยม", "/rankings"],
-      ["NovelNow World", "/world"]
     ]
   },
   {
