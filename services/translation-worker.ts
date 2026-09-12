@@ -33,6 +33,10 @@ import { insertTranslationVersion, replaceQaIssues } from "@/services/translatio
 const workerLogger = logger.child({ component: "translation-worker" });
 const MAX_ATTEMPTS = 3;
 const MAX_QA_CORRECTION_ROUNDS = 2;
+const DEFAULT_LEASE_MS = 10 * 60_000;
+const MIN_LEASE_MS = 2 * 60_000;
+const MAX_LEASE_MS = 30 * 60_000;
+const DEFAULT_HEARTBEAT_MS = 30_000;
 const activeTranslationJobItems = alias(translationJobItems, "active_translation_job_items");
 const activeTranslationJobs = alias(translationJobs, "active_translation_jobs");
 
@@ -70,8 +74,92 @@ function readCheckpoint(value: unknown, sourceSnapshotId: string): JobCheckpoint
   return { version: 1, sourceSnapshotId, chapterAnalysis: null, translation: null, job: createTranslationJobMetadata() };
 }
 
-async function saveCheckpoint(jobItemId: string, checkpoint: JobCheckpoint) {
-  await getDb().update(translationJobItems).set({ checkpoint }).where(eq(translationJobItems.id, jobItemId));
+class TranslationLeaseLostError extends Error {
+  constructor(jobItemId: string) {
+    super(`Translation worker lease was lost for job item ${jobItemId}`);
+    this.name = "TranslationLeaseLostError";
+  }
+}
+
+function configuredDuration(name: string, fallback: number, minimum: number, maximum: number) {
+  const configured = Number(process.env[name]);
+  return Number.isFinite(configured)
+    ? Math.max(minimum, Math.min(maximum, Math.round(configured)))
+    : fallback;
+}
+
+function workerLeaseMs() {
+  return configuredDuration("TRANSLATION_WORKER_LEASE_MS", DEFAULT_LEASE_MS, MIN_LEASE_MS, MAX_LEASE_MS);
+}
+
+function workerHeartbeatMs() {
+  return configuredDuration(
+    "TRANSLATION_WORKER_HEARTBEAT_MS",
+    DEFAULT_HEARTBEAT_MS,
+    10_000,
+    Math.max(10_000, Math.floor(workerLeaseMs() / 3)),
+  );
+}
+
+function nextLeaseExpiry() {
+  return new Date(Date.now() + workerLeaseMs());
+}
+
+function claimedItemWhere(jobItemId: string, claimStartedAt: Date) {
+  return and(
+    eq(translationJobItems.id, jobItemId),
+    eq(translationJobItems.status, "RUNNING"),
+    eq(translationJobItems.startedAt, claimStartedAt),
+  );
+}
+
+async function updateClaimedItem(
+  jobItemId: string,
+  claimStartedAt: Date,
+  values: Partial<typeof translationJobItems.$inferInsert>,
+) {
+  const [updated] = await getDb().update(translationJobItems).set(values)
+    .where(claimedItemWhere(jobItemId, claimStartedAt))
+    .returning({ id: translationJobItems.id });
+  if (!updated) throw new TranslationLeaseLostError(jobItemId);
+}
+
+async function saveCheckpoint(jobItemId: string, claimStartedAt: Date, checkpoint: JobCheckpoint) {
+  await updateClaimedItem(jobItemId, claimStartedAt, { checkpoint });
+}
+
+function startLeaseHeartbeat(jobItemId: string, claimStartedAt: Date) {
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let inFlight: Promise<void> | null = null;
+
+  const renew = async () => {
+    try {
+      const [updated] = await getDb().update(translationJobItems)
+        .set({ availableAt: nextLeaseExpiry() })
+        .where(claimedItemWhere(jobItemId, claimStartedAt))
+        .returning({ id: translationJobItems.id });
+      if (!updated) stopped = true;
+    } catch (error) {
+      workerLogger.warn("Translation worker lease heartbeat failed", {
+        jobItemId,
+        errorCode: error instanceof Error ? error.name : "UNKNOWN",
+      });
+    } finally {
+      inFlight = null;
+      if (!stopped) timer = setTimeout(scheduleRenewal, workerHeartbeatMs());
+    }
+  };
+  const scheduleRenewal = () => {
+    if (!stopped && !inFlight) inFlight = renew();
+  };
+  timer = setTimeout(scheduleRenewal, workerHeartbeatMs());
+
+  return async () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+    await inFlight;
+  };
 }
 
 type AiQaResult = Awaited<ReturnType<typeof qaTranslationWithAi>>["value"];
@@ -143,6 +231,68 @@ function safeError(error: unknown) {
   return "Unknown translation provider error";
 }
 
+async function recoverExpiredClaims(limit = 100) {
+  const now = new Date();
+  const oldestActiveClaim = new Date(now.getTime() - workerLeaseMs());
+  const recoveredJobIds = await getDb().transaction(async (tx) => {
+    const expired = await tx.select().from(translationJobItems)
+      .where(and(
+        eq(translationJobItems.status, "RUNNING"),
+        lte(translationJobItems.availableAt, now),
+        lte(translationJobItems.startedAt, oldestActiveClaim),
+      ))
+      .orderBy(asc(translationJobItems.startedAt), asc(translationJobItems.id))
+      .limit(Math.max(1, Math.min(limit, 100)))
+      .for("update", { skipLocked: true });
+    const jobIds = new Set<string>();
+
+    for (const item of expired) {
+      if (!item.startedAt) continue;
+      const retry = item.attempts < MAX_ATTEMPTS;
+      const metadata = readTranslationJobMetadata(item.checkpoint);
+      const terminalChapterStatus = metadata.operation === "POLISH" && metadata.previousChapterStatus
+        ? metadata.previousChapterStatus
+        : "FAILED";
+      const message = retry
+        ? `Recovered expired worker lease from ${item.startedAt.toISOString()}`
+        : `Worker lease expired after ${item.attempts} attempts`;
+      const [updated] = await tx.update(translationJobItems).set({
+        status: retry ? "QUEUED" : "FAILED",
+        progressPercent: retry ? 0 : 100,
+        progressStage: retry ? "QUEUED" : "FAILED",
+        availableAt: now,
+        startedAt: null,
+        finishedAt: retry ? null : now,
+        lastError: message,
+      }).where(and(
+        eq(translationJobItems.id, item.id),
+        eq(translationJobItems.status, "RUNNING"),
+        eq(translationJobItems.startedAt, item.startedAt),
+        lte(translationJobItems.availableAt, now),
+      )).returning({ jobId: translationJobItems.jobId });
+      if (!updated) continue;
+      jobIds.add(updated.jobId);
+      await tx.update(translationChapters).set({
+        status: retry ? "QUEUED" : terminalChapterStatus,
+        updatedAt: now,
+      }).where(and(
+        eq(translationChapters.id, item.translationChapterId),
+        eq(translationChapters.status, "TRANSLATING"),
+      ));
+      workerLogger.warn("Recovered expired translation worker lease", {
+        jobId: updated.jobId,
+        jobItemId: item.id,
+        attempt: item.attempts,
+        willRetry: retry,
+      });
+    }
+    return [...jobIds];
+  });
+
+  for (const jobId of recoveredJobIds) await refreshJob(jobId);
+  return recoveredJobIds.length;
+}
+
 async function claimNextItem(): Promise<ClaimedItem | null> {
   return getDb().transaction(async (tx) => {
     const [row] = await tx.select({ item: translationJobItems, job: translationJobs })
@@ -180,7 +330,7 @@ async function claimNextItem(): Promise<ClaimedItem | null> {
       .for("update", { skipLocked: true });
     if (!row) return null;
     const now = new Date();
-    const [item] = await tx.update(translationJobItems).set({ status: "RUNNING", progressPercent: 10, progressStage: "CONTEXT", attempts: row.item.attempts + 1, startedAt: now, lastError: null })
+    const [item] = await tx.update(translationJobItems).set({ status: "RUNNING", progressPercent: 10, progressStage: "CONTEXT", attempts: row.item.attempts + 1, availableAt: nextLeaseExpiry(), startedAt: now, finishedAt: null, lastError: null })
       .where(and(eq(translationJobItems.id, row.item.id), eq(translationJobItems.status, "QUEUED"))).returning();
     if (!item) return null;
     const [job] = await tx.update(translationJobs).set({ status: "RUNNING", startedAt: row.job.startedAt ?? now, updatedAt: now })
@@ -325,6 +475,9 @@ function modelForTask(models: Array<typeof translationAiModels.$inferSelect>, ta
 async function processClaimedItem(claimed: ClaimedItem) {
   const db = getDb();
   const startedAt = Date.now();
+  const claimStartedAt = claimed.item.startedAt;
+  if (!claimStartedAt) throw new Error(`Claimed translation job item ${claimed.item.id} has no startedAt timestamp`);
+  const stopLeaseHeartbeat = startLeaseHeartbeat(claimed.item.id, claimStartedAt);
   const initialJobMetadata = readTranslationJobMetadata(claimed.item.checkpoint);
   let contextSnapshotId: string | null = null;
   let currentTask: "CANON_EXTRACTION" | "MAIN_TRANSLATION" | "FIRST_QA" | "ESCALATION" = "MAIN_TRANSLATION";
@@ -360,7 +513,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     let chapterAnalysis = checkpoint.chapterAnalysis;
 
     if (!chapterAnalysis) {
-      await db.update(translationJobItems).set({ progressPercent: 25, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
+      await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 25, progressStage: "AI_REQUEST" });
       const isPolish = checkpoint.job.operation === "POLISH";
       const polishModel = isPolish ? modelForTask(automaticModels, "PREMIUM_EDIT") : null;
       const baseTranslation = isPolish && checkpoint.job.baseTranslationVersionId
@@ -393,7 +546,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
       await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, combined.call);
       chapterAnalysis = combined.value.chapterAnalysis;
       checkpoint = { ...checkpoint, chapterAnalysis, translation: normalizeTranslationFormatting(combined.value.translation) };
-      await saveCheckpoint(claimed.item.id, checkpoint);
+      await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
       const learnedTerms = chapterAnalysis.glossaryCandidates
         .filter((entry) => entry.confidence >= 70)
         .filter((entry) => entry.sourceTerm.trim() && entry.targetTerm.trim())
@@ -415,7 +568,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     if (savedTranslation) {
       translation = normalizeTranslationFormatting(savedTranslation);
     } else {
-      await db.update(translationJobItems).set({ progressPercent: 35, progressStage: "AI_REQUEST" }).where(eq(translationJobItems.id, claimed.item.id));
+      await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 35, progressStage: "AI_REQUEST" });
       currentTask = "MAIN_TRANSLATION";
       currentModelId = config.model.id;
       const result = await getTranslationProvider(config.model.provider).translate({
@@ -443,7 +596,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
       });
       translation = normalizeTranslationFormatting(result.translation);
       checkpoint = { ...checkpoint, translation };
-      await saveCheckpoint(claimed.item.id, checkpoint);
+      await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
     }
 
     const reviewContext = {
@@ -462,7 +615,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
       },
     };
 
-    await db.update(translationJobItems).set({ progressPercent: 70, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+    await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 70, progressStage: "AI_QA" });
     const qaModel = modelForTask(automaticModels, "FIRST_QA");
     currentTask = "FIRST_QA";
     currentModelId = qaModel.id;
@@ -494,19 +647,19 @@ async function processClaimedItem(claimed: ClaimedItem) {
     if (safeSuggestions.appliedCount > 0) {
       translation = normalizeTranslationFormatting(safeSuggestions.translation);
       checkpoint = { ...checkpoint, translation };
-      await saveCheckpoint(claimed.item.id, checkpoint);
+      await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
       qa = { ...qa, value: { ...qa.value, issues: safeSuggestions.remainingIssues } };
       deterministicIssues = runCodeQa();
       // Warnings are already fixed locally and do not justify another full QA
       // request. Critical/low-score results are always verified again.
       if (initialDecision.needsCorrection) {
-        await db.update(translationJobItems).set({ progressPercent: 78, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+        await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 78, progressStage: "AI_QA" });
         qa = await runAiQa();
         deterministicIssues = runCodeQa();
       }
     }
     for (; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa.value, deterministicIssues); correctionRound += 1) {
-      await db.update(translationJobItems).set({ progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" }).where(eq(translationJobItems.id, claimed.item.id));
+      await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" });
       const structuralCritical = hasStructuralCriticalIssue(qa.value, deterministicIssues);
       const usePremiumCorrection = chapterAnalysis.difficulty === "HARD" || structuralCritical || correctionRound > 0;
       const escalationModel = modelForTask(automaticModels, usePremiumCorrection ? "ESCALATION" : "MAIN_TRANSLATION");
@@ -546,8 +699,8 @@ async function processClaimedItem(claimed: ClaimedItem) {
         translation = normalizeTranslationFormatting(revision.value);
       }
       checkpoint = { ...checkpoint, translation };
-      await saveCheckpoint(claimed.item.id, checkpoint);
-      await db.update(translationJobItems).set({ progressPercent: 84 + correctionRound * 5, progressStage: "AI_QA" }).where(eq(translationJobItems.id, claimed.item.id));
+      await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
+      await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 84 + correctionRound * 5, progressStage: "AI_QA" });
       currentTask = "FIRST_QA";
       currentModelId = qaModel.id;
       qa = await runAiQa();
@@ -555,9 +708,14 @@ async function processClaimedItem(claimed: ClaimedItem) {
     }
 
     translation = normalizeTranslationFormatting(translation);
-    await db.update(translationJobItems).set({ progressPercent: 94, progressStage: "CODE_QA" }).where(eq(translationJobItems.id, claimed.item.id));
-    await db.update(translationJobItems).set({ progressPercent: 96, progressStage: "SAVING" }).where(eq(translationJobItems.id, claimed.item.id));
+    await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 94, progressStage: "CODE_QA" });
+    await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 96, progressStage: "SAVING" });
     await db.transaction(async (tx) => {
+      const [leaseOwner] = await tx.select({ id: translationJobItems.id }).from(translationJobItems)
+        .where(claimedItemWhere(claimed.item.id, claimStartedAt))
+        .limit(1)
+        .for("update");
+      if (!leaseOwner) throw new TranslationLeaseLostError(claimed.item.id);
       const [latest] = await tx.select().from(translationVersions).where(eq(translationVersions.translationChapterId, built.chapter.id)).orderBy(desc(translationVersions.revision)).limit(1);
       const version = await insertTranslationVersion(tx, {
         chapter: { ...built.chapter, sourceSnapshotId: claimed.item.sourceSnapshotId },
@@ -612,7 +770,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         finishedAt: now,
         lastError: qaFailureMessage,
         checkpoint: hasBlockingIssue ? checkpoint : { job: checkpoint.job },
-      }).where(eq(translationJobItems.id, claimed.item.id));
+      }).where(claimedItemWhere(claimed.item.id, claimStartedAt));
       await tx.update(translationChapters).set({ status: hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
         eq(translationChapters.id, built.chapter.id),
         eq(translationChapters.lockVersion, built.chapter.lockVersion),
@@ -620,38 +778,61 @@ async function processClaimedItem(claimed: ClaimedItem) {
       ));
     });
   } catch (error) {
+    if (error instanceof TranslationLeaseLostError) {
+      workerLogger.warn("Discarded result from a worker that no longer owns the translation lease", {
+        jobId: claimed.job.id,
+        jobItemId: claimed.item.id,
+      });
+      return;
+    }
     const message = safeError(error);
     const retry = claimed.item.attempts < MAX_ATTEMPTS;
     const now = new Date();
     const terminalChapterStatus = initialJobMetadata.operation === "POLISH" && initialJobMetadata.previousChapterStatus
       ? initialJobMetadata.previousChapterStatus
       : "FAILED";
-    await db.transaction(async (tx) => {
-      await tx.insert(translationAiInvocations).values({
-        jobItemId: claimed.item.id,
-        modelId: currentModelId,
-        task: currentTask,
-        contextSnapshotId,
-        latencyMs: Date.now() - startedAt,
-        status: "FAILED",
-        errorCode: error instanceof Error ? error.name.slice(0, 120) : "UNKNOWN",
+    try {
+      await db.transaction(async (tx) => {
+        const [leaseOwner] = await tx.select({ id: translationJobItems.id }).from(translationJobItems)
+          .where(claimedItemWhere(claimed.item.id, claimStartedAt))
+          .limit(1)
+          .for("update");
+        if (!leaseOwner) throw new TranslationLeaseLostError(claimed.item.id);
+        await tx.insert(translationAiInvocations).values({
+          jobItemId: claimed.item.id,
+          modelId: currentModelId,
+          task: currentTask,
+          contextSnapshotId,
+          latencyMs: Date.now() - startedAt,
+          status: "FAILED",
+          errorCode: error instanceof Error ? error.name.slice(0, 120) : "UNKNOWN",
+        });
+        await tx.update(translationJobItems).set({
+          status: retry ? "QUEUED" : "FAILED",
+          progressPercent: retry ? 0 : 100,
+          progressStage: retry ? "QUEUED" : "FAILED",
+          availableAt: retry ? new Date(Date.now() + 2 ** claimed.item.attempts * 30_000) : now,
+          startedAt: retry ? null : claimStartedAt,
+          finishedAt: retry ? null : now,
+          lastError: message,
+        }).where(claimedItemWhere(claimed.item.id, claimStartedAt));
+        await tx.update(translationChapters).set({ status: retry ? "QUEUED" : terminalChapterStatus, updatedAt: now }).where(and(
+          eq(translationChapters.id, claimed.item.translationChapterId),
+          eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
+          eq(translationChapters.status, "TRANSLATING"),
+        ));
       });
-      await tx.update(translationJobItems).set({
-        status: retry ? "QUEUED" : "FAILED",
-        progressPercent: retry ? 0 : 100,
-        progressStage: retry ? "QUEUED" : "FAILED",
-        availableAt: retry ? new Date(Date.now() + 2 ** claimed.item.attempts * 30_000) : now,
-        finishedAt: retry ? null : now,
-        lastError: message,
-      }).where(eq(translationJobItems.id, claimed.item.id));
-      await tx.update(translationChapters).set({ status: retry ? "QUEUED" : terminalChapterStatus, updatedAt: now }).where(and(
-        eq(translationChapters.id, claimed.item.translationChapterId),
-        eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
-        eq(translationChapters.status, "TRANSLATING"),
-      ));
-    });
+    } catch (leaseError) {
+      if (!(leaseError instanceof TranslationLeaseLostError)) throw leaseError;
+      workerLogger.warn("Skipped failure write from a worker that no longer owns the translation lease", {
+        jobId: claimed.job.id,
+        jobItemId: claimed.item.id,
+      });
+      return;
+    }
     workerLogger.warn("Translation job item failed", { jobId: claimed.job.id, jobItemId: claimed.item.id, attempt: claimed.item.attempts, willRetry: retry, errorCode: error instanceof Error ? error.name : "UNKNOWN" });
   } finally {
+    await stopLeaseHeartbeat();
     await refreshJob(claimed.job.id);
   }
 }
@@ -660,6 +841,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
 export async function processTranslationJobs(limit = 10, concurrency = Number(process.env.TRANSLATION_WORKER_CONCURRENCY ?? 2)) {
   const safeLimit = Math.max(1, Math.min(limit, 100));
   const safeConcurrency = Number.isFinite(concurrency) ? Math.max(1, Math.min(Math.round(concurrency), 8, safeLimit)) : 1;
+  await recoverExpiredClaims(safeLimit);
   let nextClaim = 0;
   let processed = 0;
 
