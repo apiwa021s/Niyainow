@@ -148,9 +148,9 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
         synopsis: translatedSynopsis.trim() || null,
       }) as { review: TitleReview };
       setTitleReview(result.review);
-      setMessage("AI ตรวจชื่อเรื่องแล้ว เลือกคำแนะนำที่เหมาะสมแล้วกดบันทึกแนวทางการแปล");
+      setMessage("AI ตรวจชื่อและเกลาเรื่องย่อแล้ว เลือกฉบับที่ต้องการแล้วกดบันทึกแนวทางการแปล");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "ตรวจชื่อเรื่องไม่สำเร็จ");
+      setError(cause instanceof Error ? cause.message : "ตรวจชื่อและเรื่องย่อไม่สำเร็จ");
     } finally {
       setBusy("");
     }
@@ -217,6 +217,35 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
       ? `เพิ่ม ${selected.size.toLocaleString("th-TH")} ตอนลงคิวเกลาสำนวนใหม่แล้ว`
       : `เพิ่ม ${selected.size.toLocaleString("th-TH")} ตอนลงคิวแปลแล้ว`);
     if (queued) setSelected(new Set());
+  }
+
+  async function polishSynopsisNow() {
+    if (!await dialogs.confirm({
+      title: "เกลาและอัปเดตเรื่องย่อนี้หรือไม่?",
+      description: data.workspace.novelId
+        ? "AI จะเทียบกับต้นฉบับ เกลาภาษาไทย และอัปเดตเรื่องย่อบนหน้าอ่านทันที โดยไม่เปลี่ยนชื่อเรื่อง"
+        : "AI จะเทียบกับต้นฉบับและบันทึกเรื่องย่อฉบับเกลา โดยไม่เปลี่ยนชื่อเรื่อง",
+      confirmLabel: "เกลาและอัปเดต",
+    })) return;
+    setBusy("polish-synopsis"); setError(""); setMessage("");
+    try {
+      const result = await mutate(`/api/admin/translation/workspaces/${data.workspace.id}/polish-synopsis`, "POST", {
+        expectedVersion: data.workspace.version,
+      }) as { synopsis: string | null; review: TitleReview };
+      setTranslatedSynopsis(result.synopsis ?? "");
+      setTitleReview(result.review);
+      setMessage("เกลาและอัปเดตเรื่องย่อเรียบร้อยแล้ว");
+      await dialogs.alert({
+        title: "อัปเดตเรื่องย่อแล้ว",
+        description: data.workspace.novelId ? "หน้าเรื่องสาธารณะใช้เรื่องย่อฉบับเกลาแล้ว" : "บันทึกเรื่องย่อฉบับเกลาไว้ในงานแปลแล้ว",
+        tone: "success",
+      });
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "เกลาเรื่องย่อไม่สำเร็จ");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function publishSelected() {
@@ -316,7 +345,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
             <div className="grid gap-3 rounded-[12px] border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/5 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" />ฉบับแปลโดย AI · แก้ไขได้</p>
-                <Button type="button" size="sm" variant="outline" loading={busy === "review-title"} onClick={reviewTitle}><Sparkles className="h-3.5 w-3.5" />ตรวจความเป็นธรรมชาติของชื่อ</Button>
+                <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" loading={busy === "review-title"} disabled={Boolean(busy)} onClick={reviewTitle}><Sparkles className="h-3.5 w-3.5" />ดูก่อนแก้ไข</Button><Button type="button" size="sm" loading={busy === "polish-synopsis"} disabled={Boolean(busy)} onClick={() => void polishSynopsisNow()}><Sparkles className="h-3.5 w-3.5" />เกลาและอัปเดตเรื่องย่อ</Button></div>
               </div>
               <Field label="ชื่อเรื่องฉบับแปล" hint="ชื่อนี้จะถูกใช้ในหน้าแรก หน้ารายละเอียด และระบบค้นหา"><Input value={translatedTitle} onChange={(event) => setTranslatedTitle(event.target.value)} required /></Field>
               <Field label="เรื่องย่อฉบับแปล"><Textarea value={translatedSynopsis} onChange={(event) => setTranslatedSynopsis(event.target.value)} className="min-h-32" /></Field>
@@ -346,9 +375,10 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
           ) : null}
           {titleReview ? (
             <div className="mt-4 rounded-[12px] border border-sky-500/25 bg-sky-500/8 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">ผลตรวจชื่อเรื่อง</p>{translatedTitle !== titleReview.reviewedTitle ? <p className="text-xs text-amber-700 dark:text-amber-300">ชื่อถูกแก้หลังการตรวจ — กดตรวจอีกครั้งเพื่อประเมินชื่อปัจจุบัน</p> : null}</div><span className="rounded-full bg-card px-2.5 py-1 text-xs font-bold">{titleReview.score}/100 · {titleReview.verdict === "NATURAL" ? "เป็นธรรมชาติ" : "ควรปรับ"}</span></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">ผลตรวจชื่อและเรื่องย่อ</p>{translatedTitle !== titleReview.reviewedTitle || (titleReview.reviewedSynopsis !== undefined && translatedSynopsis !== (titleReview.reviewedSynopsis ?? "")) ? <p className="text-xs text-amber-700 dark:text-amber-300">ข้อความถูกแก้หลังการตรวจ — กดตรวจอีกครั้งเพื่อประเมินฉบับปัจจุบัน</p> : null}</div><div className="flex flex-wrap gap-1.5 text-xs font-bold"><span className="rounded-full bg-card px-2.5 py-1">ชื่อ {titleReview.score}/100</span>{titleReview.synopsisScore !== undefined ? <span className="rounded-full bg-card px-2.5 py-1">เรื่องย่อ {titleReview.synopsisScore}/100</span> : null}{titleReview.fidelityScore !== undefined ? <span className="rounded-full bg-card px-2.5 py-1">ตรงต้นฉบับ {titleReview.fidelityScore}/100</span> : null}</div></div>
               {titleReview.issues.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">{titleReview.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">ไม่พบจุดผิดธรรมชาติที่สำคัญ</p>}
               <div className="mt-3 grid gap-2 md:grid-cols-2">{titleReview.candidates.map((candidate) => <div key={candidate.title} className={`rounded-[10px] border p-3 ${candidate.title === titleReview.recommendedTitle ? "border-[var(--brand-primary)] bg-card" : "border-border bg-card/70"}`}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{candidate.title}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{candidate.rationale}</p></div><Button type="button" size="sm" variant={translatedTitle === candidate.title ? "secondary" : "outline"} onClick={() => { setTranslatedTitle(candidate.title); setMessage(`เลือกชื่อ “${candidate.title}” แล้ว กดบันทึกแนวทางเพื่อใช้งานจริง`); }}>{translatedTitle === candidate.title ? "เลือกแล้ว" : "ใช้ชื่อนี้"}</Button></div></div>)}</div>
+              {titleReview.recommendedSynopsis !== undefined && titleReview.recommendedSynopsis !== null ? <div className="mt-3 rounded-[10px] border border-[var(--brand-primary)]/25 bg-card p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">เรื่องย่อฉบับเกลา</p><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{titleReview.recommendedSynopsis}</p></div><Button type="button" size="sm" variant={translatedSynopsis === titleReview.recommendedSynopsis ? "secondary" : "outline"} onClick={() => { setTranslatedSynopsis(titleReview.recommendedSynopsis ?? ""); setMessage("เลือกเรื่องย่อฉบับเกลาแล้ว กดบันทึกแนวทางเพื่ออัปเดตหน้าเรื่อง"); }}>{translatedSynopsis === titleReview.recommendedSynopsis ? "เลือกแล้ว" : "ใช้เรื่องย่อนี้"}</Button></div></div> : null}
               <p className="mt-3 text-[11px] text-muted-foreground">ตรวจด้วย {titleReview.modelName} · {(titleReview.latencyMs / 1_000).toFixed(1)} วินาที</p>
             </div>
           ) : null}

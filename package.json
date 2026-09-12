@@ -26,6 +26,7 @@
     "db:publish-scheduled": "tsx db/publish-scheduled.ts",
     "db:process-outbox": "tsx db/process-outbox.ts",
     "db:process-translations": "node --conditions=react-server --import tsx db/process-translation-jobs.ts",
+    "db:polish-synopses": "node --conditions=react-server --import tsx db/polish-translation-synopses.ts",
     "db:cancel-translations": "node --conditions=react-server --import tsx db/cancel-translation-jobs.ts",
     "db:reset-translation-workspace": "node --conditions=react-server --import tsx db/reset-translation-workspace.ts",
     "db:verify-core": "node --conditions=react-server --import tsx db/verify-core-backend.ts",

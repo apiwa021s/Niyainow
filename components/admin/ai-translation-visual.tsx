@@ -5,9 +5,10 @@ import { cn } from "@/lib/utils";
 import styles from "./ai-translation-visual.module.css";
 
 const PROFILE_STEPS = [
-  { key: "PROFILE_ANALYSIS", label: "วิเคราะห์เรื่องและเลือก Master" },
-  { key: "FOUNDATION", label: "สร้างกฎแปล" },
-  { key: "PROFILE_QUALITY_REVIEW", label: "บรรณาธิการตรวจสำนวน" },
+  { key: "PROFILE_ANALYSIS", label: "วิเคราะห์แนวและน้ำเสียง" },
+  { key: "FOUNDATION", label: "สร้างแนวทางการแปล" },
+  { key: "PROFILE_QUALITY_REVIEW", label: "ตรวจแนวทางและสำนวน" },
+  { key: "METADATA_LOCALIZATION", label: "เกลาชื่อและเรื่องย่อ" },
   { key: "ENTITY_EXTRACTION", label: "สกัดชื่อและศัพท์" },
 ] as const;
 

@@ -77,6 +77,16 @@ function outputFor(task: string): Record<string, unknown> {
     ...outputFor("FOUNDATION"),
     reviewNotes: ["passed"],
   };
+  if (task === "METADATA_LOCALIZATION") return {
+    score: 92,
+    synopsisScore: 95,
+    fidelityScore: 100,
+    verdict: "NATURAL",
+    issues: [],
+    recommendedTitle: "ชื่อแปลฉบับเกลา",
+    recommendedSynopsis: "เรื่องย่อฉบับเกลา",
+    candidates: [{ title: "ชื่อแปลฉบับเกลา", rationale: "เป็นธรรมชาติ" }],
+  };
   return { glossary: [], characters: [] };
 }
 
@@ -113,7 +123,7 @@ describe("AI translation profile checkpoints", () => {
       targetLanguage: "th",
       samples: [{ chapterNumber: 1, title: "One", content: "Opening chapter" }],
       masterBundle,
-      models: { PROFILE_ANALYSIS: model, FOUNDATION: model, PROFILE_QUALITY_REVIEW: model, ENTITY_EXTRACTION: model },
+      models: { PROFILE_ANALYSIS: model, FOUNDATION: model, PROFILE_QUALITY_REVIEW: model, METADATA_LOCALIZATION: model, ENTITY_EXTRACTION: model },
       checkpointSignature: "same-input-v1",
       onCheckpoint: (next: AiProfileGenerationCheckpoint) => { checkpoint = next; },
     };
@@ -125,11 +135,13 @@ describe("AI translation profile checkpoints", () => {
     const result = await generateAiTranslationProfile({ ...input, checkpoint });
 
     expect(result.profile.name).toBe("General profile");
+    expect(result.metadata.synopsis).toBe("เรื่องย่อฉบับเกลา");
     expect(requestedTasks).toEqual([
       "PROFILE_ANALYSIS",
       "FOUNDATION",
       "PROFILE_QUALITY_REVIEW",
       "PROFILE_QUALITY_REVIEW",
+      "METADATA_LOCALIZATION",
       "ENTITY_EXTRACTION",
     ]);
   });

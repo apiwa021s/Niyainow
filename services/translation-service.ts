@@ -54,7 +54,7 @@ import { ApiError } from "@/lib/http/api-response";
 import { invalidateChapterCache, invalidateNovelCache } from "@/lib/redis/invalidation";
 import { assetUrl, publicAssetFallbacks } from "@/lib/site-config";
 import { createUniqueSlug, selectReadableSlugSource } from "@/lib/validation/slug";
-import { aiCallCostMicros, generateAiTranslationProfile, reviewNovelTitleWithAi, type AiStageEvent } from "@/services/ai/translation-pipeline";
+import { aiCallCostMicros, generateAiTranslationProfile, reviewNovelMetadataWithAi, type AiStageEvent } from "@/services/ai/translation-pipeline";
 import { getTranslationMasterOverview, loadApprovedTranslationMasterBundle } from "@/services/translation-master-service";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
@@ -72,10 +72,14 @@ const storedAiPipelineSchema = z.array(z.object({
 }));
 const storedTitleReviewSchema = z.object({
   reviewedTitle: z.string(),
+  reviewedSynopsis: z.string().nullable().optional(),
   score: z.number().int().min(0).max(100),
+  synopsisScore: z.number().int().min(0).max(100).optional(),
+  fidelityScore: z.number().int().min(0).max(100).optional(),
   verdict: z.enum(["NATURAL", "NEEDS_REVISION"]),
   issues: z.array(z.string()),
   recommendedTitle: z.string(),
+  recommendedSynopsis: z.string().nullable().optional(),
   candidates: z.array(z.object({ title: z.string(), rationale: z.string() })),
   modelName: z.string(),
   latencyMs: z.number().int().nonnegative(),
@@ -186,6 +190,10 @@ export const enqueueTranslationSchema = z.object({
   operation: translationJobOperationSchema.default("TRANSLATE"),
   chapterIds: z.array(uuidSchema).min(1).max(100),
   idempotencyKey: z.string().trim().min(16).max(255),
+});
+
+export const polishTranslationSynopsisSchema = z.object({
+  expectedVersion: z.number().int().positive(),
 });
 
 export const bulkPublishTranslationSchema = z.object({
@@ -492,7 +500,7 @@ export async function createTranslationWorkspace(
     throw new ApiError(409, "PROFILE_CONTEXT_MISSING", "ต้องมีเรื่องย่อหรือตอนต้นฉบับอย่างน้อย 1 ตอนเพื่อสร้าง Translation Profile คุณภาพสูง");
   }
   const [models, masterBundle] = await Promise.all([
-    getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "PROFILE_QUALITY_REVIEW", "ENTITY_EXTRACTION"] as const),
+    getAutomaticModels(["PROFILE_ANALYSIS", "FOUNDATION", "PROFILE_QUALITY_REVIEW", "METADATA_LOCALIZATION", "ENTITY_EXTRACTION"] as const),
     loadApprovedTranslationMasterBundle(),
   ]);
   if (!masterBundle.genres.some((profile) => profile.profile_kind === "BASE_GENRE")) {
@@ -526,6 +534,7 @@ export async function createTranslationWorkspace(
   }
 
   const checkpointSignature = createHash("sha256").update(JSON.stringify({
+    promptVersion: AUTOMATIC_TRANSLATION_PROMPT_VERSION,
     source: { title: sourceText.title, synopsis: sourceText.synopsis, language: source.sourceLanguage },
     targetLanguage: input.targetLanguage,
     samples,
@@ -802,7 +811,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
         sql`${translationProfileVersions.snapshot} ? 'aiPipeline'`,
       )).orderBy(desc(translationProfileVersions.version)).limit(1),
     db.select({ after: adminAuditLogs.after }).from(adminAuditLogs).where(and(
-      eq(adminAuditLogs.action, "translation.metadata.title_review"),
+      inArray(adminAuditLogs.action, ["translation.metadata.title_review", "translation.metadata.synopsis_polish"]),
       eq(adminAuditLogs.entityType, "translation_workspace"),
       eq(adminAuditLogs.entityId, workspaceId),
     )).orderBy(desc(adminAuditLogs.createdAt)).limit(1),
@@ -917,8 +926,12 @@ export async function getActiveTranslationQueue() {
   };
 }
 
-export async function reviewTranslationTitle(workspaceId: string, input: z.infer<typeof reviewTranslationTitleSchema>) {
-  const actor = await assertTranslationPermission("translation.configure");
+async function generateTranslationMetadataReview(
+  actor: CurrentUser,
+  workspaceId: string,
+  input: z.infer<typeof reviewTranslationTitleSchema>,
+  focus: "ALL" | "SYNOPSIS" = "ALL",
+) {
   if (!process.env.AI_TRANSLATION_API_KEY?.trim()) {
     throw new ApiError(409, "AI_CREDENTIAL_MISSING", "กรุณาตั้ง AI_TRANSLATION_API_KEY ใน environment ของ server");
   }
@@ -936,12 +949,12 @@ export async function reviewTranslationTitle(workspaceId: string, input: z.infer
       eq(novelImportSourceTexts.language, workspace.targetLanguage),
     )).limit(1),
     db.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspaceId)).limit(1),
-    getAutomaticModels(["FOUNDATION"] as const),
+    getAutomaticModels(["METADATA_LOCALIZATION"] as const),
   ]);
   if (!sourceText[0] || !translatedText[0]) throw new ApiError(409, "TRANSLATION_METADATA_MISSING", "ยังไม่มีชื่อเรื่องฉบับแปลให้ตรวจ");
 
-  const review = await reviewNovelTitleWithAi({
-    model: models.FOUNDATION,
+  const review = await reviewNovelMetadataWithAi({
+    model: models.METADATA_LOCALIZATION,
     sourceTitle: sourceText[0].title,
     sourceSynopsis: sourceText[0].synopsis,
     translatedTitle: input.title,
@@ -949,18 +962,103 @@ export async function reviewTranslationTitle(workspaceId: string, input: z.infer
     sourceLanguage: workspace.sourceLanguage,
     targetLanguage: workspace.targetLanguage,
     profile: profile[0] ? { styleGuide: profile[0].styleGuide, instructions: profile[0].instructions } : null,
+    focus,
   });
   const payload = {
     reviewedTitle: input.title,
+    reviewedSynopsis: input.synopsis,
     ...review.value,
     modelName: review.call.model.modelName,
     latencyMs: review.call.result.latencyMs,
     reviewedAt: new Date().toISOString(),
   };
+  return { workspace, payload, sourceHasSynopsis: Boolean(sourceText[0].synopsis?.trim()) };
+}
+
+export async function reviewTranslationTitle(workspaceId: string, input: z.infer<typeof reviewTranslationTitleSchema>) {
+  const actor = await assertTranslationPermission("translation.configure");
+  const { payload } = await generateTranslationMetadataReview(actor, workspaceId, input);
+  const db = getDb();
   await db.transaction((tx) => writeAudit(tx, actor, "translation.metadata.title_review", "translation_workspace", workspaceId, {
     title: input.title,
+    synopsis: input.synopsis,
   }, payload));
   return payload;
+}
+
+export async function polishTranslationSynopsis(
+  workspaceId: string,
+  input: z.infer<typeof polishTranslationSynopsisSchema>,
+) {
+  const actor = await assertTranslationPermission("translation.configure");
+  const db = getDb();
+  const [currentMetadata] = await db.select({
+    title: novelImportSourceTexts.title,
+    synopsis: novelImportSourceTexts.synopsis,
+  }).from(translationWorkspaces)
+    .innerJoin(novelImportSourceTexts, and(
+      eq(novelImportSourceTexts.sourceId, translationWorkspaces.importSourceId),
+      eq(novelImportSourceTexts.language, translationWorkspaces.targetLanguage),
+    ))
+    .where(eq(translationWorkspaces.id, workspaceId))
+    .limit(1);
+  if (!currentMetadata) throw new ApiError(409, "TRANSLATION_METADATA_MISSING", "ยังไม่มีชื่อและเรื่องย่อฉบับแปลให้เกลา");
+
+  const { workspace, payload, sourceHasSynopsis } = await generateTranslationMetadataReview(actor, workspaceId, {
+    title: currentMetadata.title,
+    synopsis: currentMetadata.synopsis,
+  }, "SYNOPSIS");
+  const synopsis = payload.recommendedSynopsis?.trim() || null;
+  if (sourceHasSynopsis && (!synopsis || payload.synopsisScore < 90 || payload.fidelityScore < 95)) {
+    throw new ApiError(422, "METADATA_QUALITY_BELOW_THRESHOLD", `ผลเกลายังไม่ผ่านเกณฑ์ เรื่องย่อ ${payload.synopsisScore}/100 และความตรงต้นฉบับ ${payload.fidelityScore}/100`);
+  }
+  const result = await db.transaction(async (tx) => {
+    const [updatedWorkspace] = await tx.update(translationWorkspaces).set({
+      version: workspace.version + 1,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(translationWorkspaces.id, workspaceId),
+      eq(translationWorkspaces.version, input.expectedVersion),
+    )).returning({ version: translationWorkspaces.version });
+    if (!updatedWorkspace) throw new ApiError(409, "VERSION_CONFLICT", "ข้อมูลเรื่องถูกแก้ไขระหว่างที่ AI ทำงาน กรุณาโหลดใหม่แล้วลองอีกครั้ง");
+
+    await tx.update(novelImportSourceTexts).set({
+      synopsis,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(novelImportSourceTexts.sourceId, workspace.importSourceId),
+      eq(novelImportSourceTexts.language, workspace.targetLanguage),
+    ));
+
+    let novelSlug: string | null = null;
+    if (workspace.novelId) {
+      const [publicNovel] = await tx.update(novels).set({
+        synopsis: synopsis ?? "",
+        updatedBy: actor.id,
+        updatedAt: new Date(),
+      }).where(and(eq(novels.id, workspace.novelId), isNull(novels.deletedAt))).returning({ slug: novels.slug });
+      novelSlug = publicNovel?.slug ?? null;
+    }
+
+    await writeAudit(
+      tx,
+      actor,
+      "translation.metadata.synopsis_polish",
+      "translation_workspace",
+      workspaceId,
+      { title: currentMetadata.title, synopsis: currentMetadata.synopsis },
+      { ...payload, appliedTitle: currentMetadata.title, appliedSynopsis: synopsis },
+    );
+    return { novelSlug, version: updatedWorkspace.version };
+  });
+
+  if (result.novelSlug) {
+    await invalidateNovelCache(result.novelSlug);
+    for (const tag of ["public-novels", "public-search", "public-rankings", "public-sitemap"]) revalidateTag(tag, { expire: 0 });
+    revalidatePath("/");
+    revalidatePath(`/novel/${result.novelSlug}`);
+  }
+  return { synopsis, review: payload, workspaceVersion: result.version };
 }
 
 export async function configureTranslationWorkspace(workspaceId: string, input: z.infer<typeof configureTranslationWorkspaceSchema>) {

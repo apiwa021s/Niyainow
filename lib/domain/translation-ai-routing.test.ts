@@ -14,6 +14,7 @@ describe("automatic translation AI routing", () => {
     expect(automaticModelNameForTask("FIRST_QA")).toBe("gpt-5.6-terra");
     expect(automaticModelNameForTask("ENTITY_EXTRACTION")).toBe("gpt-5.6-luna");
     expect(automaticModelNameForTask("PROFILE_QUALITY_REVIEW")).toBe("gpt-6-astra");
+    expect(automaticModelNameForTask("METADATA_LOCALIZATION")).toBe("gpt-6-astra");
     expect(automaticModelNameForTask("ESCALATION")).toBe("gpt-6-astra");
   });
 
@@ -23,7 +24,7 @@ describe("automatic translation AI routing", () => {
   });
 
   it("versions and injects the Thai-native prose requirements once", () => {
-    expect(AUTOMATIC_TRANSLATION_PROMPT_VERSION).toBe(5);
+    expect(AUTOMATIC_TRANSLATION_PROMPT_VERSION).toBe(6);
     expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("natural Thai equivalents");
     expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("ดับกระหาย");
     expect(AUTOMATIC_TRANSLATION_SYSTEM_PROMPT).toContain("exactly one blank line between paragraphs");

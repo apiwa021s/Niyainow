@@ -72,6 +72,20 @@ const entitiesSchema = z.object({
   })).max(100),
 });
 
+const metadataReviewSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  synopsisScore: z.number().int().min(0).max(100),
+  fidelityScore: z.number().int().min(0).max(100),
+  verdict: z.enum(["NATURAL", "NEEDS_REVISION"]),
+  issues: z.array(z.string().min(1).max(1_000)).max(20),
+  recommendedTitle: z.string().min(1).max(1_000),
+  recommendedSynopsis: z.string().min(1).max(20_000).nullable(),
+  candidates: z.array(z.object({
+    title: z.string().min(1).max(1_000),
+    rationale: z.string().min(1).max(2_000),
+  })).min(1).max(5),
+});
+
 const aiProfileResultMetricsSchema = z.object({
   providerRequestId: z.string().nullable(),
   inputTokens: z.number().int().nonnegative(),
@@ -88,6 +102,7 @@ export const aiProfileGenerationCheckpointSchema = z.object({
   analysis: z.object({ value: analysisSchema, result: aiProfileResultMetricsSchema }).optional(),
   foundation: z.object({ value: foundationSchema, result: aiProfileResultMetricsSchema }).optional(),
   qualityReview: z.object({ value: profileQualitySchema, result: aiProfileResultMetricsSchema }).optional(),
+  metadataReview: z.object({ value: metadataReviewSchema, result: aiProfileResultMetricsSchema }).optional(),
   entities: z.object({ value: entitiesSchema, result: aiProfileResultMetricsSchema }).optional(),
 });
 
@@ -105,17 +120,6 @@ const chapterAnalysisSchema = z.object({
   })).max(100),
   difficulty: z.enum(["NORMAL", "HARD"]),
   translationNotes: z.array(z.string().min(1).max(1_000)).max(50),
-});
-
-const titleReviewSchema = z.object({
-  score: z.number().int().min(0).max(100),
-  verdict: z.enum(["NATURAL", "NEEDS_REVISION"]),
-  issues: z.array(z.string().min(1).max(1_000)).max(20),
-  recommendedTitle: z.string().min(1).max(1_000),
-  candidates: z.array(z.object({
-    title: z.string().min(1).max(1_000),
-    rationale: z.string().min(1).max(2_000),
-  })).min(1).max(5),
 });
 
 const qaSchema = z.object({
@@ -164,6 +168,14 @@ Rewrite the complete draft wherever it sounds literal, stiff, generic, culturall
 For Thai: explicitly check modifier order, pronouns, particles, dialogue register, genre terminology, title naturalness, and translationese. Do not invent story details or lock uncertain names.
 Return the complete revised foundation plus concise reviewNotes. Return only the requested structured output.`;
 
+const METADATA_LOCALIZATION_SYSTEM_PROMPT = `You are the final bilingual metadata editor for commercially published serialized fiction.
+The source title and synopsis are authoritative. Rewrite the supplied translated title and complete synopsis so they read as native publishing copy in the requested target language while preserving every supported fact, relationship, age, condition, event, promise, uncertainty, and genre signal. Never add, remove, summarize, soften, intensify, diagnose, or reinterpret a factual claim.
+The synopsis must attract readers through clear rhythm and paragraph progression, not invented hype. Remove source-language syntax, repetitive explicit subjects, generic filler, redundant modifiers, and literal collocations. Keep deliberate suspense and end on the strongest source-supported hook. Preserve meaningful paragraph order, but split dense copy at natural premise, turn, and hook boundaries.
+For Thai, write polished contemporary Thai fiction copy. Rebuild clauses and sentence rhythm instead of swapping isolated words. Prefer natural clause order and selective subject omission. Do not repeat a character name or pronoun merely because the source language requires a subject. A faithful localization preserves the intended premise and stakes, not an obviously loose category label: for example, describe Rh-null neutrally as a rare blood type or condition rather than claiming the blood type itself is an incurable disease, unless an actual separate illness is plot-critical.
+Reject awkward constructions including “คอยช่วยให้เขาดูแลตัวเอง”, “นั่นคือ…”, “สิ่งมีชีวิตซึ่งกินเลือดชื่นชอบ”, “อาหารชั้นเลิศที่เหล่าผู้ดื่มเลือดต่างโปรดปราน”, “เป็นของโอชะ”, and mechanical repetition of “เขา”. Avoid generic labels such as “ผู้ดื่มเลือด” when the genre supports a natural collective phrase. Prefer concise native constructions such as “ครอบครัวที่คอยดูแลเขาอย่างใกล้ชิด” and context-appropriate phrasing such as “เลือดของเขากลับเป็นโอชารสอันล้ำค่าที่เหล่าอมนุษย์ผู้กระหายโลหิตต่างหมายปอง” without adding a plot fact. For a short premise-turn-hook synopsis, use distinct paragraphs for the human premise, supernatural turn, and final hook. Use exactly one blank line between paragraphs and no markdown.
+When focus is SYNOPSIS, keep recommendedTitle exactly equal to the supplied translated title and return that title as the sole candidate; spend the editorial effort on the synopsis.
+Score title naturalness, synopsis naturalness, and factual fidelity independently from 0 to 100. Silently revise the recommended output until synopsis naturalness is at least 90 and fidelity is at least 95; report a lower score only when the supplied source is missing or internally contradictory. Set verdict to NEEDS_REVISION when either naturalness score is below 85 or fidelity is below 95. Return the complete recommended synopsis, not notes or a shortened summary. If the source synopsis is non-null but the translated synopsis is null, create the complete target-language synopsis from the source; never return null merely because the draft is missing. Preserve adult-content warnings and sensitive genre signals in concise non-graphic publishing language. Return null only when the source itself has no synopsis. Return only the requested structured output.`;
+
 const PROFILE_ENTITY_EXTRACTION_PROMPT = `${PROFILE_SYSTEM_PROMPT}
 Extract glossary entries only for proper names, ranks, places, techniques, objects, and recurring coined terms that require consistency across chapters.
 Do not add ordinary vocabulary or a short polysemous word such as "gate", "name", or "human". Use the complete disambiguating source phrase instead, such as "summoning gate".
@@ -199,11 +211,6 @@ Treat source as authoritative and currentTranslation as the base manuscript. Rew
 Preserve every supported fact, speaker, action, relationship, chronology, paragraph order, locked term, character voice, and deliberate repetition. Improve sentence rhythm, idiomatic expression, dialogue flow, collocations, narration, and mobile paragraph flow throughout; do not merely make isolated word substitutions. Never merge separate source paragraphs, but split an overly dense paragraph at a natural narrative beat when that improves Thai readability.
 Do not summarize, censor, add events, intensify romance or violence, explain your work, or include markdown fences.
 Return the complete polished translation plus a compact canon analysis grounded only in the source. Return only the requested structured output.`);
-
-const TITLE_REVIEW_SYSTEM_PROMPT = `You are a senior fiction-title editor specializing in the requested target language.
-Review the translated novel title against the source title, synopsis, genre, tone, and translation profile.
-Prioritize a natural, memorable target-language title that sounds locally published. Apply native genre conventions; when the target is Thai, explicitly reject stiff word-for-word syntax and unnatural abstract-noun compounds. Avoid invented plot facts and meaning drift.
-Return 3 to 5 distinct usable candidates, select the strongest recommendation, and explain concrete language issues concisely. Return only the requested structured output.`;
 
 function jsonObject(properties: Record<string, unknown>, required = Object.keys(properties)) {
   return { type: "object", additionalProperties: false, properties, required };
@@ -241,7 +248,7 @@ export async function generateAiTranslationProfile(input: {
   targetLanguage: string;
   samples: Array<{ chapterNumber: number; title: string | null; content: string }>;
   masterBundle: TranslationMasterBundle;
-  models: Record<"PROFILE_ANALYSIS" | "FOUNDATION" | "PROFILE_QUALITY_REVIEW" | "ENTITY_EXTRACTION", AiModel>;
+  models: Record<"PROFILE_ANALYSIS" | "FOUNDATION" | "PROFILE_QUALITY_REVIEW" | "METADATA_LOCALIZATION" | "ENTITY_EXTRACTION", AiModel>;
   checkpoint?: unknown;
   checkpointSignature: string;
   onCheckpoint?: (checkpoint: AiProfileGenerationCheckpoint) => void | Promise<void>;
@@ -379,6 +386,28 @@ export async function generateAiTranslationProfile(input: {
     await storeCheckpoint({ ...checkpoint, qualityReview: { value: qualityReview.value, result: checkpointMetrics(qualityReview.call.result) } });
   }
 
+  await input.onStage?.({ stage: "METADATA_LOCALIZATION", label: checkpoint.metadataReview ? "ใช้ผลเกลาชื่อและเรื่องย่อจากจุดที่บันทึกไว้" : "บรรณาธิการ AI กำลังเกลาชื่อและเรื่องย่อ", modelName: input.models.METADATA_LOCALIZATION.modelName });
+  const metadataReview = checkpoint.metadataReview ? {
+    value: checkpoint.metadataReview.value,
+    call: {
+      task: "METADATA_LOCALIZATION" as const,
+      model: input.models.METADATA_LOCALIZATION,
+      result: { ...checkpoint.metadataReview.result, output: checkpoint.metadataReview.value },
+    },
+  } : await reviewNovelMetadataWithAi({
+    model: input.models.METADATA_LOCALIZATION,
+    sourceTitle: input.title,
+    sourceSynopsis: input.synopsis,
+    translatedTitle: qualityReview.value.translatedTitle,
+    translatedSynopsis: qualityReview.value.translatedSynopsis,
+    sourceLanguage: input.sourceLanguage,
+    targetLanguage: input.targetLanguage,
+    profile: { styleGuide: qualityReview.value.styleGuide, instructions: qualityReview.value.instructions },
+  });
+  if (!checkpoint.metadataReview) {
+    await storeCheckpoint({ ...checkpoint, metadataReview: { value: metadataReview.value, result: checkpointMetrics(metadataReview.call.result) } });
+  }
+
   await input.onStage?.({ stage: "ENTITY_EXTRACTION", label: checkpoint.entities ? "ใช้รายชื่อและคำศัพท์จาก Checkpoint" : "AI กำลังสกัดชื่อ ตัวละคร และศัพท์เริ่มต้น", modelName: input.models.ENTITY_EXTRACTION.modelName });
   const entities = checkpoint.entities ? {
     value: checkpoint.entities.value,
@@ -403,13 +432,19 @@ export async function generateAiTranslationProfile(input: {
     await storeCheckpoint({ ...checkpoint, entities: { value: entities.value, result: checkpointMetrics(entities.call.result) } });
   }
 
-  const { translatedTitle, translatedSynopsis, reviewNotes, ...profile } = qualityReview.value;
+  const { reviewNotes } = qualityReview.value;
+  const profile = {
+    name: qualityReview.value.name,
+    styleGuide: qualityReview.value.styleGuide,
+    instructions: qualityReview.value.instructions,
+    preserveParagraphs: qualityReview.value.preserveParagraphs,
+  };
   return {
     profile,
-    metadata: { title: translatedTitle.trim(), synopsis: translatedSynopsis?.trim() || null },
+    metadata: { title: metadataReview.value.recommendedTitle.trim(), synopsis: metadataReview.value.recommendedSynopsis?.trim() || null },
     analysis: { ...analysis.value, genreContext: { key: genreContext.key, label: genreContext.label, guidance: genreContext.guidance }, masterSelection, profileReviewNotes: reviewNotes, sampledChapters: samples.map((sample) => sample.chapterNumber) },
     ...entities.value,
-    calls: [analysis.call, foundation.call, qualityReview.call, entities.call],
+    calls: [analysis.call, foundation.call, qualityReview.call, metadataReview.call, entities.call],
   };
 }
 
@@ -532,7 +567,7 @@ export async function polishChapterWithCanonAi(input: {
   });
 }
 
-export async function reviewNovelTitleWithAi(input: {
+export async function reviewNovelMetadataWithAi(input: {
   model: AiModel;
   sourceTitle: string;
   sourceSynopsis: string | null;
@@ -541,23 +576,28 @@ export async function reviewNovelTitleWithAi(input: {
   sourceLanguage: string;
   targetLanguage: string;
   profile: { styleGuide: string; instructions: string } | null;
+  focus?: "ALL" | "SYNOPSIS";
 }) {
   return structured({
     model: input.model,
-    task: "FOUNDATION",
-    systemPrompt: TITLE_REVIEW_SYSTEM_PROMPT,
+    task: "METADATA_LOCALIZATION",
+    systemPrompt: METADATA_LOCALIZATION_SYSTEM_PROMPT,
     payload: {
       languages: { source: input.sourceLanguage, target: input.targetLanguage },
       source: { title: input.sourceTitle, synopsis: input.sourceSynopsis },
       translation: { title: input.translatedTitle, synopsis: input.translatedSynopsis },
       profile: input.profile,
+      focus: input.focus ?? "ALL",
     },
-    schemaName: "novel_title_review",
+    schemaName: "novel_metadata_localization_review",
     jsonSchema: jsonObject({
       score: { type: "integer", minimum: 0, maximum: 100 },
+      synopsisScore: { type: "integer", minimum: 0, maximum: 100 },
+      fidelityScore: { type: "integer", minimum: 0, maximum: 100 },
       verdict: { type: "string", enum: ["NATURAL", "NEEDS_REVISION"] },
       issues: boundedStringArray(20),
       recommendedTitle: { type: "string" },
+      recommendedSynopsis: { type: ["string", "null"] },
       candidates: {
         type: "array",
         minItems: 1,
@@ -565,7 +605,7 @@ export async function reviewNovelTitleWithAi(input: {
         items: jsonObject({ title: { type: "string" }, rationale: { type: "string" } }),
       },
     }),
-    parser: titleReviewSchema,
+    parser: metadataReviewSchema,
     timeoutMs: 75_000,
   });
 }
