@@ -13,7 +13,7 @@ export function MangaChapterBody({ pages, chapterNumber }: { pages: MangaPage[];
     return <p className="rounded-[10px] bg-amber-500/10 p-4 text-center text-sm text-amber-700 dark:text-amber-300">ยังโหลดภาพของตอนนี้ไม่ได้ กรุณาลองเปิดใหม่อีกครั้ง</p>;
   }
   return (
-    <div className="mx-auto grid w-full overflow-hidden bg-black" aria-label={`มังงะตอนที่ ${chapterNumber}`}>
+    <div className="grid w-full overflow-hidden bg-black" aria-label={`มังงะตอนที่ ${chapterNumber}`}>
       {pages.map((page, index) => (
         <Image
           key={page.pageNumber}
@@ -21,8 +21,8 @@ export function MangaChapterBody({ pages, chapterNumber }: { pages: MangaPage[];
           alt={page.altText || `มังงะตอนที่ ${chapterNumber} หน้าที่ ${page.pageNumber}`}
           width={page.width ?? 1600}
           height={page.height ?? 2400}
-          sizes="(max-width: 640px) 100vw, 720px"
-          className="h-auto w-full"
+          sizes="100vw"
+          className="block h-auto w-full max-w-none"
           priority={index === 0}
         />
       ))}

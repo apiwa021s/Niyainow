@@ -123,6 +123,7 @@ export function ReaderView({
   initialProgress,
   locked = false,
   lockedContent,
+  contentMode = "prose",
   returnToWorld = false,
 }: {
   novel: ReaderNovel;
@@ -138,6 +139,7 @@ export function ReaderView({
   initialProgress?: ReaderInitialProgress | null;
   locked?: boolean;
   lockedContent?: ReactNode;
+  contentMode?: "prose" | "manga";
   returnToWorld?: boolean;
 }) {
   const router = useRouter();
@@ -541,6 +543,7 @@ export function ReaderView({
   const chapterPosition = chapterWindowIndex >= 0
     ? chapterWindow.startPosition + chapterWindowIndex
     : undefined;
+  const isManga = contentMode === "manga";
   return (
     <div className="min-h-screen bg-[var(--reader-bg)] text-[var(--reader-text)]">
       <div inert={modalOpen} aria-hidden={modalOpen ? true : undefined}>
@@ -601,10 +604,24 @@ export function ReaderView({
         </div>
       </header>
 
-      <main id="main" onClick={handleContentClick} className="mx-auto w-full px-5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:px-8 sm:pt-[calc(6rem+env(safe-area-inset-top))]" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
-        <article className="read-sheet mx-auto sm:rounded-[8px] sm:px-10 sm:py-12 lg:px-14" style={{ maxWidth: "calc(var(--reader-measure) + 7rem)" }}>
-          <div className="mx-auto" style={{ maxWidth: "var(--reader-measure)" }}>
-          <header className="pb-7">
+      <main
+        id="main"
+        onClick={handleContentClick}
+        className={cn(
+          "mx-auto w-full pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:pt-[calc(6rem+env(safe-area-inset-top))]",
+          isManga ? "px-0" : "px-5 sm:px-8",
+        )}
+        style={isManga ? undefined : { maxWidth: "calc(var(--reader-measure) + 7rem)" }}
+      >
+        <article
+          className={cn(isManga ? "w-full" : "read-sheet mx-auto sm:rounded-[8px] sm:px-10 sm:py-12 lg:px-14")}
+          style={isManga ? undefined : { maxWidth: "calc(var(--reader-measure) + 7rem)" }}
+        >
+          <div className={isManga ? "w-full" : "mx-auto"} style={isManga ? undefined : { maxWidth: "var(--reader-measure)" }}>
+          <header
+            className={cn("pb-7", isManga && "mx-auto w-full px-5 sm:px-8")}
+            style={isManga ? { maxWidth: "calc(var(--reader-measure) + 7rem)" } : undefined}
+          >
             <p className="read-kicker read-num">ตอน {chapter.number}</p>
             <p className="mt-2 text-sm text-[var(--reader-accent)]">{novel.thaiTitle}</p>
             <h1 className="read-title mt-2">{chapter.title}</h1>
@@ -613,29 +630,42 @@ export function ReaderView({
             {children}
           </div>
 
-          {locked ? (
-            lockedContent ?? (
-              <div className="mt-10 bg-current/6 px-5 py-6 text-center">
-                <p className="font-semibold">ตอนนี้ยังไม่เปิดให้อ่าน</p>
-              </div>
-            )
-          ) : (
-            <ChapterEnd
-              novel={novel}
-              chapter={chapter}
-              chapterPosition={chapterPosition}
-              totalChapters={chapterWindow.total}
-              previous={previous}
-              next={next}
-              initialFollowing={novelState?.following ?? initialFollowing}
-              onNavigateChapter={navigateChapter}
-            />
-          )}
+          <div
+            className={cn(isManga && "mx-auto w-full px-5 sm:px-8")}
+            style={isManga ? { maxWidth: "calc(var(--reader-measure) + 7rem)" } : undefined}
+          >
+            {locked ? (
+              lockedContent ?? (
+                <div className="mt-10 bg-current/6 px-5 py-6 text-center">
+                  <p className="font-semibold">ตอนนี้ยังไม่เปิดให้อ่าน</p>
+                </div>
+              )
+            ) : (
+              <ChapterEnd
+                novel={novel}
+                chapter={chapter}
+                chapterPosition={chapterPosition}
+                totalChapters={chapterWindow.total}
+                previous={previous}
+                next={next}
+                initialFollowing={novelState?.following ?? initialFollowing}
+                onNavigateChapter={navigateChapter}
+              />
+            )}
+          </div>
           </div>
         </article>
       </main>
 
-      <nav aria-label="เปลี่ยนตอน" className="fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-paper)] pb-[env(safe-area-inset-bottom)]">
+      <nav
+        aria-label="เปลี่ยนตอน"
+        aria-hidden={!chromeVisible ? true : undefined}
+        inert={!chromeVisible}
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-40 border-t border-current/10 bg-[var(--reader-paper)] pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[180ms] ease-[var(--ease-out)]",
+          chromeVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0",
+        )}
+      >
         <div className="mx-auto grid h-16 max-w-[720px] grid-cols-3 items-center gap-1 px-2">
           {previousHref ? <Link href={previousHref} onClick={() => navigateChapter(previous!.number)} aria-label="ตอนก่อนหน้า" className={cn(READER_NAV_ACTION_CLASS, "justify-start")}><ChevronLeft className="h-4 w-4 shrink-0" /><span className="sm:hidden">ก่อน</span><span className="hidden sm:inline">ตอนก่อนหน้า</span></Link> : <span aria-hidden />}
           <button type="button" onClick={openSidebar} aria-controls="reader-chapter-sidebar" aria-expanded={sidebarOpen} className={cn(READER_NAV_ACTION_CLASS, "justify-center gap-2")}><List className="h-4 w-4" />สารบัญ</button>

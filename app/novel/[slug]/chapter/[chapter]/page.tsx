@@ -198,6 +198,7 @@ export default async function ChapterPage({ params, searchParams }: ChapterPageP
         initialLibraryStatus={userState?.libraryStatus}
         initialFollowing={userState?.followed}
         initialProgress={userState?.progress}
+        contentMode={isMangaChapter && !locked ? "manga" : "prose"}
         returnToWorld={from === "world"}
       >
         {isMangaChapter && !locked
