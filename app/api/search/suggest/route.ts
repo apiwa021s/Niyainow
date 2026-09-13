@@ -6,6 +6,10 @@ import { getSearchSuggestions } from "@/services/novel-service";
 
 
 export async function GET(request: Request) {
+  const q = new URL(request.url).searchParams.get("q")?.replace(/\s+/gu, " ").trim() ?? "";
+  if (q.length < 2) return NextResponse.json({ suggestions: [] });
+  if (q.length > 100) return NextResponse.json({ error: "คำค้นยาวเกิน 100 ตัวอักษร" }, { status: 400 });
+
   const limit = await takeDistributedRateLimit(requestRateLimitKey(request, "public-search-suggest"), {
     limit: 120,
     windowMs: 60_000,
@@ -16,10 +20,6 @@ export async function GET(request: Request) {
       { status: 429, headers: rateLimitHeaders(limit) },
     );
   }
-  const q = new URL(request.url).searchParams.get("q")?.replace(/\s+/gu, " ").trim() ?? "";
-  if (q.length < 2) return NextResponse.json({ suggestions: [] }, { headers: rateLimitHeaders(limit) });
-  if (q.length > 100) return NextResponse.json({ error: "คำค้นยาวเกิน 100 ตัวอักษร" }, { status: 400, headers: rateLimitHeaders(limit) });
-
   const suggestions = await getSearchSuggestions(q);
   return NextResponse.json(
     { suggestions },

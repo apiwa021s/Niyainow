@@ -1,0 +1,9 @@
+/** Shared client-side ceilings for World traffic and persistence. */
+export const WORLD_POSITION_PERSIST_INTERVAL_MS = 60_000;
+export const WORLD_POSITION_MIN_DISTANCE = 8;
+export const WORLD_MOVEMENT_BROADCAST_INTERVAL_MS = 120;
+export const WORLD_SERVER_MOVEMENT_MIN_INTERVAL_MS = 80;
+export const WORLD_STATE_BROADCAST_INTERVAL_MS = 250;
+export const WORLD_EMOTE_BROADCAST_INTERVAL_MS = 500;
+export const WORLD_RECONNECT_ATTEMPTS = 20;
+export const WORLD_RECONNECT_DELAY_MAX_MS = 30_000;

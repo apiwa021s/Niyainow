@@ -21,7 +21,7 @@ export function pageMetadata(input: {
 }): Metadata {
   const description = truncateDescription(input.description);
   const canonical = absoluteUrl(input.canonicalPath ?? input.path);
-  const imageUrl = absoluteUrl(input.image || "/og.png");
+  const imageUrl = absoluteUrl(input.image || "/og.jpg");
   const imageAlt = input.image
     ? `${input.title} — ${siteConfig.name}`
     : `${siteConfig.name} — ${siteConfig.title}`;

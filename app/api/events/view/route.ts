@@ -34,7 +34,6 @@ export async function POST(request: Request) {
   let limit: RateLimitResult | undefined;
   try {
     assertSameOrigin(request);
-    const input = await parseJson(request, eventSchema);
     const address = clientIpAddress(request);
     const userAgent = request.headers.get("user-agent")?.slice(0, 512) || "unknown";
     const rateFingerprint = hashPublicViewer({ address, userAgent });
@@ -45,6 +44,7 @@ export async function POST(request: Request) {
         { status: 429, headers: { ...responseHeaders, ...rateLimitHeaders(limit) } },
       );
     }
+    const input = await parseJson(request, eventSchema);
 
     const fingerprint = input.clientToken
       ? hashPublicViewer({ address, userAgent, clientToken: input.clientToken })

@@ -20,7 +20,7 @@ Redis application cache (shared across function instances)
 PostgreSQL (source of truth)
 ```
 
-Next.js 16.3 is running without the `cacheComponents` flag, so the project keeps the supported previous-model APIs: `unstable_cache`, `revalidateTag`, and React `cache`. Redis is the shared L2/fallback for hot public data when the Next Data Cache is cold or deliberately absent. User-specific data stays outside both shared caches.
+Next.js 16.3 runs with `cacheComponents: true`. Bounded public page/API bundles use `"use cache"`, `cacheLife`, and `cacheTag`; existing service-level caches use `unstable_cache`, `revalidateTag`, and React `cache`. Redis is the shared L2/fallback for hot public data when the Next Data Cache is cold or deliberately absent. User-specific data stays outside shared caches.
 
 ## Performance audit
 
@@ -44,7 +44,7 @@ Important findings from the audit:
 - Previous/next navigation already used indexed `sort_order` lookups rather than loading the complete chapter list. That query shape was preserved and cached with the reader payload.
 - The schema already has public novel, chapter navigation, ranking, taxonomy, and search indexes. No speculative index was added.
 - Homepage queries already execute concurrently and use Next Data Cache. Redis version reads are coalesced in process, and invalidations use one Redis transaction/pipeline. The cache abstraction also exposes `mGet` for future aggregates; no sequential Redis loop was introduced for the homepage.
-- Proxy matching is already limited to authenticated/admin route groups and does not run on public reading pages or assets.
+- Proxy matching includes protected route groups, World entry routes, and public chapter-reader HTML. Chapter matching intentionally performs request-identity/risk checks, so reader HTML is not treated as CDN-cacheable even though its public-safe content bundle is cached below the request layer.
 - R2 asset URLs use the configured public CDN host and there is no Vercel `/api/image` byte-proxy route. `next/image` still performs configured image optimization; switching to Cloudflare image transformations requires a real transformation URL/loader and was not guessed.
 - Reading progress is already gated by authentication, a 5% meaningful change, and a 10-second minimum interval, with page-hide persistence. It was not rewritten.
 - View events currently write PostgreSQL aggregates. There is no durable counter-flush worker, so Redis view buffering was deliberately not introduced.
@@ -159,8 +159,9 @@ Run once against a deployment with `CACHE_ENABLED=false`, restart with it enable
 
 ## Remaining work
 
-- P1: replace process-local abuse rate limits with a separate Redis-backed limiter after endpoint-specific fail-open/fail-closed policy is approved.
-- P1: add a durable scheduled-publication worker; the schema has queue indexes, but no worker currently promotes `SCHEDULED` rows to `PUBLISHED`.
+- P1: enforce matching edge/WAF ceilings for search, discovery, reader, view-event, authentication, and World routes so rejected floods do not invoke application functions.
+- P1: split the global shell into route-group layouts so reader/World routes do not execute hidden personalized topbar and updates-rail server work.
+- P1: replace high-cardinality search suggestion fan-out with a dedicated indexed suggestion query when production query telemetry justifies it.
 - P1: evaluate a Cloudflare image transformation loader using the real CDN transformation contract before bypassing Next Image optimization.
 - P2: consider Redis view counters only together with a durable, idempotent scheduled flush/reconciliation job.
 - P2: export cache counters to the production telemetry system once its vendor/collector is selected.

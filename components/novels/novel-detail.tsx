@@ -74,6 +74,13 @@ export function NovelHero({
           <h1 className="mt-2 max-w-5xl text-balance text-h1 font-semibold leading-[1.2] sm:text-4xl lg:text-[2.75rem]">
             {novel.thaiTitle}
           </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            โดย {novel.authorSlug ? (
+              <Link className="font-medium text-foreground underline-offset-4 hover:underline" href={`/creators/${novel.authorSlug}`}>
+                {novel.author}
+              </Link>
+            ) : novel.author}
+          </p>
         </div>
 
         <div className="min-w-0 pt-4 text-center md:col-start-2 md:row-start-2 md:text-left">

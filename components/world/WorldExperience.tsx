@@ -13,6 +13,7 @@ import { WorldHUD } from "@/components/world/WorldHUD";
 import styles from "@/components/world/world.module.css";
 import type { WorldGameBridge, WorldPositionSnapshot } from "@/world/engine/bridge";
 import type { WorldGameController } from "@/world/engine/Game";
+import { WORLD_POSITION_MIN_DISTANCE, WORLD_POSITION_PERSIST_INTERVAL_MS } from "@/world/cost-controls";
 import type { WorldCatalog, WorldCharacter, WorldChatMessage, WorldConnectionState, WorldEmote, WorldInteraction, WorldNovel } from "@/world/types";
 
 type Panel = "library" | "community" | "gate" | "cafe" | "notice" | "emotes" | null;
@@ -67,17 +68,38 @@ export function WorldExperience({ initialCharacter, catalog, suggestedName }: { 
   const [guide, setGuide] = useState(true);
   const controllerRef = useRef<WorldGameController | null>(null);
   const snapshotRef = useRef<WorldPositionSnapshot | null>(null);
+  const persistedSnapshotRef = useRef<WorldPositionSnapshot | null>(initialCharacter ? {
+    worldId: initialCharacter.currentWorld,
+    x: initialCharacter.x,
+    y: initialCharacter.y,
+  } : null);
+  const lastPositionPersistAtRef = useRef(0);
   const interactionHandlerRef = useRef<(interaction: WorldInteraction) => void>(() => undefined);
 
-  const persistPosition = useCallback((snapshot: WorldPositionSnapshot | null = snapshotRef.current) => {
+  const persistPosition = useCallback((snapshot: WorldPositionSnapshot | null = snapshotRef.current, force = false) => {
     if (!snapshot) return Promise.resolve();
     localStorage.setItem("novelnow-world-position", JSON.stringify(snapshot));
+    const previous = persistedSnapshotRef.current;
+    const moved = !previous
+      || previous.worldId !== snapshot.worldId
+      || Math.hypot(previous.x - snapshot.x, previous.y - snapshot.y) >= WORLD_POSITION_MIN_DISTANCE;
+    const now = Date.now();
+    if (!moved || (!force && now - lastPositionPersistAtRef.current < WORLD_POSITION_PERSIST_INTERVAL_MS)) {
+      return Promise.resolve();
+    }
+    persistedSnapshotRef.current = snapshot;
+    lastPositionPersistAtRef.current = now;
     return fetch("/api/world/position", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(snapshot),
       keepalive: true,
-    }).then(() => undefined).catch(() => undefined);
+    }).then((response) => {
+      if (!response.ok) throw new Error("WORLD_POSITION_SAVE_FAILED");
+    }).catch(() => {
+      persistedSnapshotRef.current = previous;
+      lastPositionPersistAtRef.current = 0;
+    });
   }, []);
 
   const bridge = useMemo<WorldGameBridge>(() => ({
@@ -132,9 +154,9 @@ export function WorldExperience({ initialCharacter, catalog, suggestedName }: { 
   }, [character, chatOpen, closePanels, panel, ready]);
 
   useEffect(() => {
-    const onPageHide = () => { void persistPosition(); };
+    const onPageHide = () => { void persistPosition(undefined, true); };
     window.addEventListener("pagehide", onPageHide);
-    return () => { window.removeEventListener("pagehide", onPageHide); void persistPosition(); };
+    return () => { window.removeEventListener("pagehide", onPageHide); void persistPosition(undefined, true); };
   }, [persistPosition]);
 
   useEffect(() => {
@@ -150,7 +172,7 @@ export function WorldExperience({ initialCharacter, catalog, suggestedName }: { 
     void fetch("/api/world/intro", { method: "POST" });
   };
   const openReader = async (novel: WorldNovel) => {
-    await persistPosition();
+    await persistPosition(undefined, true);
     router.push(novel.readHref);
   };
   const inputEnabled = ready && !introOpen && !panel && !chatOpen;

@@ -5,6 +5,11 @@ import { loadEnvConfig } from "@next/env";
 import { Server } from "socket.io";
 
 import { verifyWorldTicket, type WorldTicketPayload } from "@/lib/world-ticket";
+import {
+  WORLD_EMOTE_BROADCAST_INTERVAL_MS,
+  WORLD_SERVER_MOVEMENT_MIN_INTERVAL_MS,
+  WORLD_STATE_BROADCAST_INTERVAL_MS,
+} from "@/world/cost-controls";
 import { moderateWorldChat } from "@/world/multiplayer/moderation";
 import {
   characterDirectionSchema,
@@ -23,10 +28,21 @@ type SocketData = {
   player: NetworkPlayer;
   roomId?: string;
   lastMovementAt: number;
+  lastMovementBroadcastAt: number;
+  lastStateBroadcastAt: number;
+  lastEmoteBroadcastAt: number;
   chatTimestamps: number[];
 };
 
+function boundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isSafeInteger(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback;
+}
+
 const port = Number.parseInt(process.env.WORLD_SERVER_PORT ?? "3001", 10);
+const maxConnections = boundedInteger(process.env.WORLD_MAX_CONNECTIONS, 500, 1, 50_000);
+const maxRooms = boundedInteger(process.env.WORLD_MAX_ROOMS, 10, 1, 999);
+const roomCapacity = boundedInteger(process.env.WORLD_ROOM_CAPACITY, 50, 2, 50);
 const allowedOrigins = (process.env.WORLD_ALLOWED_ORIGINS ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
   .split(",")
   .map((origin) => origin.trim())
@@ -45,6 +61,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string,
 
 io.use((socket, next) => {
   try {
+    if (io.engine.clientsCount > maxConnections) throw new Error("WORLD_AT_CAPACITY");
     const token = typeof socket.handshake.auth.ticket === "string" ? socket.handshake.auth.ticket : "";
     const ticket = verifyWorldTicket(token);
     socket.data.ticket = ticket;
@@ -60,6 +77,9 @@ io.use((socket, next) => {
       sequence: 0,
     };
     socket.data.lastMovementAt = Date.now();
+    socket.data.lastMovementBroadcastAt = 0;
+    socket.data.lastStateBroadcastAt = 0;
+    socket.data.lastEmoteBroadcastAt = 0;
     socket.data.chatTimestamps = [];
     next();
   } catch {
@@ -68,9 +88,9 @@ io.use((socket, next) => {
 });
 
 function selectRoom() {
-  for (let index = 1; index <= 999; index += 1) {
+  for (let index = 1; index <= maxRooms; index += 1) {
     const roomId = `${WORLD_ID}:central-${String(index).padStart(3, "0")}`;
-    if ((io.sockets.adapter.rooms.get(roomId)?.size ?? 0) < 50) return roomId;
+    if ((io.sockets.adapter.rooms.get(roomId)?.size ?? 0) < roomCapacity) return roomId;
   }
   return null;
 }
@@ -102,6 +122,7 @@ io.on("connection", (socket) => {
     if (payload.sequence <= socket.data.player.sequence) return;
 
     const now = Date.now();
+    if (now - socket.data.lastMovementBroadcastAt < WORLD_SERVER_MOVEMENT_MIN_INTERVAL_MS) return;
     const elapsed = Math.min(1, Math.max(0.05, (now - socket.data.lastMovementAt) / 1000));
     const dx = payload.x - socket.data.player.x;
     const dy = payload.y - socket.data.player.y;
@@ -109,6 +130,7 @@ io.on("connection", (socket) => {
     if (distance > 350 * elapsed + 70) return;
 
     socket.data.lastMovementAt = now;
+    socket.data.lastMovementBroadcastAt = now;
     socket.data.player = {
       ...socket.data.player,
       x: Math.min(2320, Math.max(80, payload.x)),
@@ -123,6 +145,9 @@ io.on("connection", (socket) => {
   socket.on("player:state", ({ state }) => {
     const roomId = socket.data.roomId;
     if (!roomId || !characterStateSchema.safeParse(state).success) return;
+    const now = Date.now();
+    if (now - socket.data.lastStateBroadcastAt < WORLD_STATE_BROADCAST_INTERVAL_MS) return;
+    socket.data.lastStateBroadcastAt = now;
     socket.data.player = { ...socket.data.player, state };
     socket.to(roomId).emit("player:state", { playerId: socket.data.player.id, state });
   });
@@ -130,6 +155,9 @@ io.on("connection", (socket) => {
   socket.on("player:emote", ({ emote }) => {
     const roomId = socket.data.roomId;
     if (!roomId || !worldEmoteSchema.safeParse(emote).success) return;
+    const now = Date.now();
+    if (now - socket.data.lastEmoteBroadcastAt < WORLD_EMOTE_BROADCAST_INTERVAL_MS) return;
+    socket.data.lastEmoteBroadcastAt = now;
     io.to(roomId).emit("player:emote", { playerId: socket.data.player.id, emote });
   });
 

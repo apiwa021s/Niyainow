@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
 
+import robots from "@/app/robots";
 import { pageMetadata, serializeJsonLd, truncateDescription } from "@/lib/seo";
 import { absoluteUrl, siteConfig } from "@/lib/site-config";
 
 describe("SEO helpers", () => {
+  it("keeps private and high-cost application routes out of crawler discovery", () => {
+    const policy = robots();
+    const generalRule = Array.isArray(policy.rules) ? policy.rules[0] : policy.rules;
+
+    expect(generalRule).toMatchObject({
+      userAgent: "*",
+      allow: "/",
+      disallow: expect.arrayContaining([
+        "/admin",
+        "/api/",
+        "/login",
+        "/studio",
+        "/world",
+        "/creators/apply",
+        "/dev/",
+      ]),
+    });
+  });
+
   it("normalizes and bounds descriptions", () => {
     expect(truncateDescription("  one\n two  ", 20)).toBe("one two");
     expect(truncateDescription("abcdefghij", 6)).toBe("abcde…");
@@ -22,7 +42,7 @@ describe("SEO helpers", () => {
 
     expect(metadata.openGraph).toMatchObject({
       images: [{
-        url: absoluteUrl("/og.png"),
+        url: absoluteUrl("/og.jpg"),
         width: 1200,
         height: 630,
         alt: `${siteConfig.name} — ${siteConfig.title}`,
@@ -31,7 +51,7 @@ describe("SEO helpers", () => {
     expect(metadata.twitter).toMatchObject({
       card: "summary_large_image",
       images: [{
-        url: absoluteUrl("/og.png"),
+        url: absoluteUrl("/og.jpg"),
         alt: `${siteConfig.name} — ${siteConfig.title}`,
       }],
     });

@@ -7,9 +7,9 @@
 - [x] `npm ci` (local release verification 2026-08-14)
 - [x] `npm run lint`
 - [x] `npm run typecheck`
-- [x] `npm test` — 22 files / 82 tests
+- [x] `npm test` — 70 files / 314 tests (local release verification 2026-09-13)
 - [x] `npm run db:check`
-- [x] `npm run build` — Next.js 16.3.0 production artifact with required HTTPS public build variables
+- [x] `npm run build` — Next.js 16.3.3 production artifact with required HTTPS public build variables (2026-09-13)
 - [x] ตรวจ `git diff --check` และไม่มี secret/`.env`/generated local state
 - [ ] CI ผ่านบน commit ที่ deploy
 
@@ -42,6 +42,12 @@
 - [ ] สร้าง R2 bucket/token/custom domain/CORS แล้วตั้งตัวแปร R2
 - [ ] Provision บัญชี `ADMIN` จาก DB-controlled process
 - [ ] ต่อ stdout/error logs เข้าระบบ monitoring และตั้ง alert
+- [ ] เปิด Vercel Spend Management alerts ที่ 50/75/100% และกำหนด hard budget พร้อม `Pause production deployment` ตามงบที่ยอมรับได้; ทดสอบ webhook/notification
+- [ ] เปิด Usage/Anomaly alerts สำหรับ Functions, Fast Data Transfer, Image Optimization และ Edge Requests
+- [ ] คำนวณ PostgreSQL connection budget จาก `DB_MAX_CONNECTIONS × จำนวน concurrent instances/workers` ให้ต่ำกว่า provider limit พร้อม headroom และ alert ที่ pool wait/connection saturation
+- [ ] ตั้ง Redis `maxmemory`, eviction policy (`allkeys-lfu` สำหรับ cache-only instance) และ alert memory/eviction/rejected connection/hit ratio
+- [ ] ตั้ง ceiling สำหรับ World concurrent connections, ticket requests, outbound messages และ autoscaling พร้อม alert reconnect burst
+- [ ] ตั้ง `WORLD_MAX_CONNECTIONS`, `WORLD_MAX_ROOMS`, `WORLD_ROOM_CAPACITY` ให้ตรงงบ/ขนาด instance และทำ load test ก่อนเพิ่มจากค่าเริ่มต้น 500/10/50
 - [ ] ตั้ง trusted proxy/WAF ให้ strip/overwrite client IP headers, จำกัด body/rate ที่ edge และทดสอบว่า spoof header ไม่ bypass limiter
 - [ ] ตรวจ/อนุมัติข้อความ Terms/Privacy โดยเจ้าของบริการก่อนเปิดสาธารณะ
 
@@ -92,8 +98,10 @@
 
 - [ ] Canonical, title, description, OG/Twitter และ JSON-LD ถูกต้องบน home/novel/chapter
 - [ ] `robots.txt` และ sitemap URLs ใช้ production domain
+- [ ] ส่ง `/sitemap.xml` เข้า Google Search Console และตรวจว่า creator/novel/chapter canonical URLs ถูกค้นพบโดยไม่มี private routes
 - [ ] Sitemap scale/pagination ผ่านชุดข้อมูลขนาด production ใกล้เคียงจริง
 - [ ] Cover ใช้ image optimization/CDN และไม่มี layout shift สำคัญ
 - [ ] ตรวจ CSP/security headers กับ OAuth/R2 บน production browser
 - [ ] ตรวจ query plan ของ home/search/chapter navigation/library/ranking ด้วย production-like data
+- [ ] ทดสอบ WAF/rate-limit สำหรับ search/discover/view event/chapter/auth/World และยืนยันว่า response 429 ไม่เข้า DB
 - [ ] ทดสอบ restore backup และ application rollback

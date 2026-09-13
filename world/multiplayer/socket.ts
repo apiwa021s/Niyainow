@@ -2,6 +2,7 @@
 
 import { io, type Socket } from "socket.io-client";
 
+import { WORLD_RECONNECT_ATTEMPTS, WORLD_RECONNECT_DELAY_MAX_MS } from "@/world/cost-controls";
 import type { ClientToServerEvents, ServerToClientEvents } from "@/world/types";
 
 export type WorldSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -24,9 +25,10 @@ export function createWorldSocket(): WorldSocket {
     autoConnect: false,
     transports: ["websocket", "polling"],
     reconnection: true,
-    reconnectionAttempts: Infinity,
+    reconnectionAttempts: WORLD_RECONNECT_ATTEMPTS,
     reconnectionDelay: 800,
-    reconnectionDelayMax: 8_000,
+    reconnectionDelayMax: WORLD_RECONNECT_DELAY_MAX_MS,
+    randomizationFactor: 0.5,
     timeout: 8_000,
     auth: async (callback) => {
       try {

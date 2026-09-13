@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, asc, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/db";
@@ -163,7 +164,7 @@ export async function requireWriterProfileForUser(userId: string) {
 
 export async function createWriterProfile(userId: string, input: z.infer<typeof writerProfileInputSchema>) {
   try {
-    return await getDb().transaction(async (tx) => {
+    const profile = await getDb().transaction(async (tx) => {
       const { tagIds } = input;
       const profileInput = {
         username: input.username,
@@ -181,6 +182,9 @@ export async function createWriterProfile(userId: string, input: z.infer<typeof 
       if (tagRows.length) await tx.insert(writerProfileTags).values(tagRows.map((tag, index) => ({ writerId: profile.id, tagId: tag.id, sortOrder: index })));
       return profile;
     });
+    revalidateTag("public-creators", { expire: 0 });
+    revalidateTag("public-sitemap", { expire: 0 });
+    return profile;
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && error.code === "23505") {
       throw new ApiError(409, "WRITER_PROFILE_CONFLICT", "Username นี้ถูกใช้งานแล้ว หรือบัญชีมีโปรไฟล์นักเขียนอยู่แล้ว");
@@ -191,7 +195,7 @@ export async function createWriterProfile(userId: string, input: z.infer<typeof 
 
 export async function updateWriterProfile(userId: string, input: z.infer<typeof writerProfileInputSchema>) {
   const writer = await requireWriterProfileForUser(userId);
-  return getDb().transaction(async (tx) => {
+  const updated = await getDb().transaction(async (tx) => {
     const uniqueTagIds = [...new Set(input.tagIds)];
     const tagRows = uniqueTagIds.length
       ? await tx.select({ id: tags.id }).from(tags).where(and(inArray(tags.id, uniqueTagIds), eq(tags.isActive, true)))
@@ -218,6 +222,9 @@ export async function updateWriterProfile(userId: string, input: z.infer<typeof 
     if (tagRows.length) await tx.insert(writerProfileTags).values(tagRows.map((tag, index) => ({ writerId: writer.id, tagId: tag.id, sortOrder: index })));
     return updated;
   });
+  revalidateTag("public-creators", { expire: 0 });
+  revalidateTag("public-sitemap", { expire: 0 });
+  return updated;
 }
 
 export async function listWriterStories(userId: string) {

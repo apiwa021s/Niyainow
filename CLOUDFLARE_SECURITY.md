@@ -10,6 +10,7 @@ Apply this only when the production hostname is proxied through Cloudflare. The 
    - paths beginning `/api/chapters/`
    - paths beginning `/novel/` and containing `/chapter/`
 4. Do not create a Cache Everything rule for reader pages. Personalized paid responses already send `Cache-Control: private, no-store, max-age=0`.
+5. Cache queryless public APIs such as `/api/home` and `/api/master-data` only when the origin's `s-maxage` permits it. Never ignore the query string for `/api/search`, `/api/search/suggest`, `/api/discover`, paginated routes, or filtered routes.
 
 ## Rate limiting rules
 
@@ -47,6 +48,17 @@ http.request.method in {"GET" "POST"}
 ### Authentication and purchase mutations
 
 Use separate rules for `/api/auth/` and POST requests ending in `/unlock`. Start at 10 requests/minute/IP for auth and 10 requests/minute/IP for unlock. Prefer Managed Challenge for browser auth and Block for the JSON unlock API. Never exempt these routes based only on `User-Agent` or `Referer`.
+
+### Public query and write endpoints
+
+Add JSON-safe rate-limit rules (Block/429, no interstitial challenge) for these costly surfaces, then tune from production traffic:
+
+- `/api/search` and `/api/search/suggest`: start at 30 and 120 requests/minute/IP respectively, matching the application ceilings.
+- `/api/discover`: start at 60 requests/minute/IP.
+- `/api/events/view`: start at 60 POST requests/minute/IP.
+- `/api/world/ticket`, `/api/world/position`, and the realtime origin: apply separate ticket/write/connection ceilings. Alert on reconnect bursts and concurrent sockets rather than combining them with ordinary HTTP traffic.
+
+Keep the application limiter as defense in depth. The edge rule is what prevents rejected floods from consuming function, Redis, and database work.
 
 ## Bot Management (when available)
 

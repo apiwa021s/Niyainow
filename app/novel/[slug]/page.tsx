@@ -95,7 +95,16 @@ export default async function NovelDetailPage({ params }: { params: Promise<{ sl
             image: absoluteUrl(novel.cover),
             url: absoluteUrl(`/novel/${novel.slug}`),
             mainEntityOfPage: absoluteUrl(`/novel/${novel.slug}`),
-            author: { "@type": "Person", name: novel.author },
+            author: {
+              "@type": "Person",
+              name: novel.author,
+              ...(novel.authorSlug
+                ? {
+                    "@id": `${absoluteUrl(`/creators/${novel.authorSlug}`)}#person`,
+                    url: absoluteUrl(`/creators/${novel.authorSlug}`),
+                  }
+                : {}),
+            },
             translator: novel.translator
               ? { "@type": "Organization", name: novel.translator }
               : undefined,

@@ -134,7 +134,16 @@ export default async function ChapterPage({ params, searchParams }: ChapterPageP
             mainEntityOfPage: absoluteUrl(`/novel/${novel.slug}/chapter/${chapterSummary.number}`),
             url: absoluteUrl(`/novel/${novel.slug}/chapter/${chapterSummary.number}`),
             image: absoluteUrl(novel.cover),
-            author: { "@type": "Person", name: novel.author },
+            author: {
+              "@type": "Person",
+              name: novel.author,
+              ...(novel.authorSlug
+                ? {
+                    "@id": `${absoluteUrl(`/creators/${novel.authorSlug}`)}#person`,
+                    url: absoluteUrl(`/creators/${novel.authorSlug}`),
+                  }
+                : {}),
+            },
             translator: novel.translator
               ? { "@type": "Organization", name: novel.translator }
               : undefined,

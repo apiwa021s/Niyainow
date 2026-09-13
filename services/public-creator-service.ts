@@ -7,6 +7,8 @@ import { getDb } from "@/db";
 import { chapters, contentReports, novels, users, writerProfiles } from "@/db/schema";
 import { ApiError } from "@/lib/http/api-response";
 
+export const PUBLIC_STORY_CHAPTER_LIMIT = 200;
+
 export async function getPublicWriter(username: string) {
   const [writer] = await getDb().select({
     id: writerProfiles.id,
@@ -68,7 +70,7 @@ export async function listPublicStoryChapters(storySlug: string) {
     lte(chapters.publishedAt, now),
     eq(novels.publicationStatus, "PUBLISHED"),
     isNull(novels.deletedAt),
-  )).orderBy(asc(chapters.sortOrder));
+  )).orderBy(asc(chapters.sortOrder)).limit(PUBLIC_STORY_CHAPTER_LIMIT);
 }
 
 export const privacyInputSchema = z.object({

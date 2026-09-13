@@ -3,7 +3,7 @@
 import { Bell, LogIn, Search, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Logo } from "@/components/layout/logo";
 import { GlobalSearch } from "@/components/search/global-search";
@@ -34,6 +34,7 @@ export function AppTopbar({
   const visible = useScrollChromeVisibility();
   const [searchOpen, setSearchOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  const lastUnreadRefreshRef = useRef(0);
 
   useEffect(() => {
     if (!viewer) return;
@@ -43,6 +44,9 @@ export function AppTopbar({
     };
     const refreshCount = async () => {
       if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastUnreadRefreshRef.current < 60_000) return;
+      lastUnreadRefreshRef.current = now;
       try {
         const response = await fetch("/api/me/notifications/unread-count", {
           headers: { Accept: "application/json" },
@@ -55,7 +59,7 @@ export function AppTopbar({
         // The server-rendered count remains useful while the network is unavailable.
       }
     };
-    const interval = window.setInterval(() => void refreshCount(), 60_000);
+    const interval = window.setInterval(() => void refreshCount(), 5 * 60_000);
     window.addEventListener("niyainow:notifications-updated", onCountUpdate);
     document.addEventListener("visibilitychange", refreshCount);
     return () => {

@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 
+import { WORLD_MOVEMENT_BROADCAST_INTERVAL_MS } from "@/world/cost-controls";
 import type { WorldGameBridge } from "@/world/engine/bridge";
 import { RemotePlayer } from "@/world/entities/RemotePlayer";
 import type { Player } from "@/world/entities/Player";
@@ -13,6 +14,17 @@ export class PresenceSystem {
   private sequence = 0;
   private lastSentAt = 0;
   private lastSent = { x: Number.NaN, y: Number.NaN, state: "idle" as CharacterState };
+  private readonly handleVisibilityChange = () => {
+    if (!this.socket) return;
+    if (document.visibilityState === "hidden") {
+      this.socket.disconnect();
+      return;
+    }
+    if (!this.socket.connected) {
+      this.bridge.onConnection("connecting");
+      this.socket.connect();
+    }
+  };
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -67,7 +79,9 @@ export class PresenceSystem {
       player?.showSpeech(message.message);
       this.bridge.onChat(message);
     });
-    socket.connect();
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    if (document.visibilityState === "visible") socket.connect();
+    else this.bridge.onConnection("offline");
   }
 
   private addRemotePlayer(player: NetworkPlayer) {
@@ -87,7 +101,7 @@ export class PresenceSystem {
     const now = performance.now();
     const moved = Math.hypot(this.localPlayer.x - this.lastSent.x, this.localPlayer.y - this.lastSent.y) > 2;
     const stateChanged = state !== this.lastSent.state;
-    if (!this.socket?.connected || now - this.lastSentAt < 80 || (!moved && !stateChanged)) return;
+    if (!this.socket?.connected || now - this.lastSentAt < WORLD_MOVEMENT_BROADCAST_INTERVAL_MS || (!moved && !stateChanged)) return;
     this.lastSentAt = now;
     this.lastSent = { x: this.localPlayer.x, y: this.localPlayer.y, state };
     this.sequence += 1;
@@ -114,6 +128,7 @@ export class PresenceSystem {
   }
 
   destroy() {
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     if (this.socket) {
       this.socket.emit("world:leave");
       this.socket.removeAllListeners();

@@ -9,6 +9,9 @@ import { ApiError } from "@/lib/http/api-response";
 
 import { requireWriterProfileForUser } from "./studio-service";
 
+const STUDIO_POST_LIMIT = 100;
+const PUBLIC_WRITER_POST_LIMIT = 50;
+
 export const writerPostInputSchema = z.object({
   content: z.string().trim().min(1).max(10_000),
   imageKey: z.string().trim().max(500).optional().nullable(),
@@ -19,7 +22,7 @@ export const writerPostInputSchema = z.object({
 export async function listStudioPosts(userId: string) {
   const writer = await requireWriterProfileForUser(userId);
   return getDb().select().from(writerPosts).where(eq(writerPosts.writerId, writer.id))
-    .orderBy(desc(writerPosts.createdAt), desc(writerPosts.id));
+    .orderBy(desc(writerPosts.createdAt), desc(writerPosts.id)).limit(STUDIO_POST_LIMIT);
 }
 
 export async function createStudioPost(userId: string, input: z.infer<typeof writerPostInputSchema>) {
@@ -92,5 +95,5 @@ export async function listVisibleWriterPosts(userId: string | null, username: st
     eq(writerPosts.status, "published"),
     eq(writerPosts.moderationState, "active"),
     inArray(writerPosts.visibility, [...new Set(visibility)]),
-  )).orderBy(desc(writerPosts.publishedAt), desc(writerPosts.id));
+  )).orderBy(desc(writerPosts.publishedAt), desc(writerPosts.id)).limit(PUBLIC_WRITER_POST_LIMIT);
 }

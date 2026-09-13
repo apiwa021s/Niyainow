@@ -40,7 +40,8 @@ export async function getDiscoverStories(filters: DiscoverFilters) {
     const pattern = `%${filters.query.replace(/[%_\\]/gu, " ")}%`;
     conditions.push(or(ilike(novels.title, pattern), ilike(writerProfiles.displayName, pattern), ilike(writerProfiles.username, pattern))!);
   }
-  const page = Math.min(Math.max(filters.page ?? 1, 1), 10_000);
+  // Keep offset scans bounded until this legacy endpoint moves to cursors.
+  const page = Math.min(Math.max(Math.floor(filters.page ?? 1), 1), 200);
   const order = filters.sort === "popular"
     ? [desc(novelStatistics.viewCount), desc(novels.id)]
     : filters.sort === "recent"

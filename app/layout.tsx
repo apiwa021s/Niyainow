@@ -31,13 +31,13 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     title: siteConfig.title,
     description: siteConfig.description,
-    images: [{ url: absoluteUrl("/og.png"), width: 1200, height: 630, alt: `${siteConfig.name} — ${siteConfig.title}` }]
+    images: [{ url: absoluteUrl("/og.jpg"), width: 1200, height: 630, alt: `${siteConfig.name} — ${siteConfig.title}` }]
   },
   twitter: {
     card: "summary_large_image",
     title: siteConfig.title,
     description: siteConfig.description,
-    images: [absoluteUrl("/og.png")]
+    images: [absoluteUrl("/og.jpg")]
   },
   icons: {
     icon: [

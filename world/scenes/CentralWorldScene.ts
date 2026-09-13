@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 
 import centralMapJson from "@/world/maps/central-plaza.json";
+import { WORLD_POSITION_PERSIST_INTERVAL_MS } from "@/world/cost-controls";
 import type { WorldGameBridge } from "@/world/engine/bridge";
 import { NPC } from "@/world/entities/NPC";
 import { Player } from "@/world/entities/Player";
@@ -107,7 +108,7 @@ export class CentralWorldScene extends Phaser.Scene {
     this.interactions.update();
     this.presence.update(delta, motion.state, motion.direction);
     const now = performance.now();
-    if (now - this.lastSnapshotAt >= 30_000) {
+    if (now - this.lastSnapshotAt >= WORLD_POSITION_PERSIST_INTERVAL_MS) {
       this.lastSnapshotAt = now;
       this.bridge.onPosition({ worldId: "novelnow-central", x: this.player.x, y: this.player.y });
     }

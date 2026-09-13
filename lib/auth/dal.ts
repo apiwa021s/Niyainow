@@ -1,13 +1,10 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 
 import { auth } from "@/auth";
-import { getDb } from "@/db";
-import { users } from "@/db/schema";
 import { can, canAccessAdmin, isActiveUser, type TranslationPermission } from "@/lib/auth/permissions";
 import { safeRedirectPath } from "@/lib/auth/redirects";
 
@@ -47,20 +44,18 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  const [user] = await getDb()
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      image: users.image,
-      role: users.role,
-      status: users.status,
-    })
-    .from(users)
-    .where(eq(users.id, session.user.id))
-    .limit(1);
-
-  return user ?? null;
+  // Database sessions already load the user through the Auth.js adapter. The
+  // session callback copies the authorization fields, so querying users again
+  // here doubles the DB work on every personalized request without adding a
+  // fresher authorization boundary.
+  return {
+    id: session.user.id,
+    email: session.user.email ?? null,
+    name: session.user.name ?? null,
+    image: session.user.image ?? null,
+    role: session.user.role,
+    status: session.user.status,
+  };
 });
 
 export async function requireActiveUser(callbackUrl = "/profile"): Promise<CurrentUser> {

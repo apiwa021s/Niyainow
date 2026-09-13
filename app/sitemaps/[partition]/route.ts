@@ -74,6 +74,12 @@ export async function GET(_request: Request, context: { params: Promise<{ partit
       changeFrequency: "weekly",
       priority: 0.6,
     })),
+    ...entries.creators.map((creator) => urlEntry({
+      url: absoluteUrl(`/creators/${creator.slug}`),
+      lastModified: creator.updatedAt,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    })),
     // A novel emits both its detail page and its chapter index. Even in a
     // novel-only partition this remains below the protocol limit of 50k URLs.
     ...entries.novels.flatMap((novel) => [

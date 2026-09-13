@@ -16,6 +16,29 @@ import { cn } from "@/lib/utils";
 
 const RECENT_SEARCHES_KEY = "niyainow-recent-searches";
 const RECENT_SEARCHES_EVENT = "niyainow-recent-searches-change";
+const SUGGESTION_CACHE_TTL_MS = 5 * 60_000;
+const SUGGESTION_CACHE_MAX_ENTRIES = 30;
+const suggestionCache = new Map<string, { expiresAt: number; suggestions: SearchSuggestion[] }>();
+
+function readCachedSuggestions(query: string) {
+  const cached = suggestionCache.get(query);
+  if (!cached) return undefined;
+  if (cached.expiresAt <= Date.now()) {
+    suggestionCache.delete(query);
+    return undefined;
+  }
+  return cached.suggestions;
+}
+
+function cacheSuggestions(query: string, suggestions: SearchSuggestion[]) {
+  suggestionCache.delete(query);
+  suggestionCache.set(query, { expiresAt: Date.now() + SUGGESTION_CACHE_TTL_MS, suggestions });
+  while (suggestionCache.size > SUGGESTION_CACHE_MAX_ENTRIES) {
+    const oldest = suggestionCache.keys().next().value;
+    if (typeof oldest !== "string") break;
+    suggestionCache.delete(oldest);
+  }
+}
 
 function subscribeRecent(onChange: () => void) {
   window.addEventListener("storage", onChange);
@@ -94,24 +117,33 @@ export function GlobalSearch({
   useEffect(() => {
     const query = q.trim();
     if (query.length < 2) return;
+    const cacheKey = query.toLocaleLowerCase("th-TH");
+    const cached = readCachedSuggestions(cacheKey);
 
     const controller = new AbortController();
+    requestVersionRef.current += 1;
     const requestVersion = requestVersionRef.current;
     const timer = window.setTimeout(async () => {
+      if (cached) {
+        if (requestVersion === requestVersionRef.current) setOptions(cached);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch(`/api/search/suggest?q=${encodeURIComponent(query)}`, { signal: controller.signal, headers: { Accept: "application/json" } });
         if (!response.ok) throw new Error("suggestion request failed");
         const payload = (await response.json()) as { suggestions?: SearchSuggestion[] };
         if (requestVersion === requestVersionRef.current) {
-          setOptions(Array.isArray(payload.suggestions) ? payload.suggestions.slice(0, 9) : []);
+          const suggestions = Array.isArray(payload.suggestions) ? payload.suggestions.slice(0, 9) : [];
+          cacheSuggestions(cacheKey, suggestions);
+          setOptions(suggestions);
         }
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) setOptions([]);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
-    }, 250);
+    }, cached ? 0 : 400);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [q]);
 

@@ -816,7 +816,7 @@ export type WriterProfile = {
 };
 
 /** Public writer profile (brief §Module 14): real author + their published novels, no mock data needed. */
-export const getWriterProfile = cache(async (slugInput: string): Promise<WriterProfile | undefined> => {
+async function getWriterProfileUncached(slugInput: string): Promise<WriterProfile | undefined> {
   const slug = cleanText(slugInput, 160);
   if (!slug) return undefined;
   const db = getDb();
@@ -884,6 +884,18 @@ export const getWriterProfile = cache(async (slugInput: string): Promise<WriterP
     avatarUrl: assetUrl(author.avatarKey),
     novels: novelList,
   };
+}
+
+const getWriterProfileCached = unstable_cache(
+  getWriterProfileUncached,
+  ["public-writer-profile-v1"],
+  { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-creators", "public-novels"] },
+);
+
+export const getWriterProfile = cache(async (slugInput: string): Promise<WriterProfile | undefined> => {
+  const slug = cleanText(slugInput, 160);
+  if (!slug) return undefined;
+  return getWriterProfileCached(slug.toLowerCase());
 });
 
 
@@ -2417,7 +2429,7 @@ export const SITEMAP_PARTITION_SIZE = 10_000;
 
 async function getSitemapCountsUncached() {
   const now = new Date();
-  const [genreRows, tagRows, novelRows, chapterRows] = await Promise.all([
+  const [genreRows, tagRows, writerRows, authorRows, novelRows, chapterRows] = await Promise.all([
     getDb()
       .select({ value: sql<number>`count(*)`.mapWith(Number) })
       .from(genres)
@@ -2426,6 +2438,25 @@ async function getSitemapCountsUncached() {
       .select({ value: sql<number>`count(*)`.mapWith(Number) })
       .from(tags)
       .where(eq(tags.isActive, true)),
+    getDb()
+      .select({ value: countDistinct(writerProfiles.id).mapWith(Number) })
+      .from(writerProfiles)
+      .innerJoin(novels, eq(novels.writerId, writerProfiles.id))
+      .where(and(eq(writerProfiles.status, "ACTIVE"), publicNovelCondition(now))),
+    getDb()
+      .select({ value: countDistinct(authors.id).mapWith(Number) })
+      .from(authors)
+      .innerJoin(novelAuthors, and(eq(novelAuthors.authorId, authors.id), inArray(novelAuthors.role, PUBLIC_AUTHOR_ROLES)))
+      .innerJoin(novels, eq(novels.id, novelAuthors.novelId))
+      .where(and(
+        publicNovelCondition(now),
+        not(exists(
+          getDb()
+            .select({ one: sql`1` })
+            .from(writerProfiles)
+            .where(and(eq(writerProfiles.status, "ACTIVE"), sql`lower(${writerProfiles.username}) = lower(${authors.slug})`)),
+        )),
+      )),
     getDb()
       .select({ value: sql<number>`count(*)`.mapWith(Number) })
       .from(novels)
@@ -2438,12 +2469,18 @@ async function getSitemapCountsUncached() {
   ]);
   const genreCount = genreRows[0]?.value ?? 0;
   const tagCount = tagRows[0]?.value ?? 0;
+  const writerCount = writerRows[0]?.value ?? 0;
+  const authorCount = authorRows[0]?.value ?? 0;
+  const creatorCount = writerCount + authorCount;
   const novelCount = novelRows[0]?.value ?? 0;
   const chapterCount = chapterRows[0]?.value ?? 0;
-  const total = genreCount + tagCount + novelCount + chapterCount;
+  const total = genreCount + tagCount + creatorCount + novelCount + chapterCount;
   return {
     genreCount,
     tagCount,
+    writerCount,
+    authorCount,
+    creatorCount,
     novelCount,
     chapterCount,
     total,
@@ -2451,9 +2488,9 @@ async function getSitemapCountsUncached() {
   };
 }
 
-export const getSitemapCounts = unstable_cache(getSitemapCountsUncached, ["public-sitemap-counts-v4"], {
+export const getSitemapCounts = unstable_cache(getSitemapCountsUncached, ["public-sitemap-counts-v5"], {
   revalidate: PUBLIC_CACHE_TTL.sitemap,
-  tags: ["public-sitemap", "public-taxonomy", "public-novels", "public-chapters"],
+  tags: ["public-sitemap", "public-taxonomy", "public-creators", "public-novels", "public-chapters"],
 });
 
 function sitemapSlice(offset: number, start: number, count: number, remaining: number) {
@@ -2477,7 +2514,7 @@ export const getSitemapPartition = unstable_cache(
     const partition = Number.isSafeInteger(partitionInput) && partitionInput >= 0 ? partitionInput : 0;
     const counts = await getSitemapCounts();
     const offset = partition * SITEMAP_PARTITION_SIZE;
-    if (offset >= counts.total) return { genres: [], tags: [], novels: [], chapters: [] };
+    if (offset >= counts.total) return { genres: [], tags: [], creators: [], novels: [], chapters: [] };
 
     const now = new Date();
     let remaining = SITEMAP_PARTITION_SIZE;
@@ -2507,7 +2544,46 @@ export const getSitemapPartition = unstable_cache(
       : [];
     remaining -= tagRows.length;
 
-    const novelStart = tagStart + counts.tagCount;
+    const writerStart = tagStart + counts.tagCount;
+    const writerSlice = sitemapSlice(offset, writerStart, counts.writerCount, remaining);
+    const writerRows = writerSlice.take > 0
+      ? await getDb()
+          .select({ slug: writerProfiles.username, updatedAt: writerProfiles.updatedAt })
+          .from(writerProfiles)
+          .innerJoin(novels, eq(novels.writerId, writerProfiles.id))
+          .where(and(eq(writerProfiles.status, "ACTIVE"), publicNovelCondition(now)))
+          .groupBy(writerProfiles.id)
+          .orderBy(asc(writerProfiles.id))
+          .limit(writerSlice.take)
+          .offset(writerSlice.offset)
+      : [];
+    remaining -= writerRows.length;
+
+    const authorStart = writerStart + counts.writerCount;
+    const authorSlice = sitemapSlice(offset, authorStart, counts.authorCount, remaining);
+    const authorRows = authorSlice.take > 0
+      ? await getDb()
+          .select({ slug: authors.slug, updatedAt: authors.updatedAt })
+          .from(authors)
+          .innerJoin(novelAuthors, and(eq(novelAuthors.authorId, authors.id), inArray(novelAuthors.role, PUBLIC_AUTHOR_ROLES)))
+          .innerJoin(novels, eq(novels.id, novelAuthors.novelId))
+          .where(and(
+            publicNovelCondition(now),
+            not(exists(
+              getDb()
+                .select({ one: sql`1` })
+                .from(writerProfiles)
+                .where(and(eq(writerProfiles.status, "ACTIVE"), sql`lower(${writerProfiles.username}) = lower(${authors.slug})`)),
+            )),
+          ))
+          .groupBy(authors.id)
+          .orderBy(asc(authors.id))
+          .limit(authorSlice.take)
+          .offset(authorSlice.offset)
+      : [];
+    remaining -= authorRows.length;
+
+    const novelStart = authorStart + counts.authorCount;
     const novelSlice = sitemapSlice(offset, novelStart, counts.novelCount, remaining);
     const novelRows = novelSlice.take > 0
       ? await getDb()
@@ -2542,6 +2618,10 @@ export const getSitemapPartition = unstable_cache(
         slug: row.slug,
         updatedAt: row.updatedAt.toISOString(),
       })),
+      creators: [...writerRows, ...authorRows].map((row) => ({
+        slug: row.slug,
+        updatedAt: row.updatedAt.toISOString(),
+      })),
       novels: novelRows.map((row) => ({
         slug: row.slug,
         updatedAt: row.updatedAt.toISOString(),
@@ -2554,6 +2634,6 @@ export const getSitemapPartition = unstable_cache(
       })),
     };
   },
-  ["public-sitemap-partition-v4"],
-  { revalidate: PUBLIC_CACHE_TTL.sitemap, tags: ["public-sitemap", "public-taxonomy", "public-novels", "public-chapters"] },
+  ["public-sitemap-partition-v5"],
+  { revalidate: PUBLIC_CACHE_TTL.sitemap, tags: ["public-sitemap", "public-taxonomy", "public-creators", "public-novels", "public-chapters"] },
 );
