@@ -24,11 +24,14 @@ import {
   adminAuditLogs,
   authors,
   chapters,
+  contentWarnings,
   genres,
   mediaAssets,
   novelAlternativeTitles,
   novelAuthors,
+  novelContentWarnings,
   novelGenres,
+  novelImportSources,
   novelSearchDocuments,
   novelStatistics,
   novelTags,
@@ -62,6 +65,7 @@ const MAX_CHAPTER_PARAGRAPHS = 5_000;
 const publicationStatusSchema = z.enum(["DRAFT", "IN_REVIEW", "SCHEDULED", "PUBLISHED", "ARCHIVED"]);
 const chapterStatusSchema = z.enum(["DRAFT", "SCHEDULED", "PUBLISHED", "UNPUBLISHED", "ARCHIVED"]);
 const storyStatusSchema = z.enum(["ONGOING", "COMPLETED", "HIATUS", "CANCELLED"]);
+const contentRatingSchema = z.enum(["EVERYONE", "TEEN", "MATURE", "ADULT"]);
 const reviewStatusSchema = z.enum(["PENDING", "PUBLISHED", "HIDDEN", "REJECTED"]);
 const moderationStatusSchema = z.enum(["PUBLISHED", "HIDDEN", "REJECTED"]);
 
@@ -86,6 +90,9 @@ const adminNovelBaseSchema = z
     authorNames: z.array(z.string().trim().min(1).max(200)).min(1).max(8),
     genreIds: z.array(z.uuid()).min(1).max(8),
     tagNames: z.array(z.string().trim().min(1).max(160)).max(20).default([]),
+    contentRating: contentRatingSchema.default("TEEN"),
+    heatLevel: z.union([z.number().int().min(1).max(5), z.null()]).default(null),
+    contentWarningIds: z.array(z.uuid()).max(20).default([]),
     status: storyStatusSchema,
     publicationStatus: publicationStatusSchema,
     isFeatured: z.boolean().default(false),
@@ -96,9 +103,20 @@ const adminNovelBaseSchema = z
   .strict();
 
 function validateNovelPublication(
-  input: { publicationStatus: PublicationStatus; scheduledFor?: string | null },
+  input: {
+    publicationStatus: PublicationStatus;
+    scheduledFor?: string | null;
+    contentRating: z.infer<typeof contentRatingSchema>;
+    contentWarningIds: string[];
+  },
   context: z.RefinementCtx,
 ) {
+  if (new Set(input.contentWarningIds).size !== input.contentWarningIds.length) {
+    context.addIssue({ code: "custom", path: ["contentWarningIds"], message: "Content warnings must be unique" });
+  }
+  if ((input.contentRating === "MATURE" || input.contentRating === "ADULT") && input.contentWarningIds.length === 0) {
+    context.addIssue({ code: "custom", path: ["contentWarningIds"], message: "Mature and adult content needs at least one content warning" });
+  }
   if (input.publicationStatus === "SCHEDULED" && !input.scheduledFor) {
     context.addIssue({ code: "custom", path: ["scheduledFor"], message: "A scheduled novel needs a publication time" });
   }
@@ -406,6 +424,13 @@ export type AdminNovelRow = {
 export type AdminNovelDetail = AdminNovelRow & {
   synopsis: string;
   bannerKey: string | null;
+  contentFormat: "text" | "manga";
+  importSourceId: string | null;
+  contentRating: z.infer<typeof contentRatingSchema>;
+  heatLevel: number | null;
+  storyType: "serial" | "complete_novel" | "oneshot" | "anthology";
+  originType: "original" | "licensed_translation" | "licensed_adaptation";
+  contentWarnings: { id: string; slug: string; name: string }[];
   tags: { id: string; slug: string; name: string }[];
   scheduledFor: string | null;
   publishedAt: string | null;
@@ -476,6 +501,7 @@ export type AdminReviewRow = {
 export type AdminReferenceData = {
   genres: { id: string; slug: string; name: string }[];
   tags: { id: string; slug: string; name: string }[];
+  contentWarnings: { id: string; slug: string; name: string; description: string | null }[];
 };
 
 export type AdminGenreRow = {
@@ -782,6 +808,10 @@ export async function getAdminNovel(slugInput: string): Promise<AdminNovelDetail
       ...novelListSelection,
       synopsis: novels.synopsis,
       bannerKey: novels.bannerKey,
+      contentRating: novels.contentRating,
+      heatLevel: novels.heatLevel,
+      storyType: novels.storyType,
+      originType: novels.originType,
       scheduledFor: novels.scheduledFor,
       publishedAt: novels.publishedAt,
     })
@@ -792,16 +822,38 @@ export async function getAdminNovel(slugInput: string): Promise<AdminNovelDetail
   const row = rows[0];
   if (!row) return undefined;
   const [base] = await hydrateNovelRows([row]);
-  const tagRows = await getDb()
-    .select({ id: tags.id, slug: tags.slug, name: tags.name })
-    .from(novelTags)
-    .innerJoin(tags, eq(tags.id, novelTags.tagId))
-    .where(eq(novelTags.novelId, row.id))
-    .orderBy(asc(tags.name));
+  const [tagRows, warningRows, importRows] = await Promise.all([
+    getDb()
+      .select({ id: tags.id, slug: tags.slug, name: tags.name })
+      .from(novelTags)
+      .innerJoin(tags, eq(tags.id, novelTags.tagId))
+      .where(eq(novelTags.novelId, row.id))
+      .orderBy(asc(tags.name)),
+    getDb()
+      .select({ id: contentWarnings.id, slug: contentWarnings.slug, name: contentWarnings.nameTh })
+      .from(novelContentWarnings)
+      .innerJoin(contentWarnings, eq(contentWarnings.id, novelContentWarnings.contentWarningId))
+      .where(eq(novelContentWarnings.novelId, row.id))
+      .orderBy(asc(contentWarnings.sortOrder), asc(contentWarnings.nameTh)),
+    getDb()
+      .select({ id: novelImportSources.id, contentFormat: novelImportSources.contentFormat })
+      .from(novelImportSources)
+      .where(eq(novelImportSources.linkedNovelId, row.id))
+      .orderBy(desc(novelImportSources.updatedAt), desc(novelImportSources.id))
+      .limit(1),
+  ]);
+  const imported = importRows[0];
   return {
     ...base,
     synopsis: row.synopsis,
     bannerKey: row.bannerKey,
+    contentFormat: imported?.contentFormat === "manga" ? "manga" : "text",
+    importSourceId: imported?.id ?? null,
+    contentRating: row.contentRating,
+    heatLevel: row.heatLevel,
+    storyType: row.storyType,
+    originType: row.originType,
+    contentWarnings: warningRows,
     tags: tagRows,
     scheduledFor: toIso(row.scheduledFor),
     publishedAt: toIso(row.publishedAt),
@@ -810,7 +862,7 @@ export async function getAdminNovel(slugInput: string): Promise<AdminNovelDetail
 
 export async function getAdminReferenceData(): Promise<AdminReferenceData> {
   await assertAdmin();
-  const [genreRows, tagRows] = await Promise.all([
+  const [genreRows, tagRows, warningRows] = await Promise.all([
     getDb()
       .select({ id: genres.id, slug: genres.slug, name: sql<string>`coalesce(${genres.thaiName}, ${genres.name})` })
       .from(genres)
@@ -823,8 +875,19 @@ export async function getAdminReferenceData(): Promise<AdminReferenceData> {
       .where(eq(tags.isActive, true))
       .orderBy(desc(tags.usageCount), asc(tags.name))
       .limit(500),
+    getDb()
+      .select({
+        id: contentWarnings.id,
+        slug: contentWarnings.slug,
+        name: contentWarnings.nameTh,
+        description: contentWarnings.descriptionTh,
+      })
+      .from(contentWarnings)
+      .where(eq(contentWarnings.isActive, true))
+      .orderBy(asc(contentWarnings.sortOrder), asc(contentWarnings.nameTh))
+      .limit(100),
   ]);
-  return { genres: genreRows, tags: tagRows };
+  return { genres: genreRows, tags: tagRows, contentWarnings: warningRows };
 }
 
 async function resolveGenreIds(
@@ -976,15 +1039,24 @@ async function refreshTagCounts(
 async function replaceNovelRelations(
   tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
   novelId: string,
-  input: Pick<AdminNovelInput, "authorNames" | "genreIds" | "tagNames">,
+  input: Pick<AdminNovelInput, "authorNames" | "genreIds" | "tagNames" | "contentWarningIds">,
 ) {
   const oldTagRows = await tx.select({ id: novelTags.tagId }).from(novelTags).where(eq(novelTags.novelId, novelId));
   const genreIds = await resolveGenreIds(tx, input.genreIds);
   const authorRows = await resolveAuthors(tx, input.authorNames);
   const tagRows = await resolveTags(tx, input.tagNames);
+  const warningIds = [...new Set(input.contentWarningIds)];
+  const warningRows = warningIds.length
+    ? await tx.select({ id: contentWarnings.id }).from(contentWarnings)
+      .where(and(inArray(contentWarnings.id, warningIds), eq(contentWarnings.isActive, true)))
+    : [];
+  if (warningRows.length !== warningIds.length) {
+    throw new AdminDataError("INVALID_CONTENT_WARNINGS", "One or more content warnings do not exist or are inactive", 400);
+  }
   await tx.delete(novelAuthors).where(eq(novelAuthors.novelId, novelId));
   await tx.delete(novelGenres).where(eq(novelGenres.novelId, novelId));
   await tx.delete(novelTags).where(eq(novelTags.novelId, novelId));
+  await tx.delete(novelContentWarnings).where(eq(novelContentWarnings.novelId, novelId));
   await tx.insert(novelAuthors).values(
     authorRows.map((author, index) => ({ novelId, authorId: author.id, role: "AUTHOR" as const, sortOrder: index + 1 })),
   );
@@ -992,6 +1064,12 @@ async function replaceNovelRelations(
     genreIds.map((genreId, index) => ({ novelId, genreId, isPrimary: index === 0, sortOrder: index + 1 })),
   );
   if (tagRows.length) await tx.insert(novelTags).values(tagRows.map((tag) => ({ novelId, tagId: tag.id })));
+  if (warningRows.length) {
+    await tx.insert(novelContentWarnings).values(warningRows.map((warning) => ({
+      novelId,
+      contentWarningId: warning.id,
+    })));
+  }
   await refreshTagCounts(tx, [...oldTagRows.map((row) => row.id), ...tagRows.map((row) => row.id)]);
   return { authorRows, tagRows };
 }
@@ -1075,6 +1153,8 @@ export async function createAdminNovel(inputValue: unknown) {
         synopsis: input.synopsis,
         coverKey: input.coverKey,
         bannerKey: input.bannerKey,
+        contentRating: input.contentRating,
+        heatLevel: input.heatLevel,
         status: input.status,
         publicationStatus: input.publicationStatus,
         isFeatured: input.isFeatured,
@@ -1087,7 +1167,10 @@ export async function createAdminNovel(inputValue: unknown) {
     await tx.insert(novelStatistics).values({ novelId: created.id });
     const relations = await replaceNovelRelations(tx, created.id, input);
     await updateSearchDocument(tx, created.id, input.title, input.titleOriginal, relations.authorRows, relations.tagRows);
-    await writeAudit(tx, actor, "novel.create", "novel", created.id, null, created);
+    await writeAudit(tx, actor, "novel.create", "novel", created.id, null, {
+      ...created,
+      contentWarningIds: input.contentWarningIds,
+    });
     return { id: created.id, slug: created.slug };
   });
   await revalidatePublicContent("novel", result.slug, true);
@@ -1116,6 +1199,8 @@ export async function updateAdminNovel(slugInput: string, inputValue: unknown) {
         synopsis: input.synopsis,
         coverKey: input.coverKey,
         bannerKey: input.bannerKey,
+        contentRating: input.contentRating,
+        heatLevel: input.heatLevel,
         status: input.status,
         publicationStatus: input.publicationStatus,
         isFeatured: input.isFeatured,
@@ -1129,7 +1214,10 @@ export async function updateAdminNovel(slugInput: string, inputValue: unknown) {
     const relations = await replaceNovelRelations(tx, before.id, input);
     await updateSearchDocument(tx, before.id, input.title, input.titleOriginal, relations.authorRows, relations.tagRows);
     await orphanUnreferencedNovelMedia(tx, [before.coverKey, before.bannerKey], now);
-    await writeAudit(tx, actor, "novel.update", "novel", before.id, before, updated);
+    await writeAudit(tx, actor, "novel.update", "novel", before.id, before, {
+      ...updated,
+      contentWarningIds: input.contentWarningIds,
+    });
     return { id: updated.id, slug: updated.slug };
   });
   await revalidatePublicContent("novel", result.slug, true);

@@ -6,8 +6,10 @@ import {
   BookOpenText,
   Check,
   CircleCheck,
+  Images,
   Info,
   Save,
+  ShieldAlert,
   Tags,
   Trash2,
 } from "lucide-react";
@@ -41,6 +43,8 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
   const [coverKey, setCoverKey] = useState(novel?.coverKey ?? "");
   const [bannerKey, setBannerKey] = useState(novel?.bannerKey ?? "");
   const [selectedGenreIds, setSelectedGenreIds] = useState(() => novel?.genres.map((genre) => genre.id) ?? []);
+  const [selectedWarningIds, setSelectedWarningIds] = useState(() => novel?.contentWarnings.map((warning) => warning.id) ?? []);
+  const [contentRating, setContentRating] = useState(novel?.contentRating ?? "TEEN");
   const [synopsisLength, setSynopsisLength] = useState(novel?.synopsis.length ?? 0);
   const [uploading, setUploading] = useState({ cover: false, banner: false });
   const [dirty, setDirty] = useState(false);
@@ -67,6 +71,12 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
     setMessage("");
   }
 
+  function toggleWarning(id: string) {
+    setSelectedWarningIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    setDirty(true);
+    setMessage("");
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (uploadBusy) {
@@ -76,6 +86,11 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
     if (selectedGenreIds.length === 0) {
       setMessage("กรุณาเลือกแนวนิยายอย่างน้อย 1 แนว");
       document.querySelector<HTMLElement>("[data-genre-picker]")?.focus();
+      return;
+    }
+    if ((contentRating === "MATURE" || contentRating === "ADULT") && selectedWarningIds.length === 0) {
+      setMessage("เนื้อหาเรต Mature และ Adult ต้องเลือกคำเตือนอย่างน้อย 1 รายการ");
+      document.querySelector<HTMLElement>("[data-content-warning-picker]")?.focus();
       return;
     }
 
@@ -91,6 +106,9 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
       authorNames: splitNames(form.get("authors")),
       genreIds: selectedGenreIds,
       tagNames: splitNames(form.get("tags")),
+      contentRating,
+      heatLevel: form.get("heatLevel") ? Number(form.get("heatLevel")) : null,
+      contentWarningIds: selectedWarningIds,
       status: String(form.get("status")),
       publicationStatus,
       isFeatured: form.get("isFeatured") === "on",
@@ -231,6 +249,119 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
                             {selected ? <Check className="h-3.5 w-3.5" aria-hidden /> : null}
                           </span>
                           <span>{genre.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              </div>
+            </section>
+          </div>
+        </Panel>
+
+        <Panel title="รูปแบบและการจัดระดับเนื้อหา" description="กำหนดรูปแบบการอ่าน เรตอายุ และคำเตือนที่จะแสดงก่อนผู้อ่านเปิดเรื่อง">
+          <div className="grid gap-6">
+            <section>
+              <SectionTitle icon={Images}>รูปแบบผลงาน</SectionTitle>
+              <div className={cn(
+                "flex items-start gap-3 rounded-[12px] border p-4",
+                novel?.contentFormat === "manga"
+                  ? "border-violet-500/30 bg-violet-500/10"
+                  : "border-border bg-muted/35",
+              )}>
+                <Images className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand-emphasis)]" aria-hidden />
+                <div>
+                  <p className="font-semibold">{novel?.contentFormat === "manga" ? "Manga / การ์ตูนภาพ" : "นิยายข้อความ"}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    {novel?.contentFormat === "manga"
+                      ? "ตอนของเรื่องนี้อ่านจากภาพที่นำเข้าและตรวจสอบแล้ว ระบบจะแสดงภาพตามลำดับหน้าใน Manga Reader"
+                      : "ตอนของเรื่องนี้ใช้เนื้อหาข้อความใน Chapter Editor"}
+                  </p>
+                  {novel?.contentFormat === "manga" && novel.importSourceId ? (
+                    <ButtonLink href={`/admin/imports/${novel.importSourceId}`} variant="outline" size="sm" className="mt-3">
+                      เปิดข้อมูล Manga Import
+                    </ButtonLink>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+
+            <div className="h-px bg-border" />
+
+            <section>
+              <SectionTitle icon={ShieldAlert}>เรตอายุและคำเตือน</SectionTitle>
+              <div className="grid gap-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-1.5">
+                    <Label>ระดับเนื้อหา</Label>
+                    <Select
+                      name="contentRating"
+                      value={contentRating}
+                      onChange={(event) => {
+                        setContentRating(event.target.value as typeof contentRating);
+                        setDirty(true);
+                        setMessage("");
+                      }}
+                    >
+                      <option value="EVERYONE">Everyone — ทุกวัย</option>
+                      <option value="TEEN">Teen — วัยรุ่น</option>
+                      <option value="MATURE">Mature — เนื้อหาเข้มข้น</option>
+                      <option value="ADULT">Adult — สำหรับผู้ใหญ่ 18+</option>
+                    </Select>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <Label>ระดับความเข้ม</Label>
+                    <Select name="heatLevel" defaultValue={novel?.heatLevel ? String(novel.heatLevel) : ""}>
+                      <option value="">ไม่ระบุ</option>
+                      <option value="1">1 — เล็กน้อย</option>
+                      <option value="2">2 — ปานกลาง</option>
+                      <option value="3">3 — ชัดเจน</option>
+                      <option value="4">4 — เข้มข้น</option>
+                      <option value="5">5 — สูงสุด</option>
+                    </Select>
+                  </label>
+                </div>
+
+                {contentRating === "ADULT" ? (
+                  <div className="flex gap-2 rounded-[10px] bg-red-500/10 px-3 py-2.5 text-sm leading-relaxed text-red-700 dark:text-red-300">
+                    <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                    เรื่องนี้จะถูกจัดเป็นเนื้อหาสำหรับผู้ใหญ่ 18+ กรุณาระบุคำเตือนให้ตรงกับเนื้อหาจริง
+                  </div>
+                ) : null}
+
+                <fieldset className="grid gap-2">
+                  <legend className="text-sm font-medium">คำเตือนเนื้อหา {(contentRating === "MATURE" || contentRating === "ADULT") ? <span className="text-destructive">*</span> : null}</legend>
+                  <p className="text-xs text-muted-foreground">เลือกได้หลายรายการ ผู้อ่านจะใช้ข้อมูลนี้ตัดสินใจก่อนเริ่มอ่าน</p>
+                  <div
+                    data-content-warning-picker
+                    tabIndex={-1}
+                    className="mt-1 grid max-h-72 gap-2 overflow-y-auto rounded-[12px] border border-border bg-muted/25 p-3 sm:grid-cols-2"
+                  >
+                    {references.contentWarnings.map((warning) => {
+                      const selected = selectedWarningIds.includes(warning.id);
+                      return (
+                        <label
+                          key={warning.id}
+                          title={warning.description ?? undefined}
+                          className={cn(
+                            "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[9px] border px-3 py-2 text-sm transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                            selected
+                              ? "border-red-500/50 bg-red-500/10 font-semibold text-foreground"
+                              : "border-border bg-card text-muted-foreground hover:border-red-500/40 hover:text-foreground",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            name="contentWarningIds"
+                            value={warning.id}
+                            checked={selected}
+                            onChange={() => toggleWarning(warning.id)}
+                            className="sr-only"
+                          />
+                          <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border", selected ? "border-red-600 bg-red-600 text-white" : "border-border bg-background")}>
+                            {selected ? <Check className="h-3.5 w-3.5" aria-hidden /> : null}
+                          </span>
+                          <span>{warning.name}</span>
                         </label>
                       );
                     })}

@@ -243,6 +243,9 @@ export const CONTENT_WARNINGS = master([
   { id: "mental_distress", nameTh: "ภาวะความทุกข์ทางจิตใจ", nameEn: "Mental Distress" },
   { id: "crime", nameTh: "อาชญากรรม", nameEn: "Crime" },
   { id: "kidnapping", nameTh: "การลักพาตัว / กักขัง", nameEn: "Kidnapping / Confinement" },
+  { id: "nudity", nameTh: "ภาพเปลือย / การเปิดเผยร่างกาย", nameEn: "Nudity" },
+  { id: "sexual_content", nameTh: "เนื้อหาทางเพศ", nameEn: "Sexual Content" },
+  { id: "sexual_violence", nameTh: "ความรุนแรงทางเพศ", nameEn: "Sexual Violence" },
 ]);
 
 export const STORY_TYPES = master([

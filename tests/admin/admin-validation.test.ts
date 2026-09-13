@@ -116,6 +116,22 @@ describe("admin novel validation", () => {
     expect(adminNovelInputSchema.safeParse(novel).success).toBe(true);
     expect(adminNovelInputSchema.safeParse({ ...novel, coverKey: "https://example.com/cover.jpg" }).success).toBe(false);
   });
+
+  it("requires warnings for mature content and accepts an adult classification with warnings", () => {
+    const warningId = "00000000-0000-4000-8000-000000000002";
+    expect(adminNovelInputSchema.safeParse({ ...novel, contentRating: "ADULT" }).success).toBe(false);
+    expect(adminNovelInputSchema.safeParse({
+      ...novel,
+      contentRating: "ADULT",
+      heatLevel: 5,
+      contentWarningIds: [warningId],
+    }).success).toBe(true);
+    expect(adminNovelInputSchema.safeParse({
+      ...novel,
+      contentRating: "MATURE",
+      contentWarningIds: [warningId, warningId],
+    }).success).toBe(false);
+  });
 });
 
 describe("review moderation validation", () => {
