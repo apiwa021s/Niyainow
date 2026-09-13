@@ -1,6 +1,9 @@
 import { z } from "zod";
 
+import { ALLOWED_IMAGE_TYPES, MAX_UPLOAD_BYTES, objectKeySchema, uploadRequestSchema } from "@/lib/validation/upload";
+
 export const IMPORT_TRANSLATION_STATUSES = ["draft", "reviewed", "approved"] as const;
+export const IMPORT_CONTENT_FORMATS = ["text", "manga"] as const;
 
 /** Advances only across a complete prefix; out-of-order chapters remain staged without moving the probe past a gap. */
 export function advanceContiguousChapterCheckpoint(
@@ -50,6 +53,7 @@ const sourceLocalizationSchema = z.object({
 export const novelImportSourceInputSchema = z.object({
   provider: providerSchema,
   externalWorkId: externalWorkIdSchema,
+  contentFormat: z.enum(IMPORT_CONTENT_FORMATS).default("text"),
   seedUrl: httpUrlSchema,
   coverUrl: httpsUrlSchema.optional(),
   originalTitle: titleSchema,
@@ -127,5 +131,60 @@ export const novelImportChapterBatchInputSchema = z.object({
   });
 });
 
+const mangaPageUploadSchema = z.object({
+  pageNumber: z.number().int().min(1).max(500),
+  sourceUrl: httpsUrlSchema,
+  upload: uploadRequestSchema.refine(
+    (upload) => upload.assetType === "novelAsset"
+      && upload.contentLength <= MAX_UPLOAD_BYTES.novelAsset
+      && Boolean(upload.checksumSha256),
+    "Manga pages must use the novelAsset upload policy and include a SHA-256 checksum",
+  ),
+}).strict();
+
+export const novelImportMangaChapterPrepareInputSchema = z.object({
+  provider: providerSchema,
+  externalWorkId: externalWorkIdSchema,
+  chapter: z.object({
+    chapterNumber: z.number().int().min(1).max(10_000_000),
+    sourceUrl: httpUrlSchema,
+    originalTitle: titleSchema,
+    fetchedAt: z.iso.datetime({ offset: true }),
+    pages: z.array(mangaPageUploadSchema).min(1).max(500),
+  }).strict().superRefine((chapter, context) => {
+    const ordered = chapter.pages.map(({ pageNumber }) => pageNumber).sort((left, right) => left - right);
+    if (ordered.some((pageNumber, index) => pageNumber !== index + 1)) {
+      context.addIssue({
+        code: "custom",
+        path: ["pages"],
+        message: "Manga page numbers must be unique and contiguous from 1",
+      });
+    }
+  }),
+}).strict();
+
+export const novelImportMangaChapterCompleteInputSchema = z.object({
+  provider: providerSchema,
+  externalWorkId: externalWorkIdSchema,
+  chapterNumber: z.number().int().min(1).max(10_000_000),
+  pages: z.array(z.object({
+    pageNumber: z.number().int().min(1).max(500),
+    objectKey: objectKeySchema,
+    contentType: z.enum(ALLOWED_IMAGE_TYPES),
+    contentLength: z.number().int().positive().max(MAX_UPLOAD_BYTES.novelAsset),
+  }).strict()).min(1).max(500),
+}).strict().superRefine((input, context) => {
+  const ordered = input.pages.map(({ pageNumber }) => pageNumber).sort((left, right) => left - right);
+  if (ordered.some((pageNumber, index) => pageNumber !== index + 1)) {
+    context.addIssue({
+      code: "custom",
+      path: ["pages"],
+      message: "Completed manga page numbers must be unique and contiguous from 1",
+    });
+  }
+});
+
 export type NovelImportSourceInput = z.infer<typeof novelImportSourceInputSchema>;
 export type NovelImportChapterBatchInput = z.infer<typeof novelImportChapterBatchInputSchema>;
+export type NovelImportMangaChapterPrepareInput = z.infer<typeof novelImportMangaChapterPrepareInputSchema>;
+export type NovelImportMangaChapterCompleteInput = z.infer<typeof novelImportMangaChapterCompleteInputSchema>;

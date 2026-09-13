@@ -15,6 +15,7 @@ import {
 
 const COVER_HOSTS_BY_PROVIDER: Record<string, ReadonlySet<string>> = {
   mvlempyr: new Set(["assets.mvlempyr.app"]),
+  manghaha: new Set(["manghaha.com", "www.manghaha.com"]),
 };
 
 const EXTENSION_BY_CONTENT_TYPE: Record<AllowedImageType, string> = {

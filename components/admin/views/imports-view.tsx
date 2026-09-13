@@ -99,7 +99,7 @@ export function ImportsView({ result, query }: { result: Result; query: AdminImp
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3"><p className="font-medium">{source.provider}</p><p className="text-xs text-muted-foreground">ID {source.externalWorkId}</p></td>
+                    <td className="px-4 py-3"><p className="font-medium">{source.provider}</p><p className="text-xs text-muted-foreground">{source.contentFormat.toUpperCase()} · ID {source.externalWorkId}</p></td>
                     <td className="px-4 py-3"><StatusPill {...state} /></td>
                     <td className="tabular px-4 py-3"><p className="font-semibold">{source.chapterCount.toLocaleString("th-TH")}</p><p className="text-xs text-muted-foreground">ต่อเนื่อง {source.lastSuccessfulChapter?.toLocaleString("th-TH") ?? "0"} · ถัดไป {source.nextProbeChapter.toLocaleString("th-TH")}</p></td>
                     <td className="tabular px-4 py-3">{source.languageCount.toLocaleString("th-TH")} <span className="text-xs text-muted-foreground">({source.sourceLanguage})</span></td>

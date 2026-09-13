@@ -19,6 +19,7 @@ import {
 import {
   novelImportChapters,
   novelImportChapterTexts,
+  novelImportMangaPages,
   novelImportSources,
   novelImportSourceTexts,
 } from "./import";
@@ -148,10 +149,16 @@ export const novelImportChaptersRelations = relations(novelImportChapters, ({ ma
   source: one(novelImportSources, { fields: [novelImportChapters.sourceId], references: [novelImportSources.id] }),
   linkedChapter: one(chapters, { fields: [novelImportChapters.linkedChapterId], references: [chapters.id] }),
   texts: many(novelImportChapterTexts),
+  mangaPages: many(novelImportMangaPages),
 }));
 
 export const novelImportChapterTextsRelations = relations(novelImportChapterTexts, ({ one }) => ({
   chapter: one(novelImportChapters, { fields: [novelImportChapterTexts.chapterId], references: [novelImportChapters.id] }),
+}));
+
+export const novelImportMangaPagesRelations = relations(novelImportMangaPages, ({ one }) => ({
+  chapter: one(novelImportChapters, { fields: [novelImportMangaPages.chapterId], references: [novelImportChapters.id] }),
+  media: one(mediaAssets, { fields: [novelImportMangaPages.mediaAssetId], references: [mediaAssets.id] }),
 }));
 
 export const coinWalletsRelations = relations(coinWallets, ({ one }) => ({

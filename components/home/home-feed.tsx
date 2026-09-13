@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BellRing, BookMarked, BookOpen, Eye, Heart, LibraryBig } from "lucide-react";
+import { BellRing, BookMarked, BookOpen, Coins, Eye, Heart, LibraryBig, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BannerCarousel, type BannerSlide } from "@/components/home/banner-carousel";
@@ -130,6 +130,38 @@ function bannerSlideFromPromo(banner: PromoBannerItem): BannerSlide {
 }
 
 const MIN_BANNER_SLIDES = 3;
+
+export function HomeCopyrightNotice() {
+  return (
+    <section
+      aria-labelledby="home-copyright-notice-title"
+      className="rounded-(--r-md) border border-accent-base/30 bg-accent-subtle/65 px-3 py-2"
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-base text-accent-on">
+          <ShieldCheck className="h-4.5 w-4.5" aria-hidden />
+        </span>
+
+        <h2 id="home-copyright-notice-title" className="sr-only">ประกาศเรื่องลิขสิทธิ์</h2>
+        <p className="min-w-0 flex-1 text-xs leading-5 text-(--text-secondary) sm:text-sm">
+          <strong className="font-semibold text-foreground">เว็บไซต์ NovelNow ไม่เผยแพร่เนื้อหาที่ละเมิดลิขสิทธิ์ในประเทศไทย</strong>
+          {" "}หากพบเห็น แจ้งเราได้ทันที เมื่อยืนยันว่าละเมิดจริง รับ{" "}
+          <strong className="inline-flex items-center gap-1 whitespace-nowrap text-foreground">
+            <Coins className="h-3.5 w-3.5 text-amber-500" aria-hidden />
+            100 เหรียญ
+          </strong>
+        </p>
+
+        <Link
+          href="/copyright#how-to-send"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-accent-base/40 bg-surface px-3 text-xs font-semibold text-foreground transition-colors hover:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-base sm:text-sm"
+        >
+          แจ้งทันที
+        </Link>
+      </div>
+    </section>
+  );
+}
 
 /**
  * The hero and its banners need only a handful of small queries, so this is

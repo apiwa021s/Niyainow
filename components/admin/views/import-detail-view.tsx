@@ -31,6 +31,7 @@ export function ImportDetailView({ source }: { source: AdminImportSourceDetail }
         <Panel title="ข้อมูลแหล่งนำเข้า" description="ข้อมูลนี้เป็น private staging และยังไม่เผยแพร่สู่หน้าผู้อ่าน">
           <dl>
             <DetailRow label="Provider">{source.provider}</DetailRow>
+            <DetailRow label="Content format"><StatusPill label={source.contentFormat} tone={source.contentFormat === "manga" ? "info" : "neutral"} /></DetailRow>
             <DetailRow label="External ID">{source.externalWorkId}</DetailRow>
             <DetailRow label="Import reference"><code className="text-xs">{source.importReference}</code></DetailRow>
             <DetailRow label="สถานะ"><StatusPill label={source.status} tone={source.status === "ready" ? "success" : source.status === "paused" ? "warning" : "danger"} /></DetailRow>
@@ -59,15 +60,15 @@ export function ImportDetailView({ source }: { source: AdminImportSourceDetail }
         <div className="border-b border-border px-5 py-4"><h2 className="font-semibold">ตอนที่นำเข้า</h2><p className="mt-0.5 text-sm text-muted-foreground">เรียงจากตอนล่าสุด แต่ละแถวแสดงภาษา เวอร์ชัน และจำนวนตัวอักษร</p></div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
-            <thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อ</th><th className="px-4 py-3">ภาษา/สถานะ</th><th className="px-4 py-3">ตัวอักษร</th><th className="px-4 py-3">ดึงเมื่อ</th><th className="px-4 py-3">ต้นทาง</th></tr></thead>
+            <thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อ</th><th className="px-4 py-3">ภาษา/สถานะ</th><th className="px-4 py-3">{source.contentFormat === "manga" ? "หน้า" : "ตัวอักษร"}</th><th className="px-4 py-3">ดึงเมื่อ</th><th className="px-4 py-3">ต้นทาง</th></tr></thead>
             <tbody>
               {source.chapters.items.map((chapter) => {
                 const sourceText = chapter.texts.find((text) => text.textKind === "source") ?? chapter.texts[0];
                 return <tr key={chapter.id} className="border-b border-border/70 align-top last:border-0">
                   <td className="tabular px-4 py-3 font-semibold">{chapter.chapterNumber.toLocaleString("th-TH")}</td>
-                  <td className="px-4 py-3">{sourceText?.title ?? "—"}</td>
-                  <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{chapter.texts.map((text) => <span key={text.language} className="rounded-[7px] border border-border bg-muted px-2 py-1 text-xs">{text.language} · {text.translationStatus} · v{text.version}</span>)}</div></td>
-                  <td className="tabular px-4 py-3">{chapter.texts.reduce((sum, text) => sum + text.contentLength, 0).toLocaleString("th-TH")}</td>
+                  <td className="px-4 py-3">{sourceText?.title ?? chapter.originalTitle ?? "—"}</td>
+                  <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{chapter.mangaPageCount ? <span className="rounded-[7px] border border-border bg-muted px-2 py-1 text-xs">manga · ready</span> : chapter.texts.map((text) => <span key={text.language} className="rounded-[7px] border border-border bg-muted px-2 py-1 text-xs">{text.language} · {text.translationStatus} · v{text.version}</span>)}</div></td>
+                  <td className="tabular px-4 py-3">{(chapter.mangaPageCount || chapter.texts.reduce((sum, text) => sum + text.contentLength, 0)).toLocaleString("th-TH")}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{new Date(chapter.fetchedAt).toLocaleString("th-TH")}</td>
                   <td className="px-4 py-3"><a href={chapter.sourceUrl} target="_blank" rel="noreferrer" aria-label={`เปิดต้นทางตอน ${chapter.chapterNumber}`} className="inline-flex h-9 w-9 items-center justify-center rounded-[9px] hover:bg-muted"><ExternalLink className="h-4 w-4" /></a></td>
                 </tr>;

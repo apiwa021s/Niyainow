@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import {
   novelImportChapters,
   novelImportChapterTexts,
+  novelImportMangaPages,
   novelImportSources,
   novelImportSourceTexts,
 } from "@/db/schema";
@@ -32,6 +33,7 @@ export type AdminImportSourceRow = {
   importReference: string;
   title: string;
   sourceLanguage: string;
+  contentFormat: string;
   status: string;
   coverStatus: string;
   coverUrl: string | null;
@@ -49,6 +51,8 @@ export type AdminImportChapterRow = {
   sourceUrl: string;
   fetchedAt: string;
   linkedChapterId: string | null;
+  originalTitle: string | null;
+  mangaPageCount: number;
   texts: Array<{
     language: string;
     textKind: string;
@@ -131,6 +135,7 @@ async function hydrateSourceRows(rows: Array<typeof novelImportSources.$inferSel
     importReference: source.importReference,
     title: titleMap.get(source.id) ?? source.importReference,
     sourceLanguage: source.sourceLanguage,
+    contentFormat: source.contentFormat,
     status: source.status,
     coverStatus: source.coverStatus,
     coverUrl: source.coverKey ? assetUrl(source.coverKey) : null,
@@ -209,8 +214,8 @@ export async function getAdminImportSource(sourceIdInput: string, pageInput?: st
       .where(eq(novelImportChapters.sourceId, source.id)),
   ]);
   const chapterIds = chapterRows.map(({ id }) => id);
-  const chapterTexts = chapterIds.length
-    ? await db.select({
+  const [chapterTexts, mangaPageCounts] = chapterIds.length
+    ? await Promise.all([db.select({
         chapterId: novelImportChapterTexts.chapterId,
         language: novelImportChapterTexts.language,
         textKind: novelImportChapterTexts.textKind,
@@ -220,8 +225,15 @@ export async function getAdminImportSource(sourceIdInput: string, pageInput?: st
         version: novelImportChapterTexts.version,
       }).from(novelImportChapterTexts)
         .where(inArray(novelImportChapterTexts.chapterId, chapterIds))
-        .orderBy(asc(novelImportChapterTexts.language))
-    : [];
+        .orderBy(asc(novelImportChapterTexts.language)),
+      db.select({
+        chapterId: novelImportMangaPages.chapterId,
+        value: count(),
+      }).from(novelImportMangaPages)
+        .where(inArray(novelImportMangaPages.chapterId, chapterIds))
+        .groupBy(novelImportMangaPages.chapterId),
+    ])
+    : [[], []];
   const textsByChapter = new Map<string, AdminImportChapterRow["texts"]>();
   for (const text of chapterTexts) {
     const item = {
@@ -235,6 +247,7 @@ export async function getAdminImportSource(sourceIdInput: string, pageInput?: st
     textsByChapter.set(text.chapterId, [...(textsByChapter.get(text.chapterId) ?? []), item]);
   }
   const chapterTotal = Number(chapterTotals[0]?.value ?? 0);
+  const mangaPageCountByChapter = new Map(mangaPageCounts.map((row) => [row.chapterId, Number(row.value)]));
 
   return {
     ...hydratedSource,
@@ -256,8 +269,10 @@ export async function getAdminImportSource(sourceIdInput: string, pageInput?: st
         id: chapter.id,
         chapterNumber: chapter.chapterNumber,
         sourceUrl: chapter.sourceUrl,
+        originalTitle: chapter.originalTitle,
         fetchedAt: chapter.fetchedAt.toISOString(),
         linkedChapterId: chapter.linkedChapterId,
+        mangaPageCount: mangaPageCountByChapter.get(chapter.id) ?? 0,
         texts: textsByChapter.get(chapter.id) ?? [],
       })),
       page,

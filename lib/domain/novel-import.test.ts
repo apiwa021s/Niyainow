@@ -4,6 +4,8 @@ import {
   advanceContiguousChapterCheckpoint,
   languageTagSchema,
   novelImportChapterBatchInputSchema,
+  novelImportMangaChapterCompleteInputSchema,
+  novelImportMangaChapterPrepareInputSchema,
   novelImportSourceInputSchema,
 } from "./novel-import";
 
@@ -36,10 +38,75 @@ describe("novel import contract", () => {
     });
 
     expect(result.sourceLanguage).toBe("en");
+    expect(result.contentFormat).toBe("text");
     expect(result.localizations).toMatchObject([
       { language: "th", status: "draft" },
       { language: "ja-JP", status: "reviewed" },
     ]);
+  });
+
+  it("accepts a contiguous manga upload manifest and completion", () => {
+    const checksumSha256 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    const upload = (pageNumber: number) => ({
+      pageNumber,
+      sourceUrl: `https://manghaha.com/uploads/work/chapter/page-${pageNumber}.webp`,
+      upload: {
+        assetType: "novelAsset",
+        originalFileName: `page-${pageNumber}.webp`,
+        contentType: "image/webp",
+        contentLength: 1_024,
+        checksumSha256,
+      },
+    });
+    const prepared = novelImportMangaChapterPrepareInputSchema.parse({
+      provider: "manghaha",
+      externalWorkId: "example-manga",
+      chapter: {
+        chapterNumber: 1,
+        sourceUrl: "https://manghaha.com/example-manga/chapter-1/",
+        originalTitle: "Chapter 1",
+        fetchedAt: "2026-09-13T12:00:00+07:00",
+        pages: [upload(1), upload(2)],
+      },
+    });
+    expect(prepared.chapter.pages).toHaveLength(2);
+
+    const completed = novelImportMangaChapterCompleteInputSchema.safeParse({
+      provider: "manghaha",
+      externalWorkId: "example-manga",
+      chapterNumber: 1,
+      pages: [{
+        pageNumber: 1,
+        objectKey: "novels/assets/00000000-0000-4000-8000-000000000000.webp",
+        contentType: "image/webp",
+        contentLength: 1_024,
+      }],
+    });
+    expect(completed.success).toBe(true);
+  });
+
+  it("rejects manga manifests with gaps or missing checksums", () => {
+    const result = novelImportMangaChapterPrepareInputSchema.safeParse({
+      provider: "manghaha",
+      externalWorkId: "example-manga",
+      chapter: {
+        chapterNumber: 1,
+        sourceUrl: "https://manghaha.com/example-manga/chapter-1/",
+        originalTitle: "Chapter 1",
+        fetchedAt: "2026-09-13T05:00:00Z",
+        pages: [{
+          pageNumber: 2,
+          sourceUrl: "https://manghaha.com/uploads/work/chapter/page-2.webp",
+          upload: {
+            assetType: "novelAsset",
+            originalFileName: "page-2.webp",
+            contentType: "image/webp",
+            contentLength: 1_024,
+          },
+        }],
+      },
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects duplicate and source-language localizations after canonicalization", () => {

@@ -2,18 +2,21 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, notInArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
   mediaAssets,
   novelImportChapters,
   novelImportChapterTexts,
+  novelImportMangaPages,
   novelImportSources,
   novelImportSourceTexts,
 } from "@/db/schema";
 import type {
   NovelImportChapterBatchInput,
+  NovelImportMangaChapterCompleteInput,
+  NovelImportMangaChapterPrepareInput,
   NovelImportSourceInput,
 } from "@/lib/domain/novel-import";
 import { advanceContiguousChapterCheckpoint } from "@/lib/domain/novel-import";
@@ -21,6 +24,7 @@ import { EnvironmentConfigurationError } from "@/lib/env";
 import { ApiError } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
 import { ImportedCoverError, uploadImportedCover } from "@/lib/r2/import-cover";
+import { createPresignedUpload, deleteR2Object, verifyUploadedObject } from "@/lib/r2/uploads";
 
 function importReference(provider: string, externalWorkId: string) {
   return `import:${provider}:${externalWorkId}`;
@@ -35,6 +39,7 @@ function sourceState(source: typeof novelImportSources.$inferSelect) {
     sourceId: source.id,
     provider: source.provider,
     externalWorkId: source.externalWorkId,
+    contentFormat: source.contentFormat,
     status: source.status,
     blockedReason: source.blockedReason,
     importReference: source.importReference,
@@ -146,6 +151,7 @@ export async function registerNovelImportSource(input: NovelImportSourceInput) {
       [source] = await tx.insert(novelImportSources).values({
         provider: input.provider,
         externalWorkId: input.externalWorkId,
+        contentFormat: input.contentFormat,
         importReference: importReference(input.provider, input.externalWorkId),
         seedUrl: input.seedUrl,
         coverSourceUrl: input.coverUrl,
@@ -171,6 +177,13 @@ export async function registerNovelImportSource(input: NovelImportSourceInput) {
     if (!source) throw new ApiError(409, "SOURCE_REGISTRATION_CONFLICT", "Import source registration conflicted; retry");
 
     if (source.status !== "ready") return sourceState(source);
+    if (source.contentFormat !== input.contentFormat) {
+      throw new ApiError(
+        409,
+        "SOURCE_FORMAT_CONFLICT",
+        `Import source is already registered as ${source.contentFormat}`,
+      );
+    }
     if (source.sourceLanguage !== input.sourceLanguage) {
       throw new ApiError(
         409,
@@ -264,6 +277,9 @@ export async function ingestNovelImportChapterBatch(input: NovelImportChapterBat
     if (source.status !== "ready") {
       throw new ApiError(403, "SOURCE_NOT_READY", `Import source is ${source.status}`);
     }
+    if (source.contentFormat !== "text") {
+      throw new ApiError(409, "SOURCE_FORMAT_CONFLICT", "Manga sources must use the manga chapter import endpoints");
+    }
 
     const results: Array<{ chapterNumber: number; action: "created" | "updated" | "unchanged" | "stale" }> = [];
 
@@ -304,6 +320,7 @@ export async function ingestNovelImportChapterBatch(input: NovelImportChapterBat
 
         [chapter] = await tx.update(novelImportChapters).set({
           sourceUrl: inputChapter.sourceUrl,
+          originalTitle: inputChapter.originalTitle,
           fetchedAt: incomingFetchedAt > chapter.fetchedAt ? incomingFetchedAt : chapter.fetchedAt,
           updatedAt: new Date(),
         }).where(eq(novelImportChapters.id, chapter.id)).returning();
@@ -312,6 +329,7 @@ export async function ingestNovelImportChapterBatch(input: NovelImportChapterBat
           sourceId: source.id,
           chapterNumber: inputChapter.chapterNumber,
           sourceUrl: inputChapter.sourceUrl,
+          originalTitle: inputChapter.originalTitle,
           fetchedAt: incomingFetchedAt,
         }).returning();
       }
@@ -409,4 +427,289 @@ export async function ingestNovelImportChapterBatch(input: NovelImportChapterBat
       chapters: results,
     };
   });
+}
+
+function mangaUploadActor(sourceId: string) {
+  return { id: sourceId, role: "EDITOR" as const, status: "ACTIVE" as const };
+}
+
+async function requireMangaSource(
+  provider: string,
+  externalWorkId: string,
+) {
+  const db = getDb();
+  const [source] = await db.select().from(novelImportSources).where(and(
+    eq(novelImportSources.provider, provider),
+    eq(novelImportSources.externalWorkId, externalWorkId),
+  )).limit(1);
+  if (!source) throw new ApiError(404, "SOURCE_NOT_FOUND", "Register the manga source before sending chapters");
+  if (source.status !== "ready") throw new ApiError(403, "SOURCE_NOT_READY", `Import source is ${source.status}`);
+  if (source.contentFormat !== "manga") {
+    throw new ApiError(409, "SOURCE_FORMAT_CONFLICT", "This import source is not registered as manga");
+  }
+  return source;
+}
+
+export async function prepareNovelImportMangaChapter(input: NovelImportMangaChapterPrepareInput) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [source] = await tx.select().from(novelImportSources).where(and(
+      eq(novelImportSources.provider, input.provider),
+      eq(novelImportSources.externalWorkId, input.externalWorkId),
+    )).for("update").limit(1);
+    if (!source) throw new ApiError(404, "SOURCE_NOT_FOUND", "Register the manga source before sending chapters");
+    if (source.status !== "ready") throw new ApiError(403, "SOURCE_NOT_READY", `Import source is ${source.status}`);
+    if (source.contentFormat !== "manga") {
+      throw new ApiError(409, "SOURCE_FORMAT_CONFLICT", "This import source is not registered as manga");
+    }
+    const incomingFetchedAt = new Date(input.chapter.fetchedAt);
+    let [chapter] = await tx.select().from(novelImportChapters).where(and(
+      eq(novelImportChapters.sourceId, source.id),
+      eq(novelImportChapters.chapterNumber, input.chapter.chapterNumber),
+    )).for("update").limit(1);
+    const chapterAction = chapter ? "updated" as const : "created" as const;
+    if (chapter && incomingFetchedAt < chapter.fetchedAt) {
+      throw new ApiError(409, "STALE_MANGA_CHAPTER", "PenHome already has a newer manga chapter manifest");
+    }
+    if (chapter) {
+      [chapter] = await tx.update(novelImportChapters).set({
+        sourceUrl: input.chapter.sourceUrl,
+        originalTitle: input.chapter.originalTitle,
+        fetchedAt: incomingFetchedAt,
+        updatedAt: new Date(),
+      }).where(eq(novelImportChapters.id, chapter.id)).returning();
+    } else {
+      [chapter] = await tx.insert(novelImportChapters).values({
+        sourceId: source.id,
+        chapterNumber: input.chapter.chapterNumber,
+        sourceUrl: input.chapter.sourceUrl,
+        originalTitle: input.chapter.originalTitle,
+        fetchedAt: incomingFetchedAt,
+      }).returning();
+    }
+
+    const pageNumbers = input.chapter.pages.map(({ pageNumber }) => pageNumber);
+    const obsoletePages = await tx.select({ mediaAssetId: novelImportMangaPages.mediaAssetId })
+      .from(novelImportMangaPages)
+      .where(and(
+        eq(novelImportMangaPages.chapterId, chapter.id),
+        notInArray(novelImportMangaPages.pageNumber, pageNumbers),
+      ));
+    if (obsoletePages.length) {
+      await tx.delete(novelImportMangaPages).where(and(
+        eq(novelImportMangaPages.chapterId, chapter.id),
+        notInArray(novelImportMangaPages.pageNumber, pageNumbers),
+      ));
+      await tx.update(mediaAssets).set({ status: "ORPHANED", updatedAt: new Date() })
+        .where(inArray(mediaAssets.id, obsoletePages.map(({ mediaAssetId }) => mediaAssetId)));
+    }
+
+    const existingPages = await tx.select({
+      pageNumber: novelImportMangaPages.pageNumber,
+      mediaAssetId: novelImportMangaPages.mediaAssetId,
+      checksumSha256: novelImportMangaPages.checksumSha256,
+      contentType: novelImportMangaPages.contentType,
+      byteSize: novelImportMangaPages.byteSize,
+      objectKey: mediaAssets.objectKey,
+      mediaStatus: mediaAssets.status,
+    }).from(novelImportMangaPages).innerJoin(
+      mediaAssets,
+      eq(mediaAssets.id, novelImportMangaPages.mediaAssetId),
+    ).where(eq(novelImportMangaPages.chapterId, chapter.id));
+    const existingByPage = new Map(existingPages.map((page) => [page.pageNumber, page]));
+    const pages = [] as Array<{
+      pageNumber: number;
+      objectKey: string;
+      status: "ready" | "upload";
+      uploadUrl?: string;
+      expiresAt?: Date;
+      requiredHeaders?: Record<string, string>;
+    }>;
+
+    for (const page of input.chapter.pages) {
+      const checksumSha256 = page.upload.checksumSha256!;
+      const existing = existingByPage.get(page.pageNumber);
+      if (existing
+        && existing.mediaStatus === "READY"
+        && existing.checksumSha256 === checksumSha256
+        && existing.contentType === page.upload.contentType
+        && existing.byteSize === page.upload.contentLength) {
+        await tx.update(novelImportMangaPages).set({
+          sourceUrl: page.sourceUrl,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(novelImportMangaPages.chapterId, chapter.id),
+          eq(novelImportMangaPages.pageNumber, page.pageNumber),
+        ));
+        pages.push({ pageNumber: page.pageNumber, objectKey: existing.objectKey, status: "ready" });
+        continue;
+      }
+
+      const signed = await createPresignedUpload({
+        actor: mangaUploadActor(source.id),
+        upload: page.upload,
+      });
+      const [asset] = await tx.insert(mediaAssets).values({
+        objectKey: signed.objectKey,
+        stagingKey: signed.stagingObjectKey,
+        kind: "NOVEL_ASSET",
+        status: "PENDING",
+        contentType: page.upload.contentType,
+        byteSize: page.upload.contentLength,
+        altText: `${input.chapter.originalTitle} - page ${page.pageNumber}`,
+        metadata: {
+          source: "novel-import",
+          provider: input.provider,
+          externalWorkId: input.externalWorkId,
+          chapterNumber: input.chapter.chapterNumber,
+          pageNumber: page.pageNumber,
+          originalFileName: page.upload.originalFileName,
+          checksumSha256,
+        },
+      }).returning();
+      if (existing) {
+        await tx.update(novelImportMangaPages).set({
+          mediaAssetId: asset.id,
+          sourceUrl: page.sourceUrl,
+          checksumSha256,
+          contentType: page.upload.contentType,
+          byteSize: page.upload.contentLength,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(novelImportMangaPages.chapterId, chapter.id),
+          eq(novelImportMangaPages.pageNumber, page.pageNumber),
+        ));
+        await tx.update(mediaAssets).set({ status: "ORPHANED", updatedAt: new Date() })
+          .where(eq(mediaAssets.id, existing.mediaAssetId));
+      } else {
+        await tx.insert(novelImportMangaPages).values({
+          chapterId: chapter.id,
+          pageNumber: page.pageNumber,
+          mediaAssetId: asset.id,
+          sourceUrl: page.sourceUrl,
+          checksumSha256,
+          contentType: page.upload.contentType,
+          byteSize: page.upload.contentLength,
+        });
+      }
+      pages.push({
+        pageNumber: page.pageNumber,
+        objectKey: signed.objectKey,
+        status: "upload",
+        uploadUrl: signed.uploadUrl,
+        expiresAt: signed.expiresAt,
+        requiredHeaders: signed.requiredHeaders,
+      });
+    }
+
+    return {
+      sourceId: source.id,
+      chapterId: chapter.id,
+      chapterNumber: chapter.chapterNumber,
+      action: pages.every(({ status }) => status === "ready") ? "unchanged" as const : chapterAction,
+      pages,
+    };
+  });
+}
+
+export async function completeNovelImportMangaChapter(input: NovelImportMangaChapterCompleteInput) {
+  const db = getDb();
+  const source = await requireMangaSource(input.provider, input.externalWorkId);
+  const [chapter] = await db.select().from(novelImportChapters).where(and(
+    eq(novelImportChapters.sourceId, source.id),
+    eq(novelImportChapters.chapterNumber, input.chapterNumber),
+  )).limit(1);
+  if (!chapter) throw new ApiError(404, "CHAPTER_NOT_FOUND", "Prepare the manga chapter before completing its uploads");
+
+  const storedPages = await db.select({
+    pageNumber: novelImportMangaPages.pageNumber,
+    contentType: novelImportMangaPages.contentType,
+    byteSize: novelImportMangaPages.byteSize,
+    mediaAssetId: novelImportMangaPages.mediaAssetId,
+    objectKey: mediaAssets.objectKey,
+    stagingKey: mediaAssets.stagingKey,
+    mediaStatus: mediaAssets.status,
+  }).from(novelImportMangaPages).innerJoin(
+    mediaAssets,
+    eq(mediaAssets.id, novelImportMangaPages.mediaAssetId),
+  ).where(eq(novelImportMangaPages.chapterId, chapter.id)).orderBy(asc(novelImportMangaPages.pageNumber));
+  if (storedPages.length !== input.pages.length) {
+    throw new ApiError(409, "MANGA_MANIFEST_CONFLICT", "Completed page list does not match the prepared manga manifest");
+  }
+  const inputByPage = new Map(input.pages.map((page) => [page.pageNumber, page]));
+
+  for (const storedPage of storedPages) {
+    const completedPage = inputByPage.get(storedPage.pageNumber);
+    if (!completedPage
+      || completedPage.objectKey !== storedPage.objectKey
+      || completedPage.contentType !== storedPage.contentType
+      || completedPage.contentLength !== storedPage.byteSize) {
+      throw new ApiError(409, "MANGA_MANIFEST_CONFLICT", `Manga page ${storedPage.pageNumber} does not match its prepared upload`);
+    }
+    if (storedPage.mediaStatus === "READY") continue;
+    if (storedPage.mediaStatus !== "PENDING" || !storedPage.stagingKey) {
+      throw new ApiError(409, "MEDIA_STATE_INVALID", `Manga page ${storedPage.pageNumber} is not ready for verification`);
+    }
+    const [claimed] = await db.update(mediaAssets).set({ status: "VERIFYING", updatedAt: new Date() }).where(and(
+      eq(mediaAssets.id, storedPage.mediaAssetId),
+      eq(mediaAssets.status, "PENDING"),
+    )).returning({ id: mediaAssets.id });
+    if (!claimed) throw new ApiError(409, "MEDIA_STATE_INVALID", `Manga page ${storedPage.pageNumber} is already being verified`);
+
+    try {
+      const verified = await verifyUploadedObject({
+        actor: mangaUploadActor(source.id),
+        stagingObjectKey: storedPage.stagingKey,
+        finalObjectKey: storedPage.objectKey,
+        expectedContentType: completedPage.contentType,
+        expectedContentLength: completedPage.contentLength,
+      });
+      await db.update(mediaAssets).set({
+        status: "READY",
+        stagingKey: verified.stagingDeleted ? null : storedPage.stagingKey,
+        etag: verified.etag,
+        updatedAt: new Date(),
+      }).where(and(eq(mediaAssets.id, storedPage.mediaAssetId), eq(mediaAssets.status, "VERIFYING")));
+    } catch (error) {
+      await db.update(mediaAssets).set({ status: "FAILED", updatedAt: new Date() })
+        .where(eq(mediaAssets.id, storedPage.mediaAssetId));
+      try { await deleteR2Object(storedPage.stagingKey); } catch { /* Cleanup remains best effort. */ }
+      throw error;
+    }
+  }
+
+  const stagedChapters = await db.select({
+    chapterNumber: novelImportChapters.chapterNumber,
+    mediaStatus: mediaAssets.status,
+  }).from(novelImportChapters).innerJoin(
+    novelImportMangaPages,
+    eq(novelImportMangaPages.chapterId, novelImportChapters.id),
+  ).innerJoin(
+    mediaAssets,
+    eq(mediaAssets.id, novelImportMangaPages.mediaAssetId),
+  ).where(eq(novelImportChapters.sourceId, source.id));
+  const readiness = new Map<number, boolean>();
+  for (const row of stagedChapters) {
+    readiness.set(row.chapterNumber, (readiness.get(row.chapterNumber) ?? true) && row.mediaStatus === "READY");
+  }
+  const currentCheckpoint = source.lastSuccessfulChapter ?? 0;
+  const lastSuccessfulChapter = advanceContiguousChapterCheckpoint(
+    currentCheckpoint,
+    [...readiness].filter(([, ready]) => ready).map(([chapterNumber]) => chapterNumber),
+  );
+  await db.update(novelImportSources).set({
+    lastSuccessfulChapter: lastSuccessfulChapter || null,
+    nextProbeChapter: lastSuccessfulChapter + 1,
+    updatedAt: new Date(),
+  }).where(eq(novelImportSources.id, source.id));
+
+  return {
+    sourceId: source.id,
+    chapterId: chapter.id,
+    chapterNumber: chapter.chapterNumber,
+    pages: storedPages.length,
+    status: "ready" as const,
+    lastSuccessfulChapter: lastSuccessfulChapter || null,
+    nextProbeChapter: lastSuccessfulChapter + 1,
+  };
 }

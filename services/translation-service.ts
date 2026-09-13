@@ -463,6 +463,9 @@ export async function createTranslationWorkspace(
   const db = getDb();
   const [source] = await db.select().from(novelImportSources).where(eq(novelImportSources.id, input.importSourceId)).limit(1);
   if (!source) throw new ApiError(404, "IMPORT_SOURCE_NOT_FOUND", "ไม่พบเรื่องที่นำเข้า");
+  if (source.contentFormat !== "text") {
+    throw new ApiError(409, "UNSUPPORTED_SOURCE_FORMAT", "Manga image translation requires a separate OCR workflow");
+  }
   if (source.sourceLanguage.toLowerCase() === input.targetLanguage.toLowerCase()) {
     throw new ApiError(400, "LANGUAGES_MUST_DIFFER", "ภาษาต้นทางและภาษาปลายทางต้องไม่ซ้ำกัน");
   }
@@ -751,7 +754,10 @@ export async function getTranslationStudio() {
     })
       .from(novelImportSources)
       .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
-      .where(eq(novelImportSources.status, "ready")).orderBy(desc(novelImportSources.updatedAt)),
+      .where(and(
+        eq(novelImportSources.status, "ready"),
+        eq(novelImportSources.contentFormat, "text"),
+      )).orderBy(desc(novelImportSources.updatedAt)),
     getTranslationMasterOverview(),
   ]);
   return {

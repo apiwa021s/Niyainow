@@ -1,6 +1,6 @@
 import { Suspense, ViewTransition, type ReactNode } from "react";
 
-import { HomeFeed, HomeHeroSection, HomePersonalizedSections, HomeSignup, type HomeData } from "@/components/home/home-feed";
+import { HomeCopyrightNotice, HomeFeed, HomeHeroSection, HomePersonalizedSections, HomeSignup, type HomeData } from "@/components/home/home-feed";
 import { HomeFeedSkeleton, HomeHeroSkeleton } from "@/components/home/home-skeletons";
 import { GuestContinueReading } from "@/components/reader/guest-continue-reading";
 import {
@@ -102,6 +102,8 @@ export default function HomePage() {
     <main id="main" className="mx-auto w-full max-w-(--home-max) px-3 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-5 lg:pb-6 2xl:px-6">
       <h1 className="sr-only">อ่านนิยายออนไลน์และนิยายแปลไทย อัปเดตตอนใหม่ทุกวัน</h1>
       <div className="flex flex-col gap-3">
+        <HomeCopyrightNotice />
+
         <Suspense fallback={<HomeHeroSkeleton />}>
           <PublicHomeHero />
         </Suspense>

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   check,
   index,
   integer,
@@ -13,6 +14,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { mediaAssets } from "./admin";
 import { chapters, novels } from "./content";
 
 const timestampConfig = { mode: "date", withTimezone: true } as const;
@@ -24,6 +26,7 @@ export const novelImportSources = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     provider: varchar("provider", { length: 64 }).notNull(),
     externalWorkId: varchar("external_work_id", { length: 256 }).notNull(),
+    contentFormat: varchar("content_format", { length: 16 }).default("text").notNull(),
     importReference: varchar("import_reference", { length: 384 }).notNull(),
     seedUrl: text("seed_url").notNull(),
     coverSourceUrl: text("cover_source_url"),
@@ -51,6 +54,7 @@ export const novelImportSources = pgTable(
     index("novel_import_sources_cover_status_idx").on(table.coverStatus, table.updatedAt.desc(), table.id),
     index("novel_import_sources_linked_novel_idx").on(table.linkedNovelId),
     check("novel_import_sources_provider_format", sql`${table.provider} ~ '^[a-z0-9][a-z0-9_-]{0,63}$'`),
+    check("novel_import_sources_content_format_valid", sql`${table.contentFormat} in ('text', 'manga')`),
     check("novel_import_sources_work_id_not_blank", sql`length(btrim(${table.externalWorkId})) > 0`),
     check("novel_import_sources_reference_not_blank", sql`length(btrim(${table.importReference})) > 0`),
     check("novel_import_sources_seed_url_http", sql`${table.seedUrl} ~ '^https?://'`),
@@ -117,6 +121,7 @@ export const novelImportChapters = pgTable(
       .references(() => novelImportSources.id, { onDelete: "cascade" }),
     chapterNumber: integer("chapter_number").notNull(),
     sourceUrl: text("source_url").notNull(),
+    originalTitle: text("original_title"),
     linkedChapterId: uuid("linked_chapter_id").references(() => chapters.id, { onDelete: "set null" }),
     fetchedAt: timestamp("fetched_at", timestampConfig).notNull(),
     createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
@@ -131,6 +136,7 @@ export const novelImportChapters = pgTable(
     index("novel_import_chapters_linked_chapter_idx").on(table.linkedChapterId),
     check("novel_import_chapters_number_positive", sql`${table.chapterNumber} > 0`),
     check("novel_import_chapters_source_url_http", sql`${table.sourceUrl} ~ '^https?://'`),
+    check("novel_import_chapters_title_not_blank", sql`${table.originalTitle} is null or length(btrim(${table.originalTitle})) > 0`),
   ],
 );
 
@@ -178,5 +184,39 @@ export const novelImportChapterTexts = pgTable(
   ],
 );
 
+/** Ordered image assets for a manga chapter. The media row owns upload and verification state. */
+export const novelImportMangaPages = pgTable(
+  "novel_import_manga_pages",
+  {
+    chapterId: uuid("chapter_id")
+      .notNull()
+      .references(() => novelImportChapters.id, { onDelete: "cascade" }),
+    pageNumber: integer("page_number").notNull(),
+    mediaAssetId: uuid("media_asset_id")
+      .notNull()
+      .references(() => mediaAssets.id, { onDelete: "restrict" }),
+    sourceUrl: text("source_url").notNull(),
+    checksumSha256: varchar("checksum_sha256", { length: 44 }).notNull(),
+    contentType: varchar("content_type", { length: 100 }).notNull(),
+    byteSize: bigint("byte_size", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", timestampConfig)
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "novel_import_manga_pages_pk", columns: [table.chapterId, table.pageNumber] }),
+    uniqueIndex("novel_import_manga_pages_media_uidx").on(table.mediaAssetId),
+    index("novel_import_manga_pages_chapter_idx").on(table.chapterId, table.pageNumber),
+    check("novel_import_manga_pages_number_positive", sql`${table.pageNumber} > 0`),
+    check("novel_import_manga_pages_source_url_https", sql`${table.sourceUrl} ~ '^https://'`),
+    check("novel_import_manga_pages_checksum_format", sql`${table.checksumSha256} ~ '^[A-Za-z0-9+/]{43}=$'`),
+    check("novel_import_manga_pages_content_type_allowed", sql`${table.contentType} in ('image/jpeg', 'image/png', 'image/webp', 'image/avif')`),
+    check("novel_import_manga_pages_byte_size_positive", sql`${table.byteSize} > 0`),
+  ],
+);
+
 export type NovelImportSource = typeof novelImportSources.$inferSelect;
 export type NovelImportChapter = typeof novelImportChapters.$inferSelect;
+export type NovelImportMangaPage = typeof novelImportMangaPages.$inferSelect;
