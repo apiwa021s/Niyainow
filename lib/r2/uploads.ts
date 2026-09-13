@@ -97,7 +97,6 @@ export async function createPresignedUpload(input: {
   const requiredHeaders: Record<string, string> = {
     "content-type": upload.contentType,
   };
-  if (upload.checksumSha256) requiredHeaders["x-amz-checksum-sha256"] = upload.checksumSha256;
 
   return {
     objectKey,

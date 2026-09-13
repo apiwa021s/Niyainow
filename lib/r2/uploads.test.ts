@@ -39,6 +39,30 @@ describe("R2 presign policy", () => {
     expect(queryKeys).not.toContain("x-amz-sdk-checksum-algorithm");
   });
 
+  it("keeps an explicit SHA-256 checksum in the signed URL instead of duplicating it as a header", async () => {
+    vi.stubEnv("R2_ACCOUNT_ID", "testaccount");
+    vi.stubEnv("R2_ACCESS_KEY_ID", "test-access-key");
+    vi.stubEnv("R2_SECRET_ACCESS_KEY", "test-secret-key");
+    vi.stubEnv("R2_BUCKET_NAME", "test-bucket");
+    vi.stubEnv("R2_UPLOAD_URL_TTL_SECONDS", "300");
+
+    const checksumSha256 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    const signed = await createPresignedUpload({
+      actor: { id: "00000000-0000-4000-8000-000000000001", role: "ADMIN", status: "ACTIVE" },
+      upload: {
+        assetType: "novelAsset",
+        originalFileName: "page-1.webp",
+        contentType: "image/webp",
+        contentLength: 1_024,
+        checksumSha256,
+      },
+    });
+    const url = new URL(signed.uploadUrl);
+
+    expect(url.searchParams.get("x-amz-checksum-sha256")).toBe(checksumSha256);
+    expect(signed.requiredHeaders).toEqual({ "content-type": "image/webp" });
+  });
+
   it("recognizes only storage precondition failures as replacement races", () => {
     expect(isR2PreconditionFailure({ $metadata: { httpStatusCode: 412 } })).toBe(true);
     expect(isR2PreconditionFailure({ name: "PreconditionFailed" })).toBe(true);
