@@ -741,6 +741,7 @@ export async function getTranslationStudio() {
       title: novelImportSourceTexts.title,
       synopsis: novelImportSourceTexts.synopsis,
       chapterCount: sql<number>`(select count(*) from novel_import_chapters nic where nic.source_id = ${novelImportSources.id})`.mapWith(Number),
+      updatedAt: novelImportSources.updatedAt,
     })
       .from(novelImportSources)
       .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
@@ -755,6 +756,7 @@ export async function getTranslationStudio() {
       ...row,
       title: row.title ?? "Imported novel",
       coverUrl: assetUrl(row.coverKey, publicAssetFallbacks.novelCover),
+      updatedAt: row.updatedAt.toISOString(),
     })),
     masterData,
   };

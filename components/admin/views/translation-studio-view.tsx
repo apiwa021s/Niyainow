@@ -2,19 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Activity, ArrowRight, BookOpen, Check, CircleCheckBig, Database, Languages, LoaderCircle, Plus, Search, Settings2, Sparkles, WalletCards } from "lucide-react";
+import { Activity, ArrowRight, BookOpen, CircleCheckBig, Database, Languages, LoaderCircle, Plus, Settings2, Sparkles, WalletCards } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
 import { AiTranslationVisual } from "@/components/admin/ai-translation-visual";
 import { StatusPill } from "@/components/admin/status-pill";
 import { formatAiCost, formatTranslationDate } from "@/components/admin/translation-format";
+import { TranslationSourcePicker } from "@/components/admin/translation-source-picker";
+import { getTranslationSourceState } from "@/components/admin/translation-source-state";
 import { translationNextAction, translationStatusLabel, translationStatusTone } from "@/components/admin/translation-status";
 import { TranslationSetupSteps } from "@/components/admin/translation-setup-steps";
 import { TranslationEmptyState, TranslationMetric, TranslationNotice } from "@/components/admin/translation-ui";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/form-controls";
+import { Field, Select } from "@/components/ui/form-controls";
 import { Modal, useAppDialog } from "@/components/ui/modal";
 import { AUTOMATIC_TRANSLATION_ROUTING } from "@/lib/domain/translation-ai-routing";
 import type { getTranslationStudio } from "@/services/translation-service";
@@ -22,7 +24,6 @@ import type { getTranslationStudio } from "@/services/translation-service";
 type Data = Awaited<ReturnType<typeof getTranslationStudio>>;
 
 type ProfileStage = { stage: string; label: string; modelName: string };
-type Source = Data["sources"][number];
 
 const MASTER_DATA_LABELS: Record<string, string> = {
   genre_rules: "แนวเรื่อง",
@@ -37,81 +38,6 @@ function formatElapsedTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes} นาที ${remainingSeconds.toString().padStart(2, "0")} วินาที`;
-}
-
-function SourceAutocomplete({ sources, value, existingSourceIds, onChange }: {
-  sources: Source[];
-  value: string;
-  existingSourceIds: Set<string>;
-  onChange: (sourceId: string) => void;
-}) {
-  const listboxId = useId();
-  const selected = sources.find((source) => source.id === value);
-  const [query, setQuery] = useState(selected?.title ?? "");
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const results = useMemo(() => {
-    const term = query.trim().toLocaleLowerCase();
-    if (!term) return sources.slice(0, 30);
-    return sources.filter((source) => `${source.title} ${source.provider} ${source.sourceLanguage}`.toLocaleLowerCase().includes(term)).slice(0, 30);
-  }, [query, sources]);
-
-  function choose(source: Source) {
-    onChange(source.id);
-    setQuery(source.title);
-    setOpen(false);
-    setActive(0);
-  }
-
-  return <div
-    className="relative"
-    onBlurCapture={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-        setOpen(false);
-        setQuery(selected?.title ?? "");
-      }
-    }}
-  >
-    <input type="hidden" name="importSourceId" value={value} />
-    <Search className="pointer-events-none absolute left-3 top-3.5 z-10 h-4 w-4 text-muted-foreground" aria-hidden />
-    <Input
-      type="search"
-      role="combobox"
-      aria-autocomplete="list"
-      aria-expanded={open}
-      aria-controls={listboxId}
-      aria-activedescendant={open && results[active] ? `${listboxId}-${results[active].id}` : undefined}
-      autoComplete="off"
-      value={query}
-      placeholder="พิมพ์ชื่อเรื่องเพื่อค้นหา"
-      className="pl-9"
-      onFocus={() => { setOpen(true); setActive(0); }}
-      onChange={(event) => { setQuery(event.target.value); onChange(""); setOpen(true); setActive(0); }}
-      onKeyDown={(event) => {
-        if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActive((index) => Math.min(index + 1, Math.max(0, results.length - 1))); }
-        else if (event.key === "ArrowUp") { event.preventDefault(); setActive((index) => Math.max(0, index - 1)); }
-        else if (event.key === "Enter" && open && results[active]) { event.preventDefault(); choose(results[active]); }
-        else if (event.key === "Escape") { setOpen(false); setQuery(selected?.title ?? ""); }
-      }}
-    />
-    {open ? <div id={listboxId} role="listbox" aria-label="ผลการค้นหาเรื่อง" className="absolute inset-x-0 top-[calc(100%+6px)] z-50 max-h-[min(60vh,440px)] overflow-y-auto rounded-[12px] border border-border bg-popover p-1.5 shadow-[var(--sh-2)]">
-      {results.map((source, index) => <button
-        id={`${listboxId}-${source.id}`}
-        key={source.id}
-        type="button"
-        role="option"
-        aria-selected={source.id === value}
-        className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left transition-colors hover:bg-muted ${index === active ? "bg-muted" : ""}`}
-        onMouseEnter={() => setActive(index)}
-        onClick={() => choose(source)}
-      >
-        <span className="relative aspect-[2/3] w-11 shrink-0 overflow-hidden rounded-[6px] bg-muted"><Image src={source.coverUrl} alt="" fill sizes="44px" className="object-cover" /></span>
-        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{source.title}</span><span className="mt-0.5 block text-xs text-muted-foreground">{source.provider} · {source.sourceLanguage} · {source.chapterCount.toLocaleString("th-TH")} ตอน</span></span>
-        {existingSourceIds.has(source.id) ? <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300"><Check className="h-3 w-3" />มีงานแปลแล้ว</span> : null}
-      </button>)}
-      {!results.length ? <p className="px-3 py-6 text-center text-sm text-muted-foreground">ไม่พบเรื่องที่ค้นหา</p> : null}
-    </div> : null}
-  </div>;
 }
 
 export function TranslationStudioView({ data }: { data: Data }) {
@@ -131,8 +57,13 @@ export function TranslationStudioView({ data }: { data: Data }) {
   const normalizedTargetLanguage = targetLanguage.trim().toLocaleLowerCase();
   const targetLanguageValid = /^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/.test(normalizedTargetLanguage);
   const existingWorkspace = data.workspaces.find((workspace) => workspace.importSourceId === selectedSourceId && workspace.targetLanguage.toLocaleLowerCase() === normalizedTargetLanguage);
-  const profileGenerationPending = Boolean(existingWorkspace?.profileGenerationStage && existingWorkspace.profileGenerationStage !== "COMPLETE");
-  const existingSourceIds = useMemo(() => new Set(data.workspaces.filter((workspace) => workspace.status !== "SETUP" && workspace.targetLanguage.toLocaleLowerCase() === normalizedTargetLanguage).map((workspace) => workspace.importSourceId)), [data.workspaces, normalizedTargetLanguage]);
+  const profileGenerationPending = Boolean(existingWorkspace && (existingWorkspace.status === "SETUP" || (existingWorkspace.profileGenerationStage && existingWorkspace.profileGenerationStage !== "COMPLETE")));
+  const selectedSourceState = selectedSource ? getTranslationSourceState(selectedSource, existingWorkspace, normalizedTargetLanguage) : null;
+  const sourceLanguageMatchesTarget = Boolean(selectedSource && selectedSource.sourceLanguage.toLocaleLowerCase() === normalizedTargetLanguage);
+  const sourceContextMissing = Boolean(selectedSource && selectedSource.chapterCount === 0 && !selectedSource.synopsis?.trim());
+  const existingWorkspaceReady = Boolean(existingWorkspace && existingWorkspace.status !== "SETUP" && !profileGenerationPending);
+  const creationBlocked = !selectedSourceId || !targetLanguageValid || (!existingWorkspaceReady
+    && (sourceLanguageMatchesTarget || sourceContextMissing || !data.masterData.runtimeReady));
   const totalChapters = data.workspaces.reduce((sum, row) => sum + row.chapterCount, 0);
   const approvedChapters = data.workspaces.reduce((sum, row) => sum + row.approvedCount, 0);
   const publishedChapters = data.workspaces.reduce((sum, row) => sum + row.publishedCount, 0);
@@ -227,8 +158,16 @@ export function TranslationStudioView({ data }: { data: Data }) {
       setError("กรุณาเลือกเรื่องและภาษาที่ต้องการแปล");
       return;
     }
-    if (existingWorkspace && existingWorkspace.status !== "SETUP" && !profileGenerationPending) {
+    if (existingWorkspaceReady && existingWorkspace) {
       router.push(`/admin/translation/${existingWorkspace.id}`);
+      return;
+    }
+    if (sourceLanguageMatchesTarget) {
+      setError("ภาษาปลายทางต้องต่างจากภาษาต้นฉบับ");
+      return;
+    }
+    if (sourceContextMissing) {
+      setError("เรื่องนี้ยังไม่มีเรื่องย่อหรือตอนต้นฉบับสำหรับสร้าง Profile");
       return;
     }
     void runProfileCreation(Boolean(profileGenerationPending && existingWorkspace?.status !== "SETUP"), profileGenerationPending);
@@ -256,7 +195,10 @@ export function TranslationStudioView({ data }: { data: Data }) {
         <Button type="button" onClick={() => void runProfileCreation(profileRegenerate, profileCanResume)}>{profileCanResume ? "ทำต่อจากจุดล่าสุด" : "ลองสร้างใหม่"}</Button>
       </> : undefined}
     >
-      <div className="mb-3 flex justify-end"><span className="flex items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--brand-emphasis)]">{busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}<span className="tabular-nums">{formatElapsedTime(elapsedSeconds)}</span></span></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-border bg-muted/35 px-3 py-2.5">
+        <div className="min-w-0"><p className="truncate text-xs font-semibold">{selectedSource?.sourceLanguage.toUpperCase() ?? "—"} → {normalizedTargetLanguage.toUpperCase()} · {selectedSource?.chapterCount.toLocaleString("th-TH") ?? "0"} ตอน</p><p className="mt-0.5 text-[11px] text-muted-foreground">{profileCanResume || profileGenerationPending ? "ทำต่อจาก Checkpoint ล่าสุด" : profileRegenerate ? "สร้าง Profile รุ่นใหม่" : "สร้าง Profile ครั้งแรก"}</p></div>
+        <span className="flex items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--brand-emphasis)]">{busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}<span className="tabular-nums">{formatElapsedTime(elapsedSeconds)}</span></span>
+      </div>
       <AiTranslationVisual active={busy} failed={Boolean(profileError)} stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} />
       {profileError ? <div role="alert" className="mt-4 rounded-[12px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"><p className="font-semibold">หยุดที่ขั้นตอน: {profileStage?.label ?? "กำลังเชื่อมต่อระบบ"}</p><p className="mt-1 break-words text-xs leading-relaxed">{profileError}</p></div> : <div className="mt-4 flex items-center gap-2 rounded-[12px] bg-muted/55 px-3 py-2 text-xs text-muted-foreground"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>ระบบบันทึกความคืบหน้าแต่ละขั้น และสามารถทำต่อได้หากการเชื่อมต่อหยุดลง</div>}
     </Modal>
@@ -316,15 +258,16 @@ export function TranslationStudioView({ data }: { data: Data }) {
               </div>
               <form onSubmit={createWorkspace} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_150px]" aria-busy={busy}>
                 <Field label="เรื่องที่นำเข้า">
-                  <SourceAutocomplete
+                  <TranslationSourcePicker
                     sources={data.sources}
+                    workspaces={data.workspaces}
+                    targetLanguage={normalizedTargetLanguage}
                     value={selectedSourceId}
-                    existingSourceIds={existingSourceIds}
-                    onChange={setSelectedSourceId}
+                    onChange={(sourceId) => { setSelectedSourceId(sourceId); setError(""); }}
                   />
                 </Field>
                 <Field label="ภาษาที่ต้องการแปล">
-                  <Select name="targetLanguage" value={targetLanguage} onChange={(event) => setTargetLanguage(event.target.value)} required>
+                  <Select name="targetLanguage" value={targetLanguage} onChange={(event) => { setTargetLanguage(event.target.value); setError(""); }} required>
                     <option value="th">ภาษาไทย</option>
                     <option value="en">ภาษาอังกฤษ</option>
                     <option value="zh">ภาษาจีน</option>
@@ -337,17 +280,20 @@ export function TranslationStudioView({ data }: { data: Data }) {
                       <Image src={selectedSource.coverUrl} alt={`ปก ${selectedSource.title}`} fill sizes="80px" className="object-cover" />
                     </div>
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-start justify-between gap-2"><strong className="min-w-0 text-sm">{selectedSource.title}</strong><span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{selectedSource.chapterCount.toLocaleString("th-TH")} ตอน</span></div>
+                      <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><strong className="block truncate text-sm">{selectedSource.title}</strong><span className="mt-0.5 block text-xs text-muted-foreground">{selectedSource.provider} · {selectedSource.sourceLanguage.toUpperCase()} → {normalizedTargetLanguage.toUpperCase()}</span></div><span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{selectedSource.chapterCount.toLocaleString("th-TH")} ตอน</span></div>
                       <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">{selectedSource.synopsis?.trim() || "ต้นฉบับนี้ไม่มีเรื่องย่อ ระบบจะวิเคราะห์จากตัวอย่างตอนเพื่อสร้างแนวทางการแปล"}</p>
-                      <p className="mt-2 text-xs font-medium text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden />ข้อมูลวิเคราะห์: ชื่อเรื่อง + เรื่องย่อ + ตัวอย่างสูงสุด 3 ตอนแรก</p>
-                      {existingWorkspace ? (
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-emerald-500/20 bg-emerald-500/5 p-3">
-                          <div><p className="text-sm font-semibold">{profileGenerationPending || existingWorkspace.status === "SETUP" ? `มีงานแปลภาษา ${normalizedTargetLanguage} ที่ยังเตรียมไม่เสร็จ` : `มีงานแปลภาษา ${normalizedTargetLanguage} แล้ว`}</p><p className="mt-0.5 text-xs text-muted-foreground">{profileGenerationPending || existingWorkspace.status === "SETUP" ? "ระบบจะทำต่อจากจุดล่าสุดโดยไม่เริ่มขั้นที่สำเร็จแล้วใหม่" : "เปิดงานเดิมได้ทันที หรือสร้างแนวทางใหม่จากกฎล่าสุด"}</p></div>
-                          <StatusPill label={translationStatusLabel(existingWorkspace.status)} tone={translationStatusTone(existingWorkspace.status)} />
+                      <p className="mt-2 text-xs font-medium text-[var(--brand-emphasis)]"><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden />ข้อมูลวิเคราะห์: ชื่อเรื่อง + เรื่องย่อ + ตัวอย่างสูงสุด 3 ตอนแรก{selectedSource.chapterCount === 0 && selectedSource.synopsis?.trim() ? " · เรื่องนี้จะใช้เรื่องย่อเท่านั้น" : ""}</p>
+                      {selectedSourceState ? (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-border bg-muted/35 p-3">
+                          <div className="min-w-0"><p className="text-sm font-semibold">สถานะงานภาษา {normalizedTargetLanguage.toUpperCase()}</p><p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{selectedSourceState.detail}</p></div>
+                          <StatusPill label={selectedSourceState.label} tone={selectedSourceState.tone} />
                         </div>
                       ) : null}
                     </div>
                   </div>
+                ) : null}
+                {existingWorkspace?.profileGenerationError ? (
+                  <div className="md:col-span-2"><TranslationNotice tone="danger" role="alert" title="Profile ครั้งก่อนหยุดก่อนเสร็จ" description={<><span className="break-words">{existingWorkspace.profileGenerationError}</span><br />Checkpoint ที่สำเร็จแล้วถูกเก็บไว้ ปุ่มด้านล่างจะทำต่อจากจุดล่าสุด</>} /></div>
                 ) : null}
                 <div className="grid gap-2 rounded-[12px] border border-border bg-card p-3 text-xs text-muted-foreground md:col-span-2 sm:grid-cols-3">
                   <p><strong className="block text-foreground">ยังไม่เริ่มแปลตอน</strong>ขั้นนี้สร้างเฉพาะแนวทางและข้อมูลตั้งต้น</p>
@@ -358,18 +304,18 @@ export function TranslationStudioView({ data }: { data: Data }) {
                   <Button
                     type="submit"
                     loading={busy}
-                    disabled={!selectedSourceId || !targetLanguageValid || ((!existingWorkspace || existingWorkspace.status === "SETUP") && !data.masterData.runtimeReady)}
-                    title={!data.masterData.runtimeReady && (!existingWorkspace || existingWorkspace.status === "SETUP") ? "อนุมัติกฎกลางก่อนสร้างแนวทางการแปล" : undefined}
+                    disabled={creationBlocked}
+                    title={existingWorkspaceReady ? undefined : !selectedSourceId ? "เลือกต้นฉบับก่อน" : !targetLanguageValid ? "รูปแบบภาษาปลายทางไม่ถูกต้อง" : sourceLanguageMatchesTarget ? "เลือกภาษาที่ต่างจากต้นฉบับ" : sourceContextMissing ? "เพิ่มเรื่องย่อหรือตอนต้นฉบับก่อน" : !data.masterData.runtimeReady ? "อนุมัติกฎกลางก่อนสร้างแนวทางการแปล" : undefined}
                   >
-                    {existingWorkspace && existingWorkspace.status !== "SETUP" && !profileGenerationPending ? <><BookOpen className="h-4 w-4" />เปิดงานแปลเดิม<ArrowRight className="h-4 w-4" /></> : <><Sparkles className="h-4 w-4" />{profileGenerationPending ? "ทำต่อจากจุดล่าสุด" : existingWorkspace ? "เตรียมแนวทางต่อให้เสร็จ" : "สร้างแนวทางการแปล"}<ArrowRight className="h-4 w-4" /></>}
+                    {existingWorkspaceReady ? <><BookOpen className="h-4 w-4" />{existingWorkspace?.activeJobCount ? "เปิดงานที่ AI กำลังทำ" : "เปิดงานแปลเดิม"}<ArrowRight className="h-4 w-4" /></> : <><Sparkles className="h-4 w-4" />{profileGenerationPending ? "ทำต่อจากจุดล่าสุด" : existingWorkspace ? "เตรียมแนวทางต่อให้เสร็จ" : "สร้างแนวทางการแปล"}<ArrowRight className="h-4 w-4" /></>}
                   </Button>
-                  {existingWorkspace && existingWorkspace.status !== "SETUP" && !profileGenerationPending ? (
-                    <Button type="button" variant="outline" loading={busy} disabled={!data.masterData.runtimeReady} title={!data.masterData.runtimeReady ? "อนุมัติกฎกลางก่อนสร้างแนวทางใหม่" : undefined} onClick={() => void regenerateExistingProfile()}>
+                  {existingWorkspaceReady ? (
+                    <Button type="button" variant="outline" loading={busy} disabled={!data.masterData.runtimeReady || Boolean(existingWorkspace?.activeJobCount) || sourceContextMissing} title={existingWorkspace?.activeJobCount ? "รอให้งาน AI ปัจจุบันเสร็จก่อนสร้าง Profile ใหม่" : sourceContextMissing ? "เพิ่มเรื่องย่อหรือตอนต้นฉบับก่อนสร้าง Profile ใหม่" : !data.masterData.runtimeReady ? "อนุมัติกฎกลางก่อนสร้างแนวทางใหม่" : undefined} onClick={() => void regenerateExistingProfile()}>
                       <Sparkles className="h-4 w-4" />สร้างแนวทางใหม่
                     </Button>
                   ) : null}
                 </div>
-                {!selectedSourceId ? <p className="text-xs text-muted-foreground md:col-span-2">เลือกต้นฉบับเพื่อดูรายละเอียดและตรวจว่ามีงานภาษาเดียวกันอยู่แล้วหรือไม่</p> : !targetLanguageValid ? <p role="alert" className="text-xs text-destructive md:col-span-2">รูปแบบภาษาปลายทางไม่ถูกต้อง</p> : !data.masterData.runtimeReady && (!existingWorkspace || existingWorkspace.status === "SETUP") ? <p role="alert" className="text-xs text-amber-700 md:col-span-2 dark:text-amber-300">ต้องอนุมัติกฎกลางก่อนสร้างแนวทางใหม่</p> : null}
+                {!selectedSourceId ? <p className="text-xs text-muted-foreground md:col-span-2">ค้นหาหรือกรองสถานะ แล้วเลือกต้นฉบับเพื่อดูสิ่งที่ระบบจะทำต่อ</p> : !targetLanguageValid ? <p role="alert" className="text-xs text-destructive md:col-span-2">รูปแบบภาษาปลายทางไม่ถูกต้อง</p> : !existingWorkspaceReady && sourceLanguageMatchesTarget ? <p role="alert" className="text-xs text-amber-700 md:col-span-2 dark:text-amber-300">เรื่องนี้เป็นภาษา {selectedSource?.sourceLanguage.toUpperCase()} อยู่แล้ว กรุณาเลือกภาษาปลายทางอื่น</p> : !existingWorkspaceReady && sourceContextMissing ? <p role="alert" className="text-xs text-destructive md:col-span-2">ยังสร้าง Profile ไม่ได้: เรื่องนี้ไม่มีทั้งเรื่องย่อและตอนต้นฉบับ</p> : !data.masterData.runtimeReady && !existingWorkspaceReady ? <p role="alert" className="text-xs text-amber-700 md:col-span-2 dark:text-amber-300">ต้องอนุมัติกฎกลางก่อนสร้างแนวทางใหม่</p> : existingWorkspaceReady && sourceContextMissing ? <p role="status" className="text-xs text-amber-700 md:col-span-2 dark:text-amber-300">เปิดงานเดิมได้ตามปกติ แต่ต้องเพิ่มเรื่องย่อหรือตอนต้นฉบับก่อนสร้าง Profile ใหม่</p> : error ? <p role="alert" className="text-xs text-destructive md:col-span-2">{error}</p> : null}
               </form>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">เมื่อเสร็จระบบจะพาไปเลือกตอนแปลทันที คุณสามารถกลับมาแก้สำนวน คลังคำ หรือตัวละครได้ภายหลัง</p>

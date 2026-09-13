@@ -29,6 +29,12 @@ The studio must always explain the current state, its consequence, and the next 
 | --- | --- |
 | No approved master rules | Existing work remains available; profile creation is blocked with a direct link to approve rules. |
 | No ready import source | The empty state links to Imports and explains that the source must become ready first. |
+| Many ready import sources | The Step 1 picker searches title, provider, language, source ID, and workflow copy; reports the full result count; and loads results in chunks instead of silently truncating after 30 rows. |
+| Source workflow is unclear | Status filters are recalculated for the selected target language and distinguish not started, profile creation, active AI work, attention required, ready, and unavailable sources. Duplicate titles include a short source ID. |
+| Source and target languages match | The source is labelled unavailable, profile creation is blocked, and the UI asks for a different target language before any API call. |
+| Source has no chapters | A synopsis-only source remains eligible with an explicit reduced-context note. A source with neither synopsis nor chapters is blocked with the missing requirement. |
+| Existing profile has failed | The picker identifies the failed checkpoint, the selected-source card shows the stored error, and the primary action resumes without repeating completed stages. |
+| Existing translation has an active job | Step 1 opens the active workspace instead of creating a duplicate. Profile regeneration stays disabled until the active job finishes. |
 | First-time user | The landing page explains that profile creation does not translate or publish chapters, and recommends a small trial. |
 | Profile creation is running | A non-dismissible progress dialog shows the current stage, selected model, elapsed time, and checkpoint behavior. |
 | Profile creation is interrupted | The saved checkpoint is detected and the user can resume without repeating completed stages. |
