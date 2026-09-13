@@ -6,7 +6,6 @@ import {
   BookOpenText,
   Check,
   CircleCheck,
-  Images,
   Info,
   Save,
   ShieldAlert,
@@ -253,35 +252,8 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
           </div>
         </Panel>
 
-        <Panel title="รูปแบบและการจัดระดับเนื้อหา" description="กำหนดรูปแบบการอ่าน เรตอายุ และคำเตือนที่จะแสดงก่อนผู้อ่านเปิดเรื่อง">
+        <Panel title="การจัดระดับเนื้อหา" description="กำหนดเรตอายุและคำเตือนที่จะแสดงก่อนผู้อ่านเปิดเรื่อง">
           <div className="grid gap-6">
-            <section>
-              <SectionTitle icon={Images}>รูปแบบผลงาน</SectionTitle>
-              <div className={cn(
-                "flex items-start gap-3 rounded-[12px] border p-4",
-                novel?.contentFormat === "manga"
-                  ? "border-violet-500/30 bg-violet-500/10"
-                  : "border-border bg-muted/35",
-              )}>
-                <Images className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand-emphasis)]" aria-hidden />
-                <div>
-                  <p className="font-semibold">{novel?.contentFormat === "manga" ? "Manga / การ์ตูนภาพ" : "นิยายข้อความ"}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    {novel?.contentFormat === "manga"
-                      ? "ตอนของเรื่องนี้อ่านจากภาพที่นำเข้าและตรวจสอบแล้ว ระบบจะแสดงภาพตามลำดับหน้าใน Manga Reader"
-                      : "ตอนของเรื่องนี้ใช้เนื้อหาข้อความใน Chapter Editor"}
-                  </p>
-                  {novel?.contentFormat === "manga" && novel.importSourceId ? (
-                    <ButtonLink href={`/admin/imports/${novel.importSourceId}`} variant="outline" size="sm" className="mt-3">
-                      เปิดข้อมูล Manga Import
-                    </ButtonLink>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-
-            <div className="h-px bg-border" />
-
             <section>
               <SectionTitle icon={ShieldAlert}>เรตอายุและคำเตือน</SectionTitle>
               <div className="grid gap-5">
