@@ -6,6 +6,7 @@ import { AdminPageHeader } from "@/components/admin/admin-ui";
 import { TranslationWorkspaceView } from "@/components/admin/views/translation-workspace-view";
 import { Skeleton } from "@/components/ui/section";
 import { requireAdmin } from "@/lib/auth/dal";
+import { can } from "@/lib/auth/permissions";
 import { getTranslationWorkspace } from "@/services/translation-service";
 
 export const metadata: Metadata = { title: "จัดการงานแปล" };
@@ -23,7 +24,11 @@ async function TranslationWorkspaceContent({ params }: TranslationWorkspacePageP
         description={`${data.workspace.sourceLanguage} → ${data.workspace.targetLanguage}`}
         crumbs={[{ label: "หลังบ้าน", href: "/admin" }, { label: "สตูดิโอแปลนิยาย", href: "/admin/translation" }, { label: data.workspace.title }]}
       />
-      <TranslationWorkspaceView data={data} canCancelJobs={user.role === "ADMIN"} />
+      <TranslationWorkspaceView
+        data={data}
+        canCancelJobs={can(user, "translation.cancel_job")}
+        canPublish={can(user, "translation.publish")}
+      />
     </>
   );
 }
@@ -35,8 +40,8 @@ function TranslationWorkspaceFallback() {
         <Skeleton className="h-8 w-72 max-w-full" />
         <Skeleton className="h-4 w-44" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        {[1, 2, 3].map((item) => <Skeleton key={item} className="h-28 rounded-[16px]" />)}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-28 rounded-[16px]" />)}
       </div>
       <Skeleton className="h-80 rounded-[16px]" />
     </div>

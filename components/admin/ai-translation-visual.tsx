@@ -40,9 +40,9 @@ export function AiTranslationVisual({
         <Sparkles className={styles.sparkle} />
       </div>
       <div className={styles.copy}>
-        <span className={styles.eyebrow}><Languages className="h-3.5 w-3.5" /> AI Translation Engine</span>
-        <strong>{failed ? "AI Profile Pipeline หยุดทำงาน" : active ? stageLabel || "กำลังเริ่ม AI pipeline…" : "พร้อมเริ่มงานแปลอัตโนมัติ"}</strong>
-        <span>{failed ? `${modelName || "Automatic routing"} · ไม่มีการบันทึก Profile จำลอง` : active ? `${modelName || "กำลังเลือกโมเดล"} · เรียก AI จริงและตรวจ schema ก่อนบันทึก` : "Profile, model routing และคิวตอนทำงานให้เอง"}</span>
+        <span className={styles.eyebrow}><Languages className="h-3.5 w-3.5" /> AI ผู้ช่วยแปล</span>
+        <strong>{failed ? "การสร้างแนวทางหยุดชั่วคราว" : active ? stageLabel || "กำลังเตรียมผู้ช่วยแปล…" : "พร้อมช่วยวางแนวทางและแปลเป็นชุด"}</strong>
+        <span>{failed ? `${modelName || "เลือกโมเดลอัตโนมัติ"} · ขั้นที่สำเร็จแล้วถูกบันทึกไว้` : active ? `${modelName || "กำลังเลือกโมเดล"} · ตรวจรูปแบบผลลัพธ์ทุกครั้งก่อนบันทึก` : "ระบบเลือกโมเดล สร้างคลังคำ และจัดคิวแต่ละตอนให้อัตโนมัติ"}</span>
         {active || failed ? (
           <ol className={styles.stageSteps} aria-label="ขั้นตอนสร้าง AI Profile">
             {PROFILE_STEPS.map((step, index) => (
@@ -75,7 +75,8 @@ export function AiTranslationProgress({
   currentStage?: string | null;
   currentPercent?: number | null;
 }) {
-  const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+  const partialItem = currentPercent ? Math.min(100, Math.max(0, currentPercent)) / 100 : 0;
+  const percent = total > 0 ? Math.min(100, Math.round(((completed + partialItem) / total) * 100)) : 0;
   return (
     <div className={styles.progressCard} role="status" aria-live="polite">
       <div className={styles.progressIcon} aria-hidden><Bot className="h-5 w-5" /><span /></div>
@@ -89,7 +90,7 @@ export function AiTranslationProgress({
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">
           {currentChapter ? <><strong className="text-foreground">ตอน {currentChapter}</strong> · {currentStage} · {currentPercent ?? 0}%<span aria-hidden> · </span></> : null}
-          ออกจากหน้านี้ได้ ระบบทำงานต่อบน Worker · รวม {percent}%
+          ออกจากหน้านี้ได้ ระบบจะทำงานต่อเบื้องหลัง · รวม {percent}%
         </p>
       </div>
       <Sparkles aria-hidden className={styles.progressSparkle} />

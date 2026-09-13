@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Bot, CheckCircle2, ChevronDown, CloudUpload, ListChecks, RefreshCw, Save, Search, Settings2, Sparkles, TriangleAlert, XCircle } from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, ChevronDown, CircleDollarSign, CloudUpload, FileCheck2, Languages, ListChecks, RefreshCw, Save, Search, Settings2, Sparkles, TriangleAlert, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { Panel } from "@/components/admin/admin-ui";
 import { AiTranslationProgress, AiTranslationVisual } from "@/components/admin/ai-translation-visual";
 import { StatusPill } from "@/components/admin/status-pill";
+import { formatAiCost, formatJobDuration, formatTranslationDate } from "@/components/admin/translation-format";
 import { translationStatusLabel, translationStatusTone } from "@/components/admin/translation-status";
 import { TranslationSetupSteps } from "@/components/admin/translation-setup-steps";
+import { TranslationEmptyState, TranslationMetric, TranslationNotice } from "@/components/admin/translation-ui";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
 import { Modal, useAppDialog } from "@/components/ui/modal";
@@ -21,6 +23,7 @@ type Character = Data["characters"][number];
 type TitleReview = NonNullable<Data["titleReview"]>;
 type WizardStep = 2 | 3;
 type ProfileStage = { stage: string; label: string; modelName: string };
+type Chapter = Data["chapters"][number];
 
 type ChapterAction = "TRANSLATE" | "POLISH" | "PUBLISH";
 type BulkPublishResult = {
@@ -46,8 +49,11 @@ const PROGRESS_STAGE_LABELS: Record<string, string> = {
   CANCELLED: "ยกเลิกแล้ว",
 };
 
-function formatAiCost(costMicros: number) {
-  return costMicros > 0 ? `$${(costMicros / 1_000_000).toFixed(4)}` : "—";
+function chapterIneligibleReason(action: ChapterAction, chapter: Chapter) {
+  if (chapter.jobItemStatus === "QUEUED" || chapter.jobItemStatus === "RUNNING") return "ตอนนี้อยู่ในคิวแล้ว";
+  if (action === "PUBLISH") return chapter.status !== "APPROVED" ? "ต้องอนุมัติคำแปลก่อนเผยแพร่" : chapter.criticalIssues > 0 ? "ยังมีปัญหาสำคัญที่ต้องแก้" : "ตอนนี้ยังไม่พร้อมเผยแพร่";
+  if (action === "POLISH" && chapter.revision === 0) return "ต้องมีฉบับแปลก่อนเกลาสำนวน";
+  return `สถานะ “${translationStatusLabel(chapter.status)}” ยังทำรายการนี้ไม่ได้`;
 }
 
 async function mutate(url: string, method: "POST" | "PATCH", body?: unknown) {
@@ -57,7 +63,7 @@ async function mutate(url: string, method: "POST" | "PATCH", body?: unknown) {
   return payload;
 }
 
-export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; canCancelJobs: boolean }) {
+export function TranslationWorkspaceView({ data, canCancelJobs, canPublish }: { data: Data; canCancelJobs: boolean; canPublish: boolean }) {
   const router = useRouter();
   const dialogs = useAppDialog();
   const needsProfileReview = data.workspace.status === "SETUP" || !data.profile;
@@ -72,9 +78,11 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   const [translatedSynopsis, setTranslatedSynopsis] = useState(data.translatedMetadata?.synopsis ?? "");
   const [titleReview, setTitleReview] = useState<TitleReview | null>(data.titleReview);
   const [profileStage, setProfileStage] = useState<ProfileStage | null>(null);
+  const [profileCanResume, setProfileCanResume] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chapterAction, setChapterAction] = useState<ChapterAction>("TRANSLATE");
   const [chapterQuery, setChapterQuery] = useState("");
+  const deferredChapterQuery = useDeferredValue(chapterQuery);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const activeJobs = data.jobs.some((job) => job.status === "QUEUED" || job.status === "RUNNING");
   const activeJob = data.jobs.find((job) => job.status === "RUNNING") ?? data.jobs.find((job) => job.status === "QUEUED");
@@ -101,16 +109,25 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     [chapterAction, data.chapters],
   );
   const visibleChapters = useMemo(() => {
-    const query = chapterQuery.trim().toLocaleLowerCase();
+    const query = deferredChapterQuery.trim().toLocaleLowerCase();
     return data.chapters.filter((chapter) => {
       if (statusFilter !== "ALL" && chapter.status !== statusFilter) return false;
       if (!query) return true;
       return String(chapter.chapterNumber).includes(query) || (chapter.sourceTitle ?? "").toLocaleLowerCase().includes(query);
     });
-  }, [chapterQuery, data.chapters, statusFilter]);
-  const eligibleChapterIds = new Set(eligibleChapters.map((chapter) => chapter.id));
-  const visibleEligible = visibleChapters.filter((chapter) => eligibleChapterIds.has(chapter.id));
+  }, [data.chapters, deferredChapterQuery, statusFilter]);
+  const statusCounts = useMemo(() => data.chapters.reduce<Record<string, number>>((counts, chapter) => {
+    counts[chapter.status] = (counts[chapter.status] ?? 0) + 1;
+    return counts;
+  }, {}), [data.chapters]);
+  const chapterById = useMemo(() => new Map(data.chapters.map((chapter) => [chapter.id, chapter])), [data.chapters]);
+  const eligibleChapterIds = useMemo(() => new Set(eligibleChapters.map((chapter) => chapter.id)), [eligibleChapters]);
+  const visibleEligible = useMemo(() => visibleChapters.filter((chapter) => eligibleChapterIds.has(chapter.id)), [eligibleChapterIds, visibleChapters]);
   const allVisibleSelected = visibleEligible.length > 0 && visibleEligible.slice(0, 100).every((chapter) => selected.has(chapter.id));
+  const totalCostMicros = data.chapters.reduce((sum, chapter) => sum + chapter.costMicros, 0);
+  const processedChapters = data.chapters.filter((chapter) => chapter.costMicros > 0);
+  const averageCostMicros = processedChapters.length ? Math.round(totalCostMicros / processedChapters.length) : 0;
+  const selectedEstimatedCostMicros = chapterAction === "PUBLISH" ? 0 : averageCostMicros * selected.size;
 
   async function perform(key: string, work: () => Promise<unknown>, success: string) {
     setBusy(key); setError(""); setMessage("");
@@ -160,19 +177,19 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     }
   }
 
-  async function regenerateProfile() {
-    if (!await dialogs.confirm({
+  async function regenerateProfile(resume = false) {
+    if (!resume && !await dialogs.confirm({
       title: "สร้างแนวทางการแปลใหม่หรือไม่?",
       description: "ตอนที่ยังไม่เผยแพร่จะถูกนำกลับไปตรวจหรือแปลใหม่ ส่วนคลังคำและข้อมูลตัวละครจะยังคงอยู่",
       confirmLabel: "สร้างใหม่",
     })) return;
-    setBusy("regenerate-profile"); setError(""); setMessage("");
+    setBusy("regenerate-profile"); setError(""); setMessage(""); setProfileCanResume(false);
     setProfileStage({ stage: "CONNECTING", label: "กำลังโหลดเรื่องย่อและตัวอย่าง 3 ตอนแรก", modelName: "เลือกโมเดลอัตโนมัติ" });
     try {
       const response = await fetch("/api/admin/translation/workspaces", {
         method: "POST",
         headers: { accept: "application/x-ndjson", "content-type": "application/json" },
-        body: JSON.stringify({ importSourceId: data.workspace.importSourceId, targetLanguage: data.workspace.targetLanguage, regenerate: true }),
+        body: JSON.stringify({ importSourceId: data.workspace.importSourceId, targetLanguage: data.workspace.targetLanguage, regenerate: !resume, resume }),
       });
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
       const reader = response.body.getReader();
@@ -196,7 +213,21 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
       if (!completed) throw new Error("AI ทำงานเสร็จแต่ไม่ได้ยืนยันผลลัพธ์");
       window.location.reload();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "สร้างแนวทางการแปลใหม่ไม่สำเร็จ");
+      const originalMessage = cause instanceof Error ? cause.message : "สร้างแนวทางการแปลใหม่ไม่สำเร็จ";
+      const query = new URLSearchParams({ importSourceId: data.workspace.importSourceId, targetLanguage: data.workspace.targetLanguage });
+      const recovery = await fetch(`/api/admin/translation/workspaces?${query.toString()}`, { cache: "no-store" })
+        .then(async (response) => response.ok ? response.json() as Promise<{ progress: { ready: boolean; stage: string | null; error: string | null; completedStages: string[] } | null }> : null)
+        .catch(() => null);
+      if (recovery?.progress?.ready) {
+        window.location.reload();
+        return;
+      }
+      if (recovery?.progress) {
+        setProfileCanResume(true);
+        setError(`${recovery.progress.error || originalMessage} · บันทึกแล้ว ${recovery.progress.completedStages.length.toLocaleString("th-TH")} ขั้น สามารถทำต่อจากจุดล่าสุดได้`);
+      } else {
+        setError(originalMessage);
+      }
     } finally {
       setBusy(""); setProfileStage(null);
     }
@@ -206,14 +237,17 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
     if (!selected.size) { setError("เลือกอย่างน้อย 1 ตอน"); return; }
     if (activeJobs) { setError("มีงานแปลกำลังทำงานอยู่ กรุณารอให้งานปัจจุบันเสร็จก่อน"); return; }
     if (chapterAction === "PUBLISH") return;
-    if (chapterAction === "POLISH" && [...selected].some((chapterId) => data.chapters.find((chapter) => chapter.id === chapterId)?.status === "PUBLISHED")) {
-      const confirmed = await dialogs.confirm({
-        title: "เกลาสำนวนตอนที่เผยแพร่แล้วหรือไม่?",
-        description: "ระบบจะสร้างฉบับแก้ไขใหม่ ฉบับที่ผู้อ่านเห็นอยู่จะยังไม่เปลี่ยนจนกว่าคุณจะตรวจและเผยแพร่ฉบับใหม่",
-        confirmLabel: "เริ่มเกลาสำนวน",
-      });
-      if (!confirmed) return;
-    }
+    const includesPublished = chapterAction === "POLISH" && [...selected].some((chapterId) => chapterById.get(chapterId)?.status === "PUBLISHED");
+    const actionLabel = chapterAction === "POLISH" ? "เกลาสำนวน" : "แปล";
+    const estimate = averageCostMicros
+      ? ` จากประวัติงานนี้ คาดว่าค่าใช้จ่ายประมาณ ${formatAiCost(selectedEstimatedCostMicros)} (ยอดจริงขึ้นกับความยาวและจำนวนรอบตรวจ)`
+      : " ระบบจะคำนวณค่าใช้จ่ายจาก token ที่ใช้จริง";
+    const confirmed = await dialogs.confirm({
+      title: `เริ่ม${actionLabel} ${selected.size.toLocaleString("th-TH")} ตอนหรือไม่?`,
+      description: `งานจะทำต่อเบื้องหลัง คุณออกจากหน้านี้ได้ และยังไม่มีตอนใดถูกเผยแพร่อัตโนมัติ${estimate}${includesPublished ? " ตอนที่เผยแพร่แล้วจะสร้างเป็นฉบับใหม่ โดยฉบับที่ผู้อ่านเห็นจะยังไม่เปลี่ยน" : ""}`,
+      confirmLabel: `เริ่ม${actionLabel}`,
+    });
+    if (!confirmed) return;
     const queued = await perform("enqueue", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/jobs`, "POST", {
       operation: chapterAction,
       chapterIds: [...selected], idempotencyKey: `${data.workspace.id}:${chapterAction.toLocaleLowerCase()}:${crypto.randomUUID()}`,
@@ -292,7 +326,10 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   }
 
   function selectFirst(count: number) {
-    setSelected(new Set(eligibleChapters.slice(0, count).map((chapter) => chapter.id)));
+    const candidates = visibleEligible.slice(0, count);
+    setSelected(new Set(candidates.map((chapter) => chapter.id)));
+    setError("");
+    setMessage(candidates.length ? `เลือก ${candidates.length.toLocaleString("th-TH")} ตอนแรกจากรายการที่แสดงแล้ว` : "ไม่มีตอนที่พร้อมสำหรับรายการนี้");
   }
 
   function toggleVisible() {
@@ -301,18 +338,22 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
   }
 
   function toggleChapter(chapterId: string) {
+    if (!selected.has(chapterId) && selected.size >= 100) {
+      setError("เลือกได้สูงสุดครั้งละ 100 ตอน ล้างบางตอนก่อนเลือกเพิ่ม");
+      return;
+    }
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(chapterId)) next.delete(chapterId);
-      else if (next.size < 100) next.add(chapterId);
+      else next.add(chapterId);
       return next;
     });
   }
 
   return <div className="grid gap-5">
     <Modal open={busy === "regenerate-profile"} onClose={() => {}} dismissible={false} size="lg" title="กำลังสร้างแนวทางการแปลใหม่" description="AI กำลังวิเคราะห์ตัวอย่างเนื้อหา เลือกแนวทางที่เหมาะสม และตรวจสำนวนก่อนบันทึก"><AiTranslationVisual active stage={profileStage?.stage} stageLabel={profileStage?.label} modelName={profileStage?.modelName} /></Modal>
-    {error ? <div role="alert" className="rounded-[12px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
-    {message ? <div role="status" className="rounded-[12px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">{message}</div> : null}
+    {error ? <TranslationNotice role="alert" tone="danger" title="ดำเนินการไม่สำเร็จ" description={error} action={<div className="flex gap-2">{profileCanResume ? <Button type="button" size="sm" onClick={() => void regenerateProfile(true)}>ทำต่อจากจุดล่าสุด</Button> : null}<Button type="button" size="sm" variant="ghost" onClick={() => { setError(""); setProfileCanResume(false); }}>ปิด</Button></div>} /> : null}
+    {message ? <TranslationNotice role="status" tone="success" title="อัปเดตเรียบร้อย" description={message} action={<Button type="button" size="sm" variant="ghost" onClick={() => setMessage("")}>ปิด</Button>} /> : null}
     {activeJob ? <AiTranslationProgress
       completed={activeJob.completedItems + activeJob.failedItems}
       total={activeJob.totalItems}
@@ -321,18 +362,26 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
       currentStage={currentChapter ? PROGRESS_STAGE_LABELS[currentChapter.progressStage] ?? currentChapter.progressStage : null}
       currentPercent={currentChapter?.progressPercent}
     /> : null}
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <TranslationMetric label="ตอนทั้งหมด" value={data.chapters.length.toLocaleString("th-TH")} hint={`${processedChapters.length.toLocaleString("th-TH")} ตอนเคยเรียก AI`} icon={Languages} tone="brand" />
+      <TranslationMetric label="เผยแพร่แล้ว" value={publishedCount.toLocaleString("th-TH")} hint={`${publishReadyCount.toLocaleString("th-TH")} ตอนพร้อมเผยแพร่`} icon={FileCheck2} tone="success" />
+      <TranslationMetric label="รอตรวจ" value={needsReviewCount.toLocaleString("th-TH")} hint={needsReviewCount ? "เปิดตรวจทีละตอนก่อนเผยแพร่" : "ไม่มีปัญหาที่รอจัดการ"} icon={TriangleAlert} tone={needsReviewCount ? "warning" : "neutral"} />
+      <TranslationMetric label="ต้นทุนตอนโดยประมาณ" value={formatAiCost(totalCostMicros, "$0.00")} hint={averageCostMicros ? `เฉลี่ย ${formatAiCost(averageCostMicros)} ต่อตอน · ไม่รวมสร้างแนวทาง` : "ยังไม่มีการเรียก AI ในตอน"} icon={CircleDollarSign} tone="neutral" />
+    </div>
     <div className="grid gap-4 rounded-[16px] border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/6 p-4 shadow-[var(--sh-1)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-[var(--brand-emphasis)]">ขั้นตอนที่แนะนำ</p>
         <h2 className="mt-1 text-lg font-bold">{activeJob ? "รอ AI ทำงานให้เสร็จ" : needsReviewCount > 0 ? `ตรวจงาน ${needsReviewCount.toLocaleString("th-TH")} ตอนที่ต้องแก้หรืออนุมัติ` : publishReadyCount > 0 ? `เผยแพร่ ${publishReadyCount.toLocaleString("th-TH")} ตอนที่พร้อม` : "เลือกตอนเพื่อเริ่มงานถัดไป"}</h2>
         <p className="mt-1 text-sm text-muted-foreground">เผยแพร่แล้ว {publishedCount.toLocaleString("th-TH")} ตอน · พร้อมเผยแพร่ {publishReadyCount.toLocaleString("th-TH")} ตอน · ต้องตรวจ {needsReviewCount.toLocaleString("th-TH")} ตอน</p>
       </div>
-      {!activeJob && publishReadyCount > 0 && canCancelJobs ? <Button type="button" onClick={() => { setChapterAction("PUBLISH"); setSelected(new Set(data.chapters.filter((chapter) => chapter.status === "APPROVED" && chapter.publishReady && chapter.criticalIssues === 0).slice(0, 100).map((chapter) => chapter.id))); document.getElementById("chapter-actions")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><CloudUpload className="h-4 w-4" />เลือกตอนที่พร้อมเผยแพร่</Button> : !activeJob && needsReviewCount > 0 ? <Button type="button" variant="outline" onClick={() => { setStatusFilter(data.chapters.some((chapter) => chapter.status === "QA_FAILED") ? "QA_FAILED" : "REVIEW"); document.getElementById("chapter-list")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><TriangleAlert className="h-4 w-4" />ดูตอนที่ต้องตรวจ</Button> : null}
+      {!activeJob && publishReadyCount > 0 && canPublish ? <Button type="button" onClick={() => { setChapterAction("PUBLISH"); setSelected(new Set(data.chapters.filter((chapter) => chapter.status === "APPROVED" && chapter.publishReady && chapter.criticalIssues === 0).slice(0, 100).map((chapter) => chapter.id))); document.getElementById("chapter-actions")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><CloudUpload className="h-4 w-4" />เลือกตอนที่พร้อมเผยแพร่</Button> : !activeJob && needsReviewCount > 0 ? <Button type="button" variant="outline" onClick={() => { setStatusFilter(data.chapters.some((chapter) => chapter.status === "QA_FAILED") ? "QA_FAILED" : "REVIEW"); document.getElementById("chapter-list")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><TriangleAlert className="h-4 w-4" />ดูตอนที่ต้องตรวจ</Button> : null}
     </div>
+
+    {!canPublish && publishReadyCount > 0 ? <TranslationNotice tone="info" title="งานของผู้ทดลองหยุดก่อนเผยแพร่" description={`คุณตรวจและอนุมัติได้ครบทุกขั้น ตอนที่พร้อม ${publishReadyCount.toLocaleString("th-TH")} ตอนจะรอผู้ดูแลระบบกดเผยแพร่ เพื่อป้องกันเนื้อหาทดลองขึ้นหน้าอ่านโดยไม่ตั้งใจ`} /> : null}
 
     <details className="group rounded-[12px] border border-border bg-card">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold"><span className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-muted-foreground" />ข้อมูลระบบและการประหยัดค่าใช้จ่าย</span><ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm"><p className="text-xs text-muted-foreground">ระบบเก็บแนวทางที่ใช้ซ้ำไว้ชั่วคราวเพื่อลดเวลาและค่าใช้จ่าย</p><div className="flex flex-wrap gap-2 text-xs tabular-nums"><span className="rounded-full border border-border bg-card px-2.5 py-1">คำขอ <strong>{data.aiUsage.cacheEnabledRequests.toLocaleString("th-TH")}</strong></span><span className="rounded-full border border-sky-500/20 bg-card px-2.5 py-1">นำข้อมูลเดิมมาใช้ <strong>{data.aiUsage.cacheHitPercent.toLocaleString("th-TH")}%</strong></span><span className="rounded-full border border-border bg-card px-2.5 py-1">หน่วยข้อความที่ประหยัด <strong>{data.aiUsage.cachedInputTokens.toLocaleString("th-TH")}</strong></span></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm"><p className="max-w-xl text-xs leading-relaxed text-muted-foreground">ระบบเก็บแนวทางที่ใช้ซ้ำไว้ชั่วคราวเพื่อลดเวลาและค่าใช้จ่าย ต้นทุนเป็นค่าประเมินจาก token และราคาที่ตั้งไว้ ควรเทียบใบแจ้งหนี้ผู้ให้บริการเมื่อตรวจงบจริง</p><div className="flex flex-wrap gap-2 text-xs tabular-nums"><span className="rounded-full border border-border bg-card px-2.5 py-1">คำขอ <strong>{data.aiUsage.cacheEnabledRequests.toLocaleString("th-TH")}</strong></span><span className="rounded-full border border-sky-500/20 bg-card px-2.5 py-1">นำข้อมูลเดิมมาใช้ <strong>{data.aiUsage.cacheHitPercent.toLocaleString("th-TH")}%</strong></span><span className="rounded-full border border-border bg-card px-2.5 py-1">หน่วยข้อความที่ประหยัด <strong>{data.aiUsage.cachedInputTokens.toLocaleString("th-TH")}</strong></span></div></div>
     </details>
 
     <TranslationSetupSteps activeStep={step} completedThrough={step === 2 ? 1 : 2} />
@@ -398,7 +447,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
           )}
         </Panel>
 
-        <Panel title="2. ตรวจแนวทางการแปล" description={`ฉบับที่ ${data.profile?.version ?? 1} · หากค่าที่ AI แนะนำเหมาะสม สามารถบันทึกแล้วเริ่มแปลได้ทันที`} action={<Button type="button" size="sm" variant="outline" disabled={activeJobs} loading={busy === "regenerate-profile"} onClick={() => void regenerateProfile()}><Sparkles className="h-4 w-4" />ให้ AI สร้างแนวทางใหม่</Button>}>
+        <Panel title="2. ตรวจแนวทางการแปล" description={`ฉบับที่ ${data.profile?.version ?? 1} · หากค่าที่ AI แนะนำเหมาะสม สามารถบันทึกแล้วเริ่มแปลได้ทันที`} action={<Button type="button" size="sm" variant="outline" disabled={activeJobs} loading={busy === "regenerate-profile"} onClick={() => void regenerateProfile(false)}><Sparkles className="h-4 w-4" />ให้ AI สร้างแนวทางใหม่</Button>}>
           <div className="mb-4 flex items-start gap-3 rounded-[12px] border border-emerald-500/25 bg-emerald-500/8 p-4"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="font-semibold">แนวทางที่ AI แนะนำพร้อมใช้งาน</p><p className="mt-1 text-sm text-muted-foreground">หากชื่อเรื่องและเรื่องย่อด้านบนถูกต้อง คุณสามารถกด “บันทึกและจัดการตอน” ได้เลย</p></div></div>
           <details className="group rounded-[12px] border border-border">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold"><span>ปรับสำนวนและคำสั่งขั้นสูง</span><ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
@@ -460,17 +509,17 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
               <Button type="button" variant="ghost" size="sm" onClick={() => { setGlossary(data.glossary); setStep(2); }}><ArrowLeft className="h-4 w-4" />แก้ชื่อและแนวทางการแปล</Button>
             </div>
 
-            <div className={`grid gap-2 rounded-[12px] border border-border p-2 ${canCancelJobs ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            <div className={`grid gap-2 rounded-[12px] border border-border p-2 ${canPublish ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
               <Button type="button" variant={chapterAction === "TRANSLATE" ? "default" : "ghost"} onClick={() => { setChapterAction("TRANSLATE"); setSelected(new Set()); }}>
                 <Bot className="h-4 w-4" />แปลจากต้นฉบับ
               </Button>
               <Button type="button" variant={chapterAction === "POLISH" ? "default" : "ghost"} onClick={() => { setChapterAction("POLISH"); setSelected(new Set()); }}>
                 <Sparkles className="h-4 w-4" />เกลาสำนวนฉบับเดิม
               </Button>
-              {canCancelJobs ? <Button type="button" variant={chapterAction === "PUBLISH" ? "default" : "ghost"} onClick={() => { setChapterAction("PUBLISH"); setSelected(new Set()); }}>
+              {canPublish ? <Button type="button" variant={chapterAction === "PUBLISH" ? "default" : "ghost"} onClick={() => { setChapterAction("PUBLISH"); setSelected(new Set()); }}>
                 <CloudUpload className="h-4 w-4" />เผยแพร่หลายตอน
               </Button> : null}
-              <p className={`px-2 pb-1 text-xs text-muted-foreground ${canCancelJobs ? "sm:col-span-3" : "sm:col-span-2"}`}>
+              <p className={`px-2 pb-1 text-xs text-muted-foreground ${canPublish ? "sm:col-span-3" : "sm:col-span-2"}`}>
                 {chapterAction === "PUBLISH"
                   ? "เลือกตอนที่อนุมัติและตรวจผ่านแล้ว จากนั้นเผยแพร่ขึ้นหน้าอ่านได้ในครั้งเดียว"
                   : chapterAction === "POLISH"
@@ -481,37 +530,41 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
 
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_190px]">
               <div className="relative"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={chapterQuery} onChange={(event) => setChapterQuery(event.target.value)} placeholder="ค้นหาเลขตอนหรือชื่อตอน" aria-label="ค้นหาตอน" /></div>
-              <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="กรองสถานะ"><option value="ALL">ทุกสถานะ</option>{[...new Set(data.chapters.map((chapter) => chapter.status))].sort().map((status) => <option key={status} value={status}>{translationStatusLabel(status)}</option>)}</Select>
+              <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="กรองสถานะ"><option value="ALL">ทุกสถานะ ({data.chapters.length.toLocaleString("th-TH")})</option>{Object.keys(statusCounts).sort().map((status) => <option key={status} value={status}>{translationStatusLabel(status)} ({statusCounts[status].toLocaleString("th-TH")})</option>)}</Select>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 text-xs font-semibold text-muted-foreground">เลือกด่วน</span>
-              <Button type="button" size="sm" variant="outline" onClick={() => selectFirst(10)}>10 ตอนแรก</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => selectFirst(50)}>50 ตอนแรก</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => selectFirst(100)}>100 ตอนแรก</Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set())}>ล้างที่เลือก</Button>
+              <Button type="button" size="sm" variant="outline" disabled={!visibleEligible.length} onClick={() => selectFirst(1)}>1 ตอนทดลอง</Button>
+              <Button type="button" size="sm" variant="outline" disabled={!visibleEligible.length} onClick={() => selectFirst(5)}>5 ตอนที่แสดง</Button>
+              <Button type="button" size="sm" variant="outline" disabled={!visibleEligible.length} onClick={() => selectFirst(10)}>10 ตอนที่แสดง</Button>
+              <Button type="button" size="sm" variant="outline" disabled={!visibleEligible.length} onClick={() => selectFirst(100)}>สูงสุด 100 ตอน</Button>
+              <Button type="button" size="sm" variant="ghost" disabled={!selected.size} onClick={() => { setSelected(new Set()); setMessage("ล้างรายการที่เลือกแล้ว"); }}>ล้างที่เลือก</Button>
               <span className="ml-auto rounded-full bg-[var(--brand-primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--brand-emphasis)]">เลือกแล้ว {selected.size} / 100</span>
             </div>
           </div>
         </Panel></div>
 
         <div id="chapter-list" className="scroll-mt-24"><Panel title={`ตอนทั้งหมด (${data.chapters.length.toLocaleString("th-TH")})`} description={`แสดง ${visibleChapters.length.toLocaleString("th-TH")} ตอน · เลือกทำรายการได้ ${visibleEligible.length.toLocaleString("th-TH")} ตอน`} bodyClassName="p-0">
-          <div className="grid max-h-[620px] gap-2 overflow-auto p-3 md:hidden">{visibleChapters.map((chapter) => { const eligible = eligibleChapterIds.has(chapter.id); return <div key={chapter.id} className={`rounded-[12px] border p-3 ${selected.has(chapter.id) ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/5" : "border-border bg-card"}`}><div className="flex items-start gap-3"><input className="mt-1 h-5 w-5 shrink-0 accent-[var(--brand-primary)]" type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={`เลือกตอน ${chapter.chapterNumber}`} onChange={() => toggleChapter(chapter.id)} /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><Link className="line-clamp-2 font-semibold hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>ตอน {chapter.chapterNumber}: {chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</Link><StatusPill label={translationStatusLabel(chapter.status)} tone={translationStatusTone(chapter.status)} /></div><p className="mt-2 text-xs text-muted-foreground">ฉบับแก้ไข {chapter.revision} · {chapter.criticalIssues ? `${chapter.criticalIssues} ปัญหาสำคัญ` : "ตรวจผ่าน"} · ค่า AI <span className="font-semibold tabular-nums text-foreground">{formatAiCost(chapter.costMicros)}</span></p>{!eligible ? <p className="mt-1 text-xs text-muted-foreground">ตอนนี้ยังไม่สามารถทำรายการที่เลือกกับตอนนี้ได้</p> : null}</div></div></div>; })}{!visibleChapters.length ? <div className="px-4 py-10 text-center text-sm text-muted-foreground">ไม่พบตอนที่ตรงกับตัวกรอง</div> : null}</div>
+          <div className={`grid max-h-[620px] gap-2 overflow-auto p-3 transition-opacity md:hidden ${chapterQuery !== deferredChapterQuery ? "opacity-60" : "opacity-100"}`} aria-busy={chapterQuery !== deferredChapterQuery}>{visibleChapters.map((chapter) => { const eligible = eligibleChapterIds.has(chapter.id); const cacheHitPercent = chapter.inputTokens ? Math.round((chapter.cachedInputTokens / chapter.inputTokens) * 100) : 0; return <div key={chapter.id} className={`[contain-intrinsic-size:auto_120px] [content-visibility:auto] rounded-[12px] border p-3 ${selected.has(chapter.id) ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/5" : "border-border bg-card"}`}><div className="flex items-start gap-3"><input className="mt-1 h-5 w-5 shrink-0 accent-[var(--brand-primary)]" type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={`เลือกตอน ${chapter.chapterNumber}`} onChange={() => toggleChapter(chapter.id)} /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><Link className="line-clamp-2 font-semibold hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>ตอน {chapter.chapterNumber}: {chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</Link><StatusPill label={translationStatusLabel(chapter.status)} tone={translationStatusTone(chapter.status)} /></div><p className="mt-2 text-xs text-muted-foreground">ฉบับแก้ไข {chapter.revision} · {chapter.criticalIssues ? `${chapter.criticalIssues} ปัญหาสำคัญ` : "ตรวจผ่าน"}</p><p className="mt-1 text-xs text-muted-foreground">ค่า AI <span className="font-semibold tabular-nums text-foreground">{formatAiCost(chapter.costMicros)}</span>{chapter.aiCallCount ? ` · ${chapter.aiCallCount.toLocaleString("th-TH")} ครั้ง · cache ${cacheHitPercent}%` : " · ยังไม่เคยเรียก AI"}</p>{!eligible ? <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">{chapterIneligibleReason(chapterAction, chapter)}</p> : null}</div></div></div>; })}{!visibleChapters.length ? <TranslationEmptyState title="ไม่พบตอนที่ตรงกับตัวกรอง" description="ลองเปลี่ยนคำค้นหา สถานะ หรือประเภทงานที่ต้องการทำ" action={<Button type="button" variant="outline" onClick={() => { setChapterQuery(""); setStatusFilter("ALL"); }}>ล้างตัวกรอง</Button>} /> : null}</div>
           <div className="hidden max-h-[620px] overflow-auto md:block"><table className="w-full min-w-[1040px] text-sm"><thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} aria-label="เลือกตอนที่แสดง สูงสุด 100 ตอน" onChange={toggleVisible} /></th><th className="px-4 py-3">ตอน</th><th className="px-4 py-3">ชื่อต้นฉบับ</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ความคืบหน้า</th><th className="px-4 py-3">ต้นทุน AI</th><th className="px-4 py-3">ฉบับแก้ไข</th><th className="px-4 py-3">การตรวจ</th><th className="px-4 py-3" /></tr></thead><tbody>
             {visibleChapters.map((chapter) => {
               const eligible = eligibleChapterIds.has(chapter.id);
               const progress = chapter.jobItemStatus ? chapter.progressPercent : chapter.status === "PUBLISHED" || chapter.status === "APPROVED" || chapter.revision > 0 ? 100 : 0;
               const stage = chapter.jobItemStatus ? PROGRESS_STAGE_LABELS[chapter.progressStage] ?? chapter.progressStage : progress === 100 ? "มีฉบับแปลแล้ว" : "ยังไม่เริ่ม";
-              return <tr key={chapter.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-3"><input type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={`เลือกตอน ${chapter.chapterNumber}`} title={eligible ? undefined : "สถานะตอนนี้ไม่รองรับรายการที่เลือก"} onChange={() => toggleChapter(chapter.id)} /></td><td className="px-4 py-3 font-semibold tabular">{chapter.chapterNumber}</td><td className="max-w-md truncate px-4 py-3">{chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</td><td className="px-4 py-3"><StatusPill label={translationStatusLabel(chapter.status)} tone={translationStatusTone(chapter.status)} /></td><td className="w-40 px-4 py-3"><div className="flex items-center justify-between gap-2 text-[11px]"><span className="truncate text-muted-foreground">{stage}</span><strong className="tabular-nums">{progress}%</strong></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-[var(--brand-primary)] transition-[width] duration-500" style={{ width: `${progress}%` }} /></div></td><td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums" title="ต้นทุน AI สะสมจากทุกงานของตอนนี้">{formatAiCost(chapter.costMicros)}</td><td className="px-4 py-3 tabular">{chapter.revision}</td><td className="px-4 py-3">{chapter.criticalIssues ? <span className="text-destructive">{chapter.criticalIssues} ปัญหาสำคัญ</span> : "ผ่าน"}</td><td className="px-4 py-3 text-right"><Link className="font-semibold text-[var(--brand-light-on-light)] hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>ตรวจตอน</Link></td></tr>;
+              const cacheHitPercent = chapter.inputTokens ? Math.round((chapter.cachedInputTokens / chapter.inputTokens) * 100) : 0;
+              const costDetail = chapter.aiCallCount ? `${chapter.aiCallCount.toLocaleString("th-TH")} AI calls · cache hit ${cacheHitPercent}%` : "ยังไม่เคยเรียก AI";
+              return <tr key={chapter.id} className="border-b border-border/70 transition-colors last:border-0 hover:bg-muted/30"><td className="px-4 py-3"><input type="checkbox" disabled={!eligible} checked={selected.has(chapter.id)} aria-label={eligible ? `เลือกตอน ${chapter.chapterNumber}` : `ตอน ${chapter.chapterNumber} เลือกไม่ได้: ${chapterIneligibleReason(chapterAction, chapter)}`} title={eligible ? undefined : chapterIneligibleReason(chapterAction, chapter)} onChange={() => toggleChapter(chapter.id)} /></td><td className="px-4 py-3 font-semibold tabular">{chapter.chapterNumber}</td><td className="max-w-md truncate px-4 py-3">{chapter.sourceTitle || `Chapter ${chapter.chapterNumber}`}</td><td className="px-4 py-3"><StatusPill label={translationStatusLabel(chapter.status)} tone={translationStatusTone(chapter.status)} /></td><td className="w-40 px-4 py-3"><div className="flex items-center justify-between gap-2 text-[11px]"><span className="truncate text-muted-foreground">{stage}</span><strong className="tabular-nums">{progress}%</strong></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-[var(--brand-primary)] transition-[width] duration-500" style={{ width: `${progress}%` }} /></div></td><td className="whitespace-nowrap px-4 py-3" title="ต้นทุน AI สะสมจากทุกงานของตอนนี้"><span className="block font-semibold tabular-nums">{formatAiCost(chapter.costMicros)}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">{costDetail}</span></td><td className="px-4 py-3 tabular">{chapter.revision}</td><td className="px-4 py-3">{chapter.criticalIssues ? <span className="text-destructive">{chapter.criticalIssues} ปัญหาสำคัญ</span> : "ผ่าน"}</td><td className="px-4 py-3 text-right"><Link className="font-semibold text-[var(--brand-light-on-light)] hover:underline" href={`/admin/translation/${data.workspace.id}/chapters/${chapter.id}`}>ตรวจตอน</Link></td></tr>;
             })}
-            {!visibleChapters.length ? <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">ไม่พบตอนที่ตรงกับตัวกรอง</td></tr> : null}
+            {!visibleChapters.length ? <tr><td colSpan={9}><TranslationEmptyState title="ไม่พบตอนที่ตรงกับตัวกรอง" description="ลองเปลี่ยนคำค้นหา สถานะ หรือประเภทงานที่ต้องการทำ" action={<Button type="button" variant="outline" onClick={() => { setChapterQuery(""); setStatusFilter("ALL"); }}>ล้างตัวกรอง</Button>} /></td></tr> : null}
           </tbody></table></div>
           <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
-            <p className="text-sm text-muted-foreground"><ListChecks className="mr-1 inline h-4 w-4" />เลือก {selected.size.toLocaleString("th-TH")} ตอน {chapterAction === "PUBLISH" ? "· พร้อมเผยแพร่" : activeJobs ? "· มีงาน AI กำลังทำงาน" : `· พร้อม${chapterAction === "POLISH" ? "เกลาสำนวน" : "สร้างคำแปล"}`}</p>
+            <div><p className="text-sm text-muted-foreground"><ListChecks className="mr-1 inline h-4 w-4" />เลือก <strong className="text-foreground">{selected.size.toLocaleString("th-TH")} ตอน</strong> {chapterAction === "PUBLISH" ? "· พร้อมเผยแพร่" : activeJobs ? "· มีงาน AI กำลังทำงาน" : `· พร้อม${chapterAction === "POLISH" ? "เกลาสำนวน" : "สร้างคำแปล"}`}</p>{selected.size > 0 && chapterAction !== "PUBLISH" ? <p className="mt-0.5 text-xs text-muted-foreground">{averageCostMicros ? `ประเมินค่าใช้จ่าย ${formatAiCost(selectedEstimatedCostMicros)} จากค่าเฉลี่ยเดิม` : "ยอดจริงคำนวณตาม token หลังงานเสร็จ"}</p> : null}</div>
             <Button
               type="button"
               loading={busy === (chapterAction === "PUBLISH" ? "publish" : "enqueue")}
-              disabled={!profileConfirmed || !selected.size || (chapterAction !== "PUBLISH" && activeJobs)}
+              disabled={Boolean(busy) || !profileConfirmed || !selected.size || (chapterAction !== "PUBLISH" && activeJobs)}
+              title={busy ? "รอคำสั่งปัจจุบันให้เสร็จก่อน" : !profileConfirmed ? "บันทึกแนวทางการแปลก่อน" : !selected.size ? "เลือกอย่างน้อย 1 ตอน" : chapterAction !== "PUBLISH" && activeJobs ? "รองาน AI ปัจจุบันให้เสร็จก่อน" : undefined}
               onClick={chapterAction === "PUBLISH" ? publishSelected : enqueue}
             >
               {chapterAction === "PUBLISH" ? <CloudUpload className="h-4 w-4" /> : chapterAction === "POLISH" ? <Sparkles className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
@@ -520,7 +573,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs }: { data: Data; 
           </div>
         </Panel></div>
 
-        <Panel title="ประวัติงาน AI" description="ดูผลของงานล่าสุดและจำนวนตอนที่มีปัญหา" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[780px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">ประเภทงาน</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ความคืบหน้า</th><th className="px-4 py-3">รายละเอียดปัญหา</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 last:border-0"><td className="whitespace-nowrap px-4 py-3">{new Date(job.createdAt).toLocaleString("th-TH")}</td><td className="px-4 py-3">{job.operation === "POLISH" ? "เกลาสำนวน" : "แปลต้นฉบับ"}</td><td className="px-4 py-3"><StatusPill label={translationStatusLabel(job.status)} tone={translationStatusTone(job.status)} /></td><td className="px-4 py-3 tabular">{job.completedItems + job.failedItems} / {job.totalItems}{job.failedItems ? ` · ไม่สำเร็จ ${job.failedItems}` : ""}</td><td className="max-w-sm px-4 py-3 text-xs text-destructive">{job.lastError || "—"}</td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" onClick={() => void cancelJob(job.id)}>ยกเลิก</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">ยังไม่มีงาน AI เลือกตอนด้านบนเพื่อเริ่มงานแรก</td></tr> : null}</tbody></table></div></Panel>
+        <Panel title="ประวัติงาน AI" description="ตรวจสอบทุกชุดงาน ต้นทุน ระยะเวลา และข้อผิดพลาดย้อนหลัง" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[1060px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">ประเภทงาน</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ความคืบหน้า</th><th className="px-4 py-3">ต้นทุน</th><th className="px-4 py-3">ระยะเวลา</th><th className="px-4 py-3">รายละเอียดปัญหา</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 align-top transition-colors last:border-0 hover:bg-muted/30"><td className="whitespace-nowrap px-4 py-3 text-xs">{formatTranslationDate(job.createdAt)}</td><td className="px-4 py-3 font-medium">{job.operation === "POLISH" ? "เกลาสำนวน" : "แปลต้นฉบับ"}</td><td className="px-4 py-3"><StatusPill label={job.cancelRequestedAt && job.status === "RUNNING" ? "กำลังยกเลิก" : translationStatusLabel(job.status)} tone={job.cancelRequestedAt && job.status === "RUNNING" ? "warning" : translationStatusTone(job.status)} /></td><td className="px-4 py-3 tabular-nums"><span className="font-semibold">{job.completedItems + job.failedItems} / {job.totalItems}</span>{job.failedItems ? <span className="mt-0.5 block text-xs text-destructive">ไม่สำเร็จ {job.failedItems}</span> : null}</td><td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums">{formatAiCost(job.costMicros)}</td><td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatJobDuration(job.startedAt, job.finishedAt)}</td><td className="max-w-sm px-4 py-3 text-xs"><span className={job.lastError ? "text-destructive" : "text-muted-foreground"}>{job.lastError || "ไม่มีข้อผิดพลาด"}</span></td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" disabled={Boolean(job.cancelRequestedAt)} onClick={() => void cancelJob(job.id)}>{job.cancelRequestedAt ? "กำลังยกเลิก" : "ยกเลิก"}</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={8}><TranslationEmptyState title="ยังไม่มีประวัติงาน AI" description="เลือกตอนด้านบนแล้วเริ่มแปลหรือเกลาสำนวน ประวัติและต้นทุนจะปรากฏที่นี่" /></td></tr> : null}</tbody></table></div></Panel>
       </div>
     )}
   </div>;

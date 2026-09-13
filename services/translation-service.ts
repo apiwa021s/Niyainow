@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, max, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, gt, inArray, isNull, lt, max, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
@@ -710,7 +710,7 @@ export async function getTranslationStudio() {
   const actor = await assertTranslationPermission("translation.view");
   await ensureAutomaticAiConfiguration(actor);
   const db = getDb();
-  const [workspaceRows, sourceRows, modelRows, promptRows, masterData] = await Promise.all([
+  const [workspaceRows, sourceRows, masterData] = await Promise.all([
     db.select({
       workspace: translationWorkspaces,
       sourceTitle: novelImportSourceTexts.title,
@@ -720,6 +720,7 @@ export async function getTranslationStudio() {
       publishReadyCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status = 'APPROVED')`.mapWith(Number),
       publishedCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status = 'PUBLISHED')`.mapWith(Number),
       needsReviewCount: sql<number>`(select count(*) from translation_chapters tc where tc.workspace_id = ${translationWorkspaces.id} and tc.status in ('REVIEW','QA_FAILED'))`.mapWith(Number),
+      activeJobCount: sql<number>`(select count(*) from translation_jobs tj where tj.workspace_id = ${translationWorkspaces.id} and tj.status in ('QUEUED','RUNNING'))`.mapWith(Number),
       jobCostMicros: sql<number>`
         coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id join translation_jobs j on j.id = ji.job_id where j.workspace_id = ${translationWorkspaces.id}), 0)
         + coalesce((select sum((call->>'costMicros')::bigint) from translation_profile_versions tpv cross join lateral jsonb_array_elements(coalesce(tpv.snapshot->'aiPipeline', '[]'::jsonb)) call where tpv.workspace_id = ${translationWorkspaces.id}), 0)
@@ -744,21 +745,17 @@ export async function getTranslationStudio() {
       .from(novelImportSources)
       .leftJoin(novelImportSourceTexts, and(eq(novelImportSourceTexts.sourceId, novelImportSources.id), eq(novelImportSourceTexts.language, novelImportSources.sourceLanguage)))
       .where(eq(novelImportSources.status, "ready")).orderBy(desc(novelImportSources.updatedAt)),
-    db.select().from(translationAiModels).where(eq(translationAiModels.isActive, true)).orderBy(asc(translationAiModels.name)),
-    db.select().from(translationPromptVersions).where(eq(translationPromptVersions.isActive, true)).orderBy(desc(translationPromptVersions.createdAt)),
     getTranslationMasterOverview(),
   ]);
   return {
-    workspaces: workspaceRows.map(({ workspace, sourceTitle, translatedTitle, chapterCount, approvedCount, publishReadyCount, publishedCount, needsReviewCount, jobCostMicros }) => ({
-      ...serializeWorkspace(workspace), title: translatedTitle ?? sourceTitle ?? "Imported novel", sourceTitle: sourceTitle ?? "Imported novel", chapterCount, approvedCount, publishReadyCount, publishedCount, needsReviewCount, jobCostMicros, updatedAt: workspace.updatedAt.toISOString(),
+    workspaces: workspaceRows.map(({ workspace, sourceTitle, translatedTitle, chapterCount, approvedCount, publishReadyCount, publishedCount, needsReviewCount, activeJobCount, jobCostMicros }) => ({
+      ...serializeWorkspace(workspace), title: translatedTitle ?? sourceTitle ?? "Imported novel", sourceTitle: sourceTitle ?? "Imported novel", chapterCount, approvedCount, publishReadyCount, publishedCount, needsReviewCount, activeJobCount, jobCostMicros, updatedAt: workspace.updatedAt.toISOString(),
     })),
     sources: sourceRows.map((row) => ({
       ...row,
       title: row.title ?? "Imported novel",
       coverUrl: assetUrl(row.coverKey, publicAssetFallbacks.novelCover),
     })),
-    models: modelRows.map((row) => ({ ...row, inputCostMicrosPerMillion: Number(row.inputCostMicrosPerMillion), outputCostMicrosPerMillion: Number(row.outputCostMicrosPerMillion), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
-    prompts: promptRows.map((row) => ({ id: row.id, name: row.name, version: row.version })),
     masterData,
   };
 }
@@ -784,7 +781,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     ))
     .where(eq(translationWorkspaces.id, workspaceId)).limit(1);
   if (!workspace) return undefined;
-  const [profile, glossary, characters, chapterRows, jobs, models, prompts, profileVersions, titleReviewRows, aiUsageRows] = await Promise.all([
+  const [profile, glossary, characters, chapterRows, chapterAiUsageRows, jobs, profileVersions, titleReviewRows, aiUsageRows] = await Promise.all([
     db.select().from(translationProfiles).where(eq(translationProfiles.workspaceId, workspaceId)).limit(1),
     db.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId)).orderBy(asc(translationGlossaryEntries.sourceTerm)),
     db.select().from(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId)).orderBy(asc(translationCharacters.sourceName)),
@@ -797,15 +794,26 @@ export async function getTranslationWorkspace(workspaceId: string) {
       progressPercent: sql<number>`coalesce((select ji.progress_percent from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1), 0)`.mapWith(Number),
       progressStage: sql<string>`coalesce((select ji.progress_stage from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1), 'QUEUED')`,
       jobItemStatus: sql<string | null>`(select ji.status from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1)`,
-      costMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id where ji.translation_chapter_id = ${translationChapters.id}), 0)`.mapWith(Number),
       revision: sql<number>`coalesce((select max(tv.revision) from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id}), 0)`.mapWith(Number),
       criticalIssues: sql<number>`(select count(*) from translation_qa_issues qi where qi.translation_version_id = (select tv.id from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id} order by tv.revision desc limit 1) and qi.severity = 'CRITICAL' and qi.resolved_at is null)`.mapWith(Number),
       publishReady: sql<boolean>`exists (select 1 from translation_versions tv where tv.id = (select latest_tv.id from translation_versions latest_tv where latest_tv.translation_chapter_id = ${translationChapters.id} order by latest_tv.revision desc limit 1) and tv.status = 'APPROVED')`,
     }).from(translationChapters).innerJoin(translationSourceSnapshots, eq(translationSourceSnapshots.id, translationChapters.sourceSnapshotId))
       .where(eq(translationChapters.workspaceId, workspaceId)).orderBy(asc(translationChapters.chapterNumber)),
-    db.select().from(translationJobs).where(eq(translationJobs.workspaceId, workspaceId)).orderBy(desc(translationJobs.createdAt)).limit(20),
-    db.select().from(translationAiModels).where(eq(translationAiModels.isActive, true)).orderBy(asc(translationAiModels.name)),
-    db.select().from(translationPromptVersions).where(eq(translationPromptVersions.isActive, true)).orderBy(desc(translationPromptVersions.createdAt)),
+    db.select({
+      chapterId: translationJobItems.translationChapterId,
+      costMicros: sql<number>`coalesce(sum(${translationAiInvocations.costMicros}), 0)`.mapWith(Number),
+      aiCallCount: sql<number>`count(*) filter (where ${translationAiInvocations.status} = 'SUCCESS')`.mapWith(Number),
+      inputTokens: sql<number>`coalesce(sum(${translationAiInvocations.inputTokens}) filter (where ${translationAiInvocations.status} = 'SUCCESS'), 0)`.mapWith(Number),
+      cachedInputTokens: sql<number>`coalesce(sum(${translationAiInvocations.cachedInputTokens}) filter (where ${translationAiInvocations.status} = 'SUCCESS'), 0)`.mapWith(Number),
+    }).from(translationJobItems)
+      .innerJoin(translationChapters, eq(translationChapters.id, translationJobItems.translationChapterId))
+      .leftJoin(translationAiInvocations, eq(translationAiInvocations.jobItemId, translationJobItems.id))
+      .where(eq(translationChapters.workspaceId, workspaceId))
+      .groupBy(translationJobItems.translationChapterId),
+    db.select({
+      ...getTableColumns(translationJobs),
+      costMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id where ji.job_id = ${translationJobs.id}), 0)`.mapWith(Number),
+    }).from(translationJobs).where(eq(translationJobs.workspaceId, workspaceId)).orderBy(desc(translationJobs.createdAt)).limit(20),
     db.select({ snapshot: translationProfileVersions.snapshot }).from(translationProfileVersions)
       .where(and(
         eq(translationProfileVersions.workspaceId, workspaceId),
@@ -834,6 +842,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     : null;
   const storedTitleReview = storedTitleReviewSchema.safeParse(titleReviewRows[0]?.after);
   const aiUsage = aiUsageRows[0] ?? { inputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0, cacheEnabledRequests: 0 };
+  const aiUsageByChapter = new Map(chapterAiUsageRows.map((row) => [row.chapterId, row]));
   const jobMetadataRows = jobs.length
     ? await db.select({ jobId: translationJobItems.jobId, checkpoint: translationJobItems.checkpoint })
         .from(translationJobItems)
@@ -865,12 +874,11 @@ export async function getTranslationWorkspace(workspaceId: string) {
     },
     glossary: glossary.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
     characters: characters.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })),
-    chapters: chapterRows,
+    chapters: chapterRows.map((row) => ({
+      ...row,
+      ...(aiUsageByChapter.get(row.id) ?? { costMicros: 0, aiCallCount: 0, inputTokens: 0, cachedInputTokens: 0 }),
+    })),
     jobs: jobs.map((row) => ({ ...row, operation: operationByJob.get(row.id) ?? "TRANSLATE", createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), startedAt: row.startedAt?.toISOString() ?? null, finishedAt: row.finishedAt?.toISOString() ?? null })),
-    models: [selectBestTranslationModel(models, workspace.workspace.sourceLanguage, workspace.workspace.targetLanguage), ...models]
-      .filter((row, index, rows): row is typeof models[number] => Boolean(row) && rows.findIndex((candidate) => candidate?.id === row?.id) === index)
-      .map((row) => ({ id: row.id, name: row.name, provider: row.provider, modelName: row.modelName })),
-    prompts: prompts.map((row) => ({ id: row.id, name: row.name, version: row.version })),
   };
 }
 
@@ -887,6 +895,7 @@ export async function getActiveTranslationQueue() {
     createdAt: translationJobs.createdAt,
     title: novelImportSourceTexts.title,
     progressPercent: sql<number>`coalesce((select round(avg(ji.progress_percent)) from translation_job_items ji where ji.job_id = ${translationJobs.id}), 0)`.mapWith(Number),
+    costMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id where ji.job_id = ${translationJobs.id}), 0)`.mapWith(Number),
   }).from(translationJobs)
     .innerJoin(translationWorkspaces, eq(translationWorkspaces.id, translationJobs.workspaceId))
     .innerJoin(novelImportSources, eq(novelImportSources.id, translationWorkspaces.importSourceId))
@@ -1266,12 +1275,20 @@ export async function getTranslationChapterEditor(workspaceId: string, chapterId
     .leftJoin(translationProfiles, eq(translationProfiles.workspaceId, translationWorkspaces.id))
     .where(and(eq(translationChapters.id, chapterId), eq(translationChapters.workspaceId, workspaceId))).limit(1);
   if (!row) return undefined;
-  const [versions, glossary, characters, previousChapters, nextChapters] = await Promise.all([
+  const [versions, glossary, characters, previousChapters, nextChapters, aiUsageRows] = await Promise.all([
     db.select().from(translationVersions).where(eq(translationVersions.translationChapterId, chapterId)).orderBy(desc(translationVersions.revision)),
     db.select().from(translationGlossaryEntries).where(eq(translationGlossaryEntries.workspaceId, workspaceId)).orderBy(asc(translationGlossaryEntries.sourceTerm)),
     db.select().from(translationCharacters).where(eq(translationCharacters.workspaceId, workspaceId)).orderBy(asc(translationCharacters.sourceName)),
     db.select({ id: translationChapters.id, chapterNumber: translationChapters.chapterNumber }).from(translationChapters).where(and(eq(translationChapters.workspaceId, workspaceId), lt(translationChapters.chapterNumber, row.chapter.chapterNumber))).orderBy(desc(translationChapters.chapterNumber)).limit(1),
     db.select({ id: translationChapters.id, chapterNumber: translationChapters.chapterNumber }).from(translationChapters).where(and(eq(translationChapters.workspaceId, workspaceId), gt(translationChapters.chapterNumber, row.chapter.chapterNumber))).orderBy(asc(translationChapters.chapterNumber)).limit(1),
+    db.select({
+      costMicros: sql<number>`coalesce(sum(${translationAiInvocations.costMicros}), 0)`.mapWith(Number),
+      aiCallCount: sql<number>`count(*) filter (where ${translationAiInvocations.status} = 'SUCCESS')`.mapWith(Number),
+      inputTokens: sql<number>`coalesce(sum(${translationAiInvocations.inputTokens}) filter (where ${translationAiInvocations.status} = 'SUCCESS'), 0)`.mapWith(Number),
+      cachedInputTokens: sql<number>`coalesce(sum(${translationAiInvocations.cachedInputTokens}) filter (where ${translationAiInvocations.status} = 'SUCCESS'), 0)`.mapWith(Number),
+    }).from(translationAiInvocations)
+      .innerJoin(translationJobItems, eq(translationJobItems.id, translationAiInvocations.jobItemId))
+      .where(eq(translationJobItems.translationChapterId, chapterId)),
   ]);
   const latest = versions[0] ?? null;
   const issues = latest ? await db.select().from(translationQaIssues).where(eq(translationQaIssues.translationVersionId, latest.id)).orderBy(desc(translationQaIssues.severity)) : [];
@@ -1285,6 +1302,10 @@ export async function getTranslationChapterEditor(workspaceId: string, chapterId
     glossary: glossary.map((entry) => ({ sourceTerm: entry.sourceTerm, targetTerm: entry.targetTerm, isLocked: entry.isLocked })),
     characters: characters.map((character) => ({ sourceName: character.sourceName, targetName: character.targetName, speakingStyle: character.speakingStyle, isLocked: character.isLocked })),
     issues: issues.map((issue) => ({ ...issue, createdAt: issue.createdAt.toISOString(), resolvedAt: issue.resolvedAt?.toISOString() ?? null })),
+    aiUsage: {
+      ...(aiUsageRows[0] ?? { costMicros: 0, aiCallCount: 0, inputTokens: 0, cachedInputTokens: 0 }),
+      cacheHitPercent: aiUsageRows[0]?.inputTokens ? Math.round((aiUsageRows[0].cachedInputTokens / aiUsageRows[0].inputTokens) * 1_000) / 10 : 0,
+    },
     navigation: { previous: previousChapters[0] ?? null, next: nextChapters[0] ?? null },
   };
 }

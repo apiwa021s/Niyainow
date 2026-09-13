@@ -7,6 +7,7 @@ const TRANSLATION_STATUS_LABELS: Record<string, string> = {
   APPROVED: "พร้อมเผยแพร่",
   PUBLISHED: "เผยแพร่แล้ว",
   COMPLETED: "เสร็จแล้ว",
+  PARTIAL: "สำเร็จบางส่วน",
   FAILED: "ทำงานไม่สำเร็จ",
   STALE: "ต้นฉบับมีการเปลี่ยนแปลง",
   DRAFT: "ฉบับร่าง",
@@ -23,7 +24,7 @@ export function translationStatusLabel(status: string) {
 export function translationStatusTone(status: string): "success" | "danger" | "warning" | "info" | "neutral" {
   if (["PUBLISHED", "COMPLETED"].includes(status)) return "success";
   if (["FAILED", "QA_FAILED"].includes(status)) return "danger";
-  if (["APPROVED", "REVIEW", "STALE"].includes(status)) return "warning";
+  if (["APPROVED", "REVIEW", "STALE", "PARTIAL"].includes(status)) return "warning";
   if (["TRANSLATING", "QUEUED", "RUNNING"].includes(status)) return "info";
   return "neutral";
 }

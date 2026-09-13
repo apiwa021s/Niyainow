@@ -21,6 +21,31 @@ Each chapter exposes truthful worker milestones (`QUEUED`, `CONTEXT`, `CANON_ANA
 
 Approval creates or updates a catalog chapter with `DRAFT` status and links it to the translation chapter; it is not visible publicly. Publishing does not require a pre-linked public novel or rights metadata, and only the explicit Publish action changes the draft chapter and its novel to `PUBLISHED`.
 
+## UX state contract
+
+The studio must always explain the current state, its consequence, and the next safe action:
+
+| Scenario | User-facing behavior |
+| --- | --- |
+| No approved master rules | Existing work remains available; profile creation is blocked with a direct link to approve rules. |
+| No ready import source | The empty state links to Imports and explains that the source must become ready first. |
+| First-time user | The landing page explains that profile creation does not translate or publish chapters, and recommends a small trial. |
+| Profile creation is running | A non-dismissible progress dialog shows the current stage, selected model, elapsed time, and checkpoint behavior. |
+| Profile creation is interrupted | The saved checkpoint is detected and the user can resume without repeating completed stages. |
+| Chapter job is queued or running | Progress remains visible globally; the user is explicitly told that it is safe to leave the page. |
+| Queue refresh loses connectivity | Last-known progress remains visible with a stale-data warning and a manual retry control. |
+| Chapter selection is empty or exceeds 100 | The primary action explains why it is unavailable; selecting item 101 produces an immediate error. |
+| Search or status filters return no chapters | A dedicated empty state resets both filters. Quick selection applies only to the currently visible eligible rows. |
+| Starting a paid AI job | A confirmation states chapter count, asynchronous behavior, publication safety, and a historical cost estimate when available. |
+| Job completes partially | History labels it as partial, shows failed item count and error details, and preserves successful chapters. |
+| Translation has critical QA issues | Approval is blocked with an exact issue count and a clear instruction to fix and recheck. |
+| Translation has unsaved edits | Navigation asks for confirmation; approve and publish explain that changes must be saved first. |
+| Editor role completes review | The UI explains that publication is intentionally handed off to an admin. |
+| Workspace or chapter is missing | A route-specific not-found page links back to the studio. |
+| Server rendering fails | A route error boundary preserves the admin shell, provides retry, and displays a support digest when available. |
+
+Costs shown in the chapter list, editor, queue dock, and job history are cumulative calculated costs from recorded AI invocations. They are estimates based on stored token usage and configured model prices, not a replacement for the provider invoice.
+
 ## Automatic model selection
 
 The application owns the routing presets; admins do not enter model IDs, prices, language pairs, or prompts. Workspace creation upserts GPT-6 Astra, GPT-5.6 Sol, GPT-5.6 Terra, and GPT-5.6 Luna with current routing and cost metadata. Main production translation is pinned to GPT-5.6 Sol. The Admin page displays the complete routing policy as a read-only table.
