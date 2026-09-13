@@ -58,6 +58,7 @@ export default function createNextConfig(phase: string): NextConfig {
   const worldSocketUrl = buildWorldSocketUrl(phase);
   const isProduction = process.env.NODE_ENV === "production";
   const vercelLiveOrigin = process.env.VERCEL === "1" ? "https://vercel.live" : null;
+  const cloudflareInsightsOrigin = "https://static.cloudflareinsights.com";
 
   const assetOrigin = (() => {
     try {
@@ -86,6 +87,7 @@ export default function createNextConfig(phase: string): NextConfig {
     [
       `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
       "https://challenges.cloudflare.com",
+      cloudflareInsightsOrigin,
       ...(vercelLiveOrigin ? [vercelLiveOrigin] : []),
     ].join(" "),
     "style-src 'self' 'unsafe-inline'",

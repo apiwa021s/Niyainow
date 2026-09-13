@@ -61,6 +61,12 @@ import { insertTranslationVersion, replaceQaIssues } from "@/services/translatio
 const languageSchema = z.string().trim().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/).max(35).transform((value) => value.toLocaleLowerCase());
 const uuidSchema = z.uuid();
 const translatedImportSourceTexts = alias(novelImportSourceTexts, "translated_import_source_texts");
+const workspaceHistoryJobs = alias(translationJobs, "workspace_history_jobs");
+// Drizzle 0.45 can drop the qualifier when an outer-column reference is
+// interpolated inside a correlated raw SQL subquery. Keep these identifiers
+// static and fully qualified so PostgreSQL never resolves them as ambiguous.
+const workspaceHistoryJobId = sql.raw('"workspace_history_jobs"."id"');
+const queueJobId = sql.raw('"translation_jobs"."id"');
 const storedAiPipelineSchema = z.array(z.object({
   task: z.string(),
   modelName: z.string(),
@@ -813,9 +819,9 @@ export async function getTranslationWorkspace(workspaceId: string) {
       .where(eq(translationChapters.workspaceId, workspaceId))
       .groupBy(translationJobItems.translationChapterId),
     db.select({
-      ...getTableColumns(translationJobs),
-      costMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id where ji.job_id = ${translationJobs.id}), 0)`.mapWith(Number),
-    }).from(translationJobs).where(eq(translationJobs.workspaceId, workspaceId)).orderBy(desc(translationJobs.createdAt)).limit(20),
+      ...getTableColumns(workspaceHistoryJobs),
+      costMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id where ji.job_id = ${workspaceHistoryJobId}), 0)`.mapWith(Number),
+    }).from(workspaceHistoryJobs).where(eq(workspaceHistoryJobs.workspaceId, workspaceId)).orderBy(desc(workspaceHistoryJobs.createdAt)).limit(20),
     db.select({ snapshot: translationProfileVersions.snapshot }).from(translationProfileVersions)
       .where(and(
         eq(translationProfileVersions.workspaceId, workspaceId),
@@ -896,8 +902,8 @@ export async function getActiveTranslationQueue() {
     failedItems: translationJobs.failedItems,
     createdAt: translationJobs.createdAt,
     title: novelImportSourceTexts.title,
-    progressPercent: sql<number>`coalesce((select round(avg(ji.progress_percent)) from translation_job_items ji where ji.job_id = ${translationJobs.id}), 0)`.mapWith(Number),
-    costMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id where ji.job_id = ${translationJobs.id}), 0)`.mapWith(Number),
+    progressPercent: sql<number>`coalesce((select round(avg(ji.progress_percent)) from translation_job_items ji where ji.job_id = ${queueJobId}), 0)`.mapWith(Number),
+    costMicros: sql<number>`coalesce((select sum(ai.cost_micros) from translation_ai_invocations ai join translation_job_items ji on ji.id = ai.job_item_id where ji.job_id = ${queueJobId}), 0)`.mapWith(Number),
   }).from(translationJobs)
     .innerJoin(translationWorkspaces, eq(translationWorkspaces.id, translationJobs.workspaceId))
     .innerJoin(novelImportSources, eq(novelImportSources.id, translationWorkspaces.importSourceId))
