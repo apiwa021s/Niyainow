@@ -54,7 +54,7 @@ Costs shown in the chapter list, editor, queue dock, and job history are cumulat
 
 ## Automatic model selection
 
-The application owns the routing presets; admins do not enter model IDs, prices, language pairs, or prompts. Workspace creation upserts GPT-6 Astra, GPT-5.6 Sol, GPT-5.6 Terra, and GPT-5.6 Luna with current routing and cost metadata. Main production translation is pinned to GPT-5.6 Sol. The Admin page displays the complete routing policy as a read-only table.
+The application owns the routing presets; admins do not enter model IDs, prices, language pairs, or prompts. Workspace creation upserts GPT-6 Astra, GPT-5.6 Sol, GPT-5.6 Terra, and GPT-5.6 Luna with current routing and cost metadata. All chapter-level generation, escalation, full rewrites, and premium polishing are pinned to GPT-5.6 Sol or cheaper models; GPT-6 Astra is reserved for story-level profile and metadata work. The Admin page displays the complete routing policy as a read-only table.
 
 ## Context safety
 

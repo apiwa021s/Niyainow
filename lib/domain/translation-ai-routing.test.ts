@@ -15,7 +15,11 @@ describe("automatic translation AI routing", () => {
     expect(automaticModelNameForTask("ENTITY_EXTRACTION")).toBe("gpt-5.6-luna");
     expect(automaticModelNameForTask("PROFILE_QUALITY_REVIEW")).toBe("gpt-6-astra");
     expect(automaticModelNameForTask("METADATA_LOCALIZATION")).toBe("gpt-6-astra");
-    expect(automaticModelNameForTask("ESCALATION")).toBe("gpt-6-astra");
+    expect(automaticModelNameForTask("ESCALATION")).toBe("gpt-5.6-sol");
+    expect(automaticModelNameForTask("PREMIUM_EDIT")).toBe("gpt-5.6-sol");
+    expect(["CANON_EXTRACTION", "MAIN_TRANSLATION", "FIRST_QA", "ESCALATION", "PREMIUM_EDIT"]
+      .map((task) => automaticModelNameForTask(task as Parameters<typeof automaticModelNameForTask>[0])))
+      .not.toContain("gpt-6-astra");
   });
 
   it("contains one managed preset for every routed API model", () => {

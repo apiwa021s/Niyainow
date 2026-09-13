@@ -50,8 +50,8 @@ export const AUTOMATIC_TRANSLATION_ROUTING: ReadonlyArray<{
   { task: "CANON_EXTRACTION", label: "สรุปตอน / Canon extraction", modelLabel: "GPT-5.6 Terra", reason: "ต้องเข้าใจเนื้อหาพอสมควร", modelName: "gpt-5.6-terra" },
   { task: "MAIN_TRANSLATION", label: "แปลนิยายหลัก", modelLabel: "GPT-5.6 Sol", reason: "สมดุลคุณภาพและราคาสำหรับ production", modelName: "gpt-5.6-sol" },
   { task: "FIRST_QA", label: "QA รอบแรก", modelLabel: "GPT-5.6 Terra", reason: "เหมาะกับการตรวจรอบแรก", modelName: "gpt-5.6-terra" },
-  { task: "ESCALATION", label: "ตอนยาก / ภาษาโบราณ / อารมณ์หนัก", modelLabel: "GPT-6 Astra", reason: "ยกระดับอัตโนมัติ", modelName: "gpt-6-astra" },
-  { task: "PREMIUM_EDIT", label: "Final Editor สำหรับ Premium", modelLabel: "GPT-6 Astra", reason: "คุณภาพสูงสุด", modelName: "gpt-6-astra" },
+  { task: "ESCALATION", label: "ตอนยาก / ภาษาโบราณ / อารมณ์หนัก", modelLabel: "GPT-5.6 Sol", reason: "แก้จุดยากโดยคุมต้นทุนระดับตอน", modelName: "gpt-5.6-sol" },
+  { task: "PREMIUM_EDIT", label: "Final Editor สำหรับ Premium", modelLabel: "GPT-5.6 Sol", reason: "เกลาสำนวนระดับตอนโดยไม่ใช้ Astra", modelName: "gpt-5.6-sol" },
   { task: "DETERMINISTIC_GLOSSARY", label: "ตรวจ glossary แบบ deterministic", modelLabel: "Code", reason: "ไม่เสีย LLM token", modelName: null },
 ];
 
