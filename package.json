@@ -41,6 +41,7 @@
     "db:seed": "tsx db/seed.ts",
     "db:import-translated-novels": "tsx db/import-translated-novels.ts",
     "db:import-translation-masters": "node --conditions=react-server --import tsx db/import-translation-masters.ts",
+    "db:curate-taxonomy": "node --conditions=react-server --import tsx db/curate-published-taxonomy.ts",
     "db:reconcile-engagement": "tsx db/reconcile-engagement.ts",
     "benchmark:cache": "node scripts/cache-benchmark.mjs",
     "security:scraper-test": "tsx scripts/security/scraper-test.ts",

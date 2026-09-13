@@ -106,6 +106,133 @@ const plans: TaxonomyPlan[] = [
       { slug: "demon", name: "ปีศาจ" },
     ],
   },
+  {
+    slug: "shadow-slave",
+    genres: ["fantasy", "action", "adventure", "system", "horror"],
+    tags: [
+      { slug: "nightmare-spell", name: "มนตร์ฝันร้าย" },
+      { slug: "awakened", name: "ผู้ตื่นรู้" },
+      { slug: "survival", name: "เอาชีวิตรอด" },
+      { slug: "dark-fantasy", name: "ดาร์กแฟนตาซี" },
+      { slug: "monsters", name: "สัตว์ประหลาด" },
+      { slug: "shadow-power", name: "พลังเงา" },
+    ],
+  },
+  {
+    slug: "follow-the-path-of-dao-from-infancy",
+    genres: ["martial-arts", "fantasy", "action", "adventure", "historical"],
+    tags: [
+      { slug: "cultivation", name: "บำเพ็ญเซียน" },
+      { slug: "dao", name: "วิถีเต๋า" },
+      { slug: "child-protagonist", name: "ตัวเอกวัยเด็ก" },
+      { slug: "prodigy", name: "อัจฉริยะ" },
+      { slug: "swordsmanship", name: "วิถีกระบี่" },
+      { slug: "military-family", name: "ตระกูลขุนศึก" },
+    ],
+  },
+  {
+    slug: "wizard-starting-from-the-skill-tree",
+    genres: ["system", "fantasy", "adventure", "action"],
+    tags: [
+      { slug: "skill-tree", name: "ต้นไม้ทักษะ" },
+      { slug: "wizard", name: "พ่อมด" },
+      { slug: "transmigration", name: "ทะลุมิติ" },
+      { slug: "progression", name: "การเติบโตทางพลัง" },
+      { slug: "magic", name: "เวทมนตร์" },
+      { slug: "immortality", name: "เส้นทางนิรันดร์" },
+    ],
+  },
+  {
+    slug: "sss-2",
+    genres: ["system", "action", "adventure", "fantasy", "apocalypse"],
+    tags: [
+      { slug: "sss-awakening", name: "ปลุกพลัง SSS" },
+      { slug: "class-change", name: "เปลี่ยนคลาส" },
+      { slug: "game-system", name: "ระบบเกม" },
+      { slug: "overpowered-protagonist", name: "พระเอกเก่ง" },
+      { slug: "underdog", name: "จากผู้ไร้ค่าสู่ผู้แข็งแกร่ง" },
+      { slug: "survival", name: "เอาชีวิตรอด" },
+      { slug: "leveling", name: "เก็บเลเวล" },
+    ],
+  },
+  {
+    slug: "divine-emperor-of-death",
+    genres: ["martial-arts", "fantasy", "adventure", "action", "comedy"],
+    tags: [
+      { slug: "isekai", name: "ต่างโลก" },
+      { slug: "reincarnation", name: "เกิดใหม่" },
+      { slug: "cultivation", name: "บำเพ็ญเซียน" },
+      { slug: "child-protagonist", name: "ตัวเอกวัยเด็ก" },
+      { slug: "death-power", name: "พลังแห่งความตาย" },
+      { slug: "crown-prince", name: "มกุฎราชกุมาร" },
+      { slug: "overpowered-protagonist", name: "พระเอกเก่ง" },
+    ],
+  },
+  {
+    slug: "novel-q3af65",
+    genres: ["system", "fantasy", "action", "adventure", "martial-arts"],
+    tags: [
+      { slug: "isekai", name: "ต่างโลก" },
+      { slug: "world-hopping", name: "ท่องหลายโลก" },
+      { slug: "cheat-skill", name: "พลังโกง" },
+      { slug: "copy-ability", name: "คัดลอกความสามารถ" },
+      { slug: "cultivation", name: "บำเพ็ญเซียน" },
+      { slug: "anime-worlds", name: "โลกอนิเมะ" },
+      { slug: "genius-class", name: "ห้องอัจฉริยะ" },
+    ],
+  },
+  {
+    slug: "reborn-as-the-genius-son-of-the-richest-family",
+    genres: ["fantasy", "slice-of-life", "adventure", "system"],
+    tags: [
+      { slug: "reincarnation", name: "เกิดใหม่" },
+      { slug: "isekai", name: "ต่างโลก" },
+      { slug: "ai-assistant", name: "ผู้ช่วย AI" },
+      { slug: "technology", name: "เทคโนโลยี" },
+      { slug: "magic", name: "เวทมนตร์" },
+      { slug: "inventor", name: "นักประดิษฐ์" },
+      { slug: "noble-family", name: "ตระกูลขุนนาง" },
+    ],
+  },
+  {
+    slug: "novel-vgd9ev",
+    genres: ["horror", "adventure", "mystery", "apocalypse", "thriller"],
+    tags: [
+      { slug: "apocalypse", name: "วันสิ้นโลก" },
+      { slug: "survival", name: "เอาชีวิตรอด" },
+      { slug: "ghost-ship", name: "เรืออาถรรพ์" },
+      { slug: "sea-adventure", name: "ผจญภัยทางทะเล" },
+      { slug: "anomaly", name: "สิ่งผิดปกติ" },
+      { slug: "mission-dungeon", name: "ด่านภารกิจ" },
+      { slug: "ship-upgrade", name: "พัฒนาเรือ" },
+    ],
+  },
+  {
+    slug: "novel-69ots4",
+    genres: ["fantasy", "romance", "drama", "historical"],
+    tags: [
+      { slug: "female-protagonist", name: "นางเอก" },
+      { slug: "pharmacist", name: "เภสัชกร" },
+      { slug: "potion-making", name: "ปรุงยา" },
+      { slug: "adopted-daughter", name: "ลูกบุญธรรม" },
+      { slug: "revenge", name: "แก้แค้น" },
+      { slug: "cursed-prince", name: "เจ้าชายต้องคำสาป" },
+      { slug: "merchant", name: "การค้า" },
+    ],
+  },
+  {
+    slug: "novel-1kpi428",
+    genres: ["slice-of-life", "romance", "fantasy", "adventure", "apocalypse"],
+    tags: [
+      { slug: "female-protagonist", name: "นางเอก" },
+      { slug: "farming", name: "การเกษตร" },
+      { slug: "merchant", name: "การค้า" },
+      { slug: "territory-development", name: "พัฒนาดินแดน" },
+      { slug: "northern-duke", name: "แกรนด์ดยุกแดนเหนือ" },
+      { slug: "ecological-restoration", name: "ฟื้นฟูผืนดิน" },
+      { slug: "flowers", name: "ดอกไม้" },
+    ],
+  },
 ];
 
 async function main() {
@@ -121,17 +248,17 @@ async function main() {
       const published = await tx<{ id: string; slug: string; title: string }[]>`
         select id, slug, title
         from novels
-        where slug in ${tx(plans.map((plan) => plan.slug))}
-          and publication_status = 'PUBLISHED'
+        where publication_status = 'PUBLISHED'
           and deleted_at is null
         for update
       `;
-      if (published.length !== plans.length) {
-        const found = new Set(published.map((novel) => novel.slug));
-        throw new Error(`Expected ${plans.length} published novels; missing: ${plans.filter((plan) => !found.has(plan.slug)).map((plan) => plan.slug).join(", ")}`);
-      }
+      const publishedSlugs = new Set(published.map((novel) => novel.slug));
+      const plannedSlugs = new Set(plans.map((plan) => plan.slug));
+      const applicablePlans = plans.filter((plan) => publishedSlugs.has(plan.slug));
+      const unplannedPublished = published.filter((novel) => !plannedSlugs.has(novel.slug)).map((novel) => novel.slug);
+      if (unplannedPublished.length) throw new Error(`Published novels missing taxonomy plans: ${unplannedPublished.join(", ")}`);
 
-      const genreSlugs = [...new Set(plans.flatMap((plan) => plan.genres))];
+      const genreSlugs = [...new Set(applicablePlans.flatMap((plan) => plan.genres))];
       const genreRows = await tx<{ id: string; slug: string }[]>`
         select id, slug from genres where slug in ${tx(genreSlugs)} and is_active = true
       `;
@@ -140,7 +267,7 @@ async function main() {
       if (missingGenres.length) throw new Error(`Missing active genres: ${missingGenres.join(", ")}`);
 
       const result: Array<{ slug: string; title: string; genres: string[]; tags: string[] }> = [];
-      for (const plan of plans) {
+      for (const plan of applicablePlans) {
         const novel = published.find((entry) => entry.slug === plan.slug)!;
         const beforeGenres = await tx<{ slug: string }[]>`
           select g.slug from novel_genres ng join genres g on g.id = ng.genre_id
@@ -216,7 +343,7 @@ async function main() {
       return result;
     });
 
-    await invalidateImportedNovelCaches(plans.map((plan) => plan.slug));
+    await invalidateImportedNovelCaches(summaries.map((novel) => novel.slug));
     console.info(JSON.stringify({ applied: true, novels: summaries }, null, 2));
   } finally {
     await sql.end({ timeout: 5 });
