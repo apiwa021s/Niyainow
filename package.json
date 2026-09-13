@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "node scripts/dev-with-translation-worker.mjs",
+    "dev:with-translation-worker": "node scripts/dev-with-translation-worker.mjs --translation-worker",
     "dev:web": "next dev",
     "world:server": "node --conditions=react-server --import tsx world/server.ts",
     "world:smoke": "node scripts/smoke-world-realtime.mjs",
@@ -31,6 +32,7 @@
     "db:deploy": "npm run db:migrate && npm run db:seed-master && npm run db:check-auth",
     "db:seed-master": "tsx db/seed-master-data.ts",
     "db:publish-scheduled": "tsx db/publish-scheduled.ts",
+    "db:check-translation-worker-env": "node scripts/check-translation-worker-env.mjs",
     "db:process-outbox": "tsx db/process-outbox.ts",
     "db:process-translations": "node --conditions=react-server --import tsx db/process-translation-jobs.ts",
     "db:polish-synopses": "node --conditions=react-server --import tsx db/polish-translation-synopses.ts",
