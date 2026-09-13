@@ -609,12 +609,12 @@ export function ReaderView({
         onClick={handleContentClick}
         className={cn(
           "mx-auto w-full pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:pt-[calc(6rem+env(safe-area-inset-top))]",
-          isManga ? "px-0" : "px-5 sm:px-8",
+          isManga ? "px-0 sm:px-6" : "px-5 sm:px-8",
         )}
         style={isManga ? undefined : { maxWidth: "calc(var(--reader-measure) + 7rem)" }}
       >
         <article
-          className={cn(isManga ? "w-full" : "read-sheet mx-auto sm:rounded-[8px] sm:px-10 sm:py-12 lg:px-14")}
+          className={cn(isManga ? "mx-auto w-full sm:max-w-[960px]" : "read-sheet mx-auto sm:rounded-[8px] sm:px-10 sm:py-12 lg:px-14")}
           style={isManga ? undefined : { maxWidth: "calc(var(--reader-measure) + 7rem)" }}
         >
           <div className={isManga ? "w-full" : "mx-auto"} style={isManga ? undefined : { maxWidth: "var(--reader-measure)" }}>

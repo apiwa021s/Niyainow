@@ -21,7 +21,7 @@ export function MangaChapterBody({ pages, chapterNumber }: { pages: MangaPage[];
           alt={page.altText || `มังงะตอนที่ ${chapterNumber} หน้าที่ ${page.pageNumber}`}
           width={page.width ?? 1600}
           height={page.height ?? 2400}
-          sizes="100vw"
+          sizes="(max-width: 639px) 100vw, (max-width: 1008px) calc(100vw - 48px), 960px"
           className="block h-auto w-full max-w-none"
           priority={index === 0}
         />
