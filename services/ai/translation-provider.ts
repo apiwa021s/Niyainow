@@ -23,6 +23,7 @@ export type PromptCacheInput = {
 export type TranslationProviderResult = {
   translation: { title: string; content: string };
   providerRequestId: string | null;
+  serviceTier?: string | null;
   inputTokens: number;
   promptCacheEnabled: boolean;
   cachedInputTokens: number;
@@ -34,6 +35,7 @@ export type TranslationProviderResult = {
 export type StructuredAiResult = {
   output: unknown;
   providerRequestId: string | null;
+  serviceTier?: string | null;
   inputTokens: number;
   promptCacheEnabled: boolean;
   cachedInputTokens: number;
@@ -46,6 +48,7 @@ export type StructuredAiInput = {
   model: AiModel;
   systemPrompt: string;
   task: string;
+  serviceTier?: "auto" | "default" | "flex";
   payload: Record<string, unknown>;
   cache?: PromptCacheInput;
   schemaName: string;
@@ -60,6 +63,7 @@ export interface TranslationProvider {
 
 type CompatibleResponse = {
   id?: string;
+  service_tier?: string;
   choices?: Array<{ message?: { content?: string | null } }>;
   usage?: {
     prompt_tokens?: number;
@@ -70,6 +74,7 @@ type CompatibleResponse = {
 
 type OpenAiResponsesResponse = {
   id?: string;
+  service_tier?: string;
   output_text?: string;
   output?: Array<{
     content?: Array<{ type?: string; text?: string }>;
@@ -81,9 +86,9 @@ type OpenAiResponsesResponse = {
   };
 };
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 180_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 900_000;
 const MIN_REQUEST_TIMEOUT_MS = 30_000;
-const MAX_REQUEST_TIMEOUT_MS = 240_000;
+const MAX_REQUEST_TIMEOUT_MS = 900_000;
 
 function requestTimeoutMs(explicitTimeoutMs?: number) {
   const configuredTimeoutMs = Number(process.env.AI_TRANSLATION_REQUEST_TIMEOUT_MS);
@@ -106,6 +111,14 @@ function isOfficialOpenAiEndpoint(baseUrl: string) {
   } catch {
     return false;
   }
+}
+
+function requestServiceTier(input: StructuredAiInput) {
+  if (!isOfficialOpenAiEndpoint(input.model.baseUrl)) return null;
+  if (input.serviceTier) return input.serviceTier;
+  const configured = process.env.AI_TRANSLATION_SERVICE_TIER?.trim().toLowerCase() || "flex";
+  if (configured === "auto" || configured === "default" || configured === "flex") return configured;
+  throw new Error("AI_TRANSLATION_SERVICE_TIER must be one of: flex, default, auto");
 }
 
 async function postAiRequest(input: StructuredAiInput, endpoint: string, body: Record<string, unknown>) {
@@ -145,8 +158,10 @@ function normalizedCacheUsage(inputTokens: number, cachedTokens: number | undefi
 async function requestStructuredWithResponses(input: StructuredAiInput, startedAt: number): Promise<StructuredAiResult> {
   const stablePayload = JSON.stringify({ shared: input.cache?.stablePayload ?? {} });
   const dynamicPayload = JSON.stringify({ task: input.task, ...input.payload });
+  const serviceTier = requestServiceTier(input);
   const response = await postAiRequest(input, `${input.model.baseUrl.replace(/\/$/, "")}/responses`, {
     model: input.model.modelName,
+    ...(serviceTier ? { service_tier: serviceTier } : {}),
     store: false,
     input: [
       { role: "developer", content: [{ type: "input_text", text: input.systemPrompt }] },
@@ -178,6 +193,7 @@ async function requestStructuredWithResponses(input: StructuredAiInput, startedA
   return {
     output: parseStructuredOutput(content),
     providerRequestId: body.id ?? response.headers.get("x-request-id"),
+    serviceTier: body.service_tier ?? null,
     inputTokens,
     promptCacheEnabled: true,
     ...cacheUsage,
@@ -192,8 +208,10 @@ async function requestStructuredWithChatCompletions(input: StructuredAiInput, st
     ...(input.cache ? [{ role: "developer", content: JSON.stringify({ shared: input.cache.stablePayload }) }] : []),
     { role: "user", content: JSON.stringify({ task: input.task, ...input.payload }) },
   ];
+  const serviceTier = requestServiceTier(input);
   const response = await postAiRequest(input, `${input.model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
     model: input.model.modelName,
+    ...(serviceTier ? { service_tier: serviceTier } : {}),
     messages,
     response_format: {
       type: "json_schema",
@@ -214,6 +232,7 @@ async function requestStructuredWithChatCompletions(input: StructuredAiInput, st
   return {
     output: parseStructuredOutput(body.choices?.[0]?.message?.content),
     providerRequestId: body.id ?? response.headers.get("x-request-id"),
+    serviceTier: body.service_tier ?? null,
     inputTokens,
     promptCacheEnabled: false,
     ...cacheUsage,
@@ -252,6 +271,7 @@ const openAiCompatibleProvider: TranslationProvider = {
     return {
       translation: parseProviderTranslation(JSON.stringify(result.output)),
       providerRequestId: result.providerRequestId,
+      serviceTier: result.serviceTier,
       inputTokens: result.inputTokens,
       promptCacheEnabled: result.promptCacheEnabled,
       cachedInputTokens: result.cachedInputTokens,

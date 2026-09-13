@@ -88,6 +88,7 @@ const metadataReviewSchema = z.object({
 
 const aiProfileResultMetricsSchema = z.object({
   providerRequestId: z.string().nullable(),
+  serviceTier: z.string().max(32).nullable().optional(),
   inputTokens: z.number().int().nonnegative(),
   promptCacheEnabled: z.boolean(),
   cachedInputTokens: z.number().int().nonnegative(),
@@ -229,6 +230,7 @@ function boundedStringArray(maxItems: number, minItems?: number) {
 async function structured<T>(input: {
   model: AiModel;
   task: AutomaticTranslationTask;
+  serviceTier?: "auto" | "default" | "flex";
   systemPrompt: string;
   payload: Record<string, unknown>;
   cache?: PromptCacheInput;
@@ -254,6 +256,10 @@ export async function generateAiTranslationProfile(input: {
   onCheckpoint?: (checkpoint: AiProfileGenerationCheckpoint) => void | Promise<void>;
   onStage?: (event: AiStageEvent) => void | Promise<void>;
 }) {
+  // Profile creation runs inside a streamed admin request. Keep these few
+  // setup calls on Standard so a slow Flex call cannot exhaust that route;
+  // queued chapter and backfill work still defaults to Flex.
+  const serviceTier = "default" as const;
   const source = { title: input.title, synopsis: input.synopsis?.trim() || null, sourceLanguage: input.sourceLanguage, targetLanguage: input.targetLanguage };
   const masterCatalog = buildTranslationMasterRoutingCatalog(input.masterBundle);
   const samples = input.samples.slice(0, 3).map((sample) => ({
@@ -273,6 +279,7 @@ export async function generateAiTranslationProfile(input: {
   };
   const checkpointMetrics = (result: StructuredAiResult) => ({
     providerRequestId: result.providerRequestId,
+    serviceTier: result.serviceTier ?? null,
     inputTokens: result.inputTokens,
     promptCacheEnabled: result.promptCacheEnabled,
     cachedInputTokens: result.cachedInputTokens,
@@ -291,6 +298,7 @@ export async function generateAiTranslationProfile(input: {
   } : await structured({
     model: input.models.PROFILE_ANALYSIS,
     task: "PROFILE_ANALYSIS",
+    serviceTier,
     systemPrompt: PROFILE_ANALYSIS_SYSTEM_PROMPT,
     payload: { source, openingChapterSamples: samples, translationMasterCatalog: masterCatalog },
     schemaName: "novel_profile_analysis",
@@ -340,6 +348,7 @@ export async function generateAiTranslationProfile(input: {
   } : await structured({
     model: input.models.FOUNDATION,
     task: "FOUNDATION",
+    serviceTier,
     systemPrompt: PROFILE_SYSTEM_PROMPT,
     payload: { source, openingChapterSamples: samples, analysis: analysis.value, genreContext },
     schemaName: "novel_translation_foundation",
@@ -368,6 +377,7 @@ export async function generateAiTranslationProfile(input: {
   } : await structured({
     model: input.models.PROFILE_QUALITY_REVIEW,
     task: "PROFILE_QUALITY_REVIEW",
+    serviceTier,
     systemPrompt: PROFILE_QUALITY_REVIEW_PROMPT,
     payload: { source, openingChapterSamples: samples, analysis: analysis.value, genreContext, draft: foundation.value },
     schemaName: "novel_profile_quality_review",
@@ -396,6 +406,7 @@ export async function generateAiTranslationProfile(input: {
     },
   } : await reviewNovelMetadataWithAi({
     model: input.models.METADATA_LOCALIZATION,
+    serviceTier,
     sourceTitle: input.title,
     sourceSynopsis: input.synopsis,
     translatedTitle: qualityReview.value.translatedTitle,
@@ -419,6 +430,7 @@ export async function generateAiTranslationProfile(input: {
   } : await structured({
     model: input.models.ENTITY_EXTRACTION,
     task: "ENTITY_EXTRACTION",
+    serviceTier,
     systemPrompt: PROFILE_ENTITY_EXTRACTION_PROMPT,
     payload: { source, openingChapterSamples: samples, analysis: analysis.value, genreContext, approvedFoundation: qualityReview.value },
     schemaName: "novel_profile_entities",
@@ -569,6 +581,7 @@ export async function polishChapterWithCanonAi(input: {
 
 export async function reviewNovelMetadataWithAi(input: {
   model: AiModel;
+  serviceTier?: "auto" | "default" | "flex";
   sourceTitle: string;
   sourceSynopsis: string | null;
   translatedTitle: string;
@@ -581,6 +594,7 @@ export async function reviewNovelMetadataWithAi(input: {
   return structured({
     model: input.model,
     task: "METADATA_LOCALIZATION",
+    serviceTier: input.serviceTier,
     systemPrompt: METADATA_LOCALIZATION_SYSTEM_PROMPT,
     payload: {
       languages: { source: input.sourceLanguage, target: input.targetLanguage },
@@ -720,7 +734,7 @@ export async function reviseTranslationWithAi(input: {
   });
 }
 
-type AiUsageResult = Pick<StructuredAiResult, "inputTokens" | "cachedInputTokens" | "cacheWriteInputTokens" | "outputTokens">;
+type AiUsageResult = Pick<StructuredAiResult, "inputTokens" | "cachedInputTokens" | "cacheWriteInputTokens" | "outputTokens" | "serviceTier">;
 
 export function aiUsageCostMicros(model: AiModel, result: AiUsageResult) {
   const supportsModernCachePricing = /^gpt-(?:5\.(?:[6-9]|\d{2,})|[6-9](?:\.|-|$))/i.test(model.modelName);
@@ -732,12 +746,13 @@ export function aiUsageCostMicros(model: AiModel, result: AiUsageResult) {
     : 0;
   const uncachedInputTokens = result.inputTokens - cachedInputTokens - cacheWriteInputTokens;
   const inputCost = Number(model.inputCostMicrosPerMillion);
+  const processingDiscount = result.serviceTier === "flex" ? 0.5 : 1;
   return Math.round((
     uncachedInputTokens * inputCost
     + cachedInputTokens * inputCost * 0.1
     + cacheWriteInputTokens * inputCost * 1.25
     + result.outputTokens * Number(model.outputCostMicrosPerMillion)
-  ) / 1_000_000);
+  ) * processingDiscount / 1_000_000);
 }
 
 export function aiCallCostMicros(call: AiCallRecord) {

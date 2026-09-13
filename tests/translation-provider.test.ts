@@ -38,6 +38,7 @@ function input(baseUrl: string): StructuredAiInput {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.TEST_AI_KEY;
+  delete process.env.AI_TRANSLATION_SERVICE_TIER;
 });
 
 describe("translation provider prompt caching", () => {
@@ -51,12 +52,24 @@ describe("translation provider prompt caching", () => {
     })).toBe(2_461);
   });
 
+  it("prices successful Flex usage at Batch API rates", () => {
+    const model = input("https://api.openai.com/v1").model;
+    expect(aiUsageCostMicros(model, {
+      serviceTier: "flex",
+      inputTokens: 2_000,
+      cachedInputTokens: 1_024,
+      cacheWriteInputTokens: 128,
+      outputTokens: 20,
+    })).toBe(1_230);
+  });
+
   it("uses Responses explicit caching and reports cache usage for the official OpenAI endpoint", async () => {
     process.env.TEST_AI_KEY = "test-secret";
     const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
       void args;
       return new Response(JSON.stringify({
         id: "resp_test",
+        service_tier: "flex",
         output: [{ content: [{ type: "output_text", text: JSON.stringify({ ok: true }) }] }],
         usage: {
           input_tokens: 2_000,
@@ -69,12 +82,13 @@ describe("translation provider prompt caching", () => {
 
     const result = await getTranslationProvider("openai-compatible").generateStructured(input("https://api.openai.com/v1"));
 
-    expect(result).toMatchObject({ output: { ok: true }, inputTokens: 2_000, promptCacheEnabled: true, cachedInputTokens: 1_024, cacheWriteInputTokens: 128, outputTokens: 20 });
+    expect(result).toMatchObject({ output: { ok: true }, serviceTier: "flex", inputTokens: 2_000, promptCacheEnabled: true, cachedInputTokens: 1_024, cacheWriteInputTokens: 128, outputTokens: 20 });
     const [url, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(url).toBe("https://api.openai.com/v1/responses");
     expect(body).toMatchObject({
       store: false,
+      service_tier: "flex",
       prompt_cache_key: "nw:stable-workspace-task",
       prompt_cache_options: { mode: "explicit", ttl: "30m" },
     });
@@ -106,5 +120,6 @@ describe("translation provider prompt caching", () => {
     expect(url).toBe("https://provider.example/v1/chat/completions");
     expect(body).not.toHaveProperty("prompt_cache_key");
     expect(body).not.toHaveProperty("prompt_cache_options");
+    expect(body).not.toHaveProperty("service_tier");
   });
 });

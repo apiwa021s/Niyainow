@@ -23,6 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.AI_TRANSLATION_API_KEY;
   delete process.env.AI_TRANSLATION_REQUEST_TIMEOUT_MS;
+  delete process.env.AI_TRANSLATION_SERVICE_TIER;
 });
 
 describe("translation provider", () => {
@@ -30,6 +31,7 @@ describe("translation provider", () => {
     process.env.AI_TRANSLATION_API_KEY = "test-key";
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: "req_123",
+      service_tier: "flex",
       choices: [{ message: { content: JSON.stringify({ passed: true }) } }],
       usage: { prompt_tokens: 11, completion_tokens: 3 },
     }), { status: 200 }));
@@ -48,8 +50,34 @@ describe("translation provider", () => {
     expect(result.inputTokens).toBe(11);
     const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(request.model).toBe("gpt-5.6-terra");
+    expect(request.service_tier).toBe("flex");
     expect(request.messages[0].role).toBe("developer");
     expect(request.response_format).toMatchObject({ type: "json_schema", json_schema: { strict: true, name: "qa_result" } });
+  });
+
+  it("allows standard processing to be selected explicitly", async () => {
+    process.env.AI_TRANSLATION_API_KEY = "test-key";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "req_default",
+      service_tier: "default",
+      choices: [{ message: { content: JSON.stringify({ passed: true }) } }],
+      usage: { prompt_tokens: 5, completion_tokens: 2 },
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getTranslationProvider("openai-compatible").generateStructured({
+      model,
+      systemPrompt: "Return a QA decision.",
+      task: "QA",
+      serviceTier: "default",
+      payload: { source: "hello" },
+      schemaName: "qa_result",
+      jsonSchema: { type: "object", additionalProperties: false, required: ["passed"], properties: { passed: { type: "boolean" } } },
+    });
+
+    expect(result.serviceTier).toBe("default");
+    const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(request.service_tier).toBe("default");
   });
 
   it("fails closed when the provider returns malformed JSON", async () => {
