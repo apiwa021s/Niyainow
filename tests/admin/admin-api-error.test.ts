@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ loggerError: vi.fn() }));
+const mocks = vi.hoisted(() => ({ loggerError: vi.fn(), loggerWarn: vi.fn() }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/dal", () => ({
@@ -23,13 +23,14 @@ vi.mock("@/services/admin-service", () => ({
     }
   },
 }));
-vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError } }));
+vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError, warn: mocks.loggerWarn } }));
 
 import { adminApiError } from "@/app/api/admin/_shared";
 
 describe("admin API fallback logging", () => {
   beforeEach(() => {
     mocks.loggerError.mockReset();
+    mocks.loggerWarn.mockReset();
   });
 
   it("records a bounded stack and request routing context without query data", async () => {

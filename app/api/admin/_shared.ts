@@ -47,11 +47,23 @@ export function adminApiError(error: unknown, request?: Request) {
     return NextResponse.json({ error: { code: error.code, message: "Administrator access required" } }, { status: 403 });
   }
   if (error instanceof AdminDataError) {
+    logger.warn("Admin request rejected", {
+      ...adminRequestLogContext(request),
+      status: error.status,
+      errorCode: error.code,
+      errorMessage: error.message,
+    });
     return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.status });
   }
   if (error instanceof ZodError) {
+    const fields = error.flatten().fieldErrors;
+    logger.warn("Admin request validation failed", {
+      ...adminRequestLogContext(request),
+      status: 400,
+      fields,
+    });
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid request data", fields: error.flatten().fieldErrors } },
+      { error: { code: "VALIDATION_ERROR", message: "Invalid request data", fields } },
       { status: 400 },
     );
   }

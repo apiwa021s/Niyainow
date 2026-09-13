@@ -88,12 +88,6 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
       document.querySelector<HTMLElement>("[data-genre-picker]")?.focus();
       return;
     }
-    if ((contentRating === "MATURE" || contentRating === "ADULT") && selectedWarningIds.length === 0) {
-      setMessage("เนื้อหาเรต Mature และ Adult ต้องเลือกคำเตือนอย่างน้อย 1 รายการ");
-      document.querySelector<HTMLElement>("[data-content-warning-picker]")?.focus();
-      return;
-    }
-
     setBusy(true);
     setMessage("");
     const form = new FormData(event.currentTarget);
@@ -325,13 +319,13 @@ export function NovelFormView({ novel, references }: { novel?: AdminNovelDetail;
                 {contentRating === "ADULT" ? (
                   <div className="flex gap-2 rounded-[10px] bg-red-500/10 px-3 py-2.5 text-sm leading-relaxed text-red-700 dark:text-red-300">
                     <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    เรื่องนี้จะถูกจัดเป็นเนื้อหาสำหรับผู้ใหญ่ 18+ กรุณาระบุคำเตือนให้ตรงกับเนื้อหาจริง
+                    เรื่องนี้จะถูกจัดเป็นเนื้อหาสำหรับผู้ใหญ่ 18+ หากเลือกคำเตือน กรุณาระบุให้ตรงกับเนื้อหาจริง
                   </div>
                 ) : null}
 
                 <fieldset className="grid gap-2">
-                  <legend className="text-sm font-medium">คำเตือนเนื้อหา {(contentRating === "MATURE" || contentRating === "ADULT") ? <span className="text-destructive">*</span> : null}</legend>
-                  <p className="text-xs text-muted-foreground">เลือกได้หลายรายการ ผู้อ่านจะใช้ข้อมูลนี้ตัดสินใจก่อนเริ่มอ่าน</p>
+                  <legend className="text-sm font-medium">คำเตือนเนื้อหา</legend>
+                  <p className="text-xs text-muted-foreground">ไม่บังคับ เลือกได้หลายรายการ ผู้อ่านจะใช้ข้อมูลนี้ตัดสินใจก่อนเริ่มอ่าน</p>
                   <div
                     data-content-warning-picker
                     tabIndex={-1}

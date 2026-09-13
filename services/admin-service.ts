@@ -114,9 +114,6 @@ function validateNovelPublication(
   if (new Set(input.contentWarningIds).size !== input.contentWarningIds.length) {
     context.addIssue({ code: "custom", path: ["contentWarningIds"], message: "Content warnings must be unique" });
   }
-  if ((input.contentRating === "MATURE" || input.contentRating === "ADULT") && input.contentWarningIds.length === 0) {
-    context.addIssue({ code: "custom", path: ["contentWarningIds"], message: "Mature and adult content needs at least one content warning" });
-  }
   if (input.publicationStatus === "SCHEDULED" && !input.scheduledFor) {
     context.addIssue({ code: "custom", path: ["scheduledFor"], message: "A scheduled novel needs a publication time" });
   }
