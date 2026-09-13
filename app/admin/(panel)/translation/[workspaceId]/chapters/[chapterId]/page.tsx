@@ -10,7 +10,9 @@ import { getTranslationChapterEditor } from "@/services/translation-service";
 
 export const metadata: Metadata = { title: "ตรวจและแก้คำแปล" };
 
-type TranslationEditorPageProps = PageProps<"/admin/translation/[workspaceId]/chapters/[chapterId]">;
+type TranslationEditorPageProps = {
+  params: Promise<{ workspaceId: string; chapterId: string }>;
+};
 
 async function TranslationEditorContent({ params }: TranslationEditorPageProps) {
   const [{ workspaceId, chapterId }, user] = await Promise.all([params, requireAdmin()]);

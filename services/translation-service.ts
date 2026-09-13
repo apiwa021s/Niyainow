@@ -1254,20 +1254,43 @@ export async function cancelTranslationJob(jobId: string) {
   const actor = await assertTranslationPermission("translation.cancel_job");
   const db = getDb();
   return db.transaction(async (tx) => {
-    const [before] = await tx.select().from(translationJobs).where(eq(translationJobs.id, jobId)).limit(1);
+    const [before] = await tx.select().from(translationJobs).where(eq(translationJobs.id, jobId)).limit(1).for("update");
     if (!before) throw new ApiError(404, "TRANSLATION_JOB_NOT_FOUND", "ไม่พบงานแปล");
-    if (["COMPLETED", "FAILED", "CANCELLED"].includes(before.status)) return before;
+    if (["COMPLETED", "PARTIAL", "FAILED", "CANCELLED"].includes(before.status)) return before;
     const now = new Date();
-    const [updated] = await tx.update(translationJobs).set({ cancelRequestedAt: now, status: before.status === "QUEUED" ? "CANCELLED" : before.status, finishedAt: before.status === "QUEUED" ? now : null, updatedAt: now }).where(eq(translationJobs.id, jobId)).returning();
-    const cancelledItems = await tx.update(translationJobItems).set({ status: "CANCELLED", progressPercent: 100, progressStage: "CANCELLED", finishedAt: now }).where(and(eq(translationJobItems.jobId, jobId), eq(translationJobItems.status, "QUEUED"))).returning({ chapterId: translationJobItems.translationChapterId, checkpoint: translationJobItems.checkpoint });
+    const cancelledItems = await tx.update(translationJobItems).set({ status: "CANCELLED", progressPercent: 100, progressStage: "CANCELLED", finishedAt: now }).where(and(
+      eq(translationJobItems.jobId, jobId),
+      inArray(translationJobItems.status, ["QUEUED", "RUNNING"]),
+    )).returning({ chapterId: translationJobItems.translationChapterId, checkpoint: translationJobItems.checkpoint });
+    const [representativeItem] = await tx.select({ checkpoint: translationJobItems.checkpoint })
+      .from(translationJobItems)
+      .where(eq(translationJobItems.jobId, jobId))
+      .limit(1);
+    const itemCounts = await tx.select({ status: translationJobItems.status, value: count() })
+      .from(translationJobItems)
+      .where(eq(translationJobItems.jobId, jobId))
+      .groupBy(translationJobItems.status);
+    const countsByStatus = new Map(itemCounts.map((row) => [row.status, Number(row.value)]));
+    const completedItems = countsByStatus.get("COMPLETED") ?? 0;
+    const failedItems = countsByStatus.get("FAILED") ?? 0;
+    const [updated] = await tx.update(translationJobs).set({
+      cancelRequestedAt: now,
+      status: "CANCELLED",
+      completedItems,
+      failedItems,
+      finishedAt: now,
+      updatedAt: now,
+    }).where(eq(translationJobs.id, jobId)).returning();
     const restoreGroups = Map.groupBy(cancelledItems, (item) => chapterStatusAfterCancelledJob(item.checkpoint));
     for (const [status, items] of restoreGroups) {
-      if (items.length) await tx.update(translationChapters).set({ status, updatedAt: now }).where(and(inArray(translationChapters.id, items.map((item) => item.chapterId)), eq(translationChapters.status, "QUEUED")));
+      if (items.length) await tx.update(translationChapters).set({ status, updatedAt: now }).where(and(
+        inArray(translationChapters.id, items.map((item) => item.chapterId)),
+        inArray(translationChapters.status, ["QUEUED", "TRANSLATING"]),
+      ));
     }
-    if (before.status === "QUEUED") {
-      const cancelledPolish = cancelledItems.some((item) => readTranslationJobMetadata(item.checkpoint).operation === "POLISH");
-      await tx.update(translationWorkspaces).set({ status: cancelledPolish ? "REVIEW" : "READY", updatedAt: now }).where(eq(translationWorkspaces.id, before.workspaceId));
-    }
+    const cancelledOperation = representativeItem ? readTranslationJobMetadata(representativeItem.checkpoint).operation : "TRANSLATE";
+    const workspaceStatus = cancelledOperation === "POLISH" || completedItems > 0 || failedItems > 0 ? "REVIEW" : "READY";
+    await tx.update(translationWorkspaces).set({ status: workspaceStatus, updatedAt: now }).where(eq(translationWorkspaces.id, before.workspaceId));
     await writeAudit(tx, actor, "translation.job.cancel", "translation_job", jobId, { status: before.status }, { status: updated.status, cancelRequested: true });
     return updated;
   });

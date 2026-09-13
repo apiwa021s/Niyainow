@@ -32,7 +32,6 @@
     "db:deploy": "npm run db:migrate && npm run db:seed-master && npm run db:check-auth",
     "db:seed-master": "tsx db/seed-master-data.ts",
     "db:publish-scheduled": "tsx db/publish-scheduled.ts",
-    "db:check-translation-worker-env": "node scripts/check-translation-worker-env.mjs",
     "db:process-outbox": "tsx db/process-outbox.ts",
     "db:process-translations": "node --conditions=react-server --import tsx db/process-translation-jobs.ts",
     "db:polish-synopses": "node --conditions=react-server --import tsx db/polish-translation-synopses.ts",
@@ -56,7 +55,7 @@
     "@hookform/resolvers": "^5.2.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
-    "fflate": "^0.8.2",
+    "fflate": "^0.8.3",
     "lucide-react": "^1.31.0",
     "mongodb": "^7.5.0",
     "next": "16.3.3",
@@ -73,8 +72,20 @@
     "socket.io-client": "^4.8.3",
     "stripe": "^22.5.0",
     "tailwind-merge": "^3.3.1",
+    "workflow": "^4.8.8",
     "zod": "^4.0.17",
     "zustand": "^5.0.15"
+  },
+  "overrides": {
+    "@workflow/core": {
+      "nanoid": "5.1.16"
+    },
+    "@workflow/world-local": {
+      "undici": "7.29.0"
+    },
+    "@workflow/world-vercel": {
+      "undici": "7.29.0"
+    }
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

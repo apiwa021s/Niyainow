@@ -1,5 +1,6 @@
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import type { NextConfig } from "next";
+import { withWorkflow } from "workflow/next";
 
 const WORLD_STATIC_ASSET_FOLDERS = [
   "ground",
@@ -50,7 +51,7 @@ function buildWorldSocketUrl(phase: string) {
   return url.toString().replace(/\/$/u, "");
 }
 
-export default function createNextConfig(phase: string): NextConfig {
+function createNextConfig(phase: string): NextConfig {
   // Both values are embedded into the artifact. Validate the app URL even
   // though only the asset URL is needed to construct Next Image policy here.
   buildPublicUrl("NEXT_PUBLIC_APP_URL", phase);
@@ -158,3 +159,5 @@ export default function createNextConfig(phase: string): NextConfig {
     },
   };
 }
+
+export default withWorkflow(async (phase) => createNextConfig(phase));

@@ -22,3 +22,4 @@ pnpm-debug.log*
 .tmp/
 .DS_Store
 *.tsbuildinfo
+/.swc

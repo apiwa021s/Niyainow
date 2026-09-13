@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/publishing",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/translations",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

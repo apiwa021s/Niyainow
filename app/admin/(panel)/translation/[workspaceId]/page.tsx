@@ -11,7 +11,9 @@ import { getTranslationWorkspace } from "@/services/translation-service";
 
 export const metadata: Metadata = { title: "จัดการงานแปล" };
 
-type TranslationWorkspacePageProps = PageProps<"/admin/translation/[workspaceId]">;
+type TranslationWorkspacePageProps = {
+  params: Promise<{ workspaceId: string }>;
+};
 
 async function TranslationWorkspaceContent({ params }: TranslationWorkspacePageProps) {
   const { workspaceId } = await params;

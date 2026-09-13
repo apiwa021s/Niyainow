@@ -426,6 +426,10 @@ async function refreshJob(jobId: string) {
   await db.transaction(async (tx) => {
     const [job] = await tx.select().from(translationJobs).where(eq(translationJobs.id, jobId)).limit(1).for("update");
     if (!job) return;
+    // Cancellation is committed by cancelTranslationJob. A worker that was
+    // already inside a provider request must not revive the job/workspace when
+    // its finally block refreshes aggregate state.
+    if (job.status === "CANCELLED" && job.cancelRequestedAt) return;
     const [counts, failedItems] = await Promise.all([
       tx.select({ status: translationJobItems.status, value: count() }).from(translationJobItems).where(eq(translationJobItems.jobId, jobId)).groupBy(translationJobItems.status),
       tx.select({ lastError: translationJobItems.lastError }).from(translationJobItems).where(and(eq(translationJobItems.jobId, jobId), eq(translationJobItems.status, "FAILED"))).orderBy(desc(translationJobItems.finishedAt)).limit(1),
@@ -857,4 +861,16 @@ export async function processTranslationJobs(limit = 10, concurrency = Number(pr
 
   await Promise.all(Array.from({ length: safeConcurrency }, () => runLane()));
   return { processed };
+}
+
+export async function hasPendingTranslationItems() {
+  const [row] = await getDb().select({ value: count() })
+    .from(translationJobItems)
+    .innerJoin(translationJobs, eq(translationJobs.id, translationJobItems.jobId))
+    .where(and(
+      inArray(translationJobItems.status, ["QUEUED", "RUNNING"]),
+      inArray(translationJobs.status, ["QUEUED", "RUNNING"]),
+      isNull(translationJobs.cancelRequestedAt),
+    ));
+  return Number(row?.value ?? 0) > 0;
 }
