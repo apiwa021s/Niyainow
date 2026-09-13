@@ -2,6 +2,7 @@ import Image from "next/image";
 import { ExternalLink } from "lucide-react";
 
 import { DetailRow, Panel, StatCard } from "@/components/admin/admin-ui";
+import { ImportPublishAction } from "@/components/admin/views/import-publish-action";
 import { StatusPill } from "@/components/admin/status-pill";
 import { ButtonLink } from "@/components/ui/button";
 import type { AdminImportSourceDetail } from "@/services/admin-import-service";
@@ -19,6 +20,20 @@ export function ImportDetailView({ source }: { source: AdminImportSourceDetail }
         <StatCard label="ภาษา" value={source.languageCount} hint={`ต้นฉบับ ${source.sourceLanguage}`} />
         <StatCard label="สถานะปก" value={source.coverStatus} hint={source.coverError ?? "อัปโหลดเข้า media storage"} />
       </div>
+
+      <Panel
+        title="เผยแพร่สู่หน้าเว็บ"
+        description="สร้างนิยายและตอนจากข้อมูลที่ดาวน์โหลดครบแล้ว กดซ้ำภายหลังเพื่อซิงก์ตอนใหม่โดยไม่สร้างข้อมูลซ้ำ"
+      >
+        <ImportPublishAction
+          sourceId={source.id}
+          canPublish={source.publication.canPublish}
+          readyChapterCount={source.publication.readyChapterCount}
+          linkedChapterCount={source.publication.linkedChapterCount}
+          novelSlug={source.publication.novelSlug}
+          reason={source.publication.reason}
+        />
+      </Panel>
 
       <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
         <Panel title="ภาพปก" bodyClassName="p-4">
@@ -86,7 +101,7 @@ export function ImportDetailView({ source }: { source: AdminImportSourceDetail }
           </div>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">หน้านี้เป็นแบบอ่านอย่างเดียว การตรวจสิทธิ์และการนำเข้าสู่ catalog สาธารณะยังเป็นขั้นตอนแยกต่างหาก</p>
+      <p className="text-xs text-muted-foreground">ระบบจะเผยแพร่เฉพาะตอนที่อยู่ใน checkpoint และตรวจว่าข้อความหรือภาพพร้อมใช้งานแล้ว ตอนที่กำลังดาวน์โหลดจะไม่ถูกนำขึ้นเว็บ</p>
     </div>
   );
 }

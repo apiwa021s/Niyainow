@@ -4,6 +4,7 @@ import { connection } from "next/server";
 
 import { ChapterBody } from "@/components/reader/chapter-body";
 import { ChapterUnlockCard } from "@/components/reader/chapter-unlock-card";
+import { MangaChapterBody } from "@/components/reader/manga-chapter-body";
 import { PublicViewTracker } from "@/components/analytics/public-view-tracker";
 import { ReaderView } from "@/components/reader/reader-view";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -14,7 +15,7 @@ import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site-config";
 import { slugSchema } from "@/lib/validation/slug";
 import { getReadableChapterContent } from "@/services/chapter-access-service";
-import { getAdjacentChapters, getChapterWindow, getNovelBySlug, getPublishedChapter } from "@/services/novel-service";
+import { getAdjacentChapters, getChapterWindow, getNovelBySlug, getPublishedChapter, getPublishedMangaPages } from "@/services/novel-service";
 import { getUnlockedChapterIds, getWalletBalance } from "@/services/coin-service";
 import { getUserNovelState } from "@/services/user-service";
 
@@ -96,6 +97,10 @@ export default async function ChapterPage({ params, searchParams }: ChapterPageP
   const locked = commerciallyLocked && !hasPaidAccess;
   const content = commerciallyLocked && hasPaidAccess ? authorizedChapter?.content : published.content;
   if (commerciallyLocked && hasPaidAccess && content === null) notFound();
+  const isMangaChapter = content?.startsWith("[MANGA:") ?? false;
+  const mangaPages = !locked && isMangaChapter && chapterSummary.id
+    ? await getPublishedMangaPages(chapterSummary.id)
+    : [];
 
   const applyAccess = (item: typeof chapterSummary | undefined) => item
     ? {
@@ -195,7 +200,9 @@ export default async function ChapterPage({ params, searchParams }: ChapterPageP
         initialProgress={userState?.progress}
         returnToWorld={from === "world"}
       >
-        <ChapterBody paragraphs={paragraphs} teaser={locked} />
+        {isMangaChapter && !locked
+          ? <MangaChapterBody pages={mangaPages} chapterNumber={chapterSummary.number} />
+          : <ChapterBody paragraphs={paragraphs} teaser={locked} />}
       </ReaderView>
     </>
   );

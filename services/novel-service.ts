@@ -26,11 +26,14 @@ import {
   authors,
   chapters,
   genres,
+  mediaAssets,
   novelAuthors,
   novelAlternativeTitles,
   novelGenres,
   novelDailyStats,
   novelImportSources,
+  novelImportChapters,
+  novelImportMangaPages,
   novelRankings,
   novelSearchDocuments,
   novelStatistics,
@@ -2107,6 +2110,46 @@ const getReaderChapterSnapshot = cache(async (
 
 export const getPublishedChapter = cache(async (slug: string, chapterNumber: string | number) =>
   (await getReaderChapterSnapshot(slug, chapterNumber))?.published,
+);
+
+async function getPublishedMangaPagesFresh(chapterId: string) {
+  const now = new Date();
+  const rows = await getDb().select({
+    pageNumber: novelImportMangaPages.pageNumber,
+    objectKey: mediaAssets.objectKey,
+    width: mediaAssets.width,
+    height: mediaAssets.height,
+    altText: mediaAssets.altText,
+  }).from(novelImportMangaPages)
+    .innerJoin(novelImportChapters, eq(novelImportChapters.id, novelImportMangaPages.chapterId))
+    .innerJoin(chapters, eq(chapters.id, novelImportChapters.linkedChapterId))
+    .innerJoin(novels, eq(novels.id, chapters.novelId))
+    .innerJoin(mediaAssets, eq(mediaAssets.id, novelImportMangaPages.mediaAssetId))
+    .where(and(
+      eq(chapters.id, chapterId),
+      publicNovelCondition(now),
+      publicChapterCondition(now),
+      eq(mediaAssets.status, "READY"),
+      isNull(mediaAssets.deletedAt),
+    ))
+    .orderBy(asc(novelImportMangaPages.pageNumber));
+  return rows.map((row) => ({
+    pageNumber: row.pageNumber,
+    url: assetUrl(row.objectKey),
+    width: row.width,
+    height: row.height,
+    altText: row.altText,
+  }));
+}
+
+const getPublishedMangaPagesCached = unstable_cache(
+  getPublishedMangaPagesFresh,
+  ["public-manga-chapter-pages-v1"],
+  { revalidate: PUBLIC_CACHE_SECONDS, tags: ["public-chapters", "public-novels"] },
+);
+
+export const getPublishedMangaPages = cache(async (chapterId: string) =>
+  getPublishedMangaPagesCached(chapterId),
 );
 
 export const getAdjacentChapters = cache(async (slug: string, chapterNumber: string | number) =>
