@@ -10,6 +10,7 @@ dist/
 .env*
 !.env.example
 **/.dev.vars
+.migration-state/
 
 # logs
 npm-debug.log*

@@ -25,6 +25,7 @@ export function MangaChapterBody({ pages, chapterNumber }: { pages: MangaPage[];
             sizes="(max-width: 760px) 100vw, 760px"
             className="block h-auto w-full"
             priority={index === 0}
+            unoptimized
           />
         ))}
       </div>

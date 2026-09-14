@@ -47,6 +47,7 @@
     "db:reconcile-engagement": "tsx db/reconcile-engagement.ts",
     "benchmark:cache": "node scripts/cache-benchmark.mjs",
     "security:scraper-test": "tsx scripts/security/scraper-test.ts",
+    "storage:migrate:r2-to-b2": "node scripts/migrate-r2-to-b2.mjs",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run world:art:audit && npm run db:check && npm run build"
   },
   "dependencies": {
