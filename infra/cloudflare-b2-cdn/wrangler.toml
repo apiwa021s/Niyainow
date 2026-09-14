@@ -1,0 +1,16 @@
+name = "novelnow-b2-cdn"
+main = "src/index.js"
+compatibility_date = "2026-09-14"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+B2_ENDPOINT = "s3.us-east-005.backblazeb2.com"
+BUCKET_NAME = "novelnow"
+CACHE_TTL_SECONDS = "31536000"
+
+[[routes]]
+pattern = "images.novelnow.co"
+custom_domain = true

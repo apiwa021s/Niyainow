@@ -1,0 +1,4 @@
+# Use a separate, bucket-scoped, read-only Backblaze application key here.
+# Copy this file to .dev.vars for local development. .dev.vars is gitignored.
+B2_APPLICATION_KEY_ID="replace-with-read-only-key-id"
+B2_APPLICATION_KEY="replace-with-read-only-application-key"

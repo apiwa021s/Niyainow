@@ -9,6 +9,7 @@ dist/
 # local env files (the documented template is safe to commit)
 .env*
 !.env.example
+**/.dev.vars
 
 # logs
 npm-debug.log*

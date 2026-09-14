@@ -1,0 +1,22 @@
+{
+  "name": "@niyainow/cloudflare-b2-cdn",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Private Backblaze B2 image delivery through Cloudflare Workers",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "node --test test/*.test.js",
+    "check": "npm test && wrangler deploy --dry-run --outdir dist"
+  },
+  "dependencies": {
+    "aws4fetch": "^1.0.20"
+  },
+  "devDependencies": {
+    "wrangler": "^4.131.2"
+  }
+}
