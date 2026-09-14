@@ -7,7 +7,7 @@ Date: 2026-08-22
 - Next.js 16 App Router modular monolith
 - PostgreSQL with Drizzle ORM
 - Auth.js with PostgreSQL adapter
-- Redis cache/rate limiting and Cloudflare R2-compatible object storage
+- Redis cache/rate limiting and Backblaze B2-compatible object storage
 - Existing reader library, reading progress, story follow, coin wallet, immutable coin ledger, chapter unlock, search projection, and admin CRUD
 
 ## 2. Existing modules reused

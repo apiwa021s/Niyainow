@@ -10,7 +10,7 @@
     "../lib/env.ts",
     "../lib/env.test.ts",
     "../lib/logger.ts",
-    "../lib/r2/**/*.ts",
+    "../lib/b2/**/*.ts",
     "../lib/validation/**/*.ts"
   ],
   "exclude": ["../node_modules"]

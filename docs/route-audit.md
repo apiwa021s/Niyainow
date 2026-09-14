@@ -43,7 +43,7 @@ Public shell ใช้ optimized `next/image`, production domain จาก `NEXT
 | --- | --- | --- |
 | `/admin/login` | Google OAuth สำหรับบัญชีที่ DB กำหนด role เป็น `EDITOR`/`ADMIN` | Production-backed |
 | `/admin` | Dashboard จาก novel/chapter/publication/audit aggregates | Production-backed |
-| `/admin/novels`, `/admin/novels/new`, `/admin/novels/[slug]` | List/search/create/edit/soft-delete novel, normalized author/genre/tag, stable unique slug, R2 cover/backdrop | Production-backed |
+| `/admin/novels`, `/admin/novels/new`, `/admin/novels/[slug]` | List/search/create/edit/soft-delete novel, normalized author/genre/tag, stable unique slug, B2 cover/backdrop | Production-backed |
 | `/admin/chapters`, `/admin/novels/[slug]/chapters` | Bounded global/per-novel catalogue | Production-backed |
 | `/admin/novels/[slug]/chapters/new`, `/admin/novels/[slug]/chapters/[chapter]` | Create/edit/delete/publish/unpublish; decimal chapter number + explicit sort order; publish transaction updates denormalized latest/count/search/audit/cache | Production-backed; paid publishing disabled while commerce is unavailable |
 | `/admin/novels/[slug]/chapters/[chapter]/preview` | Admin-only server rendering of draft content | Production-backed; never creates a public chapter URL |
@@ -76,7 +76,7 @@ Scheduled publication is intentionally rejected until a durable scheduler exists
 | `/api/admin/chapters/[id]` | PATCH/DELETE | Current admin/editor; publish/update/delete transaction + content-safe audit snapshot |
 | `/api/admin/reviews/[id]` | PATCH | Current admin/editor; revision-bound publish/reject/hide transaction + content-safe audit and immediate public cache expiry |
 | `/api/admin/uploads/presign` | POST | Current admin/editor; scoped rate limit; allowlisted prefix/MIME/extension/size; signed PUT targets private `staging/` only and returns the planned final `objectKey` |
-| `/api/admin/uploads/complete` | POST | Current admin/editor; scoped rate limit; conditional `PENDING -> VERIFYING -> READY`; ETag-bound `HEAD` + ranged magic-byte verification; same-bucket promotion; staging deletion before `READY` |
+| `/api/admin/uploads/complete` | POST | Current admin/editor; scoped rate limit; conditional `PENDING -> VERIFYING -> READY`; B2-version-bound `HEAD` + ranged magic-byte verification; same-bucket promotion; staging deletion before `READY` |
 | `/sitemap.xml`, `/sitemaps/[partition].xml` | GET | Dynamic XML; public rows only, 10,000 content URLs per partition เพื่ออยู่ใต้ response limit ของ serverless |
 
 Mutation handlers return structured errors, private/no-store headers where applicable, same-origin protection, bounded in-process rate limiting and redacted structured logs. For horizontally scaled production, move the rate-limit/dedupe state to a shared edge/KV service without changing the route contracts.

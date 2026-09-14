@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { closeDbConnection } from "@/db";
-import { destroyR2Client } from "@/lib/r2/client";
-import { cleanupExpiredMedia } from "@/lib/r2/cleanup";
+import { destroyB2Client } from "@/lib/b2/client";
+import { cleanupExpiredMedia } from "@/lib/b2/cleanup";
 import { logger } from "@/lib/logger";
 
 function numericArgument(name: string) {
@@ -44,7 +44,7 @@ if (isDirectRun) {
       process.exitCode = 1;
     })
     .finally(async () => {
-      destroyR2Client();
+      destroyB2Client();
       await closeDbConnection();
     });
 }

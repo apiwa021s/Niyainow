@@ -12,7 +12,6 @@
     "AllowedHeaders": [
       "content-type",
       "x-amz-meta-assettype",
-      "x-amz-checksum-sha256",
       "content-length"
     ],
     "ExposeHeaders": [

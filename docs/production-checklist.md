@@ -17,18 +17,21 @@
 
 ## External setup (owner/platform)
 
-- [ ] Disable the public R2 `r2.dev` endpoint and confirm no alternate bucket
-      origin can bypass the custom CDN/Worker.
+- [ ] Keep the B2 bucket private and confirm no unauthenticated bucket origin can
+      bypass the custom CDN/Worker.
 - [ ] Configure the custom CDN/Worker to return uncached `403` for `/staging/*`;
       verify a known staging key is blocked while a final `covers/` key is served.
 - [ ] Use a cookie-less asset origin distinct from the app origin; verify final
       responses preserve their authorized image `Content-Type` and include
       `X-Content-Type-Options: nosniff`.
-- [ ] Add database/R2 secrets to the protected GitHub `production` environment,
+- [ ] Add database/B2 secrets to the protected GitHub `production` environment,
       enable `.github/workflows/media-cleanup.yml`, inspect a manual dry-run, and
       alert on failures. It runs hourly cleanup and weekly conservative
       `--reconcile-unattached-ready` repair; novel replacement/deletion already
       marks detached cover/banner assets `ORPHANED` directly.
+- [ ] Configure a B2 lifecycle rule to keep only the latest object version (or
+      expire hidden versions after the approved retention period); S3 deletes
+      otherwise leave billable hidden versions behind.
 - [ ] Enable `.github/workflows/reconcile-engagement.yml` in the protected
       production environment, inspect a manual dry-run, and alert on the bounded
       nightly reconciliation job.
@@ -39,8 +42,8 @@
 - [ ] Apply committed migration ด้วย release job
 - [ ] สร้าง Google OAuth Web Client + production callback URI
 - [ ] สร้าง `AUTH_SECRET` ที่แข็งแรงและตั้ง Google credentials
-- [ ] สร้าง R2 bucket/token/custom domain/CORS แล้วตั้งตัวแปร R2
-- [ ] ทดสอบ Reader Avatar จริงด้วย JPG/PNG/WebP/AVIF, direct R2 PUT และ same-origin fallback; ยืนยันว่าไฟล์เก่าถูก cleanup
+- [ ] สร้าง B2 bucket/token/custom domain/CORS แล้วตั้งตัวแปร B2
+- [ ] ทดสอบ Reader Avatar จริงด้วย JPG/PNG/WebP/AVIF, direct B2 PUT และ same-origin fallback; ยืนยันว่าไฟล์เก่าถูก cleanup
 - [ ] ทดสอบอ่านตอนจนผ่านเกณฑ์ แล้วตรวจ EXP, streak, Daily/Weekly Mission และ activity ledger ในฐานข้อมูล
 - [ ] ทดสอบ Profile/Personalize ที่ 320, 375, 430, 768, 1024, 1440 และ 1920 px รวม Reduce Motion
 - [ ] Provision บัญชี `ADMIN` จาก DB-controlled process
@@ -83,8 +86,8 @@
 - [ ] Upload content whose bytes do not match its declared image MIME and confirm
       completion fails, the media never becomes `READY`, and the staging object is
       deleted or is removed by the cleanup job.
-- [ ] Replace the staging object between verification steps and confirm the ETag
-      precondition prevents promotion.
+- [ ] Replace the staging object between verification steps and confirm the B2
+      version pin promotes only the version selected by `HEAD`.
 - [ ] Confirm repeated presign/complete calls reach actor-scoped `429` limits.
 
 - [ ] Anonymous/READER เข้า admin และ API admin ไม่ได้
@@ -104,7 +107,7 @@
 - [ ] ส่ง `/sitemap.xml` เข้า Google Search Console และตรวจว่า creator/novel/chapter canonical URLs ถูกค้นพบโดยไม่มี private routes
 - [ ] Sitemap scale/pagination ผ่านชุดข้อมูลขนาด production ใกล้เคียงจริง
 - [ ] Cover ใช้ image optimization/CDN และไม่มี layout shift สำคัญ
-- [ ] ตรวจ CSP/security headers กับ OAuth/R2 บน production browser
+- [ ] ตรวจ CSP/security headers กับ OAuth/B2 บน production browser
 - [ ] ตรวจ query plan ของ home/search/chapter navigation/library/ranking ด้วย production-like data
 - [ ] ทดสอบ WAF/rate-limit สำหรับ search/discover/view event/chapter/auth/World และยืนยันว่า response 429 ไม่เข้า DB
 - [ ] ทดสอบ restore backup และ application rollback

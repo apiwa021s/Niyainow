@@ -25,7 +25,7 @@
 3. ล็อก origin ไม่ให้ bypass Cloudflare และเชื่อถือ `CF-Connecting-IP` เฉพาะหลังล็อก origin แล้ว
 4. ตั้ง database connection budget จากค่าต่อ instance คูณจำนวน instance และ worker สูงสุด พร้อมเผื่อ migration/operations
 5. ตั้ง Redis memory/eviction/connection ceilings และ World concurrent-connection/message ceilings
-6. เปิด usage/anomaly alerts และ dashboard อย่างน้อย: requests, function duration, DB queries/latency/pool wait, Redis hit ratio/evictions, R2 egress, image transformations, World sockets/messages
+6. เปิด usage/anomaly alerts และ dashboard อย่างน้อย: requests, function duration, DB queries/latency/pool wait, Redis hit ratio/evictions, B2 egress, image transformations, World sockets/messages
 
 ## จุดที่ยังควรทำหลังมี production telemetry
 

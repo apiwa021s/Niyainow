@@ -6,7 +6,7 @@ import { getDb } from "@/db";
 import { mediaAssets, readerActivityEvents, users } from "@/db/schema";
 import { ApiError } from "@/lib/http/api-response";
 import { READER_AVATAR_MAX_BYTES } from "@/lib/profile/reader-avatar";
-import { deleteR2Object, verifyUploadedObject } from "@/lib/r2";
+import { deleteB2Object, verifyUploadedObject } from "@/lib/b2";
 import { assetUrl } from "@/lib/site-config";
 import type { AllowedImageType } from "@/lib/validation/upload";
 
@@ -69,6 +69,7 @@ export async function completeReaderAvatarUpload(userId: string, input: Complete
       finalObjectKey: asset.objectKey,
       expectedContentType: input.contentType,
       expectedContentLength: input.contentLength,
+      expectedChecksumSha256: asset.metadata.checksumSha256,
     });
     finalObjectCreated = true;
     const now = new Date();
@@ -122,7 +123,7 @@ export async function completeReaderAvatarUpload(userId: string, input: Complete
     const cleanupKeys = [asset.stagingKey, finalObjectCreated ? asset.objectKey : null].filter(
       (key): key is string => Boolean(key),
     );
-    await Promise.allSettled(cleanupKeys.map(deleteR2Object));
+    await Promise.allSettled(cleanupKeys.map(deleteB2Object));
     throw error;
   }
 }

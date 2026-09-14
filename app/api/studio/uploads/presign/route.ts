@@ -2,7 +2,7 @@ import { handleUserRoute } from "@/app/api/me/_shared";
 import { getDb } from "@/db";
 import { mediaAssets } from "@/db/schema";
 import { parseJson } from "@/lib/http/api-response";
-import { createPresignedUpload } from "@/lib/r2";
+import { createPresignedUpload } from "@/lib/b2";
 import { uploadRequestSchema } from "@/lib/validation/upload";
 
 const studioUploadSchema = uploadRequestSchema.refine((input) => ["cover", "avatar", "banner"].includes(input.assetType), "Studio upload type is not allowed");

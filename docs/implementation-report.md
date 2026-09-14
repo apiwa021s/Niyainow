@@ -2,7 +2,7 @@
 
 ## 1. Architecture
 
-ระบบเป็น Next.js modular monolith: Server Components สำหรับ public content, route handlers สำหรับ mutation, PostgreSQL/Drizzle เป็น source of truth, Auth.js Google-only และ Cloudflare R2 สำหรับ media binary รายละเอียดอยู่ใน `docs/architecture.md`
+ระบบเป็น Next.js modular monolith: Server Components สำหรับ public content, route handlers สำหรับ mutation, PostgreSQL/Drizzle เป็น source of truth, Auth.js Google-only และ Backblaze B2 สำหรับ media binary รายละเอียดอยู่ใน `docs/architecture.md`
 
 ## 2. Pages audited
 
@@ -10,7 +10,7 @@ Route inventory, auth/cache/SEO และสถานะ production อยู่
 
 ## 3. Database
 
-Schema แบ่ง identity, normalized content, engagement, analytics/rankings และ operations รวม 28 tables Chapter text อยู่ PostgreSQL `TEXT`; R2 records เก็บ object key รายละเอียด relationship/constraint อยู่ใน `db/README.md`
+Schema แบ่ง identity, normalized content, engagement, analytics/rankings และ operations รวม 28 tables Chapter text อยู่ PostgreSQL `TEXT`; B2 records เก็บ object key รายละเอียด relationship/constraint อยู่ใน `db/README.md`
 
 ## 4. Indexes
 
@@ -22,12 +22,13 @@ Global admin chapter catalogue มี partial index `(updated_at DESC, id DESC) 
 
 Auth.js เปิด Google OAuth provider เท่านั้น User ใหม่เป็น `READER`; JWT ใช้กับ Proxy guard แต่ server mutations ตรวจ user role/status ล่าสุดใน PostgreSQL Password/register/reset/OTP เดิมถูกลบหรือ redirect
 
-## 6. R2
+## 6. B2
 
 Uploads now use a private staging-to-public promotion boundary. The browser can
 write only `staging/{final-key}`; completion validates size/metadata plus image
 magic bytes using a bounded ranged read, pins verification and copy to the same
-ETag, promotes to an allowlisted final key, and removes staging before `READY`.
+B2 version ID, promotes that immutable version to an allowlisted final key, and
+removes staging before `READY`.
 Presigned PUTs disable optional empty-body SDK checksums so browser bodies do not
 fail against a checksum calculated for an empty payload. Cleanup is a bounded,
 cursor-backed command with dry-run, hourly stale/orphan cleanup, and an explicit
@@ -54,13 +55,13 @@ Library/follow/rating/review aggregates ใช้ constant-time delta ใน tra
 
 Admin upload presign and completion have separate, actor-scoped bounded rate
 limits. Image acceptance uses bytes, not a client or `HEAD` MIME claim, and
-ETag preconditions close the verification-to-promotion replacement race.
+B2 version pinning closes the verification-to-promotion replacement race.
 
-มี DB-fresh authorization, same-origin mutation checks, Zod validation, bounded rate limit, safe redirect, structured redacting logs, CSP/HSTS/security headers, R2 object-key validation และ soft-delete/publication filters Paid body ไม่ถูก serialize ไป browser
+มี DB-fresh authorization, same-origin mutation checks, Zod validation, bounded rate limit, safe redirect, structured redacting logs, CSP/HSTS/security headers, B2 object-key validation และ soft-delete/publication filters Paid body ไม่ถูก serialize ไป browser
 
 ## 10. Remaining external setup
 
-ต้องใช้ค่าจากเจ้าของระบบเท่านั้น: production domain, PostgreSQL URL/migration application, Google OAuth ID/secret, Auth secret, R2 credentials/bucket/custom domain/CORS, initial admin provisioning และ monitoring provider ไม่มี credential ใดถูกสร้างแทนหรือ commit
+ต้องใช้ค่าจากเจ้าของระบบเท่านั้น: production domain, PostgreSQL URL/migration application, Google OAuth ID/secret, Auth secret, B2 credentials/bucket/custom domain/CORS, initial admin provisioning และ monitoring provider ไม่มี credential ใดถูกสร้างแทนหรือ commit
 
 ## 11. Production checklist
 

@@ -45,7 +45,7 @@ Important findings from the audit:
 - The schema already has public novel, chapter navigation, ranking, taxonomy, and search indexes. No speculative index was added.
 - Homepage queries already execute concurrently and use Next Data Cache. Redis version reads are coalesced in process, and invalidations use one Redis transaction/pipeline. The cache abstraction also exposes `mGet` for future aggregates; no sequential Redis loop was introduced for the homepage.
 - Proxy matching includes protected route groups, World entry routes, and public chapter-reader HTML. Chapter matching intentionally performs request-identity/risk checks, so reader HTML is not treated as CDN-cacheable even though its public-safe content bundle is cached below the request layer.
-- R2 asset URLs use the configured public CDN host and there is no Vercel `/api/image` byte-proxy route. `next/image` still performs configured image optimization; switching to Cloudflare image transformations requires a real transformation URL/loader and was not guessed.
+- B2 asset URLs use the configured public CDN host and there is no Vercel `/api/image` byte-proxy route. `next/image` still performs configured image optimization; switching to Cloudflare image transformations requires a real transformation URL/loader and was not guessed.
 - Reading progress is already gated by authentication, a 5% meaningful change, and a 10-second minimum interval, with page-hide persistence. It was not rewritten.
 - View events currently write PostgreSQL aggregates. There is no durable counter-flush worker, so Redis view buffering was deliberately not introduced.
 

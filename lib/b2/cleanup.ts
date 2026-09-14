@@ -3,14 +3,14 @@ import { and, asc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { adminAuditLogs, authors, mediaAssets, novels, promoBanners, siteSettings, users } from "@/db/schema";
-import { requireR2Env } from "@/lib/env";
+import { requireB2Env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import {
   MANAGED_OBJECT_KEY_PREFIXES,
   managedObjectKeySchema,
 } from "@/lib/validation/upload";
 
-import { getR2Client } from "./client";
+import { getB2Client } from "./client";
 
 export const DEFAULT_MEDIA_CLEANUP_AGE_MS = 24 * 60 * 60 * 1_000;
 export const DEFAULT_MEDIA_DELETE_LIMIT = 200;
@@ -93,7 +93,7 @@ async function saveCleanupCursor(cursor: CleanupCursor, now: Date) {
 }
 
 async function scanOrphanCandidates(cutoff: Date, scanLimit: number) {
-  const env = requireR2Env();
+  const env = requireB2Env();
   let cursor = await loadCleanupCursor();
   let remaining = scanLimit;
   let scannedObjects = 0;
@@ -102,9 +102,9 @@ async function scanOrphanCandidates(cutoff: Date, scanLimit: number) {
 
   while (remaining > 0 && completedPrefixes < MANAGED_OBJECT_KEY_PREFIXES.length) {
     const maxKeys = Math.min(1_000, remaining);
-    const response = await getR2Client().send(
+    const response = await getB2Client().send(
       new ListObjectsV2Command({
-        Bucket: env.R2_BUCKET_NAME,
+        Bucket: env.B2_BUCKET_NAME,
         Prefix: cursor.prefix,
         StartAfter: cursor.startAfter,
         MaxKeys: maxKeys,
@@ -156,10 +156,10 @@ async function scanOrphanCandidates(cutoff: Date, scanLimit: number) {
 async function deleteObjectBatch(objectKeys: readonly string[]) {
   if (objectKeys.length === 0) return { deletedKeys: [] as string[], failedKeys: [] as string[] };
   const validatedKeys = [...new Set(objectKeys.map((key) => managedObjectKeySchema.parse(key)))];
-  const env = requireR2Env();
-  const response = await getR2Client().send(
+  const env = requireB2Env();
+  const response = await getB2Client().send(
     new DeleteObjectsCommand({
-      Bucket: env.R2_BUCKET_NAME,
+      Bucket: env.B2_BUCKET_NAME,
       Delete: { Objects: validatedKeys.map((Key) => ({ Key })), Quiet: true },
     }),
   );
@@ -279,7 +279,7 @@ async function claimStaleMedia(cutoff: Date, limit: number, now: Date, claim: bo
       .filter((candidate) => candidate.status !== "READY" || candidate.deletedAt)
       .map((candidate) => candidate.id);
     if (claim && terminalIds.length > 0) {
-      // Claim lifecycle ownership before touching R2. Complete can only promote
+      // Claim lifecycle ownership before touching B2. Complete can only promote
       // a row it atomically moved PENDING -> VERIFYING, so it cannot race this.
       await tx
         .update(mediaAssets)
@@ -302,7 +302,7 @@ export type CleanupExpiredMediaOptions = {
 
 /**
  * Bounded, idempotent cleanup suitable for an hourly cron/worker invocation.
- * Dry-run is the default; callers must explicitly opt into R2/DB mutations.
+ * Dry-run is the default; callers must explicitly opt into B2/DB mutations.
  */
 export async function cleanupExpiredMedia(options: CleanupExpiredMediaOptions = {}) {
   const dryRun = options.dryRun ?? true;

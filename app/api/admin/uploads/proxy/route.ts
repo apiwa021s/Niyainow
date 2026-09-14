@@ -6,7 +6,7 @@ import { adminApiError } from "@/app/api/admin/_shared";
 import { getDb } from "@/db";
 import { mediaAssets } from "@/db/schema";
 import { assertAdmin } from "@/lib/auth/dal";
-import { uploadStagingObject } from "@/lib/r2";
+import { uploadStagingObject } from "@/lib/b2";
 import {
   rateLimitHeaders,
   requestRateLimitKey,
@@ -31,7 +31,7 @@ const assetTypeByKind = {
 } as const;
 
 /**
- * Same-origin, admin-only fallback for a failed browser -> R2 PUT. The normal
+ * Same-origin, admin-only fallback for a failed browser -> B2 PUT. The normal
  * presigned upload remains the fast path and avoids sending binary data through
  * the application server.
  */
@@ -83,6 +83,7 @@ export async function POST(request: Request) {
       contentLength: asset.byteSize,
       body,
       assetType: assetTypeByKind[asset.kind],
+      checksumSha256: asset.metadata.checksumSha256,
     });
 
     return NextResponse.json(

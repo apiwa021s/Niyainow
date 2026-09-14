@@ -136,7 +136,7 @@ export async function seedDevelopmentData() {
           isFeatured: novel.featured ?? false,
           latestChapterAt: now,
           publishedAt: now,
-          // Mock image URLs are intentionally not copied. Media columns only hold R2 keys.
+          // Mock image URLs are intentionally not copied. Media columns only hold B2 keys.
           coverKey: null,
           bannerKey: null,
         })),

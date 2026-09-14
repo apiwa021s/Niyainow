@@ -10,7 +10,7 @@ import {
   uploadRequestSchema,
 } from "./upload";
 
-describe("R2 upload validation", () => {
+describe("B2 upload validation", () => {
   it("accepts a bounded image and creates an object key without the original name", () => {
     const upload = uploadRequestSchema.parse({
       assetType: "cover",

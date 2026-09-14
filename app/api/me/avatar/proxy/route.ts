@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { mediaAssets } from "@/db/schema";
 import { ApiError } from "@/lib/http/api-response";
 import { isReaderAvatarContentType, READER_AVATAR_MAX_BYTES } from "@/lib/profile/reader-avatar";
-import { uploadStagingObject } from "@/lib/r2";
+import { uploadStagingObject } from "@/lib/b2";
 import { objectKeySchema } from "@/lib/validation/upload";
 
 export async function POST(request: Request) {
@@ -48,6 +48,7 @@ export async function POST(request: Request) {
         contentLength: asset.byteSize,
         body,
         assetType: "avatar",
+        checksumSha256: asset.metadata.checksumSha256,
       });
       return { objectKey: asset.objectKey, status: "STAGED" as const };
     },

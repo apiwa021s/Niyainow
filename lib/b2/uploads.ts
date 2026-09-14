@@ -6,9 +6,10 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
-import { getAssetBaseUrl, requireR2Env } from "@/lib/env";
+import { getAssetBaseUrl, requireB2Env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import {
   ALLOWED_IMAGE_TYPES,
@@ -21,12 +22,13 @@ import {
   type ValidatedUploadRequest,
 } from "@/lib/validation/upload";
 
-import { getR2Client } from "./client";
+import { getB2Client } from "./client";
 import { detectImageContentType, IMAGE_SIGNATURE_RANGE } from "./signatures";
 
 const uploadVerificationSchema = z.object({
   contentType: z.enum(ALLOWED_IMAGE_TYPES),
   contentLength: z.number().int().positive(),
+  checksumSha256: z.string().regex(/^[A-Za-z0-9+/]{43}=$/).optional(),
 });
 
 const uploadActorSchema = z.object({
@@ -62,38 +64,34 @@ export class UploadVerificationError extends Error {
   }
 }
 
-export function isR2PreconditionFailure(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const candidate = error as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
-  return (
-    candidate.$metadata?.httpStatusCode === 412 ||
-    candidate.name === "PreconditionFailed" ||
-    candidate.Code === "PreconditionFailed"
-  );
-}
-
 export async function createPresignedUpload(input: {
   actor: UploadActor;
   upload: ValidatedUploadRequest | unknown;
 }): Promise<PresignedUpload> {
   uploadActorSchema.parse(input.actor);
   const upload = uploadRequestSchema.parse(input.upload);
-  const env = requireR2Env();
+  const env = requireB2Env();
   const objectKey = generateObjectKey(upload);
   const stagingObjectKey = generateStagingObjectKey(objectKey);
+  const metadata = {
+    assetType: upload.assetType,
+    ...(upload.checksumSha256 ? { checksumSha256: upload.checksumSha256 } : {}),
+  };
   const command = new PutObjectCommand({
-    Bucket: env.R2_BUCKET_NAME,
+    Bucket: env.B2_BUCKET_NAME,
     Key: stagingObjectKey,
     ContentType: upload.contentType,
     ContentLength: upload.contentLength,
-    ChecksumSHA256: upload.checksumSha256,
-    Metadata: { assetType: upload.assetType },
+    // B2's documented S3 PutObject surface does not accept the AWS flexible
+    // checksum header. Bind the requested digest as signed metadata and verify
+    // it against the uploaded bytes during completion instead.
+    Metadata: metadata,
   });
-  const uploadUrl = await getSignedUrl(getR2Client(), command, {
-    expiresIn: env.R2_UPLOAD_URL_TTL_SECONDS,
+  const uploadUrl = await getSignedUrl(getB2Client(), command, {
+    expiresIn: env.B2_UPLOAD_URL_TTL_SECONDS,
   });
   // The S3 presigner hoists x-amz-meta-* into the query string. Browsers must
-  // not send the same unsigned x-amz-* header again, or R2 rejects the PUT.
+  // not send the same unsigned x-amz-* header again, or B2 rejects the PUT.
   const requiredHeaders: Record<string, string> = {
     "content-type": upload.contentType,
   };
@@ -102,19 +100,19 @@ export async function createPresignedUpload(input: {
     objectKey,
     stagingObjectKey,
     uploadUrl,
-    expiresAt: new Date(Date.now() + env.R2_UPLOAD_URL_TTL_SECONDS * 1_000),
+    expiresAt: new Date(Date.now() + env.B2_UPLOAD_URL_TTL_SECONDS * 1_000),
     requiredHeaders,
   };
 }
 
-export async function deleteR2Object(objectKeyInput: string) {
+export async function deleteB2Object(objectKeyInput: string) {
   const objectKey = managedObjectKeySchema.parse(objectKeyInput);
-  const env = requireR2Env();
-  await getR2Client().send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: objectKey }));
+  const env = requireB2Env();
+  await getB2Client().send(new DeleteObjectCommand({ Bucket: env.B2_BUCKET_NAME, Key: objectKey }));
 }
 
 /**
- * Same-origin fallback for browsers that cannot reach the presigned R2 URL
+ * Same-origin fallback for browsers that cannot reach the presigned B2 URL
  * (most commonly while a new production origin is waiting for its CORS policy
  * to be applied). Authorization and size checks happen in the route handler;
  * this helper deliberately accepts only an already-validated staging key.
@@ -125,6 +123,7 @@ export async function uploadStagingObject(input: {
   contentLength: number;
   body: Uint8Array;
   assetType: ValidatedUploadRequest["assetType"];
+  checksumSha256?: string;
 }) {
   const stagingObjectKey = stagingObjectKeySchema.parse(input.stagingObjectKey);
   if (!Number.isSafeInteger(input.contentLength) || input.contentLength <= 0) {
@@ -134,14 +133,20 @@ export async function uploadStagingObject(input: {
     throw new Error("Upload body length does not match the authorized upload");
   }
 
-  const env = requireR2Env();
-  await getR2Client().send(new PutObjectCommand({
-    Bucket: env.R2_BUCKET_NAME,
+  const env = requireB2Env();
+  const checksumSha256 = input.checksumSha256 === undefined
+    ? undefined
+    : uploadRequestSchema.shape.checksumSha256.parse(input.checksumSha256);
+  await getB2Client().send(new PutObjectCommand({
+    Bucket: env.B2_BUCKET_NAME,
     Key: stagingObjectKey,
     Body: input.body,
     ContentType: input.contentType,
     ContentLength: input.contentLength,
-    Metadata: { assetType: input.assetType },
+    Metadata: {
+      assetType: input.assetType,
+      ...(checksumSha256 ? { checksumSha256 } : {}),
+    },
   }));
 }
 
@@ -151,11 +156,11 @@ async function rejectAndDeleteUpload(input: {
   detectedContentType: ValidatedUploadRequest["contentType"] | null;
   message: string;
 }): Promise<never> {
-  const results = await Promise.allSettled(input.objectKeys.map(deleteR2Object));
+  const results = await Promise.allSettled(input.objectKeys.map(deleteB2Object));
   const objectDeleted = results.every((result) => result.status === "fulfilled");
   for (const [index, result] of results.entries()) {
     if (result.status === "rejected") {
-      logger.warn("Failed to remove rejected R2 upload; cleanup job will retry", {
+      logger.warn("Failed to remove rejected B2 upload; cleanup job will retry", {
         error: result.reason,
         objectKey: input.objectKeys[index],
       });
@@ -181,6 +186,7 @@ export async function verifyUploadedObject(input: {
   finalObjectKey: string;
   expectedContentType: ValidatedUploadRequest["contentType"];
   expectedContentLength: number;
+  expectedChecksumSha256?: string;
 }) {
   uploadActorSchema.parse(input.actor);
   const stagingObjectKey = stagingObjectKeySchema.parse(input.stagingObjectKey);
@@ -191,13 +197,18 @@ export async function verifyUploadedObject(input: {
   const expected = uploadVerificationSchema.parse({
     contentType: input.expectedContentType,
     contentLength: input.expectedContentLength,
+    checksumSha256: input.expectedChecksumSha256,
   });
-  const env = requireR2Env();
-  const response = await getR2Client().send(
-    new HeadObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: stagingObjectKey }),
+  const env = requireB2Env();
+  const response = await getB2Client().send(
+    new HeadObjectCommand({ Bucket: env.B2_BUCKET_NAME, Key: stagingObjectKey }),
   );
 
-  if (response.ContentType !== expected.contentType || response.ContentLength !== expected.contentLength) {
+  if (
+    response.ContentType !== expected.contentType ||
+    response.ContentLength !== expected.contentLength ||
+    (expected.checksumSha256 && response.Metadata?.checksumsha256 !== expected.checksumSha256)
+  ) {
     await rejectAndDeleteUpload({
       objectKeys: [stagingObjectKey],
       expectedContentType: expected.contentType,
@@ -205,28 +216,18 @@ export async function verifyUploadedObject(input: {
       message: "Uploaded object metadata does not match the authorized upload",
     });
   }
-  if (!response.ETag) throw new Error("R2 did not return an ETag required for race-safe upload verification");
-  const verifiedEtag = response.ETag;
+  if (!response.VersionId) throw new Error("B2 did not return a version ID required for race-safe upload verification");
+  const verifiedVersionId = response.VersionId;
 
-  const rangedObject = await getR2Client()
-    .send(
-      new GetObjectCommand({
-        Bucket: env.R2_BUCKET_NAME,
-        Key: stagingObjectKey,
-        Range: IMAGE_SIGNATURE_RANGE,
-        IfMatch: verifiedEtag,
-      }),
-    )
-    .catch(async (error: unknown) => {
-      if (!isR2PreconditionFailure(error)) throw error;
-      return rejectAndDeleteUpload({
-        objectKeys: [stagingObjectKey],
-        expectedContentType: expected.contentType,
-        detectedContentType: null,
-        message: "Staging object changed during verification",
-      });
-    });
-  if (!rangedObject.Body) throw new Error("R2 returned no body while verifying the uploaded object");
+  const rangedObject = await getB2Client().send(
+    new GetObjectCommand({
+      Bucket: env.B2_BUCKET_NAME,
+      Key: stagingObjectKey,
+      VersionId: verifiedVersionId,
+      ...(expected.checksumSha256 ? {} : { Range: IMAGE_SIGNATURE_RANGE }),
+    }),
+  );
+  if (!rangedObject.Body) throw new Error("B2 returned no body while verifying the uploaded object");
 
   const signatureBytes = await rangedObject.Body.transformToByteArray();
   const detectedContentType = detectImageContentType(signatureBytes);
@@ -238,30 +239,34 @@ export async function verifyUploadedObject(input: {
       message: "Uploaded object bytes do not match the authorized image type",
     });
   }
-
-  await getR2Client()
-    .send(
-      new CopyObjectCommand({
-        Bucket: env.R2_BUCKET_NAME,
-        Key: finalObjectKey,
-        CopySource: `${env.R2_BUCKET_NAME}/${stagingObjectKey}`,
-        CopySourceIfMatch: verifiedEtag,
-        MetadataDirective: "COPY",
-      }),
-    )
-    .catch(async (error: unknown) => {
-      if (!isR2PreconditionFailure(error)) throw error;
-      return rejectAndDeleteUpload({
-        objectKeys: [stagingObjectKey],
-        expectedContentType: expected.contentType,
-        detectedContentType: null,
-        message: "Staging object changed before promotion",
-      });
+  if (
+    expected.checksumSha256 &&
+    createHash("sha256").update(signatureBytes).digest("base64") !== expected.checksumSha256
+  ) {
+    await rejectAndDeleteUpload({
+      objectKeys: [stagingObjectKey],
+      expectedContentType: expected.contentType,
+      detectedContentType,
+      message: "Uploaded object bytes do not match the authorized SHA-256 checksum",
     });
-  const finalHead = await getR2Client().send(
-    new HeadObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: finalObjectKey }),
+  }
+
+  await getB2Client().send(
+    new CopyObjectCommand({
+      Bucket: env.B2_BUCKET_NAME,
+      Key: finalObjectKey,
+      CopySource: `${env.B2_BUCKET_NAME}/${stagingObjectKey}?versionId=${encodeURIComponent(verifiedVersionId)}`,
+      MetadataDirective: "COPY",
+    }),
   );
-  if (finalHead.ContentType !== expected.contentType || finalHead.ContentLength !== expected.contentLength) {
+  const finalHead = await getB2Client().send(
+    new HeadObjectCommand({ Bucket: env.B2_BUCKET_NAME, Key: finalObjectKey }),
+  );
+  if (
+    finalHead.ContentType !== expected.contentType ||
+    finalHead.ContentLength !== expected.contentLength ||
+    (expected.checksumSha256 && finalHead.Metadata?.checksumsha256 !== expected.checksumSha256)
+  ) {
     await rejectAndDeleteUpload({
       objectKeys: [stagingObjectKey, finalObjectKey],
       expectedContentType: expected.contentType,
@@ -272,7 +277,7 @@ export async function verifyUploadedObject(input: {
 
   let stagingDeleted = true;
   try {
-    await deleteR2Object(stagingObjectKey);
+    await deleteB2Object(stagingObjectKey);
   } catch (error) {
     stagingDeleted = false;
     logger.warn("Verified media was promoted but its staging object needs cleanup", {

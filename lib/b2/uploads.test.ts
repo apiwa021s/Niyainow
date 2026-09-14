@@ -1,22 +1,22 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { destroyR2Client } from "./client";
-import { createPresignedUpload, isR2PreconditionFailure, uploadStagingObject } from "./uploads";
+import { destroyB2Client } from "./client";
+import { createPresignedUpload, uploadStagingObject } from "./uploads";
 
 afterEach(() => {
-  destroyR2Client();
+  destroyB2Client();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
 
-describe("R2 presign policy", () => {
+describe("B2 presign policy", () => {
   it("signs only a private staging key without an empty-body CRC32", async () => {
-    vi.stubEnv("R2_ACCOUNT_ID", "testaccount");
-    vi.stubEnv("R2_ACCESS_KEY_ID", "test-access-key");
-    vi.stubEnv("R2_SECRET_ACCESS_KEY", "test-secret-key");
-    vi.stubEnv("R2_BUCKET_NAME", "test-bucket");
-    vi.stubEnv("R2_UPLOAD_URL_TTL_SECONDS", "300");
+    vi.stubEnv("B2_REGION", "us-west-004");
+    vi.stubEnv("B2_KEY_ID", "test-access-key");
+    vi.stubEnv("B2_APPLICATION_KEY", "test-secret-key");
+    vi.stubEnv("B2_BUCKET_NAME", "test-bucket");
+    vi.stubEnv("B2_UPLOAD_URL_TTL_SECONDS", "300");
 
     const signed = await createPresignedUpload({
       actor: { id: "00000000-0000-4000-8000-000000000001", role: "ADMIN", status: "ACTIVE" },
@@ -34,17 +34,19 @@ describe("R2 presign policy", () => {
     expect(signed.stagingObjectKey).toBe(`staging/${signed.objectKey}`);
     expect(decodeURIComponent(url.pathname)).toContain(`/staging/${signed.objectKey}`);
     expect(url.searchParams.get("x-amz-meta-assettype")).toBe("cover");
+    expect(url.origin).toBe("https://s3.us-west-004.backblazeb2.com");
+    expect(decodeURIComponent(url.pathname)).toContain("/test-bucket/staging/");
     expect(signed.requiredHeaders).toEqual({ "content-type": "image/webp" });
     expect(queryKeys).not.toContain("x-amz-checksum-crc32");
     expect(queryKeys).not.toContain("x-amz-sdk-checksum-algorithm");
   });
 
-  it("keeps an explicit SHA-256 checksum in the signed URL instead of duplicating it as a header", async () => {
-    vi.stubEnv("R2_ACCOUNT_ID", "testaccount");
-    vi.stubEnv("R2_ACCESS_KEY_ID", "test-access-key");
-    vi.stubEnv("R2_SECRET_ACCESS_KEY", "test-secret-key");
-    vi.stubEnv("R2_BUCKET_NAME", "test-bucket");
-    vi.stubEnv("R2_UPLOAD_URL_TTL_SECONDS", "300");
+  it("binds an explicit SHA-256 checksum as B2-compatible signed metadata", async () => {
+    vi.stubEnv("B2_REGION", "us-west-004");
+    vi.stubEnv("B2_KEY_ID", "test-access-key");
+    vi.stubEnv("B2_APPLICATION_KEY", "test-secret-key");
+    vi.stubEnv("B2_BUCKET_NAME", "test-bucket");
+    vi.stubEnv("B2_UPLOAD_URL_TTL_SECONDS", "300");
 
     const checksumSha256 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
     const signed = await createPresignedUpload({
@@ -59,21 +61,16 @@ describe("R2 presign policy", () => {
     });
     const url = new URL(signed.uploadUrl);
 
-    expect(url.searchParams.get("x-amz-checksum-sha256")).toBe(checksumSha256);
+    expect(url.searchParams.get("x-amz-checksum-sha256")).toBeNull();
+    expect(url.searchParams.get("x-amz-meta-checksumsha256")).toBe(checksumSha256);
     expect(signed.requiredHeaders).toEqual({ "content-type": "image/webp" });
   });
 
-  it("recognizes only storage precondition failures as replacement races", () => {
-    expect(isR2PreconditionFailure({ $metadata: { httpStatusCode: 412 } })).toBe(true);
-    expect(isR2PreconditionFailure({ name: "PreconditionFailed" })).toBe(true);
-    expect(isR2PreconditionFailure({ $metadata: { httpStatusCode: 500 } })).toBe(false);
-  });
-
   it("uploads an authorized fallback body only to its staging key", async () => {
-    vi.stubEnv("R2_ACCOUNT_ID", "testaccount");
-    vi.stubEnv("R2_ACCESS_KEY_ID", "test-access-key");
-    vi.stubEnv("R2_SECRET_ACCESS_KEY", "test-secret-key");
-    vi.stubEnv("R2_BUCKET_NAME", "test-bucket");
+    vi.stubEnv("B2_REGION", "us-west-004");
+    vi.stubEnv("B2_KEY_ID", "test-access-key");
+    vi.stubEnv("B2_APPLICATION_KEY", "test-secret-key");
+    vi.stubEnv("B2_BUCKET_NAME", "test-bucket");
     const send = vi.spyOn(S3Client.prototype, "send").mockResolvedValue({} as never);
     const body = new Uint8Array([0x52, 0x49, 0x46, 0x46]);
 

@@ -2,7 +2,7 @@ import { after } from "next/server";
 
 import { handleUserRoute } from "@/app/api/me/_shared";
 import { logger } from "@/lib/logger";
-import { deleteR2Object } from "@/lib/r2";
+import { deleteB2Object } from "@/lib/b2";
 import { removeReaderAvatar } from "@/services/reader-avatar-service";
 
 export async function DELETE(request: Request) {
@@ -15,7 +15,7 @@ export async function DELETE(request: Request) {
       if (cleanupObjectKey) {
         after(async () => {
           try {
-            await deleteR2Object(cleanupObjectKey);
+            await deleteB2Object(cleanupObjectKey);
           } catch (error) {
             logger.warn("Removed reader avatar cleanup failed", {
               objectKey: cleanupObjectKey,

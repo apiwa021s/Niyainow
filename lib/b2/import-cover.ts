@@ -4,9 +4,9 @@ import { createHash } from "node:crypto";
 
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 
-import { requireR2Env } from "@/lib/env";
-import { getR2Client } from "@/lib/r2/client";
-import { detectImageContentType } from "@/lib/r2/signatures";
+import { requireB2Env } from "@/lib/env";
+import { getB2Client } from "@/lib/b2/client";
+import { detectImageContentType } from "@/lib/b2/signatures";
 import {
   MAX_UPLOAD_BYTES,
   objectKeySchema,
@@ -106,7 +106,7 @@ export async function uploadImportedCover(input: {
   sourceUrl: string;
 }) {
   const sourceUrl = validateImportedCoverUrl(input.provider, input.sourceUrl);
-  const env = requireR2Env();
+  const env = requireB2Env();
   const response = await fetch(sourceUrl, {
     redirect: "error",
     signal: AbortSignal.timeout(20_000),
@@ -122,8 +122,8 @@ export async function uploadImportedCover(input: {
 
   const objectKey = importedCoverObjectKey(input.sourceId, sourceUrl.toString(), contentType);
   const checksumSha256 = createHash("sha256").update(bytes).digest("hex");
-  const uploaded = await getR2Client().send(new PutObjectCommand({
-    Bucket: env.R2_BUCKET_NAME,
+  const uploaded = await getB2Client().send(new PutObjectCommand({
+    Bucket: env.B2_BUCKET_NAME,
     Key: objectKey,
     Body: bytes,
     ContentType: contentType,

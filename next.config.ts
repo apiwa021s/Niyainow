@@ -98,7 +98,7 @@ function createNextConfig(phase: string): NextConfig {
       "connect-src 'self'",
       "https://accounts.google.com",
       "https://oauth2.googleapis.com",
-      "https://*.r2.cloudflarestorage.com",
+      "https://*.backblazeb2.com",
       "https://challenges.cloudflare.com",
       ...(assetOrigin ? [assetOrigin] : []),
       ...(vercelLiveOrigin ? [vercelLiveOrigin] : []),

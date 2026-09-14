@@ -4,7 +4,7 @@ import { adminApiError, parseAdminMutation } from "@/app/api/admin/_shared";
 import { getDb } from "@/db";
 import { adminAuditLogs, mediaAssets } from "@/db/schema";
 import { assertAdmin } from "@/lib/auth/dal";
-import { createPresignedUpload } from "@/lib/r2";
+import { createPresignedUpload } from "@/lib/b2";
 import {
   rateLimitHeaders,
   requestRateLimitKey,

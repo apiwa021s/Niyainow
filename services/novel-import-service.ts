@@ -23,8 +23,8 @@ import { advanceContiguousChapterCheckpoint } from "@/lib/domain/novel-import";
 import { EnvironmentConfigurationError } from "@/lib/env";
 import { ApiError } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
-import { ImportedCoverError, uploadImportedCover } from "@/lib/r2/import-cover";
-import { createPresignedUpload, deleteR2Object, verifyUploadedObject } from "@/lib/r2/uploads";
+import { ImportedCoverError, uploadImportedCover } from "@/lib/b2/import-cover";
+import { createPresignedUpload, deleteB2Object, verifyUploadedObject } from "@/lib/b2/uploads";
 
 function importReference(provider: string, externalWorkId: string) {
   return `import:${provider}:${externalWorkId}`;
@@ -53,7 +53,7 @@ function sourceState(source: typeof novelImportSources.$inferSelect) {
 
 function safeCoverError(error: unknown) {
   if (error instanceof ImportedCoverError) return `${error.code}: ${error.message}`;
-  if (error instanceof EnvironmentConfigurationError) return "R2_NOT_CONFIGURED: Media storage is not configured";
+  if (error instanceof EnvironmentConfigurationError) return "B2_NOT_CONFIGURED: Media storage is not configured";
   return "COVER_UPLOAD_FAILED: Unexpected cover upload failure";
 }
 
@@ -623,6 +623,7 @@ export async function completeNovelImportMangaChapter(input: NovelImportMangaCha
 
   const storedPages = await db.select({
     pageNumber: novelImportMangaPages.pageNumber,
+    checksumSha256: novelImportMangaPages.checksumSha256,
     contentType: novelImportMangaPages.contentType,
     byteSize: novelImportMangaPages.byteSize,
     mediaAssetId: novelImportMangaPages.mediaAssetId,
@@ -663,6 +664,7 @@ export async function completeNovelImportMangaChapter(input: NovelImportMangaCha
         finalObjectKey: storedPage.objectKey,
         expectedContentType: completedPage.contentType,
         expectedContentLength: completedPage.contentLength,
+        expectedChecksumSha256: storedPage.checksumSha256,
       });
       await db.update(mediaAssets).set({
         status: "READY",
@@ -673,7 +675,7 @@ export async function completeNovelImportMangaChapter(input: NovelImportMangaCha
     } catch (error) {
       await db.update(mediaAssets).set({ status: "FAILED", updatedAt: new Date() })
         .where(eq(mediaAssets.id, storedPage.mediaAssetId));
-      try { await deleteR2Object(storedPage.stagingKey); } catch { /* Cleanup remains best effort. */ }
+      try { await deleteB2Object(storedPage.stagingKey); } catch { /* Cleanup remains best effort. */ }
       throw error;
     }
   }

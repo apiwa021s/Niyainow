@@ -43,8 +43,8 @@ source chapters per book are processed before progress can be saved. The runtime
 guard stops the command gracefully before the platform timeout and exits
 successfully with `stoppedForRuntime: true`.
 
-Normal execute runs require `MONGODB_URL`, `DATABASE_URL`, and the four `R2_*`
-credentials. Available, valid cover images are uploaded to R2 before
+Normal execute runs require `MONGODB_URL`, `DATABASE_URL`, and the four `B2_*`
+credentials. Available, valid cover images are uploaded to B2 before
 `novels.cover_key` is written. Use `--skip-images` only for controlled recovery
 runs.
 

@@ -702,7 +702,7 @@ Purpose:
 Create a compact upload placeholder illustration for NiyaiNow admin. Show an image frame with an open-book icon and upward upload spark, violet professional SaaS style, transparent background, no text.
 ```
 
-### R2 File Verified Icon
+### B2 File Verified Icon
 
 ```text
 Create a small success icon for NiyaiNow admin file uploads. Show a clean check mark inside a tiny violet book-page badge with one pink spark. Professional UI icon, transparent background, no text.

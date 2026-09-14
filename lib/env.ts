@@ -86,15 +86,18 @@ const runtimeEnvSchema = z.object({
   CRON_SECRET: z.preprocess(emptyToUndefined, z.string().trim().min(32).optional()),
   TURNSTILE_SECRET_KEY: optionalString,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: optionalString,
-  R2_ACCOUNT_ID: z.preprocess(emptyToUndefined, z.string().regex(/^[a-zA-Z0-9_-]+$/).optional()),
-  R2_ACCESS_KEY_ID: optionalString,
-  R2_SECRET_ACCESS_KEY: optionalString,
-  R2_BUCKET_NAME: z.preprocess(
+  B2_REGION: z.preprocess(
     emptyToUndefined,
-    z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
+    z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)+$/, "must be a Backblaze region such as us-west-004").optional(),
   ),
-  R2_PUBLIC_URL: optionalUrl,
-  R2_UPLOAD_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
+  B2_KEY_ID: optionalString,
+  B2_APPLICATION_KEY: optionalString,
+  B2_BUCKET_NAME: z.preprocess(
+    emptyToUndefined,
+    z.string().regex(/^[a-z0-9][a-z0-9.-]{4,61}[a-z0-9]$/).optional(),
+  ),
+  B2_PUBLIC_URL: optionalUrl,
+  B2_UPLOAD_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
   STRIPE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().trim().startsWith("sk_").optional()),
   STRIPE_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().trim().startsWith("whsec_").optional()),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "silent"]).default("info"),
@@ -139,14 +142,14 @@ export type RequiredMongoEnv = Pick<RuntimeEnv, "MONGODB_URL"> & {
 export type RequiredAuthEnv = Required<
   Pick<RuntimeEnv, "AUTH_SECRET" | "AUTH_GOOGLE_ID" | "AUTH_GOOGLE_SECRET">
 >;
-export type RequiredR2Env = Required<
+export type RequiredB2Env = Required<
   Pick<
     RuntimeEnv,
-    | "R2_ACCOUNT_ID"
-    | "R2_ACCESS_KEY_ID"
-    | "R2_SECRET_ACCESS_KEY"
-    | "R2_BUCKET_NAME"
-    | "R2_UPLOAD_URL_TTL_SECONDS"
+    | "B2_REGION"
+    | "B2_KEY_ID"
+    | "B2_APPLICATION_KEY"
+    | "B2_BUCKET_NAME"
+    | "B2_UPLOAD_URL_TTL_SECONDS"
   >
 >;
 export type RequiredNovelImportEnv = Required<Pick<RuntimeEnv, "NOVEL_IMPORT_TOKEN">>;
@@ -241,12 +244,12 @@ export function requireAuthEnv(source: NodeJS.ProcessEnv = process.env): Runtime
   return env;
 }
 
-export function requireR2Env(source: NodeJS.ProcessEnv = process.env): RuntimeEnv & RequiredR2Env {
+export function requireB2Env(source: NodeJS.ProcessEnv = process.env): RuntimeEnv & RequiredB2Env {
   const env = getRuntimeEnv(source);
   requireKeys(
     env,
-    ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET_NAME"],
-    "Cloudflare R2",
+    ["B2_REGION", "B2_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME"],
+    "Backblaze B2",
   );
   return env;
 }
@@ -284,5 +287,5 @@ export function hasDatabaseConfiguration(source: NodeJS.ProcessEnv = process.env
 
 export function getAssetBaseUrl(source: NodeJS.ProcessEnv = process.env) {
   const env = getRuntimeEnv(source);
-  return env.NEXT_PUBLIC_ASSET_URL ?? env.R2_PUBLIC_URL;
+  return env.NEXT_PUBLIC_ASSET_URL ?? env.B2_PUBLIC_URL;
 }

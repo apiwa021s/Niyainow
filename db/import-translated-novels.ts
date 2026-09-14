@@ -24,11 +24,11 @@ import {
 } from "@/db/schema";
 import { countChapterWords } from "@/lib/domain/chapter";
 import { canonicalGenreSlug } from "@/lib/domain/genre-taxonomy";
-import { requireMongoEnv, requireR2Env } from "@/lib/env";
+import { requireMongoEnv, requireB2Env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { PRIMARY_GENRES } from "@/lib/studio/master-data";
-import { destroyR2Client, getR2Client } from "@/lib/r2/client";
-import { detectImageContentType } from "@/lib/r2/signatures";
+import { destroyB2Client, getB2Client } from "@/lib/b2/client";
+import { detectImageContentType } from "@/lib/b2/signatures";
 import { slugify } from "@/lib/validation/slug";
 import { generateObjectKey, MAX_UPLOAD_BYTES } from "@/lib/validation/upload";
 
@@ -576,7 +576,7 @@ async function loadRepairBook(collection: Collection<MongoBook>, repair: RepairC
   return collection.find(query).sort({ bookId: 1 }).limit(1).next();
 }
 
-async function putCoverToR2(input: {
+async function putCoverToB2(input: {
   sourceUrl: string;
   bookId: string;
   title: string;
@@ -591,10 +591,10 @@ async function putCoverToR2(input: {
   if (!detected) throw new Error("Cover bytes are not a supported image");
   if (bytes.byteLength > MAX_UPLOAD_BYTES.cover) throw new Error("Cover is larger than the allowed upload size");
   const objectKey = generateObjectKey({ assetType: "cover", contentType: detected });
-  const env = requireR2Env();
-  const put = await getR2Client().send(
+  const env = requireB2Env();
+  const put = await getB2Client().send(
     new PutObjectCommand({
-      Bucket: env.R2_BUCKET_NAME,
+      Bucket: env.B2_BUCKET_NAME,
       Key: objectKey,
       Body: bytes,
       ContentType: detected,
@@ -624,7 +624,7 @@ async function ensureCover(book: MongoBook, existingCoverKey: string | null, opt
   if (existingCoverKey || !options.uploadImages) return existingCoverKey;
   const sourceUrl = nonBlank(book.bookCover);
   if (!sourceUrl || !/^https?:\/\//iu.test(sourceUrl)) return null;
-  return putCoverToR2({ sourceUrl, bookId: book.bookId, title: book.bookName, now: options.now });
+  return putCoverToB2({ sourceUrl, bookId: book.bookId, title: book.bookName, now: options.now });
 }
 
 async function ensureGenres(tx: Tx, bookTypes: readonly string[], mongoGenreMap: Map<string, MongoTag>, now: Date) {
@@ -1492,7 +1492,7 @@ async function runRepair(input: {
 
 function assertImageConfiguration(options: ImportOptions) {
   if (!options.execute || !options.uploadImages) return;
-  requireR2Env();
+  requireB2Env();
 }
 
 export async function getTranslatedNovelImportStatus(now = new Date()) {
@@ -1673,7 +1673,7 @@ if (isDirectRun) {
       process.exitCode = 1;
     })
     .finally(async () => {
-      destroyR2Client();
+      destroyB2Client();
       await closeDbConnection();
     });
 }

@@ -447,7 +447,7 @@ export const novelStatistics = pgTable(
 );
 
 /** Promotional banners rendered on the public home page. Editorial content, not
- * per-novel artwork: `image_key` is an R2 object key of kind BANNER and is
+ * per-novel artwork: `image_key` is an B2 object key of kind BANNER and is
  * tracked by the same media lifecycle as covers. */
 export const promoBanners = pgTable(
   "promo_banners",

@@ -66,7 +66,7 @@ async function putWithSameOriginFallback(
   if (!fallback.ok) throw new Error(await responseMessage(fallback));
 }
 
-/** Presign → PUT to R2 (or same-origin fallback) → verify and promote. */
+/** Presign → PUT to B2 (or same-origin fallback) → verify and promote. */
 export function AssetUpload({
   assetType,
   value,

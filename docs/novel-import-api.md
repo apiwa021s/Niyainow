@@ -49,7 +49,7 @@ The idempotency key is `(provider, externalWorkId)`. Language values are canonic
 
 `contentFormat` is `text` by default. Use `manga` when the source contains ordered chapter images; a source cannot change format after registration.
 
-`coverUrl` is optional. For an allowlisted provider, the server fetches the image over HTTPS, verifies its file signature and 8 MB size limit, then stores it in R2 instead of hotlinking the provider. Source registration still succeeds when a cover fails; the response and `/admin/imports` expose `coverStatus` and a safe `coverError` so the import can be retried without dropping chapters.
+`coverUrl` is optional. For an allowlisted provider, the server fetches the image over HTTPS, verifies its file signature and 8 MB size limit, then stores it in B2 instead of hotlinking the provider. Source registration still succeeds when a cover fails; the response and `/admin/imports` expose `coverStatus` and a safe `coverError` so the import can be retried without dropping chapters.
 
 ## Import chapters
 
@@ -86,7 +86,7 @@ Translation status is one of `draft`, `reviewed`, or `approved`. Source text is 
 
 ## Import manga chapters
 
-Manga images use a two-phase upload so the importer can send bytes already downloaded through the authorized browser session directly to R2. The Niyainow server never needs to fetch a protected chapter image from the source site.
+Manga images use a two-phase upload so the importer can send bytes already downloaded through the authorized browser session directly to B2. The Niyainow server never needs to fetch a protected chapter image from the source site.
 
 First call `POST /api/internal/novel-import/manga/chapters/prepare` with a source registered as `contentFormat: "manga"`:
 
@@ -132,7 +132,7 @@ After every required upload succeeds, call `POST /api/internal/novel-import/mang
 }
 ```
 
-Completion verifies object metadata and file signatures, promotes staging objects to their public R2 keys, and advances the contiguous chapter checkpoint only after every page is ready. The schema stores ordered rows in `novel_import_manga_pages`; replacement uploads orphan the previous media asset for the normal cleanup job.
+Completion verifies object metadata and file signatures, promotes staging objects to their public B2 keys, and advances the contiguous chapter checkpoint only after every page is ready. The schema stores ordered rows in `novel_import_manga_pages`; replacement uploads orphan the previous media asset for the normal cleanup job.
 
 ## Apply the schema
 
@@ -148,6 +148,6 @@ The migration creates:
 - `novel_import_chapter_texts`
 - `novel_import_manga_pages`
 
-The cover workflow also records the R2 object in `media_assets` and stores its object key and upload status on `novel_import_sources`.
+The cover workflow also records the B2 object in `media_assets` and stores its object key and upload status on `novel_import_sources`.
 
 `linked_novel_id` and `linked_chapter_id` are nullable links to the public catalog. Importing alone never creates public content; the first approved Translation Studio publication creates and links those records automatically.

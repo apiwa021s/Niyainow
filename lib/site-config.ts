@@ -26,7 +26,7 @@ export function absoluteUrl(path = "/") {
   return new URL(path, `${siteConfig.url}/`).toString();
 }
 
-/** Convert an R2 object key to a public CDN URL. Database values remain keys. */
+/** Convert an B2 object key to a public CDN URL. Database values remain keys. */
 export function assetUrl(key: string | null | undefined, fallback: string = publicAssetFallbacks.icon) {
   if (!key) return fallback;
 

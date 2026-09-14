@@ -5,7 +5,7 @@ import { handleUserRoute } from "@/app/api/me/_shared";
 import { parseJson } from "@/lib/http/api-response";
 import { logger } from "@/lib/logger";
 import { READER_AVATAR_MAX_BYTES } from "@/lib/profile/reader-avatar";
-import { deleteR2Object } from "@/lib/r2";
+import { deleteB2Object } from "@/lib/b2";
 import { ALLOWED_IMAGE_TYPES, objectKeySchema } from "@/lib/validation/upload";
 import { completeReaderAvatarUpload } from "@/services/reader-avatar-service";
 
@@ -19,7 +19,7 @@ function scheduleCleanup(objectKey: string | null) {
   if (!objectKey) return;
   after(async () => {
     try {
-      await deleteR2Object(objectKey);
+      await deleteB2Object(objectKey);
     } catch (error) {
       logger.warn("Old reader avatar cleanup failed", { objectKey, error });
     }

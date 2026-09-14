@@ -27,7 +27,7 @@ operation does. This keeps credential-less production builds safe.
   local draft which is promoted to PostgreSQL after sign-in.
 - Analytics: daily engagement rollups and precomputed daily/weekly/monthly/all-time
   rankings. Public ranking requests read snapshots rather than aggregating events.
-- Operations: R2 media lifecycle records (object keys only), append-only admin
+- Operations: B2 media lifecycle records (object keys only), append-only admin
   audit logs, and JSON site settings.
 
 Important database invariants include URL-safe stable slugs, one primary genre,
@@ -60,7 +60,7 @@ Run migration and seed commands with `DATABASE_URL` configured. The development
 seed is idempotent and imports the current UI mock catalog only as input. It seeds
 genres, tags, fictional authors/novels, chapter text, counters, search documents,
 and basic site settings. It deliberately does not create users and does not copy
-remote mock image URLs into R2 key columns. It fails closed unless
+remote mock image URLs into B2 key columns. It fails closed unless
 `ALLOW_DEVELOPMENT_SEED=true` and also refuses `NODE_ENV=production`; never expose
 that opt-in in a production secret set.
 
@@ -74,8 +74,8 @@ The application service layer must keep these operations atomic:
    average in the same transaction.
 3. Library/follow mutations update their matching aggregate counter exactly once.
 4. Browser media is uploaded only to `staging/{final-key}`. It becomes `READY`
-   only through a conditional `PENDING -> VERIFYING -> READY` claim, an ETag-bound
-   R2 `HEAD` plus ranged magic-byte verification, a conditional same-bucket copy
+   only through a conditional `PENDING -> VERIFYING -> READY` claim, a B2-version-bound
+   `HEAD` plus ranged magic-byte verification, an exact-version same-bucket copy
    to the final allowlisted key, and staging cleanup.
 5. A chapter unlock locks the user's wallet, rechecks the current published price,
    debits the wallet, appends one idempotent ledger entry, and creates the matching
@@ -111,7 +111,7 @@ Automatic unattached-READY inference covers only normalized `COVER`, `BANNER`, a
 `AVATAR` references. Free-form `NOVEL_ASSET`/`OG` owners must mark replaced media
 `ORPHANED` explicitly; the generic object scan then performs bounded deletion.
 
-Lifecycle cleanup changes claimed rows to `ORPHANED` before deleting R2. READY
+Lifecycle cleanup changes claimed rows to `ORPHANED` before deleting B2. READY
 reconciliation locks and rechecks references in the same transaction; novel
 mutations take the same media-row locks before accepting an asset. This ordering
 prevents cleanup from deleting an object while a concurrent transaction attaches

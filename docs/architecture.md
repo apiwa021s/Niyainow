@@ -11,10 +11,10 @@ Browser
   ├─ authenticated JSON mutations     ├─ Next.js application
   └─ presigned media PUT ─────────────┘       │
                                                ├─ Drizzle/postgres.js ─ PostgreSQL
-                                               └─ R2 S3 API ─ Cloudflare R2/CDN
+                                               └─ B2 S3 API ─ Backblaze B2/CDN
 ```
 
-PostgreSQL เป็น source of truth สำหรับ identity, content, publication state, library, progress/history, ratings/reviews, counters และ admin audit Chapter content เป็น `TEXT`; R2 เก็บเฉพาะ binary asset และฐานข้อมูลเก็บ object key ไม่เก็บ URL เต็ม
+PostgreSQL เป็น source of truth สำหรับ identity, content, publication state, library, progress/history, ratings/reviews, counters และ admin audit Chapter content เป็น `TEXT`; B2 เก็บเฉพาะ binary asset และฐานข้อมูลเก็บ object key ไม่เก็บ URL เต็ม
 
 ## Request และ render boundary
 

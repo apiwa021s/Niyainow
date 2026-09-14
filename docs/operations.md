@@ -64,7 +64,7 @@ the Auth.js adapter.
 - เก็บ client secret ใน secret manager และ rotate เมื่อสงสัยว่ารั่ว
 - Provision `EDITOR/ADMIN` ผ่าน database-controlled process เท่านั้น
 
-## Cloudflare R2
+## Backblaze B2
 
 ### Staged upload protocol (authoritative)
 
@@ -72,9 +72,13 @@ the Auth.js adapter.
   publicly served `covers/`, `banners/`, and `avatars/` prefixes never receive
   unverified browser uploads.
 - Completion performs `HEAD`, a bounded `GET bytes=0-63`, and JPEG/PNG/WebP/AVIF
-  magic-byte validation. Both the ranged read and the same-bucket promotion use
-  the ETag observed by `HEAD` (`If-Match` / `CopySourceIfMatch`) so a replaced
-  staging object cannot win a verify-to-copy race.
+  magic-byte validation. Uploads with an authorized SHA-256 digest use a full
+  bounded object read (assets are capped at 8 MB) because B2's documented S3
+  `PutObject` surface does not accept AWS's flexible checksum header. The digest
+  is signed as object metadata and verified against the downloaded bytes. Both
+  the object read and the same-bucket promotion use
+  the immutable B2 version ID observed by `HEAD`, so a replaced staging object
+  cannot win a verify-to-copy race.
 - After validation, the server copies the object to its final allowlisted key,
   verifies the promoted metadata, deletes the staging object, and only then marks
   the media row `READY`. A failed validation is marked `FAILED` and the staging
@@ -82,8 +86,8 @@ the Auth.js adapter.
 - Completion atomically claims `PENDING -> VERIFYING`; only that claim may finish
   `VERIFYING -> READY`. Cleanup reclaims a `VERIFYING` row only after the stale
   cutoff, preventing completion and expiry from deleting/promoting the same upload.
-- Disable the bucket's public `r2.dev` endpoint. The custom CDN domain or Worker
-  used by `NEXT_PUBLIC_ASSET_URL` **must return 403 with no cache for
+- Keep the B2 bucket private. The authenticated custom CDN or Worker used by
+  `NEXT_PUBLIC_ASSET_URL` **must return 403 with no cache for
   `/staging/*`**, and there must be no alternate public origin that bypasses this
   rule. The staging prefix and final prefixes intentionally share a private bucket.
 - Serve final media from a dedicated cookie-less origin distinct from the app
@@ -94,19 +98,19 @@ the Auth.js adapter.
   scope. The limiter uses Redis across write instances and degrades to a
   bounded process-local window during a Redis outage; production must configure
   Redis so normal multi-instance traffic receives a globally consistent limit.
-- Configure the bucket CORS policy from `docs/cloudflare-r2-cors.json` in
-  Cloudflare R2 Settings so browser presigned `PUT` uploads from the production
+- Configure the bucket CORS policy from `docs/backblaze-b2-cors.json` in
+  Backblaze B2 Settings so browser presigned `PUT` uploads from the production
   app origin can pass preflight. Add each Vercel preview origin explicitly when
   testing uploads from preview deployments; do not add a trailing slash to any
   origin.
-- The admin uploader retries a failed browser-to-R2 `PUT` through the
+- The admin uploader retries a failed browser-to-B2 `PUT` through the
   authenticated, rate-limited same-origin `/api/admin/uploads/proxy` route.
   This is a resilience path for stale CORS rollout, not a replacement for the
   bucket CORS policy; large uploads should continue to use the presigned URL.
 - Reader profile avatars use the same staged verification protocol through
   `/api/me/avatar/*`, with an independent 2 MB limit and per-reader rate limits.
   The same-origin proxy is only a CORS resilience path. Successful replacement
-  and removal soft-delete the old `media_assets` row and schedule immediate R2
+  and removal soft-delete the old `media_assets` row and schedule immediate B2
   cleanup; the lifecycle job below remains the repair path after transient
   object-storage failures.
 
@@ -128,14 +132,14 @@ npx.cmd tsx db/cleanup-media.ts --execute --older-than-hours=24 --delete-limit=2
 
 The bounded job expires stale `PENDING`/`VERIFYING`/`FAILED`/`ORPHANED` rows, deletes leftover
 staging objects, removes untracked managed keys after the grace period, and stores
-its R2 scan cursor in the private `site_settings` key
+its B2 scan cursor in the private `site_settings` key
 `jobs.media_cleanup.cursor`. Alert on a non-zero failed-delete count.
 
-Cleanup transitions a claimed database row to `ORPHANED` before deleting R2. READY
+Cleanup transitions a claimed database row to `ORPHANED` before deleting B2. READY
 reconciliation locks candidate media rows, rechecks every supported reference,
 and makes the same transition in one transaction. Novel attachment takes the
 matching media-row lock in its mutation transaction; this prevents a new live
-reference from racing object deletion. Failed R2 deletes remain `ORPHANED` and are
+reference from racing object deletion. Failed B2 deletes remain `ORPHANED` and are
 retried without relying on the current object state.
 
 Novel replacement/deletion mutations lock the involved media rows and mark
@@ -152,11 +156,20 @@ Inference-based READY reconciliation is intentionally limited to `COVER`,
 `NOVEL_ASSET` and `OG` must be marked `ORPHANED` explicitly by their owning
 mutation because they may appear in free-form content/settings.
 
-Configure `DATABASE_URL` and the five `R2_*` credentials as secrets on the
+Configure `DATABASE_URL`, `B2_REGION`, `B2_KEY_ID`, `B2_APPLICATION_KEY`, and
+`B2_BUCKET_NAME` as secrets on the
 protected GitHub `production` environment. The workflow also supports a manual
 dry-run and a separately confirmed manual execute/reconciliation. If deployment
 uses another scheduler, mirror these exact invocations and disable the GitHub
 schedule so only one scheduler owns the lifecycle job.
+
+- Create a private bucket and a bucket-scoped application key with list, read,
+  write, and delete-file capabilities. The S3-compatible API cannot use the
+  Backblaze master application key.
+- Set the bucket lifecycle policy to keep only the latest version (or delete
+  hidden versions after an explicitly chosen retention period). B2 buckets are
+  always versioned, so an S3 delete without a version ID creates a delete marker
+  and hidden versions continue using storage until lifecycle deletion runs.
 
 - สร้าง private bucket และ API token ที่จำกัด bucket
 - ผูก custom public CDN domain สำหรับ asset ที่ `READY`
@@ -191,7 +204,7 @@ Alert ขั้นต่ำ:
 - 5xx/error rate และ latency ของ public reader/search
 - OAuth callback failure
 - database connection/transaction failure
-- R2 presign/verification failure
+- B2 presign/verification failure
 - admin write failure และ migration failure
 
 ## Cache/jobs/rate limit
@@ -202,7 +215,7 @@ Public cache ใช้ framework cache พร้อม tags; personal/admin ไ�
 
 - วางแอปหลัง trusted proxy/WAF ที่ลบ header จาก client แล้วเขียน `X-Forwarded-For`/`X-Real-IP` ใหม่จาก peer จริงเท่านั้น; ห้ามส่ง header ที่ client กำหนดเองต่อเข้าแอป
 - บังคับ distributed rate limit ที่ edge โดยเฉพาะ auth, search suggestion, view event และ admin upload เพราะ limiter ใน process ไม่ใช่ volumetric DDoS boundary
-- จำกัด request body ที่ edge: JSON ทั่วไปเพียงไม่กี่ KB และอนุญาตประมาณ 5 MB เฉพาะ admin chapter mutation เพื่อครอบคลุมเพดาน UTF-8 4 MB พร้อม JSON overhead; browser upload binary ไป R2 โดยตรง
+- จำกัด request body ที่ edge: JSON ทั่วไปเพียงไม่กี่ KB และอนุญาตประมาณ 5 MB เฉพาะ admin chapter mutation เพื่อครอบคลุมเพดาน UTF-8 4 MB พร้อม JSON overhead; browser upload binary ไป B2 โดยตรง
 - ตั้ง timeout/request logging โดยไม่บันทึก OAuth token, presigned URL, PII หรือ chapter body
 
 ## Rollback

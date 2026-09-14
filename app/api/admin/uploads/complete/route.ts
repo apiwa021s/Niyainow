@@ -7,7 +7,7 @@ import { getDb } from "@/db";
 import { adminAuditLogs, mediaAssets } from "@/db/schema";
 import { assertAdmin } from "@/lib/auth/dal";
 import { logger } from "@/lib/logger";
-import { deleteR2Object, UploadVerificationError, verifyUploadedObject } from "@/lib/r2";
+import { deleteB2Object, UploadVerificationError, verifyUploadedObject } from "@/lib/b2";
 import {
   rateLimitHeaders,
   requestRateLimitKey,
@@ -88,6 +88,7 @@ export async function POST(request: Request) {
         finalObjectKey: asset.objectKey,
         expectedContentType: input.contentType,
         expectedContentLength: input.contentLength,
+        expectedChecksumSha256: asset.metadata.checksumSha256,
       });
     } catch (error) {
       const rejectedAt = new Date();
@@ -160,7 +161,7 @@ export async function POST(request: Request) {
       const cleanupKeys = verified.stagingDeleted
         ? [verified.objectKey]
         : [verified.objectKey, verified.stagingObjectKey];
-      const cleanup = await Promise.allSettled(cleanupKeys.map(deleteR2Object));
+      const cleanup = await Promise.allSettled(cleanupKeys.map(deleteB2Object));
       if (cleanup.some((result) => result.status === "rejected")) {
         logger.warn("Failed to remove media after losing its VERIFYING lifecycle claim", {
           mediaId: asset.id,

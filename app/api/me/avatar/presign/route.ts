@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { mediaAssets } from "@/db/schema";
 import { parseJson } from "@/lib/http/api-response";
 import { READER_AVATAR_MAX_BYTES } from "@/lib/profile/reader-avatar";
-import { createPresignedUpload } from "@/lib/r2";
+import { createPresignedUpload } from "@/lib/b2";
 import { uploadRequestSchema } from "@/lib/validation/upload";
 
 const readerAvatarUploadSchema = uploadRequestSchema.superRefine((input, context) => {
