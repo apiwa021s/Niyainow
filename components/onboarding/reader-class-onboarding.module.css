@@ -990,6 +990,7 @@
   display: flex;
   width: min(1180px, 100%);
   margin: 22px auto 0;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 22px;
@@ -1013,6 +1014,14 @@
 
 .profileActions .primaryButton {
   margin-top: 0;
+}
+
+.saveError {
+  order: 3;
+  width: 100%;
+  color: #ff9bbb;
+  font-size: 12px;
+  text-align: right;
 }
 
 @keyframes characterEnter {
@@ -1188,6 +1197,7 @@
   .classPicker { grid-row: 2; }
   .profileActions { flex-direction: column-reverse; gap: 8px; }
   .profileActions .primaryButton { width: 100%; }
+  .saveError { order: initial; text-align: center; }
 }
 
 @media (max-width: 420px) {

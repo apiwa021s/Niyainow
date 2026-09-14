@@ -3,32 +3,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Compass, RefreshCcw, Sparkles, Star } from "lucide-react";
-import { useMemo, useSyncExternalStore, type CSSProperties } from "react";
+import { type CSSProperties } from "react";
 
 import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
+import { useReaderClassProfile } from "@/components/onboarding/use-reader-class-profile";
 import {
-  READER_CLASS_STORAGE_KEY,
   getReaderClass,
-  parseReaderClassProfile,
+  type ReaderClassProfile,
 } from "@/lib/onboarding/reader-class";
 import type { Novel } from "@/types/novel";
 import styles from "./personalized-reader-page.module.css";
-
-function subscribeToReaderClass(onStoreChange: () => void) {
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === READER_CLASS_STORAGE_KEY) onStoreChange();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => window.removeEventListener("storage", onStorage);
-}
-
-function getReaderClassSnapshot(): string | null {
-  return window.localStorage.getItem(READER_CLASS_STORAGE_KEY) ?? "";
-}
-
-function getServerReaderClassSnapshot(): string | null {
-  return null;
-}
 
 function novelSearchText(novel: Novel) {
   return [
@@ -156,15 +140,18 @@ function PersonalizeHydrationSkeleton() {
   );
 }
 
-export function PersonalizedReaderPage({ novels }: { novels: Novel[] }) {
-  const rawProfile = useSyncExternalStore(
-    subscribeToReaderClass,
-    getReaderClassSnapshot,
-    getServerReaderClassSnapshot,
-  );
-  const profile = useMemo(() => rawProfile === null ? null : parseReaderClassProfile(rawProfile), [rawProfile]);
+export function PersonalizedReaderPage({
+  novels,
+  initialProfile,
+  canPersist,
+}: {
+  novels: Novel[];
+  initialProfile: ReaderClassProfile | null;
+  canPersist: boolean;
+}) {
+  const { profile, hydrated } = useReaderClassProfile({ initialProfile, canPersist });
 
-  if (rawProfile === null) return <PersonalizeHydrationSkeleton />;
+  if (!hydrated) return <PersonalizeHydrationSkeleton />;
 
   const mainClass = getReaderClass(profile?.classId);
   const subClass = getReaderClass(profile?.subClassId);

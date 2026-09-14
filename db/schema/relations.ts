@@ -35,6 +35,7 @@ import {
   reviews,
   userLibrary,
 } from "./user";
+import { readerActivityEvents, readerClassProfiles, readerClassProgress } from "./reader-class";
 import { worldCharacters } from "./world";
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -56,10 +57,25 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   coinLedger: many(coinLedgerEntries),
   chapterUnlocks: many(chapterUnlocks),
   worldCharacter: one(worldCharacters),
+  readerClassProfile: one(readerClassProfiles),
+  readerClassProgress: many(readerClassProgress),
+  readerActivityEvents: many(readerActivityEvents),
 }));
 
 export const worldCharactersRelations = relations(worldCharacters, ({ one }) => ({
   user: one(users, { fields: [worldCharacters.userId], references: [users.id] }),
+}));
+
+export const readerClassProfilesRelations = relations(readerClassProfiles, ({ one }) => ({
+  user: one(users, { fields: [readerClassProfiles.userId], references: [users.id] }),
+}));
+
+export const readerClassProgressRelations = relations(readerClassProgress, ({ one }) => ({
+  user: one(users, { fields: [readerClassProgress.userId], references: [users.id] }),
+}));
+
+export const readerActivityEventsRelations = relations(readerActivityEvents, ({ one }) => ({
+  user: one(users, { fields: [readerActivityEvents.userId], references: [users.id] }),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({

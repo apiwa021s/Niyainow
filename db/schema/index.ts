@@ -7,6 +7,7 @@ export * from "./enums";
 export * from "./identity";
 export * from "./import";
 export * from "./relations";
+export * from "./reader-class";
 export * from "./taxonomy";
 export * from "./translation";
 export * from "./user";

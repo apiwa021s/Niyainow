@@ -8,6 +8,8 @@ import {
   getRecommendedNovels,
 } from "@/services/novel-service";
 import type { Novel } from "@/types/novel";
+import { getCurrentUser } from "@/lib/auth/dal";
+import { getReaderClassProfile } from "@/services/reader-class-service";
 
 export const metadata: Metadata = {
   title: "โลกนิยายที่สร้างเพื่อคุณ",
@@ -25,12 +27,28 @@ function uniqueNovels(groups: Novel[][]) {
 }
 
 export default async function PersonalizePage() {
-  const groups = await Promise.all([
-    getRecommendedNovels(24),
-    getNewThisWeek(24),
-    getCompletedNovels(24),
-    getRankings("WEEKLY", 24),
+  const [groups, readerClassContext] = await Promise.all([
+    Promise.all([
+      getRecommendedNovels(24),
+      getNewThisWeek(24),
+      getCompletedNovels(24),
+      getRankings("WEEKLY", 24),
+    ]),
+    (async () => {
+      const currentUser = await getCurrentUser();
+      const canPersist = currentUser?.status === "ACTIVE";
+      return {
+        canPersist,
+        profile: canPersist ? await getReaderClassProfile(currentUser.id) : null,
+      };
+    })(),
   ]);
 
-  return <PersonalizedReaderPage novels={uniqueNovels(groups)} />;
+  return (
+    <PersonalizedReaderPage
+      novels={uniqueNovels(groups)}
+      initialProfile={readerClassContext.profile}
+      canPersist={readerClassContext.canPersist}
+    />
+  );
 }

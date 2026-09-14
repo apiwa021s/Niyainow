@@ -16,6 +16,7 @@ import {
 } from "@/services/novel-service";
 import { getHomePersonalization } from "@/services/user-service";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { getReaderClassProfile } from "@/services/reader-class-service";
 import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
 
@@ -64,6 +65,15 @@ async function PublicHomeHero() {
   return <HomeHeroSection banners={banners} featuredNovels={featuredNovels} />;
 }
 
+async function getHomeReaderClassContext() {
+  const currentUser = await getCurrentUser();
+  const canPersist = currentUser?.status === "ACTIVE";
+  return {
+    canPersist,
+    profile: canPersist ? await getReaderClassProfile(currentUser.id) : null,
+  };
+}
+
 async function PublicHomeFeed({ children, signupSlot }: { children: ReactNode; signupSlot: ReactNode }) {
   const [
     newThisWeek,
@@ -74,6 +84,7 @@ async function PublicHomeFeed({ children, signupSlot }: { children: ReactNode; s
     rankingsMonthly,
     updates,
     genreShowcase,
+    readerClassContext,
   ] = await Promise.all([
       getNewThisWeek(12),
       getRecommendedNovels(12),
@@ -83,10 +94,16 @@ async function PublicHomeFeed({ children, signupSlot }: { children: ReactNode; s
       getRankings("MONTHLY", 16),
       getUpdates("all", undefined, 12),
       getGenreShowcase(17),
+      getHomeReaderClassContext(),
     ]);
   const data: HomeData = { newThisWeek, recommended, completed, rankings, rankingsDaily, rankingsMonthly, updates, genreShowcase };
   return (
-    <HomeFeed data={data} signupSlot={signupSlot}>
+    <HomeFeed
+      data={data}
+      signupSlot={signupSlot}
+      readerClassProfile={readerClassContext.profile}
+      canPersistReaderClass={readerClassContext.canPersist}
+    >
       {children}
     </HomeFeed>
   );

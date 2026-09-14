@@ -3,15 +3,16 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles } from "lucide-react";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, useTransition, type CSSProperties } from "react";
 
 import { BrandWordmark } from "@/components/brand/brand-mark";
 import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
+import { storeReaderClassProfile } from "@/components/onboarding/use-reader-class-profile";
 import { Button } from "@/components/ui/button";
+import { responseMessage } from "@/lib/http/client-response";
 import {
   QUIZ_QUESTIONS,
   READER_CLASSES,
-  READER_CLASS_STORAGE_KEY,
   getReaderClass,
   hiddenTraitFor,
   rankSelectedClasses,
@@ -36,7 +37,7 @@ function classStyle(accent: string) {
   return { "--class-accent": accent } as CSSProperties;
 }
 
-export function ReaderClassOnboarding() {
+export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>("welcome");
   const [selectedClassIds, setSelectedClassIds] = useState<ReaderClassId[]>([]);
@@ -45,6 +46,8 @@ export function ReaderClassOnboarding() {
   const [rankedClassIds, setRankedClassIds] = useState<ReaderClassId[]>([]);
   const [mainClassId, setMainClassId] = useState<ReaderClassId>("martial");
   const [subClassId, setSubClassId] = useState<ReaderClassId>("system");
+  const [isSaving, startSaving] = useTransition();
+  const [saveError, setSaveError] = useState("");
 
   const mainClass = getReaderClass(mainClassId) ?? READER_CLASSES[0];
   const subClass = getReaderClass(subClassId) ?? READER_CLASSES[1];
@@ -109,8 +112,26 @@ export function ReaderClassOnboarding() {
       hiddenTraitEmoji: hiddenTrait.emoji,
       completedAt: new Date().toISOString(),
     };
-    window.localStorage.setItem(READER_CLASS_STORAGE_KEY, JSON.stringify(profile));
-    router.push("/personalize");
+    setSaveError("");
+    startSaving(async () => {
+      try {
+        let storedProfile = profile;
+        if (canPersist) {
+          const response = await fetch("/api/me/reader-class", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(profile),
+          });
+          if (!response.ok) throw new Error(await responseMessage(response));
+          const body = await response.json() as { data?: ReaderClassProfile };
+          if (body.data) storedProfile = body.data;
+        }
+        storeReaderClassProfile(storedProfile);
+        router.push("/personalize");
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : "บันทึก Reader Class ไม่สำเร็จ กรุณาลองอีกครั้ง");
+      }
+    });
   };
 
   const restart = () => {
@@ -411,9 +432,10 @@ export function ReaderClassOnboarding() {
 
           <div className={styles.profileActions}>
             <button type="button" onClick={restart}><RotateCcw aria-hidden /> เลือกใหม่ทั้งหมด</button>
-            <Button size="lg" className={styles.primaryButton} onClick={finish}>
+            <Button size="lg" className={styles.primaryButton} loading={isSaving} onClick={finish}>
               เปิดโลกของฉัน <ArrowRight aria-hidden />
             </Button>
+            {saveError ? <p className={styles.saveError} role="alert">{saveError}</p> : null}
           </div>
         </section>
       ) : null}

@@ -21,6 +21,10 @@ operation does. This keeps credential-less production builds safe.
   compact reading history, ratings, reviews, review likes, coin wallets, an
   append-only coin ledger, and permanent chapter entitlements. Composite foreign
   keys prevent a progress/history chapter from belonging to another novel.
+- Reader identity: one authoritative Reader Class profile per account, one EXP
+  aggregate per unlocked Class, and an append-only activity ledger. Activity
+  idempotency is scoped per user so retries cannot award EXP twice. Guests keep a
+  local draft which is promoted to PostgreSQL after sign-in.
 - Analytics: daily engagement rollups and precomputed daily/weekly/monthly/all-time
   rankings. Public ranking requests read snapshots rather than aggregating events.
 - Operations: R2 media lifecycle records (object keys only), append-only admin
@@ -78,6 +82,10 @@ The application service layer must keep these operations atomic:
    entitlement in one transaction. Paid chapter bodies are selected only through
    that entitlement (or an active editor/admin privilege check), never from a
    shared cache.
+6. Saving a Reader Class profile upserts the identity, initializes progress for
+   all three selected Classes, and appends the idempotent profile activity in one
+   transaction. Future EXP writers must append `reader_activity_events` and update
+   `reader_class_progress.total_exp` within the same transaction.
 
 Engagement writes apply constant-time deltas while holding the per-novel
 statistics lock; they do not recount an unbounded user table in the request path.

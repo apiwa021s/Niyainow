@@ -1,13 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  READER_CLASS_STORAGE_KEY,
   READER_CLASSES,
   hiddenTraitFor,
   parseReaderClassProfile,
   rankSelectedClasses,
 } from "./reader-class";
+import { readerClassProfileInputSchema } from "./reader-class-validation";
+
+const validStoredProfile = {
+  version: 1 as const,
+  classId: "martial",
+  subClassId: "system",
+  selectedClassIds: ["martial", "system", "isekai"],
+  answers: { hero: "growth", pace: "binge", hook: "new_world" },
+  completedAt: "2026-09-14T04:30:00.000Z",
+};
 
 describe("reader class onboarding", () => {
+  it("versions the local guest fallback independently from database state", () => {
+    expect(READER_CLASS_STORAGE_KEY).toBe("novelnow-reader-class:v1");
+  });
+
   it("keeps the twelve public classes mapped to artwork", () => {
     expect(READER_CLASSES).toHaveLength(12);
     expect(READER_CLASSES.map((readerClass) => readerClass.image)).toEqual(
@@ -38,5 +53,24 @@ describe("reader class onboarding", () => {
       subClassId: "martial",
       selectedClassIds: ["martial", "system", "isekai"],
     }))).toBeNull();
+  });
+
+  it("accepts a complete profile before database persistence", () => {
+    expect(readerClassProfileInputSchema.safeParse(validStoredProfile).success).toBe(true);
+  });
+
+  it("rejects duplicate selections and incomplete quiz answers", () => {
+    expect(readerClassProfileInputSchema.safeParse({
+      ...validStoredProfile,
+      selectedClassIds: ["martial", "martial", "isekai"],
+      answers: { hero: "growth", pace: "binge" },
+    }).success).toBe(false);
+  });
+
+  it("requires main and sub classes to be part of the selected three", () => {
+    expect(readerClassProfileInputSchema.safeParse({
+      ...validStoredProfile,
+      subClassId: "romance",
+    }).success).toBe(false);
   });
 });

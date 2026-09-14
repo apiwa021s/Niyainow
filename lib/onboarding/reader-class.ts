@@ -1,4 +1,5 @@
-export const READER_CLASS_STORAGE_KEY = "novelnow-reader-class";
+export const READER_CLASS_STORAGE_KEY = "novelnow-reader-class:v1";
+export const LEGACY_READER_CLASS_STORAGE_KEY = "novelnow-reader-class";
 
 export const READER_CLASSES = [
   {

@@ -1,33 +1,21 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { ArrowRight, RefreshCcw, Sparkles } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
+import { useReaderClassProfile } from "@/components/onboarding/use-reader-class-profile";
 import {
-  READER_CLASS_STORAGE_KEY,
   getReaderClass,
-  parseReaderClassProfile,
+  type ReaderClassProfile,
 } from "@/lib/onboarding/reader-class";
 import type { Novel } from "@/types/novel";
 
 import styles from "./reader-class-home.module.css";
-
-function subscribeToReaderClass(onStoreChange: () => void) {
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === READER_CLASS_STORAGE_KEY) onStoreChange();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => window.removeEventListener("storage", onStorage);
-}
-
-function getReaderClassSnapshot() {
-  return window.localStorage.getItem(READER_CLASS_STORAGE_KEY) ?? "";
-}
 
 function scoreNovel(novel: Novel, mainGenres: readonly string[], subGenres: readonly string[]) {
   return novel.genres.reduce((score, genre) => (
@@ -35,9 +23,16 @@ function scoreNovel(novel: Novel, mainGenres: readonly string[], subGenres: read
   ), 0);
 }
 
-export function ReaderClassHome({ novels }: { novels: Novel[] }) {
-  const rawProfile = useSyncExternalStore(subscribeToReaderClass, getReaderClassSnapshot, () => "");
-  const profile = useMemo(() => parseReaderClassProfile(rawProfile), [rawProfile]);
+export function ReaderClassHome({
+  novels,
+  initialProfile,
+  canPersist,
+}: {
+  novels: Novel[];
+  initialProfile: ReaderClassProfile | null;
+  canPersist: boolean;
+}) {
+  const { profile } = useReaderClassProfile({ initialProfile, canPersist });
   const mainClass = getReaderClass(profile?.classId);
   const subClass = getReaderClass(profile?.subClassId);
 
