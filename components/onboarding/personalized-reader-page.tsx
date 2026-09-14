@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BookOpen, Compass, RefreshCcw, Sparkles, Star } from "lucide-react";
+import { ArrowRight, BookOpen, Compass, RefreshCcw, Star } from "lucide-react";
 import { type CSSProperties } from "react";
 
 import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
@@ -104,13 +104,11 @@ function NovelCard({ novel, rank }: { novel: Novel; rank?: number }) {
 }
 
 function NovelShelf({
-  eyebrow,
   title,
   description,
   novels,
   href,
 }: {
-  eyebrow: string;
   title: string;
   description: string;
   novels: Novel[];
@@ -121,7 +119,6 @@ function NovelShelf({
     <section className={styles.shelf} aria-label={title}>
       <div className={styles.shelfHeader}>
         <div>
-          <span>{eyebrow}</span>
           <h2>{title}</h2>
           <p>{description}</p>
         </div>
@@ -169,7 +166,6 @@ export function PersonalizedReaderPage({
       <main id="main" className={styles.page}>
         <section className={styles.emptyState}>
           <span><Compass aria-hidden /></span>
-          <p>PERSONALIZE YOUR WORLD</p>
           <h1>โลกนิยายของคุณยังไม่ได้ถูกปลุก</h1>
           <p>ค้นหา Reader Class ก่อน แล้วเราจะสร้างหน้าแนะนำที่เข้ากับคุณโดยเฉพาะ</p>
           <Link href="/onboarding">ค้นหา Class ของฉัน <ArrowRight aria-hidden /></Link>
@@ -204,11 +200,9 @@ export function PersonalizedReaderPage({
       <section className={styles.hero}>
         <div className={styles.heroPattern} aria-hidden />
         <div className={styles.heroCopy}>
-          <span className={styles.kicker}><Sparkles aria-hidden /> PERSONALIZED READING REALM</span>
           <div className={styles.classHeading}>
             <ReaderClassIcon src={mainClass.icon} className={styles.heroIcon} sizes="72px" />
             <div>
-              <p>โลกของคุณสร้างจาก</p>
               <h1>{mainClass.name}</h1>
             </div>
           </div>
@@ -246,27 +240,24 @@ export function PersonalizedReaderPage({
       </section>
 
       <div className={styles.introRow}>
-        <div><span>YOUR PERSONALIZED PATH</span><h2>เส้นทางการอ่านที่สร้างเพื่อคุณ</h2></div>
+        <div><h2>เส้นทางการอ่านที่สร้างเพื่อคุณ</h2></div>
         <p>ระบบนำ Class หลัก รสนิยมรอง และนิสัยการอ่านมาจัดลำดับใหม่ โดยไม่ล็อกคุณไว้กับแนวเดียว</p>
       </div>
 
       <div className={styles.shelves}>
         <NovelShelf
-          eyebrow="MAIN CLASS SELECTION"
           title={`เรื่องที่ ${mainClass.name} ไม่ควรพลาด`}
           description={`เน้น ${mainClass.tastes.slice(0, 3).join(" · ")}`}
           novels={mainNovels}
           href={`/novels?genre=${mainClass.recommendationGenres.join(",")}`}
         />
         <NovelShelf
-          eyebrow="CLASS FUSION"
           title={`${mainClass.name} × ${subClasses.map((item) => item.name).join(" × ")}`}
           description="จุดตัดระหว่างโลกหลักและรสนิยมรองของคุณ"
           novels={blendedNovels}
           href={browseHref}
         />
         <NovelShelf
-          eyebrow={`${profile.hiddenTraitEmoji} HIDDEN TRAIT`}
           title={paceCopy.title}
           description={paceCopy.description}
           novels={readingPaceNovels}
@@ -275,7 +266,7 @@ export function PersonalizedReaderPage({
       </div>
 
       <section className={styles.homeCta}>
-        <div><span>โลกของคุณพร้อมแล้ว</span><h2>ให้ NovelNow จำ Class นี้ไว้ใน Home</h2><p>Feed หน้าแรกจะใช้ผลชุดเดียวกันเพื่อวางนิยายที่น่าจะใช่ไว้ก่อนเสมอ</p></div>
+        <div><h2>ให้ NovelNow จำ Class นี้ไว้ใน Home</h2><p>Feed หน้าแรกจะใช้ผลชุดเดียวกันเพื่อวางนิยายที่น่าจะใช่ไว้ก่อนเสมอ</p></div>
         <Link href="/">เข้าสู่ Home ของฉัน <ArrowRight aria-hidden /></Link>
       </section>
     </main>

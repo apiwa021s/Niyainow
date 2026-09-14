@@ -3,7 +3,7 @@
   width: 100%;
   max-width: var(--home-max);
   margin: 0 auto;
-  padding: 12px 12px calc(84px + env(safe-area-inset-bottom));
+  padding: 8px 8px calc(76px + env(safe-area-inset-bottom));
   color: var(--foreground);
 }
 
@@ -16,7 +16,7 @@
   align-items: center;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--personal-accent) 32%, transparent);
-  border-radius: var(--r-xl);
+  border-radius: 8px;
   background: #151019;
   color: #fff;
   box-shadow: var(--sh-2);
@@ -49,26 +49,11 @@
   padding: clamp(34px, 5vw, 78px);
 }
 
-.kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: color-mix(in srgb, var(--personal-accent) 76%, #fff);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-}
-
-.kicker svg {
-  width: 15px;
-  height: 15px;
-}
-
 .classHeading {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-top: 22px;
+  margin-top: 0;
 }
 
 .heroIcon {
@@ -114,7 +99,7 @@
 
 .heroTags span {
   border: 1px solid color-mix(in srgb, var(--personal-accent) 35%, transparent);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 5px 10px;
   background: color-mix(in srgb, var(--personal-accent) 8%, transparent);
   color: rgb(255 255 255 / 0.76);
@@ -136,7 +121,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0 19px;
   font-size: 13px;
   font-weight: 600;
@@ -227,7 +212,7 @@
 .identityGrid article {
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: 8px;
   padding: 15px 17px;
   background: var(--card);
 }
@@ -257,7 +242,7 @@
 .identityGrid article i {
   display: grid;
   place-items: center;
-  border-radius: 13px;
+  border-radius: 7px;
   background: var(--accent-subtle);
   font-size: 24px;
   font-style: normal;
@@ -294,17 +279,8 @@
   margin: clamp(42px, 7vw, 84px) 4px 28px;
 }
 
-.introRow span,
-.shelfHeader > div > span,
-.homeCta span {
-  color: var(--brand-emphasis);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-}
-
 .introRow h2 {
-  margin-top: 5px;
+  margin-top: 0;
   font-size: clamp(26px, 3vw, 42px);
   font-weight: 600;
   line-height: 1.2;
@@ -336,7 +312,7 @@
 }
 
 .shelfHeader h2 {
-  margin-top: 3px;
+  margin-top: 0;
   font-size: clamp(20px, 2vw, 28px);
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -387,7 +363,7 @@
   display: block;
   aspect-ratio: 2 / 3;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--muted);
   box-shadow: var(--sh-1), 0 0 0 1px var(--border);
 }
@@ -410,7 +386,7 @@
   min-width: 26px;
   height: 26px;
   place-items: center;
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 0 7px;
   color: #fff;
   font-size: 9px;
@@ -476,7 +452,7 @@
   margin-top: clamp(44px, 7vw, 84px);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--personal-accent) 28%, var(--border));
-  border-radius: var(--r-xl);
+  border-radius: 8px;
   padding: clamp(22px, 4vw, 42px);
   background:
     radial-gradient(circle at 92% 50%, color-mix(in srgb, var(--personal-accent) 15%, transparent), transparent 24rem),
@@ -484,7 +460,7 @@
 }
 
 .homeCta h2 {
-  margin-top: 5px;
+  margin-top: 0;
   font-size: clamp(22px, 2.5vw, 34px);
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -508,7 +484,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
-  border-radius: var(--r-xl);
+  border-radius: 8px;
   padding: 34px;
   background: var(--card);
   text-align: center;
@@ -519,7 +495,7 @@
   width: 74px;
   height: 74px;
   place-items: center;
-  border-radius: 24px;
+  border-radius: 8px;
   background: var(--accent-subtle);
   color: var(--brand-emphasis);
 }
@@ -528,16 +504,8 @@
   width: 32px;
 }
 
-.emptyState > p:first-of-type {
-  margin-top: 22px;
-  color: var(--brand-emphasis);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-}
-
 .emptyState h1 {
-  margin-top: 8px;
+  margin-top: 18px;
   font-size: clamp(28px, 4vw, 48px);
   font-weight: 600;
   letter-spacing: -0.04em;
@@ -559,7 +527,7 @@
 
 .hydrationSkeleton {
   min-height: clamp(420px, 62dvh, 620px);
-  border-radius: var(--r-xl);
+  border-radius: 8px;
   background: var(--muted);
   animation: pulse 1.6s ease-in-out infinite;
 }
@@ -569,11 +537,11 @@
 }
 
 @media (min-width: 640px) {
-  .page { padding: 16px 16px 40px; }
+  .page { padding: 12px 12px 40px; }
 }
 
 @media (min-width: 1024px) {
-  .page { padding-inline: 20px; }
+  .page { padding-inline: 16px; }
 }
 
 @media (max-width: 1100px) {
@@ -586,19 +554,18 @@
 @media (max-width: 820px) {
   .hero {
     display: flex;
-    min-height: clamp(610px, 88dvh, 760px);
+    min-height: 0;
     flex-direction: column;
-    justify-content: flex-end;
   }
 
   .heroCopy {
     z-index: 5;
     width: 100%;
-    padding: clamp(270px, 43dvh, 360px) 20px 24px;
-    background: linear-gradient(transparent, #151019 45%);
+    padding: 18px 16px 20px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--personal-accent) 5%, #151019), #151019);
   }
 
-  .classHeading { margin-top: 12px; gap: 10px; }
+  .classHeading { margin-top: 0; gap: 10px; }
   .heroIcon { width: 50px; height: 50px; }
   .classHeading h1 { font-size: clamp(38px, 12vw, 58px); }
   .heroTitle { margin-top: 9px; }
@@ -607,7 +574,7 @@
   .heroActions { margin-top: 17px; }
   .heroActions a { flex: 1 1 150px; }
 
-  .heroArt { position: absolute; inset: 0 0 auto; width: 100%; height: min(56dvh, 460px); }
+  .heroArt { position: relative; order: -1; width: 100%; height: clamp(230px, 68vw, 350px); }
   .artHalo { left: 57%; width: clamp(280px, min(78vw, 48dvh), 420px); }
   .mainCharacter {
     right: -10%;
@@ -621,22 +588,21 @@
     width: clamp(230px, min(50vw, 42dvh), 340px);
   }
 
-  .identityGrid { grid-template-columns: 1fr; }
+  .identityGrid { grid-template-columns: 1fr; gap: 6px; margin-top: 6px; }
   .identityGrid article { padding-block: 12px; }
-  .introRow { grid-template-columns: 1fr; gap: 10px; margin-top: 50px; }
+  .introRow { grid-template-columns: 1fr; gap: 10px; margin: 34px 2px 22px; }
   .introRow > p { max-width: 600px; }
   .shelfHeader { align-items: center; }
   .shelfHeader p { max-width: 72vw; }
-  .homeCta { align-items: flex-start; flex-direction: column; gap: 18px; }
+  .shelves { gap: 34px; }
+  .homeCta { align-items: flex-start; flex-direction: column; gap: 18px; margin-top: 40px; }
   .homeCta > a { width: 100%; }
 }
 
 @media (max-width: 420px) {
-  .page { padding-inline: 8px; }
-  .hero { border-radius: var(--r-lg); }
-  .heroCopy { padding-inline: 16px; }
-  .kicker { font-size: 8px; }
-  .classHeading p { font-size: 11px; }
+  .page { padding-inline: 6px; }
+  .hero { border-radius: 6px; }
+  .heroCopy { padding-inline: 13px; }
   .heroDescription { font-size: 12px; }
   .heroTags span { font-size: 9px; }
   .shelfHeader > a { font-size: 10px; }

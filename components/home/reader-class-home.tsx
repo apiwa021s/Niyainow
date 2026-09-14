@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
-import { ArrowRight, RefreshCcw, Sparkles } from "lucide-react";
+import { ArrowRight, RefreshCcw } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -62,9 +62,6 @@ export function ReaderClassHome({
       <section className={styles.emptyState}>
         <div className={styles.emptyGlow} aria-hidden />
         <div>
-          <span className={styles.eyebrow}>
-            <Sparkles aria-hidden /> READER CLASS
-          </span>
           <h2>คุณจะเป็นนักอ่านสายไหน?</h2>
           <p>เลือก 3 แนว ตอบ 3 คำถาม แล้วปลุก Class ที่ซ่อนอยู่ในตัวคุณ</p>
         </div>
@@ -86,9 +83,6 @@ export function ReaderClassHome({
     <section className={styles.experience} style={accentStyle}>
       <div className={styles.hero}>
         <div className={styles.copy}>
-          <span className={styles.eyebrow}>
-            <Sparkles aria-hidden /> YOUR WORLD IS READY
-          </span>
           <h2>โลกของ{mainClass.name}กำลังเปิดให้คุณ</h2>
           <p className={styles.intro}>
             เราคัดเรื่องสาย {mainClass.tastes.slice(0, 2).join(" · ")} ผสมกลิ่นอาย {subClasses.map((item) => item.name).join(" และ ")} มาไว้ให้คุณแล้ว
@@ -144,7 +138,6 @@ export function ReaderClassHome({
 
       {recommended.length ? (
         <div className={styles.feed}>
-          <p className={styles.feedEyebrow}>PERSONALIZED FIRST FEED</p>
           <ContentRow
             title="เรื่องแรกที่ Class ของคุณเลือกให้"
             description={`คัดจากแนวของ ${mainClass.name} และ ${subClasses.map((item) => item.name).join(" · ")}`}

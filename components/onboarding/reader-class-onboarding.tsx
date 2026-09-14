@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, RotateCcw } from "lucide-react";
 import { useMemo, useState, useTransition, type CSSProperties } from "react";
 
 import { BrandWordmark } from "@/components/brand/brand-mark";
@@ -161,9 +161,7 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
             </div>
             <span className={styles.progressNumber}>{SCREEN_STEP[screen]}/4</span>
           </div>
-        ) : (
-          <span className={styles.headerTag}>FIND YOUR READER CLASS</span>
-        )}
+        ) : null}
       </header>
 
       {screen !== "welcome" ? (
@@ -176,7 +174,6 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
       {screen === "welcome" ? (
         <section className={styles.welcome}>
           <div className={styles.welcomeCopy}>
-            <span className={styles.kicker}><Sparkles aria-hidden /> NOVELNOW ORIGIN</span>
             <h1>ยินดีต้อนรับสู่ NovelNow</h1>
             <p className={styles.welcomeQuestion}>คุณจะเป็นนักอ่านสายไหน?</p>
             <p className={styles.welcomeDetail}>
@@ -209,7 +206,6 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
       {screen === "genres" ? (
         <section className={styles.contentStage}>
           <div className={styles.sectionHeading}>
-            <span className={styles.kicker}>STEP 01 · YOUR WORLDS</span>
             <h1>เลือก 3 แนวที่เรียกหาคุณ</h1>
             <p>ไม่ต้องคิดนาน เลือกเรื่องที่เห็นแล้วอยากกดอ่านทันที</p>
           </div>
@@ -288,7 +284,6 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
           </div>
 
           <div className={styles.quizPanel}>
-            <span className={styles.kicker}>{question.eyebrow}</span>
             <h1>{question.question}</h1>
             <div className={styles.answerGrid} role="radiogroup" aria-label={question.question}>
               {question.options.map((option, index) => {
@@ -344,7 +339,6 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
             />
           </div>
           <div className={styles.revealCopy}>
-            <span className={styles.revealKicker}><Sparkles aria-hidden /> CLASS AWAKENED</span>
             <p>Class ของคุณคือ</p>
             <h1><ReaderClassIcon src={mainClass.icon} className={styles.revealClassIcon} sizes="72px" /> {mainClass.name}</h1>
             <h2>{mainClass.title}</h2>
@@ -363,7 +357,6 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
       {screen === "profile" ? (
         <section className={styles.profileStage}>
           <div className={styles.sectionHeading}>
-            <span className={styles.kicker}>FINAL STEP · YOUR PROFILE</span>
             <h1>คุณไม่จำเป็นต้องอยู่ Class เดียว</h1>
             <p>ผลลัพธ์คือคำแนะนำ เลือก Main และ Sub ที่เป็นคุณที่สุดได้เลย</p>
           </div>
@@ -419,7 +412,6 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
             </div>
 
             <article className={styles.profilePreview} style={classStyle(mainClass.accent)}>
-              <span className={styles.previewLabel}>READER IDENTITY</span>
               <div className={styles.previewArt} aria-hidden>
                 <Image src={mainClass.image} alt="" width={1086} height={1448} sizes="360px" />
               </div>
