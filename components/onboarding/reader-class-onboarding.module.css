@@ -189,7 +189,7 @@
 .welcomeArt {
   position: relative;
   align-self: stretch;
-  min-height: 620px;
+  min-height: clamp(460px, calc(100dvh - 150px), 760px);
 }
 
 .welcomeHalo,
@@ -230,9 +230,10 @@
 .welcomeCharacter {
   position: absolute;
   z-index: 3;
-  bottom: -11vh;
+  bottom: max(-82px, -8dvh);
   left: 50%;
-  width: min(46vw, 680px);
+  width: clamp(320px, min(46vw, calc(72dvh - 69px)), 620px);
+  max-height: calc(100dvh - 78px);
   height: auto;
   filter: drop-shadow(0 30px 35px rgb(0 0 0 / 0.52));
   transform: translateX(-50%);
@@ -307,7 +308,7 @@
 .genreCard {
   position: relative;
   isolation: isolate;
-  height: clamp(230px, 23vw, 330px);
+  height: clamp(180px, min(23vw, 36dvh), 320px);
   margin-top: 30px;
   overflow: visible;
   border: 0;
@@ -342,14 +343,14 @@
 .genreCharacter {
   position: absolute;
   z-index: -1;
-  right: -3%;
+  right: 50%;
   bottom: 1%;
-  width: 94%;
-  height: 116%;
+  width: min(100%, 360px);
+  height: min(116%, 390px);
   object-fit: contain;
   object-position: center bottom;
   filter: saturate(0.76) brightness(0.72) drop-shadow(0 16px 15px rgb(0 0 0 / 0.5));
-  transform: translateY(16px) scale(0.94);
+  transform: translate(50%, 16px) scale(0.94);
   transform-origin: bottom center;
   transition: filter 260ms ease, transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -357,7 +358,7 @@
 .genreCard:hover .genreCharacter,
 .genreCardSelected .genreCharacter {
   filter: saturate(1.04) brightness(1) drop-shadow(0 20px 20px rgb(0 0 0 / 0.55));
-  transform: translateY(-17px) scale(1.04);
+  transform: translate(50%, clamp(-17px, -2dvh, -9px)) scale(1.04);
 }
 
 .genreShade {
@@ -492,10 +493,13 @@
 
 .quizSelectedArt img {
   position: absolute;
-  bottom: -130px;
+  bottom: max(-130px, -13dvh);
   left: 12%;
-  width: min(25vw, 300px);
-  height: auto;
+  width: auto;
+  max-width: min(25vw, 280px);
+  height: clamp(320px, min(68dvh, 44vw), 590px);
+  object-fit: contain;
+  object-position: center bottom;
   filter: brightness(0.78) drop-shadow(0 20px 22px rgb(0 0 0 / 0.48));
   transform: rotate(-5deg);
   transform-origin: bottom center;
@@ -615,7 +619,7 @@
 }
 
 .revealHalo {
-  width: min(46vw, 650px);
+  width: clamp(360px, min(46vw, calc(74dvh - 54px)), 620px);
   border-color: color-mix(in srgb, var(--class-accent) 36%, transparent);
   background: radial-gradient(circle, color-mix(in srgb, var(--class-accent) 22%, transparent), transparent 66%);
   animation: haloAwaken 1100ms 180ms ease-out both;
@@ -624,9 +628,10 @@
 .revealCharacter {
   position: absolute;
   z-index: 3;
-  bottom: -14%;
+  bottom: max(-110px, -11dvh);
   left: 48%;
-  width: min(47vw, 690px);
+  width: clamp(340px, min(47vw, calc(80dvh - 60px)), 650px);
+  max-height: calc(100dvh - 72px);
   height: auto;
   filter: drop-shadow(0 38px 34px rgb(0 0 0 / 0.62));
   transform: translateX(-50%);
@@ -775,7 +780,7 @@
   position: relative;
   display: grid;
   min-height: 92px;
-  grid-template-columns: 78px 1fr 28px;
+  grid-template-columns: clamp(64px, 7vw, 78px) 1fr 28px;
   align-items: center;
   gap: 14px;
   overflow: hidden;
@@ -794,8 +799,8 @@
 
 .pickerCard > img {
   align-self: end;
-  width: 85px;
-  height: 106px;
+  width: clamp(70px, 7.5vw, 85px);
+  height: clamp(88px, 9vw, 106px);
   object-fit: contain;
   object-position: center bottom;
   filter: drop-shadow(0 8px 9px rgb(0 0 0 / 0.4));
@@ -884,7 +889,7 @@
 .profilePreview {
   position: relative;
   isolation: isolate;
-  min-height: 470px;
+  min-height: clamp(420px, 54dvh, 500px);
   overflow: hidden;
   background:
     radial-gradient(circle at 80% 25%, color-mix(in srgb, var(--class-accent) 25%, transparent), transparent 50%),
@@ -904,7 +909,7 @@
 
 .previewArt {
   position: absolute;
-  inset: -50px -65px 0 15%;
+  inset: max(-50px, -5dvh) max(-65px, -5vw) 0 clamp(48px, 15%, 92px);
 }
 
 .previewArt img {
@@ -1051,10 +1056,45 @@
     padding-inline: 5vw;
   }
 
-  .welcomeCharacter { width: min(52vw, 620px); }
+  .welcomeCharacter { width: clamp(320px, min(52vw, calc(72dvh - 69px)), 580px); }
   .genreGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .quizStage { padding-inline: 5vw; gap: 36px; }
-  .quizSelectedArt img { width: 28vw; }
+  .quizSelectedArt img { max-width: 26vw; }
+}
+
+/* Wide notebooks and landscape tablets need height-led sizing. Width-only
+   breakpoints make the portrait artwork look oversized on these screens. */
+@media (max-height: 700px) and (min-width: 821px) {
+  .header { height: 64px; }
+  .welcome { padding-top: 84px; padding-bottom: 24px; }
+  .welcomeCopy h1 { margin-top: 14px; font-size: clamp(38px, 4.5vw, 64px); }
+  .welcomeQuestion { margin-top: 8px; font-size: clamp(25px, 2.7vw, 38px); }
+  .welcomeDetail { margin-top: 14px; line-height: 1.65; }
+  .welcome .primaryButton { margin-top: 18px; }
+  .timeNote { margin-top: 9px; }
+  .welcomeArt { min-height: calc(100dvh - 108px); }
+
+  .contentStage,
+  .profileStage { padding-top: 106px; }
+  .sectionHeading { margin-bottom: 16px; }
+  .sectionHeading h1 { margin-top: 7px; font-size: clamp(28px, 3.4vw, 44px); }
+  .sectionHeading p { margin-top: 7px; }
+  .genreGrid { gap-block: 26px; }
+  .genreCard { margin-top: 16px; }
+
+  .quizStage { padding-top: 88px; padding-bottom: 24px; }
+  .quizAside { min-height: calc(100dvh - 130px); }
+  .quizNumber { font-size: clamp(68px, 8vw, 108px); }
+  .answerGrid { margin-top: 20px; gap: 8px; }
+  .answerCard { min-height: 68px; padding-block: 10px; }
+  .quizContinue { margin-top: 14px; }
+
+  .revealStage { padding-top: 76px; }
+  .revealCopy > p:not(.revealDescription) { margin-top: 18px; }
+  .revealCopy h1 { font-size: clamp(44px, 5.4vw, 72px); }
+  .revealDescription { margin-top: 14px; line-height: 1.6; }
+  .tasteList { margin-top: 12px; }
+  .revealCopy .primaryButton { margin-top: 18px; }
 }
 
 @media (max-width: 820px) {
@@ -1082,7 +1122,11 @@
   .welcomeDetail { margin-top: 16px; font-size: 14px; }
   .welcome .primaryButton { width: 100%; }
   .welcomeArt { position: absolute; inset: 64px 0 auto; min-height: 52vh; }
-  .welcomeCharacter { bottom: -12%; width: min(88vw, 500px); }
+  .welcomeCharacter {
+    bottom: max(-58px, -7dvh);
+    width: clamp(280px, min(88vw, 58dvh), 480px);
+    max-height: 58dvh;
+  }
   .welcomeHalo { width: min(82vw, 460px); }
   .cardGhost, .floatingRune { display: none; }
 
@@ -1091,7 +1135,7 @@
   .sectionHeading { margin-bottom: 20px; padding-inline: 10px; }
   .sectionHeading h1 { font-size: 31px; }
   .genreGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 10px; }
-  .genreCard { height: clamp(210px, 66vw, 290px); margin-top: 20px; }
+  .genreCard { height: clamp(190px, min(66vw, 34dvh), 280px); margin-top: 20px; }
   .genreMeta { inset-inline: 12px; bottom: 13px; }
   .genreMeta strong { font-size: 16px; }
   .genreMeta small { font-size: 9px; }
@@ -1121,8 +1165,14 @@
   }
 
   .revealArt { position: absolute; inset: 64px 0 auto; min-height: 54vh; }
-  .revealCharacter { bottom: -18%; left: 50%; width: min(92vw, 530px); opacity: 0.92; }
-  .revealHalo { width: min(86vw, 480px); }
+  .revealCharacter {
+    bottom: max(-70px, -8dvh);
+    left: 50%;
+    width: clamp(290px, min(92vw, 62dvh), 500px);
+    max-height: 62dvh;
+    opacity: 0.92;
+  }
+  .revealHalo { width: clamp(300px, min(86vw, 56dvh), 460px); }
   .revealCopy {
     width: 100%;
     padding: 34vh 0 0;
@@ -1134,15 +1184,15 @@
   .revealCopy .primaryButton { width: 100%; margin-top: 22px; }
 
   .profileLayout { grid-template-columns: 1fr; }
-  .profilePreview { min-height: 440px; grid-row: 1; }
+  .profilePreview { min-height: clamp(390px, 52dvh, 440px); grid-row: 1; }
   .classPicker { grid-row: 2; }
   .profileActions { flex-direction: column-reverse; gap: 8px; }
   .profileActions .primaryButton { width: 100%; }
 }
 
 @media (max-width: 420px) {
-  .genreCard { height: 220px; }
-  .genreCharacter { width: 106%; }
+  .genreCard { height: clamp(185px, min(64vw, 32dvh), 230px); }
+  .genreCharacter { width: min(106%, 255px); }
   .genreMeta { grid-template-columns: 1fr; }
   .previewContent dl { grid-template-columns: 1fr; }
 }

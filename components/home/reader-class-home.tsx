@@ -85,8 +85,8 @@ export function ReaderClassHome({ novels }: { novels: Novel[] }) {
           alt=""
           width={1086}
           height={1448}
-          sizes="(max-width: 640px) 190px, 320px"
-          className="absolute -bottom-36 right-0 -z-10 h-[320px] w-auto object-contain opacity-50 drop-shadow-[0_20px_20px_rgba(0,0,0,0.28)] sm:-bottom-48 sm:right-[4%] sm:h-[450px] sm:opacity-70 lg:-bottom-56 lg:h-[520px]"
+          sizes="(max-width: 640px) 190px, 360px"
+          className="absolute -bottom-32 right-0 -z-10 h-[clamp(280px,42vw,480px)] w-auto max-w-[48vw] object-contain opacity-50 drop-shadow-[0_20px_20px_rgba(0,0,0,0.28)] sm:-bottom-44 sm:right-[4%] sm:opacity-70 lg:-bottom-52"
         />
         <div className="max-w-[680px]">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.14em] text-(--brand-emphasis)">

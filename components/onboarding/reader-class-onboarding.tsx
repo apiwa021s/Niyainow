@@ -171,7 +171,7 @@ export function ReaderClassOnboarding() {
               width={1086}
               height={1448}
               priority
-              sizes="(max-width: 900px) 80vw, 48vw"
+              sizes="(max-width: 820px) 88vw, (max-height: 700px) 38vw, 46vw"
               className={styles.welcomeCharacter}
             />
             <span className={styles.floatingRune}>天</span>
@@ -207,7 +207,7 @@ export function ReaderClassOnboarding() {
                     alt=""
                     width={1086}
                     height={1448}
-                    sizes="(max-width: 640px) 46vw, (max-width: 1100px) 30vw, 22vw"
+                    sizes="(max-width: 640px) 48vw, (max-width: 1100px) 31vw, 23vw"
                     className={styles.genreCharacter}
                   />
                   <span className={styles.genreShade} aria-hidden />
@@ -254,7 +254,7 @@ export function ReaderClassOnboarding() {
                     alt=""
                     width={1086}
                     height={1448}
-                    sizes="220px"
+                    sizes="(max-width: 1100px) 26vw, 280px"
                   />
                 );
               })}
@@ -313,7 +313,7 @@ export function ReaderClassOnboarding() {
               alt=""
               width={1086}
               height={1448}
-              sizes="(max-width: 800px) 90vw, 50vw"
+              sizes="(max-width: 820px) 92vw, (max-height: 700px) 42vw, 47vw"
               className={styles.revealCharacter}
             />
           </div>
@@ -362,7 +362,7 @@ export function ReaderClassOnboarding() {
                       onClick={() => chooseMainClass(id)}
                       aria-pressed={active}
                     >
-                      <Image src={candidate.image} alt="" width={1086} height={1448} sizes="180px" />
+                      <Image src={candidate.image} alt="" width={1086} height={1448} sizes="96px" />
                       <span><strong><ReaderClassIcon src={candidate.icon} className={styles.pickerClassIcon} sizes="28px" /> {candidate.name}</strong><small>{candidate.title}</small></span>
                       <i>{active ? <Check aria-hidden /> : null}</i>
                     </button>
