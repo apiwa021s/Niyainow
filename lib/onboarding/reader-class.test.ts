@@ -10,7 +10,12 @@ import {
 describe("reader class onboarding", () => {
   it("keeps the twelve public classes mapped to artwork", () => {
     expect(READER_CLASSES).toHaveLength(12);
-    expect(READER_CLASSES.every((readerClass) => readerClass.image.startsWith("/Images/classs/"))).toBe(true);
+    expect(READER_CLASSES.map((readerClass) => readerClass.image)).toEqual(
+      Array.from({ length: 12 }, (_, index) => `/Images/classs/${String(index + 1).padStart(2, "0")}.png`),
+    );
+    expect(READER_CLASSES.map((readerClass) => readerClass.icon)).toEqual(
+      Array.from({ length: 12 }, (_, index) => `/Images/class_icon/${String(index + 1).padStart(2, "0")}.png`),
+    );
   });
 
   it("ranks only the three classes the reader selected", () => {

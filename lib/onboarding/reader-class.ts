@@ -3,7 +3,7 @@ export const READER_CLASS_STORAGE_KEY = "novelnow-reader-class";
 export const READER_CLASSES = [
   {
     id: "martial",
-    emoji: "⚔️",
+    icon: "/Images/class_icon/01.png",
     name: "เซียนยุทธ์",
     title: "ผู้ท้าทายสวรรค์",
     description: "คุณชอบการเติบโตจากศูนย์ การฝึกตน และตัวเอกที่ไม่ยอมก้มหัวให้โชคชะตา",
@@ -14,7 +14,7 @@ export const READER_CLASSES = [
   },
   {
     id: "bl",
-    emoji: "🩷",
+    icon: "/Images/class_icon/02.png",
     name: "สาวกวาย",
     title: "นักเดินเรือแห่งด้อม",
     description: "ทุกสายตาและทุกความสัมพันธ์มีความหมาย คุณพร้อมขึ้นเรือและเชียร์คู่โปรดจนสุดทาง",
@@ -25,7 +25,7 @@ export const READER_CLASSES = [
   },
   {
     id: "yuri",
-    emoji: "🌸",
+    icon: "/Images/class_icon/03.png",
     name: "ยูริเลิฟเวอร์",
     title: "ผู้พิทักษ์สวนดอกไม้",
     description: "คุณหลงใหลความสัมพันธ์ที่ค่อย ๆ ผลิบาน อ่อนโยนแต่ชัดเจน และพร้อมปกป้องคู่โปรดเสมอ",
@@ -36,7 +36,7 @@ export const READER_CLASSES = [
   },
   {
     id: "romance",
-    emoji: "💘",
+    icon: "/Images/class_icon/04.png",
     name: "นักล่าหัวใจ",
     title: "คนคลั่งรัก",
     description: "คุณอ่านทุกจังหวะหัวใจออก และไม่ยอมวางเรื่องนั้นลงจนกว่าความสัมพันธ์จะได้คำตอบ",
@@ -47,7 +47,7 @@ export const READER_CLASSES = [
   },
   {
     id: "dark",
-    emoji: "🖤",
+    icon: "/Images/class_icon/05.png",
     name: "สายดาร์ก",
     title: "ผู้หลงใหลด้านมืด",
     description: "คุณไม่กลัวตัวละครสีเทา ความสัมพันธ์อันตราย หรือด้านมืดที่เรื่องอื่นไม่กล้าเล่า",
@@ -58,7 +58,7 @@ export const READER_CLASSES = [
   },
   {
     id: "reborn",
-    emoji: "👑",
+    icon: "/Images/class_icon/06.png",
     name: "คุณหนูเกิดใหม่",
     title: "ผู้ย้อนชะตา",
     description: "สำหรับคุณ โอกาสครั้งที่สองมีไว้เขียนชะตาใหม่ เอาคืนให้สาสม และเปลี่ยนตอนจบด้วยตัวเอง",
@@ -69,7 +69,7 @@ export const READER_CLASSES = [
   },
   {
     id: "isekai",
-    emoji: "🧙",
+    icon: "/Images/class_icon/07.png",
     name: "จอมเวทต่างโลก",
     title: "นักเดินทางข้ามมิติ",
     description: "ยิ่งโลกกว้างและกฎแปลกใหม่เท่าไร คุณยิ่งอยากออกเดินทางไปค้นเวทมนตร์ที่ซ่อนอยู่",
@@ -80,7 +80,7 @@ export const READER_CLASSES = [
   },
   {
     id: "system",
-    emoji: "🎮",
+    icon: "/Images/class_icon/08.png",
     name: "ผู้เล่นระบบ",
     title: "ผู้ได้รับระบบ",
     description: "ค่าสถานะ ภารกิจ และการปลดล็อกสกิลคือภาษาที่คุณเข้าใจ ทุกตอนต้องพาเลเวลให้สูงขึ้น",
@@ -91,7 +91,7 @@ export const READER_CLASSES = [
   },
   {
     id: "mystery",
-    emoji: "🕵️",
+    icon: "/Images/class_icon/09.png",
     name: "นักไขปริศนา",
     title: "ผู้เปิดโปงความจริง",
     description: "ไม่มีเบาะแสใดเล็กเกินไปสำหรับคุณ ทุกคำโกหกมีรอยร้าว และคุณจะอ่านจนพบความจริง",
@@ -102,7 +102,7 @@ export const READER_CLASSES = [
   },
   {
     id: "horror",
-    emoji: "👻",
+    icon: "/Images/class_icon/10.png",
     name: "นักล่าความหลอน",
     title: "ผู้เดินในรัตติกาล",
     description: "ยิ่งบรรยากาศไม่น่าไว้ใจ คุณยิ่งอยากเปิดหน้าถัดไป ความกลัวคือประตูสู่เรื่องเล่าที่ดีที่สุด",
@@ -113,24 +113,24 @@ export const READER_CLASSES = [
   },
   {
     id: "spicy",
-    emoji: "🔥",
+    icon: "/Images/class_icon/11.png",
     name: "สายแซ่บ",
     title: "นักอ่านหลังเที่ยงคืน",
     description: "คุณชอบเคมีที่ร้อนแรง ตัวละครที่รู้ใจตัวเอง และความสัมพันธ์ที่ทำให้หน้ากระดาษลุกเป็นไฟ",
     tastes: ["Mature Romance", "20+", "เคมีร้อนแรง"],
     recommendationGenres: ["romance", "drama"],
-    image: "/Images/classs/04.png",
+    image: "/Images/classs/11.png",
     accent: "#ff704d",
   },
   {
     id: "cozy",
-    emoji: "🍵",
+    icon: "/Images/class_icon/12.png",
     name: "สายชิล",
     title: "นักอ่านฮีลใจ",
     description: "โลกวุ่นวายแค่ไหนก็พักได้ในเรื่องเล่าดี ๆ คุณมองหาความอบอุ่น ความเรียบง่าย และรอยยิ้มเล็ก ๆ",
     tastes: ["Slice of Life", "Healing", "ทำอาหาร", "ชีวิตประจำวัน"],
     recommendationGenres: ["slice-of-life", "comedy", "contemporary"],
-    image: "/Images/classs/06.png",
+    image: "/Images/classs/12.png",
     accent: "#83c997",
   },
 ] as const;

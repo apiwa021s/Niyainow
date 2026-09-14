@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, RefreshCcw, Sparkles } from "lucide-react";
 import { useMemo, useSyncExternalStore } from "react";
 
+import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
 import {
   READER_CLASS_STORAGE_KEY,
   getReaderClass,
@@ -96,8 +97,8 @@ export function ReaderClassHome({ novels }: { novels: Novel[] }) {
             เราคัดเรื่องสาย {mainClass.tastes.slice(0, 2).join(" · ")} ผสมกลิ่นอาย {subClass.name} มาไว้แถวแรกแล้ว
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border border-accent-base/25 bg-accent-subtle px-3 py-1.5 font-semibold text-foreground">Main {mainClass.emoji} {mainClass.name}</span>
-            <span className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-(--text-secondary)">Sub {subClass.emoji} {subClass.name}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-base/25 bg-accent-subtle px-3 py-1.5 font-semibold text-foreground">Main <ReaderClassIcon src={mainClass.icon} className="h-5 w-5" sizes="20px" /> {mainClass.name}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1.5 text-(--text-secondary)">Sub <ReaderClassIcon src={subClass.icon} className="h-5 w-5" sizes="20px" /> {subClass.name}</span>
             <span className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-(--text-secondary)">{profile.hiddenTraitEmoji} {profile.hiddenTrait}</span>
           </div>
         </div>

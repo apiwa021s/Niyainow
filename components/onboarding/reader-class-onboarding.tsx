@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles } from "lucide-react"
 import { useMemo, useState, type CSSProperties } from "react";
 
 import { BrandWordmark } from "@/components/brand/brand-mark";
+import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
 import { Button } from "@/components/ui/button";
 import {
   QUIZ_QUESTIONS,
@@ -211,7 +212,7 @@ export function ReaderClassOnboarding() {
                   />
                   <span className={styles.genreShade} aria-hidden />
                   <span className={styles.genreMeta}>
-                    <span className={styles.genreEmoji}>{readerClass.emoji}</span>
+                    <ReaderClassIcon src={readerClass.icon} className={styles.genreIcon} sizes="28px" />
                     <strong>{readerClass.name}</strong>
                     <small>{readerClass.tastes.slice(0, 2).join(" · ")}</small>
                   </span>
@@ -319,7 +320,7 @@ export function ReaderClassOnboarding() {
           <div className={styles.revealCopy}>
             <span className={styles.revealKicker}><Sparkles aria-hidden /> CLASS AWAKENED</span>
             <p>Class ของคุณคือ</p>
-            <h1><span>{mainClass.emoji}</span> {mainClass.name}</h1>
+            <h1><ReaderClassIcon src={mainClass.icon} className={styles.revealClassIcon} sizes="72px" /> {mainClass.name}</h1>
             <h2>{mainClass.title}</h2>
             <div className={styles.revealRule} />
             <p className={styles.revealDescription}>{mainClass.description}</p>
@@ -362,7 +363,7 @@ export function ReaderClassOnboarding() {
                       aria-pressed={active}
                     >
                       <Image src={candidate.image} alt="" width={1086} height={1448} sizes="180px" />
-                      <span><strong>{candidate.emoji} {candidate.name}</strong><small>{candidate.title}</small></span>
+                      <span><strong><ReaderClassIcon src={candidate.icon} className={styles.pickerClassIcon} sizes="28px" /> {candidate.name}</strong><small>{candidate.title}</small></span>
                       <i>{active ? <Check aria-hidden /> : null}</i>
                     </button>
                   );
@@ -383,7 +384,7 @@ export function ReaderClassOnboarding() {
                         className={cn(subClassId === id && styles.subActive)}
                         onClick={() => setSubClassId(id)}
                       >
-                        {candidate.emoji} {candidate.name}
+                        <ReaderClassIcon src={candidate.icon} className={styles.subClassIcon} sizes="24px" /> {candidate.name}
                       </button>
                     );
                   })}
@@ -398,10 +399,10 @@ export function ReaderClassOnboarding() {
               </div>
               <div className={styles.previewContent}>
                 <p>Main Class</p>
-                <h2>{mainClass.emoji} {mainClass.name}</h2>
+                <h2><ReaderClassIcon src={mainClass.icon} className={styles.previewClassIcon} sizes="42px" /> {mainClass.name}</h2>
                 <span>{mainClass.title}</span>
                 <dl>
-                  <div><dt>Sub Class</dt><dd>{subClass.emoji} {subClass.name}</dd></div>
+                  <div><dt>Sub Class</dt><dd><ReaderClassIcon src={subClass.icon} className={styles.detailClassIcon} sizes="24px" /> {subClass.name}</dd></div>
                   <div><dt>Hidden Trait</dt><dd>{hiddenTrait.emoji} {hiddenTrait.label}</dd></div>
                 </dl>
               </div>

@@ -393,8 +393,10 @@
   white-space: nowrap;
 }
 
-.genreEmoji {
-  font-size: 17px;
+.genreIcon {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.45));
 }
 
 .selectedBadge {
@@ -664,6 +666,9 @@
 }
 
 .revealCopy h1 {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.2vw, 18px);
   margin-top: 6px;
   color: #fff;
   font-size: clamp(52px, 6.2vw, 94px);
@@ -673,9 +678,10 @@
   text-shadow: 0 0 35px color-mix(in srgb, var(--class-accent) 22%, transparent);
 }
 
-.revealCopy h1 span {
-  font-size: 0.55em;
-  vertical-align: 0.12em;
+.revealClassIcon {
+  width: clamp(48px, 5.5vw, 76px);
+  height: clamp(48px, 5.5vw, 76px);
+  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--class-accent) 55%, transparent));
 }
 
 .revealCopy h2 {
@@ -786,7 +792,7 @@
   background: color-mix(in srgb, var(--class-accent) 9%, #151018);
 }
 
-.pickerCard img {
+.pickerCard > img {
   align-self: end;
   width: 85px;
   height: 106px;
@@ -802,7 +808,15 @@
 }
 
 .pickerCard strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 15px;
+}
+
+.pickerClassIcon {
+  width: 28px;
+  height: 28px;
 }
 
 .pickerCard small {
@@ -842,7 +856,10 @@
 }
 
 .subPicker button {
+  display: inline-flex;
   min-height: 42px;
+  align-items: center;
+  gap: 6px;
   border: 1px solid var(--onboarding-line);
   border-radius: 999px;
   padding: 7px 14px;
@@ -851,6 +868,11 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.subClassIcon {
+  width: 24px;
+  height: 24px;
 }
 
 .subPicker .subActive {
@@ -908,9 +930,18 @@
 }
 
 .previewContent h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin-top: 3px;
   font-size: 30px;
   font-weight: 600;
+}
+
+.previewClassIcon {
+  width: 42px;
+  height: 42px;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--class-accent) 45%, transparent));
 }
 
 .previewContent > span {
@@ -937,9 +968,17 @@
 }
 
 .previewContent dd {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin-top: 3px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.detailClassIcon {
+  width: 24px;
+  height: 24px;
 }
 
 .profileActions {
@@ -1104,7 +1143,6 @@
 @media (max-width: 420px) {
   .genreCard { height: 220px; }
   .genreCharacter { width: 106%; }
-  .genreEmoji { display: none; }
   .genreMeta { grid-template-columns: 1fr; }
   .previewContent dl { grid-template-columns: 1fr; }
 }
