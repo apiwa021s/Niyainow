@@ -90,9 +90,10 @@ the Auth.js adapter.
   origin. Preserve the verified object `Content-Type` and add
   `X-Content-Type-Options: nosniff` on every final media response; the signature
   check is a bounded format gate, not a full image decoder.
-- Upload presign and completion are independently rate-limited by admin ID and
-  scope. The current limiter is process-local; use a shared KV/Redis-backed
-  implementation before deploying multiple write instances.
+- Upload presign and completion are independently rate-limited by user ID and
+  scope. The limiter uses Redis across write instances and degrades to a
+  bounded process-local window during a Redis outage; production must configure
+  Redis so normal multi-instance traffic receives a globally consistent limit.
 - Configure the bucket CORS policy from `docs/cloudflare-r2-cors.json` in
   Cloudflare R2 Settings so browser presigned `PUT` uploads from the production
   app origin can pass preflight. Add each Vercel preview origin explicitly when
@@ -102,6 +103,12 @@ the Auth.js adapter.
   authenticated, rate-limited same-origin `/api/admin/uploads/proxy` route.
   This is a resilience path for stale CORS rollout, not a replacement for the
   bucket CORS policy; large uploads should continue to use the presigned URL.
+- Reader profile avatars use the same staged verification protocol through
+  `/api/me/avatar/*`, with an independent 2 MB limit and per-reader rate limits.
+  The same-origin proxy is only a CORS resilience path. Successful replacement
+  and removal soft-delete the old `media_assets` row and schedule immediate R2
+  cleanup; the lifecycle job below remains the repair path after transient
+  object-storage failures.
 
 ### Media lifecycle cleanup
 

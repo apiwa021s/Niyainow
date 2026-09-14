@@ -3,12 +3,34 @@ import type { Metadata } from "next";
 import { ProfilePanel } from "@/components/interactive/account-panels";
 import { PageShell } from "@/components/ui/section";
 import { requireActiveUser } from "@/lib/auth/dal";
+import { getReaderAvatar } from "@/services/reader-avatar-service";
+import { getReaderClassProfile } from "@/services/reader-class-service";
+import { getReaderMissionDashboard } from "@/services/reader-mission-service";
+import { getReaderRpgSummary } from "@/services/reader-rpg-service";
 import { getProfileSummary } from "@/services/user-service";
 
 export const metadata: Metadata = { title: "โปรไฟล์", robots: { index: false, follow: false } };
 
 export default async function ProfilePage() {
   const user = await requireActiveUser("/profile");
-  const summary = await getProfileSummary(user.id);
-  return <PageShell className="space-y-6"><header className="py-2 sm:py-3"><p className="editorial-kicker">บัญชีและการอ่าน</p><h1 className="mt-1 text-h1 font-semibold sm:text-display">โปรไฟล์</h1></header><ProfilePanel user={user} summary={summary} /></PageShell>;
+  const [summary, readerClassProfile, readerRpg, missions, avatar] = await Promise.all([
+    getProfileSummary(user.id),
+    getReaderClassProfile(user.id),
+    getReaderRpgSummary(user.id),
+    getReaderMissionDashboard(user.id),
+    getReaderAvatar(user.id),
+  ]);
+  return (
+    <PageShell className="space-y-4 sm:space-y-6">
+      <header className="py-1 sm:py-2"><h1 className="text-h1 font-semibold sm:text-display">โปรไฟล์นักอ่าน</h1></header>
+      <ProfilePanel
+        user={user}
+        summary={summary}
+        readerClassProfile={readerClassProfile}
+        readerRpg={readerRpg}
+        missions={missions}
+        avatar={avatar}
+      />
+    </PageShell>
+  );
 }

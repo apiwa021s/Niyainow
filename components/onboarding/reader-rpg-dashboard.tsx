@@ -211,6 +211,7 @@ export function ReaderRpgDashboard({
           body: JSON.stringify({
             slot: item.slot,
             cosmeticItemId: item.equipped ? null : item.id,
+            mutationId: crypto.randomUUID(),
           }),
         });
         if (!response.ok) throw new Error(await responseMessage(response));
@@ -227,7 +228,7 @@ export function ReaderRpgDashboard({
   }
 
   return (
-    <section className={styles.dashboard} aria-label="ภารกิจและของแต่ง Reader RPG">
+    <section id="reader-rpg" className={styles.dashboard} aria-label="ภารกิจและของแต่ง Reader RPG">
       <header className={styles.header}>
         <div>
           <h2>ภารกิจนักอ่าน</h2>

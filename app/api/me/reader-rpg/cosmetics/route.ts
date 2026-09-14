@@ -8,6 +8,7 @@ import { equipReaderCosmetic } from "@/services/reader-mission-service";
 const equipCosmeticSchema = z.object({
   slot: z.enum(COSMETIC_SLOTS),
   cosmeticItemId: z.string().min(1).max(64).regex(/^[a-z0-9-]+$/).nullable(),
+  mutationId: z.uuid(),
 });
 
 export async function PUT(request: Request) {
@@ -20,7 +21,7 @@ export async function PUT(request: Request) {
     },
     async (userId) => {
       const input = await parseJson(request, equipCosmeticSchema);
-      return equipReaderCosmetic(userId, input.slot, input.cosmeticItemId);
+      return equipReaderCosmetic(userId, input.slot, input.cosmeticItemId, input.mutationId);
     },
   );
 }

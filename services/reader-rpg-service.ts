@@ -32,7 +32,6 @@ import {
   rereadMultiplierMilli,
   type ClassAffinity,
 } from "@/lib/onboarding/reader-rpg";
-import { refreshReaderMissionProgress } from "@/services/reader-mission-service";
 
 const BANGKOK_TIME_ZONE = "Asia/Bangkok";
 const MAX_CREDITED_SAMPLE_GAP_SECONDS = 120;
@@ -389,9 +388,6 @@ export async function recordReadingEvidence(
     };
   });
 
-  if (result.status === "qualified") {
-    await refreshReaderMissionProgress(userId, now);
-  }
   return result;
 }
 

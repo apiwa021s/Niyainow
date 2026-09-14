@@ -1,7 +1,10 @@
 import { z } from "zod";
+import { after } from "next/server";
 
 import { ApiError, parseJson } from "@/lib/http/api-response";
+import { logger } from "@/lib/logger";
 import { getUserNovelState, saveReadingProgress } from "@/services/user-service";
+import { refreshReaderMissionProgress } from "@/services/reader-mission-service";
 import { recordReadingEvidence } from "@/services/reader-rpg-service";
 
 import { handleUserRoute } from "../_shared";
@@ -46,6 +49,19 @@ export async function PUT(request: Request) {
             progressPercent: input.progressPercent,
           })
         : null;
+      if (readerRpg?.status === "qualified") {
+        after(async () => {
+          try {
+            await refreshReaderMissionProgress(userId);
+          } catch (error) {
+            logger.warn("Reader mission progress refresh failed after qualified reading", {
+              userId,
+              chapterId: input.chapterId,
+              error,
+            });
+          }
+        });
+      }
       return { ...progress, readerRpg };
     },
   );

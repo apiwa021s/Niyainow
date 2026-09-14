@@ -1,15 +1,19 @@
 "use client";
 
-import { BookMarked, CheckCircle2, Clock3, Coins, Heart, LogOut, RotateCcw, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { BookMarked, CheckCircle2, Clock3, Coins, Heart, LogOut, RotateCcw, Settings, ShieldCheck } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { ThemeSwitcher } from "@/components/interactive/theme-switcher";
+import { ReaderRpgProfileCard } from "@/components/profile/reader-rpg-profile-card";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/form-controls";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { signOutUser } from "@/lib/auth/actions";
 import type { CurrentUser } from "@/lib/auth/dal";
+import type { ReaderClassProfile } from "@/lib/onboarding/reader-class";
+import type { ReaderMissionDashboard } from "@/lib/onboarding/reader-missions";
+import type { ReaderRpgSummary } from "@/services/reader-rpg-service";
 import { useReaderPrefs } from "@/hooks/use-reader-prefs";
 import {
   FONT_SIZE_MAX_INDEX,
@@ -31,7 +35,21 @@ export type ProfileSummary = {
   historyCount: number;
 };
 
-export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: ProfileSummary }) {
+export function ProfilePanel({
+  user,
+  summary,
+  readerClassProfile,
+  readerRpg,
+  missions,
+  avatar,
+}: {
+  user: CurrentUser;
+  summary: ProfileSummary;
+  readerClassProfile: ReaderClassProfile | null;
+  readerRpg: ReaderRpgSummary;
+  missions: ReaderMissionDashboard;
+  avatar: { avatarUrl: string | null; providerImageUrl: string | null; hasCustomAvatar: boolean };
+}) {
   const readingLinks = [
     { label: "เรื่องที่กำลังอ่าน", value: summary.readingCount, href: "/library", icon: BookMarked },
     { label: "เรื่องที่ติดตาม", value: summary.followingCount, href: "/library/following", icon: Heart },
@@ -40,16 +58,20 @@ export function ProfilePanel({ user, summary }: { user: CurrentUser; summary: Pr
   ];
   return (
     <div className="space-y-8">
-      <section className="grid gap-6 py-2 sm:py-3 lg:grid-cols-[1fr_auto] lg:items-center">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-muted text-[var(--brand-emphasis)]"><UserRound className="h-8 w-8" /></div>
-          <div className="min-w-0">
-            <h2 className="truncate text-xl font-semibold">{user.name || "นักอ่าน NovelNow"}</h2>
-            <p className="truncate text-sm text-muted-foreground">{user.email}</p>
-            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />บัญชี Google · {user.role === "READER" ? "นักอ่าน" : user.role}</p>
-          </div>
+      <ReaderRpgProfileCard
+        name={user.name || "นักอ่าน NovelNow"}
+        initialAvatar={avatar}
+        classProfile={readerClassProfile}
+        rpg={readerRpg}
+        missions={missions}
+      />
+
+      <section className="grid gap-4 border-b border-border pb-6 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{user.email}</p>
+          <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />บัญชี Google · {user.role === "READER" ? "นักอ่าน" : user.role}</p>
         </div>
-        <div className="grid gap-2 sm:flex sm:flex-wrap">
+        <div className="grid gap-2 min-[420px]:grid-cols-3 lg:flex lg:flex-wrap">
           <ButtonLink href="/wallet" variant="secondary" className="w-full sm:w-auto"><Coins className="h-4 w-4" />กระเป๋าเหรียญ</ButtonLink>
           <ButtonLink href="/settings" variant="secondary" className="w-full sm:w-auto"><Settings className="h-4 w-4" />ตั้งค่า</ButtonLink>
           <form action={signOutUser} className="sm:w-auto"><input type="hidden" name="callbackUrl" value="/" /><Button type="submit" variant="outline" className="w-full sm:w-auto"><LogOut className="h-4 w-4" />ออกจากระบบ</Button></form>

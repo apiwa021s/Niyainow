@@ -1,13 +1,15 @@
 import { z } from "zod";
 
+import { ALLOWED_IMAGE_TYPES, type AllowedImageType } from "./image-types";
+
+export { ALLOWED_IMAGE_TYPES, type AllowedImageType } from "./image-types";
+
 export const ASSET_TYPES = ["cover", "banner", "avatar", "novelAsset", "og"] as const;
-export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"] as const;
 export const APPROVED_OBJECT_KEY_PREFIXES = ["covers/", "banners/", "avatars/", "novels/assets/", "og/"] as const;
 export const STAGING_OBJECT_KEY_PREFIX = "staging/" as const;
 export const MANAGED_OBJECT_KEY_PREFIXES = [...APPROVED_OBJECT_KEY_PREFIXES, STAGING_OBJECT_KEY_PREFIX] as const;
 
 export type AssetType = (typeof ASSET_TYPES)[number];
-export type AllowedImageType = (typeof ALLOWED_IMAGE_TYPES)[number];
 
 export const MAX_UPLOAD_BYTES: Record<AssetType, number> = {
   cover: 8 * 1024 * 1024,

@@ -8,6 +8,7 @@ import { assertAuthSchemaReady } from "@/db/auth-schema-readiness";
 import { accounts, authenticators, sessions, users, verificationTokens } from "@/db/schema";
 import type { UserRole, UserStatus } from "@/lib/auth/permissions";
 import { requireAuthEnv } from "@/lib/env";
+import { assetUrl } from "@/lib/site-config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   // This lazy boundary is reached by real auth/session requests, not by module
@@ -121,6 +122,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         appSession.user.role = (user.role as UserRole) ?? "READER";
         // Missing legacy authorization claims fail closed at protected routes.
         appSession.user.status = (user.status as UserStatus) ?? "SUSPENDED";
+        const avatarKey = user.avatarKey;
+        if (avatarKey) appSession.user.image = assetUrl(avatarKey);
         return appSession;
       },
     },

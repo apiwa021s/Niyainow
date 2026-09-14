@@ -40,6 +40,9 @@
 - [ ] สร้าง Google OAuth Web Client + production callback URI
 - [ ] สร้าง `AUTH_SECRET` ที่แข็งแรงและตั้ง Google credentials
 - [ ] สร้าง R2 bucket/token/custom domain/CORS แล้วตั้งตัวแปร R2
+- [ ] ทดสอบ Reader Avatar จริงด้วย JPG/PNG/WebP/AVIF, direct R2 PUT และ same-origin fallback; ยืนยันว่าไฟล์เก่าถูก cleanup
+- [ ] ทดสอบอ่านตอนจนผ่านเกณฑ์ แล้วตรวจ EXP, streak, Daily/Weekly Mission และ activity ledger ในฐานข้อมูล
+- [ ] ทดสอบ Profile/Personalize ที่ 320, 375, 430, 768, 1024, 1440 และ 1920 px รวม Reduce Motion
 - [ ] Provision บัญชี `ADMIN` จาก DB-controlled process
 - [ ] ต่อ stdout/error logs เข้าระบบ monitoring และตั้ง alert
 - [ ] เปิด Vercel Spend Management alerts ที่ 50/75/100% และกำหนด hard budget พร้อม `Pause production deployment` ตามงบที่ยอมรับได้; ทดสอบ webhook/notification

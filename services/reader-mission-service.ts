@@ -383,21 +383,9 @@ export async function equipReaderCosmetic(
   userId: string,
   slot: CosmeticSlot,
   cosmeticItemId: string | null,
+  mutationId: string,
 ) {
   if (!COSMETIC_SLOTS.includes(slot)) throw new ApiError(400, "INVALID_COSMETIC_SLOT", "ช่อง Cosmetic ไม่ถูกต้อง");
-
-  if (cosmeticItemId) {
-    const [owned] = await getDb().select({ slot: readerCosmeticItems.slot })
-      .from(readerCosmeticUnlocks)
-      .innerJoin(readerCosmeticItems, eq(readerCosmeticItems.id, readerCosmeticUnlocks.cosmeticItemId))
-      .where(and(
-        eq(readerCosmeticUnlocks.userId, userId),
-        eq(readerCosmeticUnlocks.cosmeticItemId, cosmeticItemId),
-        eq(readerCosmeticItems.isActive, true),
-      )).limit(1);
-    if (!owned) throw new ApiError(404, "COSMETIC_NOT_OWNED", "ยังไม่ได้ปลดล็อกของแต่งชิ้นนี้");
-    if (owned.slot !== slot) throw new ApiError(400, "COSMETIC_SLOT_MISMATCH", "ของแต่งไม่ตรงกับช่องที่เลือก");
-  }
 
   const column = {
     profile_frame: "profileFrameId",
@@ -409,13 +397,60 @@ export async function equipReaderCosmetic(
   }[slot] as keyof Pick<typeof readerCosmeticLoadouts.$inferInsert,
     "profileFrameId" | "cardEffectId" | "avatarEffectId" | "readerTitleId" | "badgeId" | "backgroundId">;
   const now = new Date();
-  await getDb().insert(readerCosmeticLoadouts).values({
-    userId,
-    [column]: cosmeticItemId,
-    updatedAt: now,
-  }).onConflictDoUpdate({
-    target: readerCosmeticLoadouts.userId,
-    set: { [column]: cosmeticItemId, updatedAt: now },
+  await getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:cosmetic-loadout`}, 0))`);
+    const idempotencyKey = `cosmetic-loadout:${mutationId}`;
+    const eventType = cosmeticItemId ? "cosmetic.equipped" : "cosmetic.unequipped";
+    const [existingEvent] = await tx.select({
+      eventType: readerActivityEvents.eventType,
+      metadata: readerActivityEvents.metadata,
+    }).from(readerActivityEvents).where(and(
+      eq(readerActivityEvents.userId, userId),
+      eq(readerActivityEvents.idempotencyKey, idempotencyKey),
+    )).limit(1);
+    if (existingEvent) {
+      const existingCosmeticId = typeof existingEvent.metadata.cosmeticItemId === "string"
+        ? existingEvent.metadata.cosmeticItemId
+        : null;
+      if (
+        existingEvent.eventType !== eventType
+        || existingEvent.metadata.slot !== slot
+        || existingCosmeticId !== cosmeticItemId
+      ) {
+        throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED", "รหัสคำขอนี้ถูกใช้กับการเปลี่ยนของแต่งรายการอื่นแล้ว");
+      }
+      return;
+    }
+
+    if (cosmeticItemId) {
+      const [owned] = await tx.select({ slot: readerCosmeticItems.slot })
+        .from(readerCosmeticUnlocks)
+        .innerJoin(readerCosmeticItems, eq(readerCosmeticItems.id, readerCosmeticUnlocks.cosmeticItemId))
+        .where(and(
+          eq(readerCosmeticUnlocks.userId, userId),
+          eq(readerCosmeticUnlocks.cosmeticItemId, cosmeticItemId),
+          eq(readerCosmeticItems.isActive, true),
+        )).limit(1);
+      if (!owned) throw new ApiError(404, "COSMETIC_NOT_OWNED", "ยังไม่ได้ปลดล็อกของแต่งชิ้นนี้");
+      if (owned.slot !== slot) throw new ApiError(400, "COSMETIC_SLOT_MISMATCH", "ของแต่งไม่ตรงกับช่องที่เลือก");
+    }
+
+    await tx.insert(readerCosmeticLoadouts).values({
+      userId,
+      [column]: cosmeticItemId,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: readerCosmeticLoadouts.userId,
+      set: { [column]: cosmeticItemId, updatedAt: now },
+    });
+    await tx.insert(readerActivityEvents).values({
+      userId,
+      eventType,
+      readerExpDelta: 0,
+      idempotencyKey,
+      metadata: { slot, cosmeticItemId },
+      occurredAt: now,
+    });
   });
   return getReaderMissionDashboard(userId, now);
 }

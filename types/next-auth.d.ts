@@ -13,6 +13,7 @@ declare module "next-auth" {
 
   interface User {
     googleId?: string | null;
+    avatarKey?: string | null;
     role?: UserRole;
     status?: UserStatus;
   }
