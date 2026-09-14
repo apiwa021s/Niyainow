@@ -26,8 +26,12 @@ export function isWorldRoute(pathname: string | null) {
   return /^\/world(\/|$)/.test(pathname ?? "");
 }
 
+export function isOnboardingRoute(pathname: string | null) {
+  return /^\/onboarding(\/|$)/.test(pathname ?? "");
+}
+
 export function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  if (isReaderRoute(pathname) || isAdminRoute(pathname) || isStudioRoute(pathname) || isAuthRoute(pathname) || isWorldRoute(pathname)) return null;
+  if (isReaderRoute(pathname) || isAdminRoute(pathname) || isStudioRoute(pathname) || isAuthRoute(pathname) || isWorldRoute(pathname) || isOnboardingRoute(pathname)) return null;
   return <>{children}</>;
 }

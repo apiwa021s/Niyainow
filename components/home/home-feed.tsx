@@ -7,6 +7,7 @@ import { BannerCarousel, type BannerSlide } from "@/components/home/banner-carou
 import { CategoryIconRail } from "@/components/home/category-icon-rail";
 import { ContentRow, RowItem } from "@/components/home/content-row";
 import { RankingTabs } from "@/components/home/ranking-tabs";
+import { ReaderClassHome } from "@/components/home/reader-class-home";
 import { TrendingTicker } from "@/components/home/trending-ticker";
 import { UpdateFeed } from "@/components/home/update-feed";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
@@ -256,6 +257,7 @@ export function HomeFeed({
 
   return (
     <div className="flex flex-col gap-3">
+      <ReaderClassHome novels={pool} />
       <TrendingTicker novels={data.rankings.slice(0, 16)} />
       <CategoryIconRail items={data.genreShowcase} title="สำรวจนิยายทุกแนว" />
 
