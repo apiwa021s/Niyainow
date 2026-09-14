@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   readerActivityEvents,
+  readerAccounts,
   readerClassProfiles,
   readerClassProgress,
   type ReaderClassProfileRow,
@@ -22,9 +23,10 @@ import {
 
 function mapReaderClassProfile(row: ReaderClassProfileRow): ReaderClassProfile | null {
   const parsed = readerClassProfileInputSchema.safeParse({
-    version: row.profileVersion,
+    version: 2,
     classId: row.mainClassId,
     subClassId: row.subClassId,
+    subClassIds: row.subClassIds,
     selectedClassIds: row.selectedClassIds,
     answers: row.quizAnswers,
     completedAt: row.completedAt.toISOString(),
@@ -77,6 +79,7 @@ export async function saveReaderClassProfile(userId: string, input: ReaderClassP
         profileVersion: profile.version,
         mainClassId: profile.classId,
         subClassId: profile.subClassId,
+        subClassIds: profile.subClassIds,
         selectedClassIds: profile.selectedClassIds,
         quizAnswers: profile.answers as Record<QuizQuestionId, string>,
         completedAt,
@@ -88,6 +91,7 @@ export async function saveReaderClassProfile(userId: string, input: ReaderClassP
           profileVersion: profile.version,
           mainClassId: profile.classId,
           subClassId: profile.subClassId,
+          subClassIds: profile.subClassIds,
           selectedClassIds: profile.selectedClassIds,
           quizAnswers: profile.answers as Record<QuizQuestionId, string>,
           completedAt,
@@ -101,17 +105,19 @@ export async function saveReaderClassProfile(userId: string, input: ReaderClassP
       .values(profile.selectedClassIds.map((classId) => ({ userId, classId, unlockedAt: completedAt })))
       .onConflictDoNothing({ target: [readerClassProgress.userId, readerClassProgress.classId] });
 
+    await tx.insert(readerAccounts).values({ userId, updatedAt: now }).onConflictDoNothing();
+
     await tx
       .insert(readerActivityEvents)
       .values({
         userId,
-        classId: profile.classId,
         eventType: existing ? "reader_class.profile_updated" : "reader_class.profile_completed",
-        expDelta: 0,
+        readerExpDelta: 0,
         idempotencyKey: `reader-class-profile:v${profile.version}:${profile.completedAt}`,
         metadata: {
           mainClassId: profile.classId,
           subClassId: profile.subClassId,
+          subClassIds: profile.subClassIds,
           selectedClassIds: profile.selectedClassIds,
           profileVersion: profile.version,
         },

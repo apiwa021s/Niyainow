@@ -10,9 +10,10 @@ import {
 import { readerClassProfileInputSchema } from "./reader-class-validation";
 
 const validStoredProfile = {
-  version: 1 as const,
+  version: 2 as const,
   classId: "martial",
   subClassId: "system",
+  subClassIds: ["system", "isekai"],
   selectedClassIds: ["martial", "system", "isekai"],
   answers: { hero: "growth", pace: "binge", hook: "new_world" },
   completedAt: "2026-09-14T04:30:00.000Z",
@@ -20,7 +21,7 @@ const validStoredProfile = {
 
 describe("reader class onboarding", () => {
   it("versions the local guest fallback independently from database state", () => {
-    expect(READER_CLASS_STORAGE_KEY).toBe("novelnow-reader-class:v1");
+    expect(READER_CLASS_STORAGE_KEY).toBe("novelnow-reader-class:v2");
   });
 
   it("keeps the twelve public classes mapped to artwork", () => {
@@ -53,6 +54,20 @@ describe("reader class onboarding", () => {
       subClassId: "martial",
       selectedClassIds: ["martial", "system", "isekai"],
     }))).toBeNull();
+  });
+
+  it("upgrades a stored v1 profile into two sub classes", () => {
+    expect(parseReaderClassProfile(JSON.stringify({
+      version: 1,
+      classId: "martial",
+      subClassId: "system",
+      selectedClassIds: ["martial", "system", "isekai"],
+      answers: validStoredProfile.answers,
+      completedAt: validStoredProfile.completedAt,
+    }))).toMatchObject({
+      version: 2,
+      subClassIds: ["system", "isekai"],
+    });
   });
 
   it("accepts a complete profile before database persistence", () => {

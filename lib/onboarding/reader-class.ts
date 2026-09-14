@@ -1,4 +1,5 @@
-export const READER_CLASS_STORAGE_KEY = "novelnow-reader-class:v1";
+export const READER_CLASS_STORAGE_KEY = "novelnow-reader-class:v2";
+export const PREVIOUS_READER_CLASS_STORAGE_KEY = "novelnow-reader-class:v1";
 export const LEGACY_READER_CLASS_STORAGE_KEY = "novelnow-reader-class";
 
 export const READER_CLASSES = [
@@ -140,9 +141,11 @@ export type ReaderClassId = (typeof READER_CLASSES)[number]["id"];
 export type QuizQuestionId = "hero" | "pace" | "hook";
 
 export type ReaderClassProfile = {
-  version: 1;
+  version: 2;
   classId: ReaderClassId;
+  /** First sub class, retained as a convenient compatibility alias. */
   subClassId: ReaderClassId;
+  subClassIds: [ReaderClassId, ReaderClassId];
   selectedClassIds: ReaderClassId[];
   answers: Partial<Record<QuizQuestionId, string>>;
   hiddenTrait: string;
@@ -226,22 +229,37 @@ export function hiddenTraitFor(answers: Partial<Record<QuizQuestionId, string>>)
 export function parseReaderClassProfile(raw: string | null): ReaderClassProfile | null {
   if (!raw) return null;
   try {
-    const value = JSON.parse(raw) as Partial<ReaderClassProfile>;
+    const value = JSON.parse(raw) as Omit<Partial<ReaderClassProfile>, "version"> & { version?: number };
     const selected = Array.isArray(value.selectedClassIds)
       ? value.selectedClassIds.filter((id): id is ReaderClassId => Boolean(getReaderClass(id)))
       : [];
     if (
-      value.version !== 1
+      (value.version !== 1 && value.version !== 2)
       || !getReaderClass(value.classId)
       || !getReaderClass(value.subClassId)
       || value.classId === value.subClassId
-      || selected.length < 2
+      || selected.length !== 3
+    ) return null;
+
+    const storedSubs = Array.isArray(value.subClassIds)
+      ? value.subClassIds.filter((id): id is ReaderClassId => Boolean(getReaderClass(id)))
+      : [];
+    const subClassIds = [
+      value.subClassId!,
+      storedSubs.find((id) => id !== value.subClassId && id !== value.classId)
+        ?? selected.find((id) => id !== value.classId && id !== value.subClassId),
+    ];
+    if (
+      !subClassIds[1]
+      || new Set(subClassIds).size !== 2
+      || subClassIds.some((id) => id === value.classId || !selected.includes(id!))
     ) return null;
 
     return {
-      version: 1,
+      version: 2,
       classId: value.classId!,
       subClassId: value.subClassId!,
+      subClassIds: subClassIds as [ReaderClassId, ReaderClassId],
       selectedClassIds: selected,
       answers: value.answers ?? {},
       hiddenTrait: typeof value.hiddenTrait === "string" ? value.hiddenTrait : "นักสำรวจเรื่องเล่า",

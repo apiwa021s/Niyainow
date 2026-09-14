@@ -46,6 +46,8 @@ type ProgressWrite = {
   progressPercent: number;
   position: number;
   completed: boolean;
+  readingSessionId?: string;
+  activeSeconds?: number;
 };
 
 type ReaderLibraryStatus = "READING" | "PLAN_TO_READ" | "COMPLETED" | "DROPPED";
@@ -171,7 +173,9 @@ export function ReaderView({
   const prefetchedNext = useRef(false);
   const restoration = useRef({ chapterKey, complete: false });
   const scrollFrame = useRef<number | null>(null);
-  const lastSaved = useRef({ percent: -1, position: -1, at: 0 });
+  const [readingSessionId] = useState(() => crypto.randomUUID());
+  const activeSeconds = useRef(0);
+  const lastSaved = useRef({ percent: -1, position: -1, activeSeconds: -1, at: 0 });
   const restoredLocalSync = useRef<string | null>(null);
 
   const persistProgress = useCallback((force = false) => {
@@ -181,10 +185,11 @@ export function ReaderView({
     const now = Date.now();
     const changed = Math.abs(percent - lastSaved.current.percent);
     const moved = Math.abs(position - lastSaved.current.position);
-    if (!force && changed < 2 && moved < 500 && now - lastSaved.current.at < 8_000) return;
-    if (force && changed < 0.5 && moved < 80) return;
+    const activeTimeChanged = activeSeconds.current - lastSaved.current.activeSeconds;
+    if (!force && changed < 2 && moved < 500 && activeTimeChanged < 8 && now - lastSaved.current.at < 8_000) return;
+    if (force && changed < 0.5 && moved < 80 && activeTimeChanged < 1) return;
 
-    lastSaved.current = { percent, position, at: now };
+    lastSaved.current = { percent, position, activeSeconds: activeSeconds.current, at: now };
     if (hasHydrated) {
       const local: LocalReadingProgress = {
         novelId: novel.id,
@@ -209,8 +214,10 @@ export function ReaderView({
       progressPercent: Math.max(0, Math.min(100, percent)),
       position,
       completed: !next && novel.status === "completed" && percent >= 95,
+      readingSessionId,
+      activeSeconds: activeSeconds.current,
     });
-  }, [chapter.id, chapter.number, chapter.sortOrder, chapter.title, chapterKey, hasHydrated, isAuthenticated, locked, next, novel.cover, novel.id, novel.slug, novel.status, novel.thaiTitle, saveLocalProgress]);
+  }, [chapter.id, chapter.number, chapter.sortOrder, chapter.title, chapterKey, hasHydrated, isAuthenticated, locked, next, novel.cover, novel.id, novel.slug, novel.status, novel.thaiTitle, readingSessionId, saveLocalProgress]);
 
   useEffect(() => {
     const sampleScroll = () => {
@@ -263,6 +270,21 @@ export function ReaderView({
   }, [nextHref, persistProgress, router]);
 
   useEffect(() => {
+    if (locked || !isAuthenticated || !chapter.id) return;
+    const timer = window.setInterval(() => {
+      if (
+        restoration.current.chapterKey !== chapterKey
+        || !restoration.current.complete
+        || document.visibilityState !== "visible"
+        || !document.hasFocus()
+      ) return;
+      activeSeconds.current += 1;
+      if (activeSeconds.current % 10 === 0) persistProgress(false);
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [chapter.id, chapterKey, isAuthenticated, locked, persistProgress]);
+
+  useEffect(() => {
     if (!hasHydrated || restoration.current.chapterKey !== chapterKey || restoration.current.complete) return;
 
     const completeAt = (top: number, maximum: number, restoredExistingPosition = false) => {
@@ -272,8 +294,8 @@ export function ReaderView({
       setProgress(percent);
       lastScrollY.current = top;
       lastSaved.current = restoredExistingPosition
-        ? { percent, position: Math.round(top), at: Date.now() }
-        : { percent: -1, position: -1, at: 0 };
+        ? { percent, position: Math.round(top), activeSeconds: -1, at: Date.now() }
+        : { percent: -1, position: -1, activeSeconds: -1, at: 0 };
       restoration.current.complete = true;
     };
 

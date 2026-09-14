@@ -51,6 +51,10 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
 
   const mainClass = getReaderClass(mainClassId) ?? READER_CLASSES[0];
   const subClass = getReaderClass(subClassId) ?? READER_CLASSES[1];
+  const secondarySubClassId = rankedClassIds.find((id) => id !== mainClassId && id !== subClassId)
+    ?? selectedClassIds.find((id) => id !== mainClassId && id !== subClassId)
+    ?? READER_CLASSES.find((candidate) => candidate.id !== mainClassId && candidate.id !== subClassId)!.id;
+  const secondarySubClass = getReaderClass(secondarySubClassId) ?? READER_CLASSES[2];
   const question = QUIZ_QUESTIONS[questionIndex];
   const hiddenTrait = useMemo(() => hiddenTraitFor(answers), [answers]);
 
@@ -103,9 +107,10 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
 
   const finish = () => {
     const profile: ReaderClassProfile = {
-      version: 1,
+      version: 2,
       classId: mainClass.id,
       subClassId: subClass.id,
+      subClassIds: [subClass.id, secondarySubClass.id],
       selectedClassIds,
       answers,
       hiddenTrait: hiddenTrait.label,
@@ -392,7 +397,7 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
               </div>
 
               <div className={styles.subPicker}>
-                <span>เลือก Sub Class</span>
+                <span>จัดลำดับ Sub Class</span>
                 <div>
                   {rankedClassIds.filter((id) => id !== mainClassId).map((id) => {
                     const candidate = getReaderClass(id);
@@ -423,7 +428,14 @@ export function ReaderClassOnboarding({ canPersist }: { canPersist: boolean }) {
                 <h2><ReaderClassIcon src={mainClass.icon} className={styles.previewClassIcon} sizes="42px" /> {mainClass.name}</h2>
                 <span>{mainClass.title}</span>
                 <dl>
-                  <div><dt>Sub Class</dt><dd><ReaderClassIcon src={subClass.icon} className={styles.detailClassIcon} sizes="24px" /> {subClass.name}</dd></div>
+                  <div>
+                    <dt>Sub Classes</dt>
+                    <dd>
+                      <ReaderClassIcon src={subClass.icon} className={styles.detailClassIcon} sizes="24px" /> {subClass.name}
+                      {" · "}
+                      <ReaderClassIcon src={secondarySubClass.icon} className={styles.detailClassIcon} sizes="24px" /> {secondarySubClass.name}
+                    </dd>
+                  </div>
                   <div><dt>Hidden Trait</dt><dd>{hiddenTrait.emoji} {hiddenTrait.label}</dd></div>
                 </dl>
               </div>

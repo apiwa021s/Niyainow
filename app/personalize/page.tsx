@@ -10,6 +10,7 @@ import {
 import type { Novel } from "@/types/novel";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { getReaderClassProfile } from "@/services/reader-class-service";
+import { getReaderRpgSummary } from "@/services/reader-rpg-service";
 
 export const metadata: Metadata = {
   title: "โลกนิยายที่สร้างเพื่อคุณ",
@@ -37,9 +38,16 @@ export default async function PersonalizePage() {
     (async () => {
       const currentUser = await getCurrentUser();
       const canPersist = currentUser?.status === "ACTIVE";
+      const [profile, readerRpg] = canPersist
+        ? await Promise.all([
+            getReaderClassProfile(currentUser.id),
+            getReaderRpgSummary(currentUser.id),
+          ])
+        : [null, null];
       return {
         canPersist,
-        profile: canPersist ? await getReaderClassProfile(currentUser.id) : null,
+        profile,
+        readerRpg,
       };
     })(),
   ]);
@@ -49,6 +57,7 @@ export default async function PersonalizePage() {
       novels={uniqueNovels(groups)}
       initialProfile={readerClassContext.profile}
       canPersist={readerClassContext.canPersist}
+      initialRpg={readerClassContext.readerRpg}
     />
   );
 }

@@ -26,6 +26,7 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
+    "db:check-reader-rpg": "node --conditions=react-server --import tsx db/check-reader-rpg-schema.ts",
     "db:migrate": "tsx db/migrate.ts",
     "db:check-auth": "node --conditions=react-server --import tsx db/check-auth-schema.ts",
     "db:repair-auth": "node --conditions=react-server --import tsx db/repair-auth-schema.ts",

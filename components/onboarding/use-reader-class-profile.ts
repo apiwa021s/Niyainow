@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
 import {
   LEGACY_READER_CLASS_STORAGE_KEY,
+  PREVIOUS_READER_CLASS_STORAGE_KEY,
   READER_CLASS_STORAGE_KEY,
   parseReaderClassProfile,
   type ReaderClassProfile,
@@ -13,7 +14,7 @@ const READER_CLASS_CHANGED_EVENT = "novelnow:reader-class-changed";
 
 function subscribe(onStoreChange: () => void) {
   const onStorage = (event: StorageEvent) => {
-    if ([READER_CLASS_STORAGE_KEY, LEGACY_READER_CLASS_STORAGE_KEY].includes(event.key ?? "")) onStoreChange();
+    if ([READER_CLASS_STORAGE_KEY, PREVIOUS_READER_CLASS_STORAGE_KEY, LEGACY_READER_CLASS_STORAGE_KEY].includes(event.key ?? "")) onStoreChange();
   };
   window.addEventListener("storage", onStorage);
   window.addEventListener(READER_CLASS_CHANGED_EVENT, onStoreChange);
@@ -26,6 +27,7 @@ function subscribe(onStoreChange: () => void) {
 function getSnapshot() {
   try {
     return window.localStorage.getItem(READER_CLASS_STORAGE_KEY)
+      ?? window.localStorage.getItem(PREVIOUS_READER_CLASS_STORAGE_KEY)
       ?? window.localStorage.getItem(LEGACY_READER_CLASS_STORAGE_KEY)
       ?? "";
   } catch {
@@ -40,6 +42,7 @@ function serialize(profile: ReaderClassProfile) {
 export function storeReaderClassProfile(profile: ReaderClassProfile) {
   try {
     window.localStorage.setItem(READER_CLASS_STORAGE_KEY, serialize(profile));
+    window.localStorage.removeItem(PREVIOUS_READER_CLASS_STORAGE_KEY);
     window.localStorage.removeItem(LEGACY_READER_CLASS_STORAGE_KEY);
     window.dispatchEvent(new Event(READER_CLASS_CHANGED_EVENT));
   } catch {

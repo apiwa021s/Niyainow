@@ -13,6 +13,7 @@ import { UpdateFeed } from "@/components/home/update-feed";
 import { AccountContinueReadingCard } from "@/components/reader/guest-continue-reading";
 import { cn, formatNumber } from "@/lib/utils";
 import type { ReaderClassProfile } from "@/lib/onboarding/reader-class";
+import type { ReaderRpgSummary } from "@/services/reader-rpg-service";
 import type { NovelUpdate, PromoBannerItem } from "@/services/novel-service";
 import type { HomePersonalization } from "@/services/user-service";
 import type { Genre, Novel } from "@/types/novel";
@@ -245,12 +246,14 @@ export function HomeFeed({
   signupSlot,
   readerClassProfile,
   canPersistReaderClass,
+  readerRpg,
 }: {
   data: HomeData;
   children?: ReactNode;
   signupSlot?: ReactNode;
   readerClassProfile: ReaderClassProfile | null;
   canPersistReaderClass: boolean;
+  readerRpg: ReaderRpgSummary | null;
 }) {
   const pool = pooledNovels(data);
   const activeGenreSlugs = data.genreShowcase.map(({ genre }) => genre.slug);
@@ -266,6 +269,7 @@ export function HomeFeed({
         novels={pool}
         initialProfile={readerClassProfile}
         canPersist={canPersistReaderClass}
+        initialRpg={readerRpg}
       />
       <TrendingTicker novels={data.rankings.slice(0, 16)} />
       <CategoryIconRail items={data.genreShowcase} title="สำรวจนิยายทุกแนว" />

@@ -12,6 +12,7 @@ import {
   type ReaderClassProfile,
 } from "@/lib/onboarding/reader-class";
 import type { Novel } from "@/types/novel";
+import type { ReaderRpgSummary } from "@/services/reader-rpg-service";
 import styles from "./personalized-reader-page.module.css";
 
 function novelSearchText(novel: Novel) {
@@ -42,13 +43,14 @@ function classAffinity(
 function rankByClasses(
   novels: Novel[],
   mainClass: NonNullable<ReturnType<typeof getReaderClass>>,
-  subClass?: NonNullable<ReturnType<typeof getReaderClass>>,
+  subClasses: NonNullable<ReturnType<typeof getReaderClass>>[] = [],
 ) {
   return novels
     .map((novel, index) => ({
       novel,
       index,
-      score: classAffinity(novel, mainClass) * 2 + (subClass ? classAffinity(novel, subClass) : 0),
+      score: classAffinity(novel, mainClass) * 2
+        + subClasses.reduce((score, subClass) => score + classAffinity(novel, subClass), 0),
     }))
     .sort((left, right) => (
       right.score - left.score
@@ -144,19 +146,25 @@ export function PersonalizedReaderPage({
   novels,
   initialProfile,
   canPersist,
+  initialRpg,
 }: {
   novels: Novel[];
   initialProfile: ReaderClassProfile | null;
   canPersist: boolean;
+  initialRpg: ReaderRpgSummary | null;
 }) {
   const { profile, hydrated } = useReaderClassProfile({ initialProfile, canPersist });
 
   if (!hydrated) return <PersonalizeHydrationSkeleton />;
 
   const mainClass = getReaderClass(profile?.classId);
-  const subClass = getReaderClass(profile?.subClassId);
+  const firstSubClass = getReaderClass(profile?.subClassIds[0]);
+  const secondSubClass = getReaderClass(profile?.subClassIds[1]);
+  const subClasses = firstSubClass && secondSubClass ? [firstSubClass, secondSubClass] : [];
+  const mainMastery = initialRpg?.classes.find((item) => item.classId === mainClass?.id);
+  const subMasteries = subClasses.map((readerClass) => initialRpg?.classes.find((item) => item.classId === readerClass.id));
 
-  if (!profile || !mainClass || !subClass) {
+  if (!profile || !mainClass || !firstSubClass || !secondSubClass) {
     return (
       <main id="main" className={styles.page}>
         <section className={styles.emptyState}>
@@ -170,7 +178,7 @@ export function PersonalizedReaderPage({
     );
   }
 
-  const ranked = rankByClasses(novels, mainClass, subClass);
+  const ranked = rankByClasses(novels, mainClass, subClasses);
   const matched = ranked.filter((item) => item.score > 0);
   const personalizedPool = [...matched, ...ranked.filter((item) => item.score === 0)];
   const mainNovels = [...rankByClasses(novels, mainClass)]
@@ -184,7 +192,10 @@ export function PersonalizedReaderPage({
     description: "เรียงจากจังหวะการอ่านและโลกที่คุณเลือก",
   };
   const readingPaceNovels = paceShelf(personalizedPool, pace);
-  const allGenres = [...new Set([...mainClass.recommendationGenres, ...subClass.recommendationGenres])];
+  const allGenres = [...new Set([
+    ...mainClass.recommendationGenres,
+    ...subClasses.flatMap((readerClass) => readerClass.recommendationGenres),
+  ])];
   const browseHref = `/novels?genre=${allGenres.join(",")}`;
   const pageStyle = { "--personal-accent": mainClass.accent } as CSSProperties;
 
@@ -201,7 +212,7 @@ export function PersonalizedReaderPage({
               <h1>{mainClass.name}</h1>
             </div>
           </div>
-          <p className={styles.heroTitle}>{mainClass.title}</p>
+          <p className={styles.heroTitle}>Reader Lv.{initialRpg?.reader.level ?? 1} · {mainMastery?.title ?? mainClass.title}</p>
           <p className={styles.heroDescription}>{mainClass.description}</p>
           <div className={styles.heroTags}>
             {mainClass.tastes.map((taste) => <span key={taste}>#{taste}</span>)}
@@ -214,7 +225,7 @@ export function PersonalizedReaderPage({
 
         <div className={styles.heroArt} aria-hidden>
           <span className={styles.artHalo} />
-          <Image src={subClass.image} alt="" width={1086} height={1448} sizes="(max-width: 820px) 46vw, 28vw" className={styles.subCharacter} />
+          <Image src={firstSubClass.image} alt="" width={1086} height={1448} sizes="(max-width: 820px) 46vw, 28vw" className={styles.subCharacter} />
           <Image src={mainClass.image} alt="" width={1086} height={1448} sizes="(max-width: 820px) 76vw, 38vw" className={styles.mainCharacter} />
         </div>
       </section>
@@ -222,11 +233,11 @@ export function PersonalizedReaderPage({
       <section className={styles.identityGrid} aria-label="Reader identity">
         <article>
           <span>MAIN CLASS</span>
-          <div><ReaderClassIcon src={mainClass.icon} sizes="44px" /><p><strong>{mainClass.name}</strong><small>{mainClass.title}</small></p></div>
+          <div><ReaderClassIcon src={mainClass.icon} sizes="44px" /><p><strong>{mainClass.name} Lv.{mainMastery?.level ?? 1}</strong><small>{mainMastery?.title ?? mainClass.title}</small></p></div>
         </article>
         <article>
-          <span>SUB CLASS</span>
-          <div><ReaderClassIcon src={subClass.icon} sizes="44px" /><p><strong>{subClass.name}</strong><small>พลังเสริมของรสนิยมคุณ</small></p></div>
+          <span>SUB CLASSES</span>
+          <div><ReaderClassIcon src={firstSubClass.icon} sizes="44px" /><p><strong>{subClasses.map((item, index) => `${item.name} Lv.${subMasteries[index]?.level ?? 1}`).join(" · ")}</strong><small>พลังเสริมของรสนิยมคุณทั้งสองสาย</small></p></div>
         </article>
         <article>
           <span>HIDDEN TRAIT</span>
@@ -249,7 +260,7 @@ export function PersonalizedReaderPage({
         />
         <NovelShelf
           eyebrow="CLASS FUSION"
-          title={`${mainClass.name} × ${subClass.name}`}
+          title={`${mainClass.name} × ${subClasses.map((item) => item.name).join(" × ")}`}
           description="จุดตัดระหว่างโลกหลักและรสนิยมรองของคุณ"
           novels={blendedNovels}
           href={browseHref}

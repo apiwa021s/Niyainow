@@ -17,6 +17,7 @@ import {
 import { getHomePersonalization } from "@/services/user-service";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { getReaderClassProfile } from "@/services/reader-class-service";
+import { getReaderRpgSummary } from "@/services/reader-rpg-service";
 import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
 
@@ -68,9 +69,16 @@ async function PublicHomeHero() {
 async function getHomeReaderClassContext() {
   const currentUser = await getCurrentUser();
   const canPersist = currentUser?.status === "ACTIVE";
+  const [profile, readerRpg] = canPersist
+    ? await Promise.all([
+        getReaderClassProfile(currentUser.id),
+        getReaderRpgSummary(currentUser.id),
+      ])
+    : [null, null];
   return {
     canPersist,
-    profile: canPersist ? await getReaderClassProfile(currentUser.id) : null,
+    profile,
+    readerRpg,
   };
 }
 
@@ -103,6 +111,7 @@ async function PublicHomeFeed({ children, signupSlot }: { children: ReactNode; s
       signupSlot={signupSlot}
       readerClassProfile={readerClassContext.profile}
       canPersistReaderClass={readerClassContext.canPersist}
+      readerRpg={readerClassContext.readerRpg}
     >
       {children}
     </HomeFeed>
