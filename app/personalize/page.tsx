@@ -11,6 +11,7 @@ import type { Novel } from "@/types/novel";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { getReaderClassProfile } from "@/services/reader-class-service";
 import { getReaderRpgSummary } from "@/services/reader-rpg-service";
+import { getReaderMissionDashboard } from "@/services/reader-mission-service";
 
 export const metadata: Metadata = {
   title: "โลกนิยายที่สร้างเพื่อคุณ",
@@ -38,16 +39,18 @@ export default async function PersonalizePage() {
     (async () => {
       const currentUser = await getCurrentUser();
       const canPersist = currentUser?.status === "ACTIVE";
-      const [profile, readerRpg] = canPersist
+      const [profile, readerRpg, missionDashboard] = canPersist
         ? await Promise.all([
             getReaderClassProfile(currentUser.id),
             getReaderRpgSummary(currentUser.id),
+            getReaderMissionDashboard(currentUser.id),
           ])
-        : [null, null];
+        : [null, null, null];
       return {
         canPersist,
         profile,
         readerRpg,
+        missionDashboard,
       };
     })(),
   ]);
@@ -58,6 +61,7 @@ export default async function PersonalizePage() {
       initialProfile={readerClassContext.profile}
       canPersist={readerClassContext.canPersist}
       initialRpg={readerClassContext.readerRpg}
+      initialMissionDashboard={readerClassContext.missionDashboard}
     />
   );
 }

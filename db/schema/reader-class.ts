@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   date,
   index,
@@ -8,6 +9,7 @@ import {
   pgTable,
   primaryKey,
   smallint,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
@@ -15,6 +17,13 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { QuizQuestionId, ReaderClassId } from "@/lib/onboarding/reader-class";
+import type {
+  CosmeticRarity,
+  CosmeticSlot,
+  CosmeticVisualConfig,
+  MissionCadence,
+  MissionMetric,
+} from "@/lib/onboarding/reader-missions";
 
 import { users } from "./auth";
 import { chapters, novels } from "./content";
@@ -274,8 +283,156 @@ export const readerClassExpEntries = pgTable(
   ],
 );
 
+/** Database-owned mission catalog so future events can be enabled without a deploy. */
+export const readerMissionDefinitions = pgTable(
+  "reader_mission_definitions",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    cadence: varchar("cadence", { length: 16 }).$type<MissionCadence>().notNull(),
+    metric: varchar("metric", { length: 40 }).$type<MissionMetric>().notNull(),
+    title: varchar("title", { length: 160 }).notNull(),
+    description: text("description").notNull(),
+    target: integer("target").notNull(),
+    readerExpReward: integer("reader_exp_reward").notNull(),
+    grantsCosmeticBox: boolean("grants_cosmetic_box").default(false).notNull(),
+    prerequisiteMissionIds: jsonb("prerequisite_mission_ids").$type<string[]>().default([]).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", timestampConfig)
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("reader_mission_definitions_active_idx").on(table.cadence, table.isActive, table.sortOrder),
+    check("reader_mission_definitions_cadence_valid", sql`${table.cadence} in ('daily', 'weekly')`),
+    check("reader_mission_definitions_metric_valid", sql`${table.metric} in ('qualified_chapters', 'main_class_chapters', 'distinct_novels', 'new_novels', 'complete_core')`),
+    check("reader_mission_definitions_target_positive", sql`${table.target} > 0`),
+    check("reader_mission_definitions_exp_nonnegative", sql`${table.readerExpReward} >= 0`),
+    check("reader_mission_definitions_prerequisites_array", sql`jsonb_typeof(${table.prerequisiteMissionIds}) = 'array'`),
+  ],
+);
+
+/** Materialized progress snapshot; the qualified-reading ledger remains authoritative. */
+export const readerMissionProgress = pgTable(
+  "reader_mission_progress",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    missionId: varchar("mission_id", { length: 64 })
+      .notNull()
+      .references(() => readerMissionDefinitions.id, { onDelete: "cascade" }),
+    periodKey: varchar("period_key", { length: 16 }).notNull(),
+    progress: integer("progress").default(0).notNull(),
+    target: integer("target").notNull(),
+    completedAt: timestamp("completed_at", timestampConfig),
+    updatedAt: timestamp("updated_at", timestampConfig).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "reader_mission_progress_pk", columns: [table.userId, table.missionId, table.periodKey] }),
+    index("reader_mission_progress_user_period_idx").on(table.userId, table.periodKey, table.completedAt),
+    check("reader_mission_progress_values_valid", sql`${table.progress} >= 0 and ${table.target} > 0`),
+  ],
+);
+
+/** Cosmetic catalog. Visuals are tokenized so the web UI can render them without remote assets. */
+export const readerCosmeticItems = pgTable(
+  "reader_cosmetic_items",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description").notNull(),
+    slot: varchar("slot", { length: 24 }).$type<CosmeticSlot>().notNull(),
+    rarity: varchar("rarity", { length: 16 }).$type<CosmeticRarity>().notNull(),
+    classId: varchar("class_id", { length: 32 }).$type<ReaderClassId>(),
+    visualConfig: jsonb("visual_config").$type<CosmeticVisualConfig>().default({}).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at", timestampConfig).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", timestampConfig)
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("reader_cosmetic_items_active_idx").on(table.isActive, table.rarity, table.sortOrder),
+    check("reader_cosmetic_items_slot_valid", sql`${table.slot} in ('profile_frame', 'card_effect', 'avatar_effect', 'reader_title', 'badge', 'background')`),
+    check("reader_cosmetic_items_rarity_valid", sql`${table.rarity} in ('common', 'rare', 'epic', 'legendary')`),
+    check("reader_cosmetic_items_class_valid", sql.raw(`${table.classId.name} is null or ${table.classId.name} in ${validClassSql}`)),
+    check("reader_cosmetic_items_visual_object", sql`jsonb_typeof(${table.visualConfig}) = 'object'`),
+  ],
+);
+
+/** Permanent cosmetic ownership granted from boxes, levels, and future events. */
+export const readerCosmeticUnlocks = pgTable(
+  "reader_cosmetic_unlocks",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    cosmeticItemId: varchar("cosmetic_item_id", { length: 64 })
+      .notNull()
+      .references(() => readerCosmeticItems.id, { onDelete: "cascade" }),
+    sourceType: varchar("source_type", { length: 32 }).notNull(),
+    sourceReference: varchar("source_reference", { length: 160 }).notNull(),
+    unlockedAt: timestamp("unlocked_at", timestampConfig).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "reader_cosmetic_unlocks_pk", columns: [table.userId, table.cosmeticItemId] }),
+    index("reader_cosmetic_unlocks_user_date_idx").on(table.userId, table.unlockedAt.desc()),
+    check("reader_cosmetic_unlocks_source_valid", sql`${table.sourceType} in ('starter', 'mission_box', 'level_reward', 'event', 'admin')`),
+  ],
+);
+
+/** One equipped item per visual slot. */
+export const readerCosmeticLoadouts = pgTable(
+  "reader_cosmetic_loadouts",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    profileFrameId: varchar("profile_frame_id", { length: 64 }).references(() => readerCosmeticItems.id, { onDelete: "set null" }),
+    cardEffectId: varchar("card_effect_id", { length: 64 }).references(() => readerCosmeticItems.id, { onDelete: "set null" }),
+    avatarEffectId: varchar("avatar_effect_id", { length: 64 }).references(() => readerCosmeticItems.id, { onDelete: "set null" }),
+    readerTitleId: varchar("reader_title_id", { length: 64 }).references(() => readerCosmeticItems.id, { onDelete: "set null" }),
+    badgeId: varchar("badge_id", { length: 64 }).references(() => readerCosmeticItems.id, { onDelete: "set null" }),
+    backgroundId: varchar("background_id", { length: 64 }).references(() => readerCosmeticItems.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", timestampConfig).defaultNow().notNull(),
+  },
+);
+
+/** Idempotent reward claim and its audit links. */
+export const readerMissionClaims = pgTable(
+  "reader_mission_claims",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    missionId: varchar("mission_id", { length: 64 })
+      .notNull()
+      .references(() => readerMissionDefinitions.id, { onDelete: "restrict" }),
+    periodKey: varchar("period_key", { length: 16 }).notNull(),
+    progressAtClaim: integer("progress_at_claim").notNull(),
+    readerExpAwarded: integer("reader_exp_awarded").notNull(),
+    cosmeticItemId: varchar("cosmetic_item_id", { length: 64 }).references(() => readerCosmeticItems.id, { onDelete: "set null" }),
+    activityEventId: uuid("activity_event_id").references(() => readerActivityEvents.id, { onDelete: "restrict" }),
+    claimedAt: timestamp("claimed_at", timestampConfig).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("reader_mission_claims_user_period_uidx").on(table.userId, table.missionId, table.periodKey),
+    index("reader_mission_claims_user_date_idx").on(table.userId, table.claimedAt.desc()),
+    check("reader_mission_claims_progress_nonnegative", sql`${table.progressAtClaim} >= 0`),
+    check("reader_mission_claims_exp_nonnegative", sql`${table.readerExpAwarded} >= 0`),
+  ],
+);
+
 export type ReaderClassProfileRow = typeof readerClassProfiles.$inferSelect;
 export type ReaderClassProgressRow = typeof readerClassProgress.$inferSelect;
 export type ReaderActivityEventRow = typeof readerActivityEvents.$inferSelect;
 export type ReaderAccountRow = typeof readerAccounts.$inferSelect;
 export type ReaderReadingSessionRow = typeof readerReadingSessions.$inferSelect;
+export type ReaderMissionDefinitionRow = typeof readerMissionDefinitions.$inferSelect;
+export type ReaderCosmeticItemRow = typeof readerCosmeticItems.$inferSelect;

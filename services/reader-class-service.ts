@@ -20,6 +20,7 @@ import {
   readerClassProfileInputSchema,
   type ReaderClassProfileInput,
 } from "@/lib/onboarding/reader-class-validation";
+import { grantStarterReaderCosmetics } from "@/services/reader-mission-service";
 
 function mapReaderClassProfile(row: ReaderClassProfileRow): ReaderClassProfile | null {
   const parsed = readerClassProfileInputSchema.safeParse({
@@ -65,7 +66,7 @@ export async function saveReaderClassProfile(userId: string, input: ReaderClassP
   const completedAt = new Date(profile.completedAt);
   const now = new Date();
 
-  return getDb().transaction(async (tx) => {
+  const savedProfile = await getDb().transaction(async (tx) => {
     const [existing] = await tx
       .select({ userId: readerClassProfiles.userId })
       .from(readerClassProfiles)
@@ -131,4 +132,7 @@ export async function saveReaderClassProfile(userId: string, input: ReaderClassP
     if (!mapped) throw new ApiError(500, "READER_CLASS_SAVE_FAILED", "บันทึก Reader Class ไม่สำเร็จ");
     return mapped;
   });
+
+  await grantStarterReaderCosmetics(userId, now);
+  return savedProfile;
 }

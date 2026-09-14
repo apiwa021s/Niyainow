@@ -13,7 +13,13 @@ const REQUIRED_TABLES = [
   "reader_class_exp_entries",
   "reader_class_profiles",
   "reader_class_progress",
+  "reader_cosmetic_items",
+  "reader_cosmetic_loadouts",
+  "reader_cosmetic_unlocks",
   "reader_daily_progress",
+  "reader_mission_claims",
+  "reader_mission_definitions",
+  "reader_mission_progress",
   "reader_reading_sessions",
 ] as const;
 
@@ -42,7 +48,21 @@ async function checkReaderRpgSchema() {
     throw new Error("Reader RPG migration is missing one or more required columns");
   }
 
-  console.info(`Reader RPG schema ready (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables)`);
+  const [catalog] = await getDb().execute<{
+    missionCount: number;
+    cosmeticCount: number;
+  }>(sql`
+    select
+      (select count(*)::int from reader_mission_definitions where is_active = true) as "missionCount",
+      (select count(*)::int from reader_cosmetic_items where is_active = true) as "cosmeticCount"
+  `);
+  if ((catalog?.missionCount ?? 0) < 8 || (catalog?.cosmeticCount ?? 0) < 13) {
+    throw new Error("Reader RPG mission or cosmetic catalog seed is incomplete");
+  }
+
+  console.info(
+    `Reader RPG schema ready (${REQUIRED_TABLES.length}/${REQUIRED_TABLES.length} tables, ${catalog.missionCount} missions, ${catalog.cosmeticCount} cosmetics)`,
+  );
 }
 
 checkReaderRpgSchema()

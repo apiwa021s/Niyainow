@@ -22,6 +22,13 @@
   box-shadow: var(--sh-2);
 }
 
+.hero[data-frame="equipped"] {
+  border-color: var(--personal-accent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cosmetic-secondary) 34%, transparent),
+    0 0 28px color-mix(in srgb, var(--personal-accent) 17%, transparent);
+}
+
 .heroPattern {
   position: absolute;
   z-index: -3;
@@ -40,6 +47,30 @@
   background-size: 54px 54px;
   mask-image: linear-gradient(90deg, #000, transparent 75%);
   content: "";
+}
+
+.hero[data-pattern="stars"] .heroPattern::after {
+  background-image: radial-gradient(circle, var(--cosmetic-secondary) 1px, transparent 1.5px);
+  background-size: 26px 26px;
+}
+
+.hero[data-pattern="petals"] .heroPattern::after {
+  background-image: radial-gradient(ellipse at 30% 20%, var(--personal-accent) 0 3px, transparent 4px);
+  background-size: 32px 38px;
+  transform: rotate(-7deg) scale(1.08);
+}
+
+.hero[data-pattern="embers"] .heroPattern::after {
+  background-image: radial-gradient(circle at 50% 100%, var(--cosmetic-secondary) 0 2px, transparent 3px);
+  background-size: 27px 24px;
+}
+
+.hero[data-animation="shimmer"] .heroPattern::after {
+  animation: profile-shimmer 3.4s linear infinite;
+}
+
+.hero[data-animation="float"] .heroPattern::after {
+  animation: profile-pattern-float 2.8s ease-in-out infinite alternate;
 }
 
 .heroCopy {
@@ -80,6 +111,21 @@
   color: var(--personal-accent);
   font-size: clamp(22px, 2vw, 31px);
   font-weight: 500;
+}
+
+.cosmeticBadge {
+  display: inline-grid;
+  min-width: 24px;
+  height: 24px;
+  margin-left: 8px;
+  place-items: center;
+  border: 1px solid var(--cosmetic-secondary);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--cosmetic-secondary) 14%, #171019);
+  color: var(--cosmetic-secondary);
+  font-size: 10px;
+  font-weight: 800;
+  vertical-align: middle;
 }
 
 .heroDescription {
@@ -171,6 +217,35 @@
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--personal-accent) 18%, transparent), transparent 66%);
   transform: translate(-50%, -50%);
+}
+
+.heroArt[data-animation="pulse"] .artHalo {
+  animation: profile-aura 2.1s ease-in-out infinite alternate;
+}
+
+.heroArt[data-animation="float"] .mainCharacter {
+  animation: profile-float 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes profile-shimmer {
+  from { transform: translateX(-2%); opacity: 0.35; }
+  50% { opacity: 0.85; }
+  to { transform: translateX(2%); opacity: 0.35; }
+}
+
+@keyframes profile-aura {
+  from { opacity: 0.65; transform: translate(-50%, -50%) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+}
+
+@keyframes profile-pattern-float {
+  from { translate: 0 4px; opacity: 0.45; }
+  to { translate: 0 -4px; opacity: 0.85; }
+}
+
+@keyframes profile-float {
+  from { translate: 0 4px; }
+  to { translate: 0 -4px; }
 }
 
 .mainCharacter,

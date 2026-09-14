@@ -6,6 +6,7 @@ import { ArrowRight, BookOpen, Compass, RefreshCcw, Star } from "lucide-react";
 import { type CSSProperties } from "react";
 
 import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
+import { ReaderRpgDashboard } from "@/components/onboarding/reader-rpg-dashboard";
 import { useReaderClassProfile } from "@/components/onboarding/use-reader-class-profile";
 import {
   getReaderClass,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/onboarding/reader-class";
 import type { Novel } from "@/types/novel";
 import type { ReaderRpgSummary } from "@/services/reader-rpg-service";
+import type { ReaderMissionDashboard } from "@/lib/onboarding/reader-missions";
 import styles from "./personalized-reader-page.module.css";
 
 function novelSearchText(novel: Novel) {
@@ -144,11 +146,13 @@ export function PersonalizedReaderPage({
   initialProfile,
   canPersist,
   initialRpg,
+  initialMissionDashboard,
 }: {
   novels: Novel[];
   initialProfile: ReaderClassProfile | null;
   canPersist: boolean;
   initialRpg: ReaderRpgSummary | null;
+  initialMissionDashboard: ReaderMissionDashboard | null;
 }) {
   const { profile, hydrated } = useReaderClassProfile({ initialProfile, canPersist });
 
@@ -193,11 +197,31 @@ export function PersonalizedReaderPage({
     ...subClasses.flatMap((readerClass) => readerClass.recommendationGenres),
   ])];
   const browseHref = `/novels?genre=${allGenres.join(",")}`;
-  const pageStyle = { "--personal-accent": mainClass.accent } as CSSProperties;
+  const equippedCosmetics = new Map(
+    (initialMissionDashboard?.cosmetics.items ?? [])
+      .filter((item) => item.equipped)
+      .map((item) => [item.slot, item]),
+  );
+  const profileFrame = equippedCosmetics.get("profile_frame");
+  const cardEffect = equippedCosmetics.get("card_effect");
+  const avatarEffect = equippedCosmetics.get("avatar_effect");
+  const readerTitle = equippedCosmetics.get("reader_title");
+  const badge = equippedCosmetics.get("badge");
+  const background = equippedCosmetics.get("background");
+  const cosmeticAccent = profileFrame?.config.accent ?? background?.config.accent ?? mainClass.accent;
+  const pageStyle = {
+    "--personal-accent": cosmeticAccent,
+    "--cosmetic-secondary": profileFrame?.config.accentSecondary ?? background?.config.accentSecondary ?? "#f5bd64",
+  } as CSSProperties;
 
   return (
     <main id="main" className={styles.page} style={pageStyle}>
-      <section className={styles.hero}>
+      <section
+        className={styles.hero}
+        data-frame={profileFrame ? "equipped" : undefined}
+        data-pattern={background?.config.pattern ?? "none"}
+        data-animation={cardEffect?.config.animation ?? profileFrame?.config.animation ?? background?.config.animation ?? "none"}
+      >
         <div className={styles.heroPattern} aria-hidden />
         <div className={styles.heroCopy}>
           <div className={styles.classHeading}>
@@ -206,7 +230,10 @@ export function PersonalizedReaderPage({
               <h1>{mainClass.name}</h1>
             </div>
           </div>
-          <p className={styles.heroTitle}>Reader Lv.{initialRpg?.reader.level ?? 1} · {mainMastery?.title ?? mainClass.title}</p>
+          <p className={styles.heroTitle}>
+            Reader Lv.{initialRpg?.reader.level ?? 1} · {readerTitle?.config.title ?? mainMastery?.title ?? mainClass.title}
+            {badge?.config.badgeText ? <span className={styles.cosmeticBadge}>{badge.config.badgeText}</span> : null}
+          </p>
           <p className={styles.heroDescription}>{mainClass.description}</p>
           <div className={styles.heroTags}>
             {mainClass.tastes.map((taste) => <span key={taste}>#{taste}</span>)}
@@ -217,7 +244,7 @@ export function PersonalizedReaderPage({
           </div>
         </div>
 
-        <div className={styles.heroArt} aria-hidden>
+        <div className={styles.heroArt} data-animation={avatarEffect?.config.animation ?? "none"} aria-hidden>
           <span className={styles.artHalo} />
           <Image src={firstSubClass.image} alt="" width={1086} height={1448} sizes="(max-width: 820px) 46vw, 28vw" className={styles.subCharacter} />
           <Image src={mainClass.image} alt="" width={1086} height={1448} sizes="(max-width: 820px) 76vw, 38vw" className={styles.mainCharacter} />
@@ -238,6 +265,14 @@ export function PersonalizedReaderPage({
           <div><i>{profile.hiddenTraitEmoji}</i><p><strong>{profile.hiddenTrait}</strong><small>จังหวะเฉพาะตัวของคุณ</small></p></div>
         </article>
       </section>
+
+      {initialMissionDashboard ? (
+        <ReaderRpgDashboard
+          initialDashboard={initialMissionDashboard}
+          currentStreakDays={initialRpg?.reader.currentStreakDays ?? 0}
+          prestige={mainMastery?.prestige ?? 0}
+        />
+      ) : null}
 
       <div className={styles.introRow}>
         <div><h2>เส้นทางการอ่านที่สร้างเพื่อคุณ</h2></div>

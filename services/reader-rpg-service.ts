@@ -32,6 +32,7 @@ import {
   rereadMultiplierMilli,
   type ClassAffinity,
 } from "@/lib/onboarding/reader-rpg";
+import { refreshReaderMissionProgress } from "@/services/reader-mission-service";
 
 const BANGKOK_TIME_ZONE = "Asia/Bangkok";
 const MAX_CREDITED_SAMPLE_GAP_SECONDS = 120;
@@ -167,7 +168,7 @@ export async function recordReadingEvidence(
   const reportedActiveSeconds = Math.max(0, Math.floor(input.activeSeconds));
   const requiredActiveSeconds = minimumActiveReadingSeconds(target.wordCount);
 
-  return getDb().transaction(async (tx) => {
+  const result = await getDb().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:${chapterId}`}, 0))`);
 
     const [existingSession] = await tx
@@ -387,6 +388,11 @@ export async function recordReadingEvidence(
       ),
     };
   });
+
+  if (result.status === "qualified") {
+    await refreshReaderMissionProgress(userId, now);
+  }
+  return result;
 }
 
 export async function setNovelClassAffinities(
