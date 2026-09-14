@@ -110,7 +110,7 @@ export function ReaderClassOnboarding() {
       completedAt: new Date().toISOString(),
     };
     window.localStorage.setItem(READER_CLASS_STORAGE_KEY, JSON.stringify(profile));
-    router.push("/");
+    router.push("/personalize");
   };
 
   const restart = () => {

@@ -1,10 +1,12 @@
 "use client";
 
+import type { CSSProperties } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import { ArrowRight, RefreshCcw, Sparkles } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, RefreshCcw, Sparkles } from "lucide-react";
-import { useMemo, useSyncExternalStore } from "react";
 
+import { ContentRow, RowItem } from "@/components/home/content-row";
 import { ReaderClassIcon } from "@/components/onboarding/reader-class-icon";
 import {
   READER_CLASS_STORAGE_KEY,
@@ -12,6 +14,8 @@ import {
   parseReaderClassProfile,
 } from "@/lib/onboarding/reader-class";
 import type { Novel } from "@/types/novel";
+
+import styles from "./reader-class-home.module.css";
 
 function subscribeToReaderClass(onStoreChange: () => void) {
   const onStorage = (event: StorageEvent) => {
@@ -49,93 +53,127 @@ export function ReaderClassHome({ novels }: { novels: Novel[] }) {
 
   if (!profile || !mainClass || !subClass) {
     return (
-      <section className="relative isolate overflow-hidden rounded-(--r-lg) border border-accent-base/25 bg-card px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
-        <div className="absolute inset-y-0 right-0 -z-10 w-1/2 bg-[radial-gradient(circle_at_right,color-mix(in_srgb,var(--brand-primary)_14%,transparent),transparent_68%)]" aria-hidden />
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.14em] text-(--brand-emphasis)">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden /> READER CLASS
-            </span>
-            <h2 className="mt-1.5 text-xl font-semibold tracking-tight sm:text-2xl">คุณจะเป็นนักอ่านสายไหน?</h2>
-            <p className="mt-1 text-sm leading-6 text-(--text-secondary)">เลือก 3 แนว ตอบ 3 คำถาม แล้วปลุก Class ที่ซ่อนอยู่ในตัวคุณ</p>
-          </div>
-          <Link
-            href="/onboarding"
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-accent-base px-5 text-sm font-semibold text-accent-on shadow-[var(--sh-brand)] transition hover:bg-accent-hover"
-          >
-            ค้นหา Class ของฉัน <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
+      <section className={styles.emptyState}>
+        <div className={styles.emptyGlow} aria-hidden />
+        <div>
+          <span className={styles.eyebrow}>
+            <Sparkles aria-hidden /> READER CLASS
+          </span>
+          <h2>คุณจะเป็นนักอ่านสายไหน?</h2>
+          <p>เลือก 3 แนว ตอบ 3 คำถาม แล้วปลุก Class ที่ซ่อนอยู่ในตัวคุณ</p>
         </div>
+        <Link href="/onboarding" className={styles.primaryButton}>
+          ค้นหา Class ของฉัน <ArrowRight aria-hidden />
+        </Link>
       </section>
     );
   }
 
   const genreHref = `/novels?genre=${[...new Set([...mainClass.recommendationGenres, ...subClass.recommendationGenres])].join(",")}`;
+  const accentStyle = { "--class-accent": mainClass.accent } as CSSProperties;
 
   return (
-    <section className="overflow-hidden rounded-(--r-lg) border border-accent-base/30 bg-card">
-      <div className="relative isolate min-h-44 overflow-hidden px-5 py-5 sm:px-7 lg:min-h-52 lg:px-9 lg:py-7">
-        <div
-          className="absolute inset-0 -z-20 opacity-90"
-          style={{ background: `radial-gradient(circle at 78% 30%, color-mix(in srgb, ${mainClass.accent} 22%, transparent), transparent 42%), linear-gradient(115deg, var(--card), color-mix(in srgb, ${mainClass.accent} 8%, var(--card)))` }}
-          aria-hidden
-        />
-        <Image
-          src={mainClass.image}
-          alt=""
-          width={1086}
-          height={1448}
-          sizes="(max-width: 640px) 190px, 360px"
-          className="absolute -bottom-32 right-0 -z-10 h-[clamp(280px,42vw,480px)] w-auto max-w-[48vw] object-contain opacity-50 drop-shadow-[0_20px_20px_rgba(0,0,0,0.28)] sm:-bottom-44 sm:right-[4%] sm:opacity-70 lg:-bottom-52"
-        />
-        <div className="max-w-[680px]">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.14em] text-(--brand-emphasis)">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden /> YOUR WORLD IS READY
+    <section className={styles.experience} style={accentStyle}>
+      <div className={styles.hero}>
+        <div className={styles.copy}>
+          <span className={styles.eyebrow}>
+            <Sparkles aria-hidden /> YOUR WORLD IS READY
           </span>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">โลกของ{mainClass.name}กำลังเปิดให้คุณ</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-(--text-secondary)">
-            เราคัดเรื่องสาย {mainClass.tastes.slice(0, 2).join(" · ")} ผสมกลิ่นอาย {subClass.name} มาไว้แถวแรกแล้ว
+          <h2>โลกของ{mainClass.name}กำลังเปิดให้คุณ</h2>
+          <p className={styles.intro}>
+            เราคัดเรื่องสาย {mainClass.tastes.slice(0, 2).join(" · ")} ผสมกลิ่นอาย {subClass.name} มาไว้ให้คุณแล้ว
           </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-base/25 bg-accent-subtle px-3 py-1.5 font-semibold text-foreground">Main <ReaderClassIcon src={mainClass.icon} className="h-5 w-5" sizes="20px" /> {mainClass.name}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1.5 text-(--text-secondary)">Sub <ReaderClassIcon src={subClass.icon} className="h-5 w-5" sizes="20px" /> {subClass.name}</span>
-            <span className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-(--text-secondary)">{profile.hiddenTraitEmoji} {profile.hiddenTrait}</span>
+
+          <div className={styles.identityBar} aria-label="ตัวตนนักอ่านของคุณ">
+            <div className={styles.identityItem}>
+              <ReaderClassIcon src={mainClass.icon} className={styles.classIcon} sizes="36px" />
+              <span>
+                <small>MAIN CLASS</small>
+                <strong>{mainClass.name}</strong>
+              </span>
+            </div>
+            <div className={styles.identityItem}>
+              <ReaderClassIcon src={subClass.icon} className={styles.classIcon} sizes="36px" />
+              <span>
+                <small>SUB CLASS</small>
+                <strong>{subClass.name}</strong>
+              </span>
+            </div>
+            <div className={`${styles.identityItem} ${styles.traitItem}`}>
+              <span className={styles.traitIcon} aria-hidden>{profile.hiddenTraitEmoji}</span>
+              <span>
+                <small>HIDDEN TRAIT</small>
+                <strong>{profile.hiddenTrait}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.actions}>
+            <Link href="/personalize" className={styles.primaryButton}>
+              เปิดหน้า Personalize <ArrowRight aria-hidden />
+            </Link>
+            <Link href="/onboarding" className={styles.secondaryButton}>
+              <RefreshCcw aria-hidden /> ทำแบบทดสอบใหม่
+            </Link>
           </div>
         </div>
-        <Link href="/onboarding" className="absolute right-3 top-3 inline-flex min-h-10 items-center gap-1.5 rounded-full bg-background/70 px-3 text-xs font-semibold text-(--text-secondary) backdrop-blur-sm transition hover:text-foreground sm:right-5 sm:top-5">
-          <RefreshCcw className="h-3.5 w-3.5" aria-hidden /> ทำแบบทดสอบใหม่
-        </Link>
+
+        <div className={styles.art} aria-hidden>
+          <div className={styles.artGlow} />
+          <Image
+            src={mainClass.image}
+            alt=""
+            width={1086}
+            height={1448}
+            sizes="(max-width: 639px) 260px, (max-width: 1023px) 34vw, 420px"
+            className={styles.character}
+          />
+          <div className={styles.artFade} />
+        </div>
       </div>
 
       {recommended.length ? (
-        <div className="border-t border-border px-4 py-4 sm:px-6">
-          <div className="mb-3 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-(--brand-emphasis)">PERSONALIZED FIRST FEED</p>
-              <h3 className="mt-0.5 text-lg font-semibold">เรื่องแรกที่ Class ของคุณเลือกให้</h3>
-            </div>
-            <Link href={genreHref} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-(--brand-emphasis) hover:underline">
-              ดูทั้งหมด <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
-          </div>
-          <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+        <div className={styles.feed}>
+          <p className={styles.feedEyebrow}>PERSONALIZED FIRST FEED</p>
+          <ContentRow
+            title="เรื่องแรกที่ Class ของคุณเลือกให้"
+            description={`คัดจากแนวของ ${mainClass.name} และ ${subClass.name}`}
+            href={genreHref}
+            bleed={false}
+          >
             {recommended.map((novel) => (
-              <article key={novel.slug} className="w-[120px] shrink-0 snap-start sm:w-[138px]">
-                <Link href={`/novel/${novel.slug}`} transitionTypes={["nav-forward"]} className="group block">
-                  <div className="relative aspect-[2/3] overflow-hidden rounded-[7px] bg-muted ring-1 ring-border">
-                    <Image src={novel.cover} alt="" fill sizes="138px" className="object-cover transition-transform duration-300 group-hover:scale-[1.025] motion-reduce:transform-none" />
-                  </div>
-                  <h4 className="mt-1.5 truncate text-sm font-semibold group-hover:text-(--brand-emphasis)">{novel.thaiTitle}</h4>
-                  <p className="mt-0.5 truncate text-[11px] text-(--text-tertiary)">
-                    {novel.genres.slice(0, 2).map((slug) => novel.genreNames?.[slug]).filter(Boolean).join(" · ")}
-                  </p>
-                </Link>
-              </article>
+              <RowItem key={novel.slug} className={styles.novelItem}>
+                <article>
+                  <Link
+                    href={`/novel/${novel.slug}`}
+                    transitionTypes={["nav-forward"]}
+                    className={styles.novelLink}
+                  >
+                    <div className={styles.cover}>
+                      <Image
+                        src={novel.cover}
+                        alt=""
+                        fill
+                        sizes="(max-width: 639px) 132px, (max-width: 1023px) 148px, 160px"
+                        className={styles.coverImage}
+                      />
+                    </div>
+                    <h4>{novel.thaiTitle}</h4>
+                    <p>
+                      {novel.genres
+                        .slice(0, 2)
+                        .map((slug) => novel.genreNames?.[slug])
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </Link>
+                </article>
+              </RowItem>
             ))}
-          </div>
+          </ContentRow>
         </div>
       ) : (
-        <div className="border-t border-border px-5 py-4 text-sm text-(--text-secondary)">
+        <div className={styles.emptyFeed}>
           โลกของคุณพร้อมแล้ว — นิยายที่ตรงกับ Class จะปรากฏตรงนี้เมื่อมีเรื่องใหม่เข้าคลัง
         </div>
       )}
