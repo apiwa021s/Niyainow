@@ -8,6 +8,9 @@ export type ChapterTextFile = {
 
 const INVALID_FILENAME_CHARACTERS = /[<>:"/\\|?*\u0000-\u001f]/g;
 const TRAILING_DOTS_OR_SPACES = /[. ]+$/g;
+// Windows Compressed Folders rejects UTF-8 entry names at 260 bytes, even
+// when their character count is lower. Leave room below that limit.
+const MAX_ZIP_ENTRY_FILENAME_BYTES = 240;
 
 function formatChapterNumber(chapterNumber: number) {
   const [integer, decimal] = String(chapterNumber).split(".");
@@ -15,21 +18,26 @@ function formatChapterNumber(chapterNumber: number) {
   return decimal ? `${paddedInteger}.${decimal}` : paddedInteger;
 }
 
-function safeFilenamePart(value: string, fallback: string) {
+function safeFilenamePart(value: string, fallback: string, maxBytes: number) {
   const sanitized = value
     .normalize("NFC")
     .replace(INVALID_FILENAME_CHARACTERS, "-")
     .replace(/\s+/g, " ")
     .replace(TRAILING_DOTS_OR_SPACES, "")
-    .trim()
-    .slice(0, 140)
-    .replace(TRAILING_DOTS_OR_SPACES, "");
-  return sanitized || fallback;
+    .trim();
+  let filenamePart = "";
+  for (const character of sanitized) {
+    const next = filenamePart + character;
+    if (next.length > 140 || strToU8(next).length > maxBytes) break;
+    filenamePart = next;
+  }
+  return filenamePart.replace(TRAILING_DOTS_OR_SPACES, "").trim() || fallback;
 }
 
 export function chapterTextFilename(chapter: Pick<ChapterTextFile, "chapterNumber" | "title">) {
   const number = formatChapterNumber(chapter.chapterNumber);
-  return `${number}-${safeFilenamePart(chapter.title, `ตอน-${number}`)}.txt`;
+  const titleByteLimit = MAX_ZIP_ENTRY_FILENAME_BYTES - strToU8(`${number}-.txt`).length;
+  return `${number}-${safeFilenamePart(chapter.title, `ตอน-${number}`, titleByteLimit)}.txt`;
 }
 
 export function buildChapterTextArchive(chapters: ChapterTextFile[]) {

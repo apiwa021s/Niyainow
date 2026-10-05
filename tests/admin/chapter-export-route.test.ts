@@ -17,11 +17,32 @@ vi.mock("@/services/admin-service", () => ({
   getAdminNovel: mocks.getAdminNovel,
 }));
 
-import { POST } from "@/app/api/admin/novels/[slug]/chapters/export/route";
+import { GET, POST } from "@/app/api/admin/novels/[slug]/chapters/export/route";
 
-describe("selected chapter text export route", () => {
+describe("chapter text export route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("returns all chapters with Thai filenames and content", async () => {
+    const slug = "follow-the-path-of-dao-from-infancy";
+    mocks.getAdminNovel.mockResolvedValue({ slug, title: "ก้าวสู่วิถีเต๋าตั้งแต่วัยทารก" });
+    mocks.getAdminChapterTextExport.mockResolvedValue([
+      { chapterNumber: 1, title: "พระราชทานนาม หลี่ฮ่าว", content: "เนื้อหาตอนแรก" },
+      { chapterNumber: 2, title: "รวบรวมวิชากระบี่", content: "เนื้อหาตอนสอง" },
+    ]);
+
+    const request = new Request(`https://example.com/api/admin/novels/${slug}/chapters/export`);
+    const response = await GET(request, { params: Promise.resolve({ slug }) });
+
+    expect(mocks.getAdminChapterTextExport).toHaveBeenCalledWith(slug, undefined);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/zip");
+    expect(response.headers.get("content-disposition")).toContain(`${slug}-chapters.zip`);
+    const files = unzipSync(new Uint8Array(await response.arrayBuffer()));
+    expect(Object.keys(files)).toEqual(["001-พระราชทานนาม หลี่ฮ่าว.txt", "002-รวบรวมวิชากระบี่.txt"]);
+    expect(strFromU8(files["001-พระราชทานนาม หลี่ฮ่าว.txt"])).toBe("เนื้อหาตอนแรก");
+    expect(strFromU8(files["002-รวบรวมวิชากระบี่.txt"])).toBe("เนื้อหาตอนสอง");
   });
 
   it("returns a zip containing only the selected chapters", async () => {
