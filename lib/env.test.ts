@@ -27,6 +27,35 @@ describe("environment helpers", () => {
     ).toContain("postgresql://");
   });
 
+  it("defaults the database connection timeout to 30 seconds", () => {
+    expect(requireDatabaseEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: "postgresql://user:pass@db.example.test/app",
+    })).toMatchObject({
+      DATABASE_CONNECT_TIMEOUT_SECONDS: 30,
+      DATABASE_MAX_CONNECTIONS: 5,
+    });
+  });
+
+  it("accepts an explicit database connection timeout", () => {
+    expect(requireDatabaseEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: "postgresql://user:pass@db.example.test/app",
+      DATABASE_CONNECT_TIMEOUT_SECONDS: "15",
+    }).DATABASE_CONNECT_TIMEOUT_SECONDS).toBe(15);
+  });
+
+  it.each(["0", "-1", "121", "1.5", "invalid", ""])(
+    "rejects invalid database connection timeout %j",
+    (value) => {
+      expect(() => requireDatabaseEnv({
+        NODE_ENV: "test",
+        DATABASE_URL: "postgresql://user:pass@db.example.test/app",
+        DATABASE_CONNECT_TIMEOUT_SECONDS: value,
+      })).toThrow(EnvironmentConfigurationError);
+    },
+  );
+
   it("requires a strong secret before enabling the private novel import API", () => {
     expect(() => requireNovelImportEnv({ NODE_ENV: "test" })).toThrow(EnvironmentConfigurationError);
     expect(() => requireNovelImportEnv({

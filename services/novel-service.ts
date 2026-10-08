@@ -48,6 +48,7 @@ import {
   writerProfiles,
 } from "@/db/schema";
 import { PUBLIC_CACHE_TTL } from "@/lib/cache/public-cache-profiles";
+import { retryDatabaseRead } from "@/lib/db/read-retry";
 import { toPublicChapterCachePayload } from "@/lib/domain/chapter-cache";
 import { bangkokDateKey } from "@/lib/domain/public-view";
 import { SEARCH_RELEVANCE_WEIGHTS } from "@/lib/search/relevance";
@@ -1042,7 +1043,7 @@ export const getActiveBanners = unstable_cache(
       category: "banner",
       loader: async () => {
         const now = new Date();
-        const rows = await getDb()
+        const rows = await retryDatabaseRead(async () => getDb()
           .select()
           .from(promoBanners)
           .where(
@@ -1053,7 +1054,7 @@ export const getActiveBanners = unstable_cache(
             ),
           )
           .orderBy(asc(promoBanners.sortOrder), desc(promoBanners.createdAt))
-          .limit(normalizedLimit);
+          .limit(normalizedLimit), "public-banners");
         return rows.map((row) => ({
           id: row.id,
           title: row.title,

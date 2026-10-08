@@ -64,6 +64,7 @@ const runtimeEnvSchema = z.object({
       .optional(),
   ),
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(20).default(5),
+  DATABASE_CONNECT_TIMEOUT_SECONDS: z.coerce.number().int().min(1).max(120).default(30),
   WRITER_MODE_ENABLED: booleanEnv(false),
   CACHE_ENABLED: booleanEnv(true),
   REDIS_URL: optionalRedisUrl,
@@ -112,7 +113,7 @@ const runtimeEnvSchema = z.object({
   });
 
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
-export type RequiredDatabaseEnv = Pick<RuntimeEnv, "DATABASE_URL" | "DATABASE_MAX_CONNECTIONS"> & {
+export type RequiredDatabaseEnv = Pick<RuntimeEnv, "DATABASE_URL" | "DATABASE_MAX_CONNECTIONS" | "DATABASE_CONNECT_TIMEOUT_SECONDS"> & {
   DATABASE_URL: string;
 };
 export type RedisRuntimeEnv = Pick<

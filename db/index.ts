@@ -28,7 +28,7 @@ export function getDb(): Database {
     postgres(env.DATABASE_URL, {
       max: env.DATABASE_MAX_CONNECTIONS,
       idle_timeout: 20,
-      connect_timeout: 10,
+      connect_timeout: env.DATABASE_CONNECT_TIMEOUT_SECONDS,
       prepare: false,
     });
   const database = createDatabase(client);
