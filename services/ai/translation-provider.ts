@@ -18,8 +18,12 @@ export type TranslationProviderInput = {
 export type PromptCacheInput = {
   key: string;
   stablePayload: Record<string, unknown>;
+  /** Disable the shared write when this job has no later call to reuse it. */
+  cacheSharedPayload?: boolean;
   /** Immutable chapter input cached after the shared workspace prefix. */
   reusablePayload?: Record<string, unknown>;
+  /** One-off editor calls retain the source but need not write it to cache. */
+  cacheReusablePayload?: boolean;
 };
 
 export type TranslationProviderResult = {
@@ -161,6 +165,8 @@ async function requestStructuredWithResponses(input: StructuredAiInput, startedA
   const stablePayload = JSON.stringify({ shared: input.cache?.stablePayload ?? {} });
   const dynamicPayload = JSON.stringify({ task: input.task, ...input.payload });
   const serviceTier = requestServiceTier(input);
+  const cacheSharedPayload = input.cache?.cacheSharedPayload !== false;
+  const cacheReusablePayload = Boolean(input.cache?.reusablePayload) && input.cache?.cacheReusablePayload !== false;
   const response = await postAiRequest(input, `${input.model.baseUrl.replace(/\/$/, "")}/responses`, {
     model: input.model.modelName,
     ...(serviceTier ? { service_tier: serviceTier } : {}),
@@ -169,14 +175,14 @@ async function requestStructuredWithResponses(input: StructuredAiInput, startedA
       { role: "developer", content: [{ type: "input_text", text: input.systemPrompt }] },
       {
         role: "developer",
-        content: [{ type: "input_text", text: stablePayload, prompt_cache_breakpoint: { mode: "explicit" } }],
+        content: [{ type: "input_text", text: stablePayload, ...(cacheSharedPayload ? { prompt_cache_breakpoint: { mode: "explicit" } } : {}) }],
       },
       ...(input.cache?.reusablePayload ? [{
         role: "user",
         content: [{
           type: "input_text",
           text: JSON.stringify(input.cache.reusablePayload),
-          prompt_cache_breakpoint: { mode: "explicit" },
+          ...(cacheReusablePayload ? { prompt_cache_breakpoint: { mode: "explicit" } } : {}),
         }],
       }] : []),
       { role: "user", content: [{ type: "input_text", text: dynamicPayload }] },
@@ -205,7 +211,7 @@ async function requestStructuredWithResponses(input: StructuredAiInput, startedA
     providerRequestId: body.id ?? response.headers.get("x-request-id"),
     serviceTier: body.service_tier ?? null,
     inputTokens,
-    promptCacheEnabled: true,
+    promptCacheEnabled: cacheSharedPayload || cacheReusablePayload,
     ...cacheUsage,
     outputTokens: Math.max(0, body.usage?.output_tokens ?? 0),
     latencyMs: Date.now() - startedAt,

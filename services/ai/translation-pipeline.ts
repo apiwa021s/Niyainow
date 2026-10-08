@@ -624,20 +624,20 @@ export async function reviewNovelMetadataWithAi(input: {
   });
 }
 
-/** Keep immutable chapter input behind a second cache boundary during review. */
+/** Cache complete source input for repeated QA; one-off editors keep it uncached. */
 function chapterReviewPayload(input: {
   cache?: PromptCacheInput;
   context: Record<string, unknown>;
   sourceTitle: string;
   sourceContent: string;
-}, dynamicPayload: Record<string, unknown>) {
+}, dynamicPayload: Record<string, unknown>, cacheReusablePayload: boolean) {
   const reusablePayload = {
     context: input.context,
     source: { title: input.sourceTitle, content: input.sourceContent },
   };
   return input.cache
     ? {
-        cache: { ...input.cache, reusablePayload: { ...input.cache.reusablePayload, ...reusablePayload } },
+        cache: { ...input.cache, reusablePayload: { ...input.cache.reusablePayload, ...reusablePayload }, cacheReusablePayload },
         payload: dynamicPayload,
       }
     : { payload: { ...reusablePayload, ...dynamicPayload } };
@@ -660,7 +660,7 @@ export async function qaTranslationWithAi(input: {
     ...chapterReviewPayload(input, {
       quality: { minimumScore: input.minimumScore ?? 90 },
       translation: { title: input.translatedTitle, content: input.translatedContent },
-    }),
+    }, true),
     schemaName: "translation_qa",
     jsonSchema: jsonObject({
       passed: { type: "boolean" }, score: { type: "integer", minimum: 0, maximum: 100 },
@@ -699,7 +699,7 @@ export async function reviseTranslationWithPatchesAi(input: {
     ...chapterReviewPayload(input, {
       translation: { title: input.translatedTitle, content: input.translatedContent },
       qa: input.qa,
-    }),
+    }, false),
     schemaName: "translation_correction_patches",
     jsonSchema: jsonObject({
       patches: {
@@ -737,7 +737,7 @@ export async function reviseTranslationWithAi(input: {
     ...chapterReviewPayload(input, {
       translation: { title: input.translatedTitle, content: input.translatedContent },
       qa: input.qa,
-    }),
+    }, false),
     schemaName: "revised_novel_translation",
     jsonSchema: jsonObject({ title: { type: "string" }, content: { type: "string" } }),
     parser: translationSchema,

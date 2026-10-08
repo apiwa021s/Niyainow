@@ -8,13 +8,18 @@ import {
   translationJobItems,
   translationJobs,
   translationPromptVersions,
+  translationQaIssues,
+  translationVersions,
 } from "@/db/schema";
-import { translationQaCheckpointSignature } from "@/lib/domain/translation-worker-checkpoint";
+import { translationCorrectionCheckpointSignature, translationQaCheckpointSignature } from "@/lib/domain/translation-worker-checkpoint";
 import { processTranslationJobs } from "@/services/translation-worker";
 
 const mocks = vi.hoisted(() => ({
   db: null as unknown,
   qa: vi.fn(),
+  patch: vi.fn(),
+  rewrite: vi.fn(),
+  translate: vi.fn(),
   insertVersion: vi.fn(),
   replaceIssues: vi.fn(),
 }));
@@ -23,6 +28,9 @@ vi.mock("@/db", () => ({ getDb: () => mocks.db }));
 vi.mock("@/services/ai/translation-pipeline", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/services/ai/translation-pipeline")>(),
   qaTranslationWithAi: mocks.qa,
+  reviseTranslationWithPatchesAi: mocks.patch,
+  reviseTranslationWithAi: mocks.rewrite,
+  translateChapterWithCanonAi: mocks.translate,
 }));
 vi.mock("@/services/translation-version-service", () => ({
   insertTranslationVersion: mocks.insertVersion,
@@ -53,7 +61,7 @@ const checkpoint = {
   translation: { title: "การมาถึง", content: "เจ้าชายเสด็จมาถึง" },
 };
 const item = { id: itemId, translationChapterId: chapterId, sourceSnapshotId, attempts: 0, checkpoint };
-const job = { id: jobId, workspaceId, modelId: mainModel.id, promptVersionId: "prompt-1", requestedBy: null, startedAt: null };
+const job = { id: jobId, workspaceId, modelId: mainModel.id, promptVersionId: "prompt-1", requestedBy: null, startedAt: null, totalItems: 1 };
 const qaValue = { passed: true, score: 98, issues: [], correctionInstructions: [] };
 const qaSignatureInput = {
   sourceSnapshotId,
@@ -78,12 +86,14 @@ const qaSignatureInput = {
 };
 const checkedCheckpoint = { ...checkpoint, qa: { signature: translationQaCheckpointSignature(qaSignatureInput), value: qaValue } };
 
-function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructions = "Keep all facts") {
+function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructions = "Keep all facts", requestedBy: string | null = null, totalItems = 1) {
   const storedItem = { ...item, checkpoint: checkpointValue };
   const state = {
     ownsLease: true,
     invocations: [] as Array<Record<string, unknown>>,
     checkpointWrites: [] as unknown[],
+    versionUpdates: [] as Array<Record<string, unknown>>,
+    qaIssues: [] as Array<Record<string, unknown>>,
     transactionCount: 0,
   };
   const builder = (result: () => unknown) => {
@@ -106,7 +116,7 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
       const chain = builder(() => {
         if (table === translationAiModels) return [mainModel, qaModel];
         if (table === translationPromptVersions) return [{ id: "prompt-1", isActive: true }];
-        if (table === translationJobItems && shape?.item) return [{ item: storedItem, job }];
+        if (table === translationJobItems && shape?.item) return [{ item: storedItem, job: { ...job, requestedBy, totalItems } }];
         if (table === translationJobItems && shape?.id) return state.ownsLease ? [{ id: itemId }] : [];
         if (table === translationChapters && shape?.chapter) return [{
           chapter: { id: chapterId, chapterNumber: 1, workspaceId, lockVersion: 0, sourceSnapshotId },
@@ -122,15 +132,17 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
     update: (table: unknown) => ({
       set: (values: Record<string, unknown>) => builder(() => {
         if (table === translationJobItems && values.checkpoint) state.checkpointWrites.push(values.checkpoint);
+        if (table === translationVersions) state.versionUpdates.push(values);
         if (table === translationJobItems && values.startedAt) return [{ ...storedItem, ...values }];
         if (table === translationJobItems) return state.ownsLease ? [{ id: itemId }] : [];
-        if (table === translationJobs) return [{ ...job, ...values }];
+        if (table === translationJobs) return [{ ...job, requestedBy, totalItems, ...values }];
         return [];
       }),
     }),
     insert: (table: unknown) => ({
       values: (values: Record<string, unknown>) => builder(() => {
         if (table === translationAiInvocations) state.invocations.push(values);
+        if (table === translationQaIssues) state.qaIssues.push(...values as unknown as Array<Record<string, unknown>>);
         return table === translationContextSnapshots ? [{ id: "context-1" }] : [];
       }),
     }),
@@ -165,7 +177,61 @@ beforeEach(() => {
       result: { output: qaValue, providerRequestId: "billed-qa-response", inputTokens: 1_000, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 100, promptCacheEnabled: true, latencyMs: 10 },
     },
   });
+  mocks.patch.mockResolvedValue(patchResponse([]));
+  mocks.translate.mockResolvedValue({
+    value: { translation: checkpoint.translation, chapterAnalysis: checkpoint.chapterAnalysis },
+    call: {
+      task: "MAIN_TRANSLATION",
+      model: mainModel,
+      result: { output: {}, providerRequestId: "main-response", inputTokens: 1_000, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 100, promptCacheEnabled: false, latencyMs: 10 },
+    },
+  });
 });
+
+type QaValue = {
+  passed: boolean;
+  score: number;
+  issues: Array<{
+    code: string;
+    severity: "INFO" | "WARNING" | "CRITICAL";
+    message: string;
+    location: "TITLE" | "CONTENT" | null;
+    currentText: string | null;
+    suggestedText: string | null;
+  }>;
+  correctionInstructions: string[];
+};
+
+function qaResponse(value: QaValue) {
+  return {
+    value,
+    call: {
+      task: "FIRST_QA",
+      model: qaModel,
+      result: { output: value, providerRequestId: "qa-response", inputTokens: 1_000, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 100, promptCacheEnabled: true, latencyMs: 10 },
+    },
+  };
+}
+
+function patchResponse(patches: Array<{ location: "TITLE" | "CONTENT"; currentText: string; replacementText: string }>) {
+  const value = { patches, requiresFullRewrite: false, rationale: "Targeted correction" };
+  return {
+    value,
+    call: {
+      task: "ESCALATION",
+      model: mainModel,
+      result: { output: value, providerRequestId: "patch-response", inputTokens: 1_000, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 100, promptCacheEnabled: true, latencyMs: 10 },
+    },
+  };
+}
+
+function finding(currentText: string | null, suggestedText: string | null, severity: "WARNING" | "CRITICAL" = "WARNING") {
+  return { code: "REGISTER", severity, message: "Correct the register", location: "CONTENT" as const, currentText, suggestedText };
+}
+
+function failedQa(issues: QaValue["issues"], score = 86): QaValue {
+  return { passed: false, score, issues, correctionInstructions: ["Resolve the register findings"] };
+}
 
 describe("translation worker ownership", () => {
   it("resumes a matching saved QA verdict without another billed QA call", async () => {
@@ -220,5 +286,135 @@ describe("translation worker ownership", () => {
     expect(state.checkpointWrites).toEqual([]);
     expect(mocks.insertVersion).not.toHaveBeenCalled();
     expect(mocks.replaceIssues).not.toHaveBeenCalled();
+  });
+});
+
+describe("translation worker bounded corrections", () => {
+  it.each([1, 2])("avoids a speculative main cache write for a one-chapter job while retaining multi-chapter caching (%s items)", async (totalItems) => {
+    const { db } = memoryDatabase({ ...checkpoint, chapterAnalysis: null, translation: null }, "Keep all facts", null, totalItems);
+    mocks.db = db;
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    const mainCache = mocks.translate.mock.calls[0][0].cache;
+    expect(mainCache.cacheSharedPayload).toBe(totalItems === 1 ? false : undefined);
+    expect(mainCache.stablePayload.context.profile.instructions).toBe("Keep all facts");
+    expect(mocks.qa.mock.calls[0][0].cache.cacheSharedPayload).toBeUndefined();
+  });
+
+  it("combines partial local fixes with the editor before a single verification QA", async () => {
+    const { db, state } = memoryDatabase();
+    mocks.db = db;
+    const events: string[] = [];
+    mocks.qa.mockImplementationOnce(async () => {
+      events.push("QA");
+      return qaResponse(failedQa([finding("เจ้าชาย", "องค์ชาย", "CRITICAL"), finding(null, null, "CRITICAL")]));
+    }).mockImplementationOnce(async () => {
+      events.push("QA");
+      return qaResponse(qaValue);
+    });
+    mocks.patch.mockImplementation(async () => {
+      events.push("PATCH");
+      return patchResponse([{ location: "CONTENT", currentText: "เสด็จมาถึง", replacementText: "ทรงมาถึง" }]);
+    });
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    expect(events).toEqual(["QA", "PATCH", "QA"]);
+    expect(mocks.patch.mock.calls[0][0].translatedContent).toBe("องค์ชายเสด็จมาถึง");
+    expect(mocks.patch.mock.calls[0][0].qa.issues).toHaveLength(1);
+    expect(mocks.qa.mock.calls[1][0].translatedContent).toBe("องค์ชายทรงมาถึง");
+    expect(mocks.insertVersion.mock.calls[0][1].content).toBe("องค์ชายทรงมาถึง");
+    expect(state.checkpointWrites).toContainEqual(expect.objectContaining({ correction: expect.objectContaining({ completedRounds: 1 }) }));
+    expect(mocks.rewrite).not.toHaveBeenCalled();
+  });
+
+  it("verifies complete local corrections without buying a patch request", async () => {
+    const { db, state } = memoryDatabase();
+    mocks.db = db;
+    mocks.qa.mockResolvedValueOnce(qaResponse(failedQa([finding("เจ้าชาย", "องค์ชาย")]))).mockResolvedValueOnce(qaResponse(qaValue));
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    expect(mocks.qa).toHaveBeenCalledTimes(2);
+    expect(mocks.qa.mock.calls[1][0].translatedContent).toBe("องค์ชายเสด็จมาถึง");
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(state.checkpointWrites).toContainEqual(expect.objectContaining({ correction: expect.objectContaining({ completedRounds: 1 }) }));
+  });
+
+  it("applies newly returned low-score suggestions after a patch and verifies the final draft", async () => {
+    const { db, state } = memoryDatabase();
+    mocks.db = db;
+    mocks.qa.mockResolvedValueOnce(qaResponse(failedQa([finding(null, null, "CRITICAL")])));
+    mocks.qa.mockResolvedValueOnce(qaResponse(failedQa([finding("เสด็จมาถึง", "ทรงมาถึง")])));
+    mocks.qa.mockResolvedValueOnce(qaResponse(qaValue));
+    mocks.patch.mockResolvedValue(patchResponse([{ location: "CONTENT", currentText: "เจ้าชาย", replacementText: "องค์ชาย" }]));
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    expect(mocks.patch).toHaveBeenCalledOnce();
+    expect(mocks.qa).toHaveBeenCalledTimes(3);
+    expect(mocks.qa.mock.calls[2][0].translatedContent).toBe("องค์ชายทรงมาถึง");
+    expect(mocks.insertVersion.mock.calls[0][1].content).toBe("องค์ชายทรงมาถึง");
+    expect(state.checkpointWrites).toContainEqual(expect.objectContaining({ correction: expect.objectContaining({ completedRounds: 2 }) }));
+  });
+
+  it("stops after two corrective passes and preserves unverified final suggestions for human review", async () => {
+    const { db, state } = memoryDatabase(checkpoint, "Keep all facts", "reviewer-1");
+    mocks.db = db;
+    mocks.qa.mockResolvedValueOnce(qaResponse(failedQa([finding("เจ้าชาย", "องค์ชาย")])));
+    mocks.qa.mockResolvedValueOnce(qaResponse(failedQa([finding("เสด็จมาถึง", "ทรงมาถึง")])));
+    mocks.qa.mockResolvedValueOnce(qaResponse(failedQa([finding("องค์ชาย", "เจ้าชาย")])));
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    expect(mocks.qa).toHaveBeenCalledTimes(3);
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.insertVersion.mock.calls[0][1].content).toBe("องค์ชายทรงมาถึง");
+    expect(state.versionUpdates).not.toContainEqual(expect.objectContaining({ status: "APPROVED" }));
+    expect(state.qaIssues).toContainEqual(expect.objectContaining({ metadata: expect.objectContaining({ score: 86, currentText: "องค์ชาย", suggestedText: "เจ้าชาย" }) }));
+  });
+
+  it("retains completed local corrective passes on retry", async () => {
+    const exhaustedCheckpoint = {
+      ...checkedCheckpoint,
+      qa: { signature: translationQaCheckpointSignature(qaSignatureInput), value: failedQa([finding("เจ้าชาย", "องค์ชาย", "CRITICAL")]) },
+      correction: { signature: translationCorrectionCheckpointSignature(qaSignatureInput), completedRounds: 2 },
+    };
+    const { db } = memoryDatabase(exhaustedCheckpoint);
+    mocks.db = db;
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    expect(mocks.qa).not.toHaveBeenCalled();
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.insertVersion.mock.calls[0][1].content).toBe(checkpoint.translation.content);
+  });
+
+  it("bounds paid repairs at two and preserves final critical findings", async () => {
+    const { db, state } = memoryDatabase(checkpoint, "Keep all facts", "reviewer-1");
+    mocks.db = db;
+    mocks.qa.mockResolvedValue(qaResponse(failedQa([finding(null, null, "CRITICAL")])));
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    expect(mocks.patch).toHaveBeenCalledTimes(2);
+    expect(mocks.qa).toHaveBeenCalledTimes(3);
+    expect(mocks.rewrite).not.toHaveBeenCalled();
+    expect(state.versionUpdates).not.toContainEqual(expect.objectContaining({ status: "APPROVED" }));
+    expect(state.qaIssues).toContainEqual(expect.objectContaining({ severity: "CRITICAL" }));
+    expect(state.checkpointWrites).toContainEqual(expect.objectContaining({ correction: expect.objectContaining({ completedRounds: 2 }) }));
+  });
+
+  it("keeps accepted warning-only exact fixes local without another QA request", async () => {
+    const { db } = memoryDatabase();
+    mocks.db = db;
+    mocks.qa.mockResolvedValueOnce(qaResponse({ ...qaValue, issues: [finding("เจ้าชาย", "องค์ชาย")] }));
+
+    await expect(processTranslationJobs(1, 1)).resolves.toEqual({ processed: 1 });
+
+    expect(mocks.qa).toHaveBeenCalledOnce();
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.insertVersion.mock.calls[0][1].content).toBe("องค์ชายเสด็จมาถึง");
   });
 });

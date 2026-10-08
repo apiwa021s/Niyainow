@@ -4,7 +4,7 @@ import { sha256 } from "./translation";
 import { readTranslationJobMetadata, translationJobMetadataSchema } from "./translation-job";
 
 // Increment whenever the QA prompt, output schema, or acceptance policy changes.
-export const TRANSLATION_QA_CHECKPOINT_POLICY_VERSION = 1;
+export const TRANSLATION_QA_CHECKPOINT_POLICY_VERSION = 2;
 
 const checkpointChapterAnalysisSchema = z.object({
   summary: z.string(),
@@ -43,6 +43,7 @@ const qaCheckpointSchema = z.object({
 
 const correctionCheckpointSchema = z.object({
   signature: z.string().regex(/^[a-f0-9]{64}$/),
+  // Local corrections and paid editor repairs share the same verification budget.
   completedRounds: z.number().int().min(0).max(2),
 });
 

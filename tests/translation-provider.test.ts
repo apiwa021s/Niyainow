@@ -122,4 +122,27 @@ describe("translation provider prompt caching", () => {
     expect(body).not.toHaveProperty("prompt_cache_options");
     expect(body).not.toHaveProperty("service_tier");
   });
+
+  it("keeps the complete single-call context without creating cache writes", async () => {
+    process.env.TEST_AI_KEY = "test-secret";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      output_text: JSON.stringify({ ok: true }),
+      service_tier: "flex",
+      usage: { input_tokens: 2_000, output_tokens: 20, input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 } },
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const request = input("https://api.openai.com/v1");
+    request.cache = { ...request.cache!, cacheSharedPayload: false, cacheReusablePayload: false, reusablePayload: { source: { content: "complete chapter" } } };
+    request.payload = { translation: { content: "complete draft" } };
+
+    const result = await getTranslationProvider("openai-compatible").generateStructured(request);
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body.prompt_cache_options.mode).toBe("explicit");
+    expect(body.input.flatMap((entry: { content: Array<Record<string, unknown>> }) => entry.content).every((block: Record<string, unknown>) => !("prompt_cache_breakpoint" in block))).toBe(true);
+    expect(JSON.parse(body.input[1].content[0].text)).toEqual({ shared: request.cache.stablePayload });
+    expect(JSON.parse(body.input[2].content[0].text)).toEqual(request.cache.reusablePayload);
+    expect(JSON.parse(body.input[3].content[0].text)).toEqual({ task: "FIRST_QA", ...request.payload });
+    expect(result).toMatchObject({ promptCacheEnabled: false, cachedInputTokens: 0, cacheWriteInputTokens: 0 });
+  });
 });

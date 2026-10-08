@@ -498,6 +498,9 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const cacheFor = (task: string) => ({
       key: `nw:${sha256(`${claimed.job.workspaceId}:${built.profile.version}:${task}`).slice(0, 56)}`,
       stablePayload: { context: stableContext },
+      ...(claimed.job.totalItems === 1 && ["MAIN_TRANSLATION", "MAIN_TRANSLATION_WITH_CANON", "POLISH_WITH_CANON"].includes(task)
+        ? { cacheSharedPayload: false }
+        : {}),
     });
     let checkpoint = readTranslationWorkerCheckpoint(claimed.item.checkpoint, claimed.item.sourceSnapshotId);
     let chapterAnalysis = checkpoint.chapterAnalysis;
@@ -626,76 +629,97 @@ async function processClaimedItem(claimed: ClaimedItem) {
       checkpoint = nextCheckpoint;
       return checked.value;
     };
-    const runCodeQa = () => runDeterministicQa({
+    const runCodeQa = (draft = translation) => runDeterministicQa({
       source: built.source.content,
-      translation: translation.content,
+      translation: draft.content,
       lockedTerms: built.context.glossary.map((term) => ({ sourceTerm: term.source, targetTerm: term.target })),
     });
 
     let qa = await runAiQa();
     let deterministicIssues = runCodeQa();
     let correctionRound = readCheckpointCorrectionRounds(checkpoint, correctionSignature);
-    const initialDecision = qaDecision(qa, deterministicIssues);
-    const safeSuggestions = applySafeQaSuggestions(translation, qa.issues);
-    if (safeSuggestions.appliedCount > 0) {
-      translation = normalizeTranslationFormatting(safeSuggestions.translation);
-      checkpoint = { ...checkpoint, translation, qa: null };
-      await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
-      qa = { ...qa, issues: safeSuggestions.remainingIssues };
-      deterministicIssues = runCodeQa();
-      // Warnings are already fixed locally and do not justify another full QA
-      // request. Critical/low-score results are always verified again.
-      if (initialDecision.needsCorrection) {
-        await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 78, progressStage: "AI_QA" });
-        qa = await runAiQa();
-        deterministicIssues = runCodeQa();
+    while (true) {
+      const decision = qaDecision(qa, deterministicIssues);
+      // Never change a failed reviewed draft when there is no verification pass
+      // left. Accepted warning-only suggestions retain the existing local policy.
+      if (decision.needsCorrection && correctionRound >= MAX_QA_CORRECTION_ROUNDS) break;
+      const safeSuggestions = applySafeQaSuggestions(translation, qa.issues);
+      const suggestedTranslation = normalizeTranslationFormatting(safeSuggestions.translation);
+      const changedLocally = safeSuggestions.appliedCount > 0 && (
+        suggestedTranslation.title !== translation.title || suggestedTranslation.content !== translation.content
+      );
+      const suggestedQa = changedLocally ? { ...qa, issues: safeSuggestions.remainingIssues } : qa;
+      const suggestedCodeIssues = changedLocally ? runCodeQa(suggestedTranslation) : deterministicIssues;
+      const needsVerification = decision.needsCorrection || requiresCorrection(suggestedQa, suggestedCodeIssues);
+      if (needsVerification && correctionRound >= MAX_QA_CORRECTION_ROUNDS) break;
+      if (changedLocally) {
+        translation = suggestedTranslation;
+        qa = suggestedQa;
+        deterministicIssues = suggestedCodeIssues;
       }
-    }
-    for (; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa, deterministicIssues); correctionRound += 1) {
-      await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" });
-      const structuralCritical = hasStructuralCriticalIssue(qa, deterministicIssues);
-      const usePremiumCorrection = chapterAnalysis.difficulty === "HARD" || structuralCritical || correctionRound > 0;
-      const escalationModel = modelForTask(automaticModels, usePremiumCorrection ? "ESCALATION" : "MAIN_TRANSLATION");
-      currentTask = "ESCALATION";
-      currentModelId = escalationModel.id;
-      const patchResult = await reviseTranslationWithPatchesAi({
-        model: escalationModel,
-        sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-        sourceContent: built.source.content,
-        translatedTitle: translation.title,
-        translatedContent: translation.content,
-        context: reviewContext,
-        qa: qaForAutomaticCorrection(qa, deterministicIssues),
-        cache: cacheFor(usePremiumCorrection ? "ESCALATION_PATCH" : "MAIN_PATCH"),
-      });
-      await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, patchResult.call);
-      const patched = applyValidatedQaPatches(translation, patchResult.value.patches);
-      translation = normalizeTranslationFormatting(patched.translation);
-
-      // Full-chapter generation is a last resort reserved for source omissions
-      // or broken structure that cannot be repaired with validated local edits.
-      if ((patchResult.value.requiresFullRewrite || (patched.appliedCount === 0 && structuralCritical)) && structuralCritical) {
-        const premiumModel = modelForTask(automaticModels, "ESCALATION");
-        currentModelId = premiumModel.id;
-        const revision = await reviseTranslationWithAi({
-          model: premiumModel,
-          prompt: config.prompt,
+      if (!needsVerification) {
+        if (changedLocally) {
+          checkpoint = { ...checkpoint, translation, qa: null };
+          await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
+        }
+        break;
+      }
+      const remainingFindings = qaForAutomaticCorrection(qa, deterministicIssues).issues;
+      // When local edits cover all actionable findings, verify them before
+      // buying an editor pass. Otherwise combine local and editor corrections
+      // and review the resulting draft once.
+      const needsEditor = !changedLocally || remainingFindings.some((issue) => issue.severity !== "INFO");
+      if (needsEditor) {
+        if (changedLocally) {
+          checkpoint = { ...checkpoint, translation, qa: null };
+          await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
+        }
+        await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" });
+        const structuralCritical = hasStructuralCriticalIssue(qa, deterministicIssues);
+        const usePremiumCorrection = chapterAnalysis.difficulty === "HARD" || structuralCritical || correctionRound > 0;
+        const escalationModel = modelForTask(automaticModels, usePremiumCorrection ? "ESCALATION" : "MAIN_TRANSLATION");
+        currentTask = "ESCALATION";
+        currentModelId = escalationModel.id;
+        const patchResult = await reviseTranslationWithPatchesAi({
+          model: escalationModel,
           sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
           sourceContent: built.source.content,
           translatedTitle: translation.title,
           translatedContent: translation.content,
           context: reviewContext,
           qa: qaForAutomaticCorrection(qa, deterministicIssues),
-          cache: cacheFor("ESCALATION_FULL_REWRITE"),
+          cache: cacheFor(usePremiumCorrection ? "ESCALATION_PATCH" : "MAIN_PATCH"),
         });
-        await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, revision.call);
-        translation = normalizeTranslationFormatting(revision.value);
+        await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, patchResult.call);
+        const patched = applyValidatedQaPatches(translation, patchResult.value.patches);
+        translation = normalizeTranslationFormatting(patched.translation);
+
+        // Full-chapter generation is a last resort reserved for source omissions
+        // or broken structure that cannot be repaired with validated local edits.
+        if ((patchResult.value.requiresFullRewrite || (patched.appliedCount === 0 && structuralCritical)) && structuralCritical) {
+          const premiumModel = modelForTask(automaticModels, "ESCALATION");
+          currentModelId = premiumModel.id;
+          const revision = await reviseTranslationWithAi({
+            model: premiumModel,
+            prompt: config.prompt,
+            sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+            sourceContent: built.source.content,
+            translatedTitle: translation.title,
+            translatedContent: translation.content,
+            context: reviewContext,
+            qa: qaForAutomaticCorrection(qa, deterministicIssues),
+            cache: cacheFor("ESCALATION_FULL_REWRITE"),
+          });
+          await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, revision.call);
+          translation = normalizeTranslationFormatting(revision.value);
+        }
       }
+      correctionRound += 1;
       checkpoint = {
         ...checkpoint,
         translation,
         qa: null,
-        correction: { signature: correctionSignature, completedRounds: correctionRound + 1 },
+        correction: { signature: correctionSignature, completedRounds: correctionRound },
       };
       await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
       await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 84 + correctionRound * 5, progressStage: "AI_QA" });

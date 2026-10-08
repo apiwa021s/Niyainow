@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTranslationJobMetadata } from "./translation-job";
 import {
+  TRANSLATION_QA_CHECKPOINT_POLICY_VERSION,
   readCheckpointCorrectionRounds,
   readCheckpointQa,
   readTranslationWorkerCheckpoint,
@@ -81,7 +82,7 @@ describe("translation worker checkpoints", () => {
     ["endpoint", { model: { ...reviewInput.model, baseUrl: "https://provider.example/v1" } }],
     ["higher threshold", { minimumScore: 95 }],
     ["lower threshold", { minimumScore: 85 }],
-    ["QA policy", { policyVersion: 2 }],
+    ["QA policy", { policyVersion: TRANSLATION_QA_CHECKPOINT_POLICY_VERSION + 1 }],
   ];
 
   it.each(changes)("rejects stale QA and repair rounds when %s changes", (_label, change) => {
@@ -107,6 +108,17 @@ describe("translation worker checkpoints", () => {
     expect(checkpoint.qa).toBeNull();
     expect(checkpoint.correction).toBeNull();
     expect(checkpoint.job.operation).toBe("TRANSLATE");
+  });
+
+  it("invalidates verdicts and paid-only round counts from the previous correction policy", () => {
+    const legacyInput = { ...reviewInput, policyVersion: 1 };
+    const checkpoint = readTranslationWorkerCheckpoint({
+      ...savedCheckpoint(),
+      qa: { signature: translationQaCheckpointSignature(legacyInput), value: qa },
+      correction: { signature: translationCorrectionCheckpointSignature(legacyInput), completedRounds: 1 },
+    }, sourceSnapshotId);
+    expect(readCheckpointQa(checkpoint, translationQaCheckpointSignature(reviewInput))).toBeNull();
+    expect(readCheckpointCorrectionRounds(checkpoint, translationCorrectionCheckpointSignature(reviewInput))).toBe(0);
   });
 
   it("preserves POLISH metadata in initial, legacy, mismatched and malformed checkpoints", () => {

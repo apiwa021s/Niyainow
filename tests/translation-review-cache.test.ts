@@ -127,7 +127,7 @@ describe("translation review source caching", () => {
     expect(responses[1].input[2]).not.toEqual(responses[0].input[2]);
   });
 
-  it.each(["patch", "rewrite"] as const)("keeps QA findings and the current translation dynamic for %s correction", async (mode) => {
+  it.each(["patch", "rewrite"] as const)("retains all source input without speculative chapter-cache writes for %s correction", async (mode) => {
     const { responses } = mockProvider();
     if (mode === "patch") await reviseTranslationWithPatchesAi({ ...chapter, qa });
     else await reviseTranslationWithAi({ ...chapter, prompt, qa });
@@ -136,6 +136,8 @@ describe("translation review source caching", () => {
       context,
       source: { title: chapter.sourceTitle, content: chapter.sourceContent },
     });
+    expect(responses[0].input[1].content[0].prompt_cache_breakpoint).toEqual({ mode: "explicit" });
+    expect(responses[0].input[2].content[0]).not.toHaveProperty("prompt_cache_breakpoint");
     expect(JSON.parse(responses[0].input[3].content[0].text)).toEqual({
       task: "ESCALATION",
       translation: { title: chapter.translatedTitle, content: chapter.translatedContent },
