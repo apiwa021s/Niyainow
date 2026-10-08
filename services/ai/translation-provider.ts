@@ -18,6 +18,8 @@ export type TranslationProviderInput = {
 export type PromptCacheInput = {
   key: string;
   stablePayload: Record<string, unknown>;
+  /** Immutable chapter input cached after the shared workspace prefix. */
+  reusablePayload?: Record<string, unknown>;
 };
 
 export type TranslationProviderResult = {
@@ -169,6 +171,14 @@ async function requestStructuredWithResponses(input: StructuredAiInput, startedA
         role: "developer",
         content: [{ type: "input_text", text: stablePayload, prompt_cache_breakpoint: { mode: "explicit" } }],
       },
+      ...(input.cache?.reusablePayload ? [{
+        role: "user",
+        content: [{
+          type: "input_text",
+          text: JSON.stringify(input.cache.reusablePayload),
+          prompt_cache_breakpoint: { mode: "explicit" },
+        }],
+      }] : []),
       { role: "user", content: [{ type: "input_text", text: dynamicPayload }] },
     ],
     prompt_cache_key: input.cache?.key,
@@ -206,7 +216,7 @@ async function requestStructuredWithChatCompletions(input: StructuredAiInput, st
   const messages = [
     { role: "developer", content: input.systemPrompt },
     ...(input.cache ? [{ role: "developer", content: JSON.stringify({ shared: input.cache.stablePayload }) }] : []),
-    { role: "user", content: JSON.stringify({ task: input.task, ...input.payload }) },
+    { role: "user", content: JSON.stringify({ task: input.task, ...input.cache?.reusablePayload, ...input.payload }) },
   ];
   const serviceTier = requestServiceTier(input);
   const response = await postAiRequest(input, `${input.model.baseUrl.replace(/\/$/, "")}/chat/completions`, {

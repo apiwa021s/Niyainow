@@ -6,13 +6,13 @@ The admin studio translates immutable snapshots of private imported chapters. It
 
 1. Deploy the Drizzle migrations with `npm run db:deploy` before sending traffic to the new application build.
 2. Add `DATABASE_URL`, `AI_TRANSLATION_API_KEY`, and `CRON_SECRET` to the Vercel Production environment. Queued work runs entirely on Vercel Workflow, with `/api/cron/translations` providing a five-minute self-healing trigger; GitHub Actions is not part of the translation runtime. `AI_TRANSLATION_BASE_URL` is optional and defaults to `https://api.openai.com/v1`. Queued chapter and backfill requests use `AI_TRANSLATION_SERVICE_TIER=flex` by default, preserving the configured models, prompts, structured outputs, and QA pipeline while trading response speed for Batch API token rates. The few profile-creation calls remain on Standard because they run inside a streamed admin request. Set `AI_TRANSLATION_REQUEST_TIMEOUT_MS=900000` for the recommended 15-minute Flex timeout. Set the tier to `default` only when immediate background processing is worth standard API rates.
-3. Create a workspace from an imported source and choose the target language. The server makes three real structured AI calls: profile analysis, translation foundation, and metadata entity extraction. The UI streams the current stage and model while the calls run. A malformed or failed AI response stops creation; there is no deterministic profile fallback.
+3. Create a workspace from an imported source and choose the target language. The server makes five real structured AI calls: profile analysis, translation foundation, profile quality review, metadata localization, and metadata entity extraction. The UI streams the current stage and model while the calls run. A malformed or failed AI response stops creation; there is no deterministic profile fallback.
 4. Review and save the Default Profile, then search, filter, and select up to 100 eligible chapters for the first translation job. Only the selected chapters are queued.
 5. Vercel Workflow drains queued items with `FOR UPDATE SKIP LOCKED`. Enqueue starts a workflow immediately, while Vercel Cron repairs orphaned queues every five minutes. Cancelling a job atomically cancels both queued and running items; an AI request already sent may still be billed, but its returned translation is discarded. `npm run dev` does not consume translation queues. Use `npm run dev:with-translation-worker` only when intentionally testing the queue worker against the configured database.
 
 The worker retries an item three times with backoff, including retryable Flex capacity failures. It stores provider request identifiers, token counts, latency, and calculated cost. Successful Flex calls are costed at 50% of the configured standard model token rates; source text, translated text, prompts, and credentials are never logged.
 
-Each chapter exposes truthful worker milestones (`QUEUED`, `CONTEXT`, `CANON_ANALYSIS`, `AI_REQUEST`, `AI_QA`, conditional `ESCALATION`, `CODE_QA`, `SAVING`, and `DONE`) as a progress percentage. Canon analysis, main translation, AI QA, and escalation are separate provider calls and are recorded separately. `CODE_QA` is explicitly labelled as deterministic. Active queues are shown in a collapsible dock on every Admin page, so editors can safely leave the workspace while the worker continues processing.
+Each chapter exposes truthful worker milestones (`QUEUED`, `CONTEXT`, `AI_REQUEST`, `AI_QA`, conditional `ESCALATION`, `CODE_QA`, `SAVING`, and `DONE`) as a progress percentage. The first chapter call combines the complete translation and compact canon analysis. AI QA and conditional escalation are separate provider calls and are recorded separately. `CODE_QA` is explicitly labelled as deterministic. Active queues are shown in a collapsible dock on every Admin page, so editors can safely leave the workspace while the worker continues processing.
 
 ## Permissions
 
@@ -51,6 +51,24 @@ The studio must always explain the current state, its consequence, and the next 
 | Server rendering fails | A route error boundary preserves the admin shell, provides retry, and displays a support digest when available. |
 
 Costs shown in the chapter list, editor, queue dock, and job history are cumulative calculated costs from recorded AI invocations. They are estimates based on stored token usage and configured model prices, not a replacement for the provider invoice.
+
+## Average chapter cost target
+
+The workspace targets an **average of 1 THB per chapter**. This is a reporting target, not a per-chapter spending cap: a long or difficult chapter continues through the same translation and quality checks. Models, prompts, the default QA score of 90, and the structural repair policy are preserved.
+
+Set `AI_TRANSLATION_THB_PER_USD` to the planning conversion rate that matches your billing/payment rate. The server validates a finite positive number and otherwise uses 35 THB/USD. The workspace explicitly labels this as a planning rate, not a live foreign-exchange quote. The original USD token costs remain unchanged.
+
+The cumulative average includes chapter spending on failed attempts, retries, translations, and polishing, divided by the number of chapters with a saved AI translation. Failed attempts and manual-only chapters do not increase that denominator, and repeated translation of a chapter counts as spending on the same chapter. The latest completed job also shows average spending per successful item, so editors can compare a new run with older cumulative spending. Story-level profile setup is excluded from this chapter average; its separate invocation costs remain available in the workspace. Selection estimates use historical cumulative spending and do not predict the exact cost of the selected chapters.
+
+Quality-preserving cost reductions:
+
+- Shared profile and language rules appear once in each review request.
+- An additional explicit cache breakpoint reuses the immutable source and review context during repeated QA and repair requests, while the changing draft and QA findings remain after that breakpoint. The shared profile breakpoint is preserved across chapters. Compatible third-party endpoints still receive the complete payload without OpenAI-specific caching options.
+- A successful QA verdict is checkpointed and reused on a worker retry only when the source, translation, review context, model configuration, quality threshold, and QA policy still match. Changed text still requires a new AI review. Completed correction rounds also survive retries.
+
+Cache savings depend on reported cache hits and actual provider billing. Full translated output is still billed: at the configured Sol Flex output rate of $10 per million tokens and the default planning rate of 35 THB/USD, 2,857 output tokens already cost about 1 THB before input, canon, reasoning, or QA. Consequently, unchanged-model translation cannot guarantee the 1 THB average for a corpus of long chapters. Verify the target against newly completed jobs after applying these changes; do not treat historical estimates or cache configuration as proof that the target has been reached.
+
+Official references: [API pricing](https://developers.openai.com/api/docs/pricing), [Flex processing](https://developers.openai.com/api/docs/guides/flex-processing), and [prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching).
 
 ## Automatic model selection
 

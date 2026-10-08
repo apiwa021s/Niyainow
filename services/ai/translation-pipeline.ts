@@ -624,6 +624,25 @@ export async function reviewNovelMetadataWithAi(input: {
   });
 }
 
+/** Keep immutable chapter input behind a second cache boundary during review. */
+function chapterReviewPayload(input: {
+  cache?: PromptCacheInput;
+  context: Record<string, unknown>;
+  sourceTitle: string;
+  sourceContent: string;
+}, dynamicPayload: Record<string, unknown>) {
+  const reusablePayload = {
+    context: input.context,
+    source: { title: input.sourceTitle, content: input.sourceContent },
+  };
+  return input.cache
+    ? {
+        cache: { ...input.cache, reusablePayload: { ...input.cache.reusablePayload, ...reusablePayload } },
+        payload: dynamicPayload,
+      }
+    : { payload: { ...reusablePayload, ...dynamicPayload } };
+}
+
 export async function qaTranslationWithAi(input: {
   model: AiModel;
   sourceTitle: string;
@@ -638,13 +657,10 @@ export async function qaTranslationWithAi(input: {
     model: input.model,
     task: "FIRST_QA",
     systemPrompt: QA_SYSTEM_PROMPT,
-    cache: input.cache,
-    payload: {
-      context: input.context,
+    ...chapterReviewPayload(input, {
       quality: { minimumScore: input.minimumScore ?? 90 },
-      source: { title: input.sourceTitle, content: input.sourceContent },
       translation: { title: input.translatedTitle, content: input.translatedContent },
-    },
+    }),
     schemaName: "translation_qa",
     jsonSchema: jsonObject({
       passed: { type: "boolean" }, score: { type: "integer", minimum: 0, maximum: 100 },
@@ -680,13 +696,10 @@ export async function reviseTranslationWithPatchesAi(input: {
     model: input.model,
     task: "ESCALATION",
     systemPrompt: PATCH_EDITOR_SYSTEM_PROMPT,
-    cache: input.cache,
-    payload: {
-      context: input.context,
-      source: { title: input.sourceTitle, content: input.sourceContent },
+    ...chapterReviewPayload(input, {
       translation: { title: input.translatedTitle, content: input.translatedContent },
       qa: input.qa,
-    },
+    }),
     schemaName: "translation_correction_patches",
     jsonSchema: jsonObject({
       patches: {
@@ -721,13 +734,10 @@ export async function reviseTranslationWithAi(input: {
     model: input.model,
     task: "ESCALATION",
     systemPrompt: withThaiNovelLocalizationRules(`${input.prompt.systemPrompt}\nRevise the supplied translation to resolve every QA issue. Return the complete corrected chapter, not a patch.`),
-    cache: input.cache,
-    payload: {
-      context: input.context,
-      source: { title: input.sourceTitle, content: input.sourceContent },
+    ...chapterReviewPayload(input, {
       translation: { title: input.translatedTitle, content: input.translatedContent },
       qa: input.qa,
-    },
+    }),
     schemaName: "revised_novel_translation",
     jsonSchema: jsonObject({ title: { type: "string" }, content: { type: "string" } }),
     parser: translationSchema,

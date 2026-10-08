@@ -44,6 +44,7 @@ import {
   type AutomaticTranslationTask,
 } from "@/lib/domain/translation-ai-routing";
 import { appendGlossaryTargetAlternative, countWords, runDeterministicQa, segmentText, selectBestTranslationModel } from "@/lib/domain/translation";
+import { resolveTranslationCostPolicy } from "@/lib/domain/translation-cost";
 import {
   chapterStatusAfterCancelledJob,
   createTranslationJobMetadata,
@@ -809,6 +810,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
       progressStage: sql<string>`coalesce((select ji.progress_stage from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1), 'QUEUED')`,
       jobItemStatus: sql<string | null>`(select ji.status from translation_job_items ji join translation_jobs j on j.id = ji.job_id where ji.translation_chapter_id = ${translationChapters.id} order by j.created_at desc limit 1)`,
       revision: sql<number>`coalesce((select max(tv.revision) from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id}), 0)`.mapWith(Number),
+      hasAiTranslation: sql<boolean>`exists (select 1 from translation_versions tv where tv.translation_chapter_id = "translation_chapters"."id" and tv.origin = 'AI')`,
       criticalIssues: sql<number>`(select count(*) from translation_qa_issues qi where qi.translation_version_id = (select tv.id from translation_versions tv where tv.translation_chapter_id = ${translationChapters.id} order by tv.revision desc limit 1) and qi.severity = 'CRITICAL' and qi.resolved_at is null)`.mapWith(Number),
       publishReady: sql<boolean>`exists (select 1 from translation_versions tv where tv.id = (select latest_tv.id from translation_versions latest_tv where latest_tv.translation_chapter_id = ${translationChapters.id} order by latest_tv.revision desc limit 1) and tv.status = 'APPROVED')`,
     }).from(translationChapters).innerJoin(translationSourceSnapshots, eq(translationSourceSnapshots.id, translationChapters.sourceSnapshotId))
@@ -882,6 +884,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
     profileAiPipeline: storedPipeline?.success ? storedPipeline.data : [],
     profileAnalysis: storedProfileAnalysis?.success ? storedProfileAnalysis.data : null,
     titleReview: storedTitleReview.success ? storedTitleReview.data : null,
+    costPolicy: resolveTranslationCostPolicy(process.env.AI_TRANSLATION_THB_PER_USD),
     aiUsage: {
       ...aiUsage,
       cacheHitPercent: aiUsage.inputTokens > 0 ? Math.round((aiUsage.cachedInputTokens / aiUsage.inputTokens) * 1_000) / 10 : 0,

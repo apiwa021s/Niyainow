@@ -24,9 +24,10 @@ import {
 } from "@/db/schema";
 import { applySafeQaSuggestions, applyValidatedQaPatches, decideTranslationQa, estimateTokens, normalizeTranslationFormatting, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
 import { automaticModelNameForTask, type AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
-import { createTranslationJobMetadata, readTranslationJobMetadata, translationJobMetadataSchema } from "@/lib/domain/translation-job";
+import { readTranslationJobMetadata } from "@/lib/domain/translation-job";
+import { readCheckpointCorrectionRounds, readCheckpointQa, readTranslationWorkerCheckpoint, translationCheckpointSchema, translationCorrectionCheckpointSignature, translationQaCheckpointSignature, type TranslationWorkerCheckpoint } from "@/lib/domain/translation-worker-checkpoint";
 import { logger } from "@/lib/logger";
-import { aiCallCostMicros, aiUsageCostMicros, polishChapterWithCanonAi, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
+import { aiCallCostMicros, polishChapterWithCanonAi, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
 import { getTranslationProvider } from "@/services/ai/translation-provider";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
@@ -39,40 +40,6 @@ const MAX_LEASE_MS = 30 * 60_000;
 const DEFAULT_HEARTBEAT_MS = 30_000;
 const activeTranslationJobItems = alias(translationJobItems, "active_translation_job_items");
 const activeTranslationJobs = alias(translationJobs, "active_translation_jobs");
-
-const checkpointChapterAnalysisSchema = z.object({
-  summary: z.string(),
-  continuityFacts: z.array(z.string()),
-  entities: z.array(z.string()),
-  glossaryCandidates: z.array(z.object({
-    sourceTerm: z.string(),
-    targetTerm: z.string(),
-    note: z.string().nullable(),
-    confidence: z.number().int().min(0).max(100),
-  })),
-  difficulty: z.enum(["NORMAL", "HARD"]),
-  translationNotes: z.array(z.string()),
-});
-
-const translationCheckpointSchema = z.object({ title: z.string().min(1), content: z.string().min(1) });
-const jobCheckpointSchema = z.object({
-  version: z.literal(1),
-  sourceSnapshotId: z.string().uuid(),
-  chapterAnalysis: checkpointChapterAnalysisSchema.nullable(),
-  translation: translationCheckpointSchema.nullable(),
-  job: translationJobMetadataSchema.default(createTranslationJobMetadata()),
-});
-type JobCheckpoint = z.infer<typeof jobCheckpointSchema>;
-
-function readCheckpoint(value: unknown, sourceSnapshotId: string): JobCheckpoint {
-  const parsed = jobCheckpointSchema.safeParse(value);
-  if (parsed.success && parsed.data.sourceSnapshotId === sourceSnapshotId) {
-    return parsed.data.translation && !parsed.data.chapterAnalysis
-      ? { ...parsed.data, translation: null }
-      : parsed.data;
-  }
-  return { version: 1, sourceSnapshotId, chapterAnalysis: null, translation: null, job: createTranslationJobMetadata() };
-}
 
 class TranslationLeaseLostError extends Error {
   constructor(jobItemId: string) {
@@ -124,7 +91,7 @@ async function updateClaimedItem(
   if (!updated) throw new TranslationLeaseLostError(jobItemId);
 }
 
-async function saveCheckpoint(jobItemId: string, claimStartedAt: Date, checkpoint: JobCheckpoint) {
+async function saveCheckpoint(jobItemId: string, claimStartedAt: Date, checkpoint: TranslationWorkerCheckpoint) {
   await updateClaimedItem(jobItemId, claimStartedAt, { checkpoint });
 }
 
@@ -452,22 +419,41 @@ async function refreshJob(jobId: string) {
   });
 }
 
-async function recordStructuredInvocation(jobItemId: string, contextSnapshotId: string, call: AiCallRecord) {
-  await getDb().insert(translationAiInvocations).values({
-    jobItemId,
-    modelId: call.model.id,
-    task: call.task,
-    contextSnapshotId,
-    providerRequestId: call.result.providerRequestId,
-    inputTokens: call.result.inputTokens,
-    promptCacheEnabled: call.result.promptCacheEnabled,
-    cachedInputTokens: call.result.cachedInputTokens,
-    cacheWriteInputTokens: call.result.cacheWriteInputTokens,
-    outputTokens: call.result.outputTokens,
-    costMicros: aiCallCostMicros(call),
-    latencyMs: call.result.latencyMs,
-    status: "SUCCESS",
+async function recordStructuredInvocation(
+  jobItemId: string,
+  claimStartedAt: Date,
+  contextSnapshotId: string,
+  call: AiCallRecord,
+  checkpoint?: TranslationWorkerCheckpoint,
+) {
+  const ownsLease = await getDb().transaction(async (tx) => {
+    const [leaseOwner] = await tx.select({ id: translationJobItems.id }).from(translationJobItems)
+      .where(claimedItemWhere(jobItemId, claimStartedAt))
+      .limit(1)
+      .for("update");
+    await tx.insert(translationAiInvocations).values({
+      jobItemId,
+      modelId: call.model.id,
+      task: call.task,
+      contextSnapshotId,
+      providerRequestId: call.result.providerRequestId,
+      inputTokens: call.result.inputTokens,
+      promptCacheEnabled: call.result.promptCacheEnabled,
+      cachedInputTokens: call.result.cachedInputTokens,
+      cacheWriteInputTokens: call.result.cacheWriteInputTokens,
+      outputTokens: call.result.outputTokens,
+      costMicros: aiCallCostMicros(call),
+      latencyMs: call.result.latencyMs,
+      status: "SUCCESS",
+    });
+    if (checkpoint && leaseOwner) {
+      await tx.update(translationJobItems).set({ checkpoint }).where(claimedItemWhere(jobItemId, claimStartedAt));
+    }
+    return Boolean(leaseOwner);
   });
+  // Completed calls are billed even after cancellation. Commit their usage,
+  // then discard results from a worker that no longer owns the lease.
+  if (!ownsLease) throw new TranslationLeaseLostError(jobItemId);
 }
 
 function modelForTask(models: Array<typeof translationAiModels.$inferSelect>, task: AutomaticTranslationTask) {
@@ -513,7 +499,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
       key: `nw:${sha256(`${claimed.job.workspaceId}:${built.profile.version}:${task}`).slice(0, 56)}`,
       stablePayload: { context: stableContext },
     });
-    let checkpoint = readCheckpoint(claimed.item.checkpoint, claimed.item.sourceSnapshotId);
+    let checkpoint = readTranslationWorkerCheckpoint(claimed.item.checkpoint, claimed.item.sourceSnapshotId);
     let chapterAnalysis = checkpoint.chapterAnalysis;
 
     if (!chapterAnalysis) {
@@ -547,9 +533,9 @@ async function processClaimedItem(claimed: ClaimedItem) {
             context: chapterContext,
             cache: cacheFor("MAIN_TRANSLATION_WITH_CANON"),
           });
-      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, combined.call);
+      await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, combined.call);
       chapterAnalysis = combined.value.chapterAnalysis;
-      checkpoint = { ...checkpoint, chapterAnalysis, translation: normalizeTranslationFormatting(combined.value.translation) };
+      checkpoint = { ...checkpoint, chapterAnalysis, translation: normalizeTranslationFormatting(combined.value.translation), qa: null, correction: null };
       await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
       const learnedTerms = chapterAnalysis.glossaryCandidates
         .filter((entry) => entry.confidence >= 70)
@@ -583,31 +569,18 @@ async function processClaimedItem(claimed: ClaimedItem) {
         sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
         sourceContent: built.source.content,
       });
-      await db.insert(translationAiInvocations).values({
-        jobItemId: claimed.item.id,
-        modelId: config.model.id,
+      await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, {
         task: "MAIN_TRANSLATION",
-        contextSnapshotId: built.contextSnapshot.id,
-        providerRequestId: result.providerRequestId,
-        inputTokens: result.inputTokens,
-        promptCacheEnabled: result.promptCacheEnabled,
-        cachedInputTokens: result.cachedInputTokens,
-        cacheWriteInputTokens: result.cacheWriteInputTokens,
-        outputTokens: result.outputTokens,
-        costMicros: aiUsageCostMicros(config.model, result),
-        latencyMs: result.latencyMs,
-        status: "SUCCESS",
+        model: config.model,
+        result: { ...result, output: result.translation },
       });
       translation = normalizeTranslationFormatting(result.translation);
-      checkpoint = { ...checkpoint, translation };
+      checkpoint = { ...checkpoint, translation, qa: null, correction: null };
       await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
     }
 
     const reviewContext = {
-      sourceLanguage: built.context.sourceLanguage,
-      targetLanguage: built.context.targetLanguage,
       chapterNumber: built.context.chapterNumber,
-      profile: built.context.profile,
       glossary: built.context.glossary,
       suggestedGlossary: built.context.suggestedGlossary,
       characters: built.context.characters,
@@ -621,9 +594,23 @@ async function processClaimedItem(claimed: ClaimedItem) {
 
     await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 70, progressStage: "AI_QA" });
     const qaModel = modelForTask(automaticModels, "FIRST_QA");
+    const qaMinimum = qaMinimumScore();
+    const qaCheckpointInput = {
+      sourceSnapshotId: claimed.item.sourceSnapshotId,
+      sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+      sourceContent: built.source.content,
+      stableContext,
+      reviewContext,
+      model: qaModel,
+      minimumScore: qaMinimum,
+    };
+    const correctionSignature = translationCorrectionCheckpointSignature(qaCheckpointInput);
     currentTask = "FIRST_QA";
     currentModelId = qaModel.id;
     const runAiQa = async () => {
+      const signature = translationQaCheckpointSignature({ ...qaCheckpointInput, translation });
+      const savedQa = readCheckpointQa(checkpoint, signature);
+      if (savedQa) return savedQa;
       const checked = await qaTranslationWithAi({
         model: qaModel,
         sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
@@ -631,11 +618,13 @@ async function processClaimedItem(claimed: ClaimedItem) {
         translatedTitle: translation.title,
         translatedContent: translation.content,
         context: reviewContext,
-        minimumScore: qaMinimumScore(),
+        minimumScore: qaMinimum,
         cache: cacheFor("FIRST_QA"),
       });
-      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, checked.call);
-      return checked;
+      const nextCheckpoint = { ...checkpoint, translation, qa: { signature, value: checked.value } };
+      await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, checked.call, nextCheckpoint);
+      checkpoint = nextCheckpoint;
+      return checked.value;
     };
     const runCodeQa = () => runDeterministicQa({
       source: built.source.content,
@@ -645,14 +634,14 @@ async function processClaimedItem(claimed: ClaimedItem) {
 
     let qa = await runAiQa();
     let deterministicIssues = runCodeQa();
-    let correctionRound = 0;
-    const initialDecision = qaDecision(qa.value, deterministicIssues);
-    const safeSuggestions = applySafeQaSuggestions(translation, qa.value.issues);
+    let correctionRound = readCheckpointCorrectionRounds(checkpoint, correctionSignature);
+    const initialDecision = qaDecision(qa, deterministicIssues);
+    const safeSuggestions = applySafeQaSuggestions(translation, qa.issues);
     if (safeSuggestions.appliedCount > 0) {
       translation = normalizeTranslationFormatting(safeSuggestions.translation);
-      checkpoint = { ...checkpoint, translation };
+      checkpoint = { ...checkpoint, translation, qa: null };
       await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
-      qa = { ...qa, value: { ...qa.value, issues: safeSuggestions.remainingIssues } };
+      qa = { ...qa, issues: safeSuggestions.remainingIssues };
       deterministicIssues = runCodeQa();
       // Warnings are already fixed locally and do not justify another full QA
       // request. Critical/low-score results are always verified again.
@@ -662,9 +651,9 @@ async function processClaimedItem(claimed: ClaimedItem) {
         deterministicIssues = runCodeQa();
       }
     }
-    for (; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa.value, deterministicIssues); correctionRound += 1) {
+    for (; correctionRound < MAX_QA_CORRECTION_ROUNDS && requiresCorrection(qa, deterministicIssues); correctionRound += 1) {
       await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 80 + correctionRound * 5, progressStage: "ESCALATION" });
-      const structuralCritical = hasStructuralCriticalIssue(qa.value, deterministicIssues);
+      const structuralCritical = hasStructuralCriticalIssue(qa, deterministicIssues);
       const usePremiumCorrection = chapterAnalysis.difficulty === "HARD" || structuralCritical || correctionRound > 0;
       const escalationModel = modelForTask(automaticModels, usePremiumCorrection ? "ESCALATION" : "MAIN_TRANSLATION");
       currentTask = "ESCALATION";
@@ -676,10 +665,10 @@ async function processClaimedItem(claimed: ClaimedItem) {
         translatedTitle: translation.title,
         translatedContent: translation.content,
         context: reviewContext,
-        qa: qaForAutomaticCorrection(qa.value, deterministicIssues),
+        qa: qaForAutomaticCorrection(qa, deterministicIssues),
         cache: cacheFor(usePremiumCorrection ? "ESCALATION_PATCH" : "MAIN_PATCH"),
       });
-      await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, patchResult.call);
+      await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, patchResult.call);
       const patched = applyValidatedQaPatches(translation, patchResult.value.patches);
       translation = normalizeTranslationFormatting(patched.translation);
 
@@ -696,13 +685,18 @@ async function processClaimedItem(claimed: ClaimedItem) {
           translatedTitle: translation.title,
           translatedContent: translation.content,
           context: reviewContext,
-          qa: qaForAutomaticCorrection(qa.value, deterministicIssues),
+          qa: qaForAutomaticCorrection(qa, deterministicIssues),
           cache: cacheFor("ESCALATION_FULL_REWRITE"),
         });
-        await recordStructuredInvocation(claimed.item.id, built.contextSnapshot.id, revision.call);
+        await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, revision.call);
         translation = normalizeTranslationFormatting(revision.value);
       }
-      checkpoint = { ...checkpoint, translation };
+      checkpoint = {
+        ...checkpoint,
+        translation,
+        qa: null,
+        correction: { signature: correctionSignature, completedRounds: correctionRound + 1 },
+      };
       await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
       await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 84 + correctionRound * 5, progressStage: "AI_QA" });
       currentTask = "FIRST_QA";
@@ -731,28 +725,28 @@ async function processClaimedItem(claimed: ClaimedItem) {
         actorId: claimed.job.requestedBy,
       });
       const issues = await replaceQaIssues(tx, version.id, built.source.content, translation.content, claimed.job.workspaceId);
-      if (qa.value.issues.length) await tx.insert(translationQaIssues).values(qa.value.issues.map((issue) => ({
+      if (qa.issues.length) await tx.insert(translationQaIssues).values(qa.issues.map((issue) => ({
         translationVersionId: version.id,
         code: `AI_${issue.code}`.slice(0, 80),
         severity: issue.severity,
         message: issue.message,
         metadata: {
           source: "AI_QA",
-          score: qa.value.score,
+          score: qa.score,
           location: issue.location,
           currentText: issue.currentText,
           suggestedText: issue.suggestedText,
         },
       })));
-      const finalDecision = qaDecision(qa.value, issues);
+      const finalDecision = qaDecision(qa, issues);
       const hasBlockingIssue = !finalDecision.canProceedToReview;
       const now = new Date();
       const autoApproved = finalDecision.canAutoApprove && Boolean(claimed.job.requestedBy);
       const qaFailureMessage = hasBlockingIssue
         ? `QA ยังไม่ผ่านหลังแก้อัตโนมัติ: ${[
-          ...qa.value.issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
+          ...qa.issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
           ...issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
-          ...qa.value.correctionInstructions,
+          ...qa.correctionInstructions,
         ].slice(0, 3).join("; ") || "AI ระบุว่าฉบับแปลยังต้องแก้ไข"}`.slice(0, 1_000)
         : null;
       if (autoApproved) {

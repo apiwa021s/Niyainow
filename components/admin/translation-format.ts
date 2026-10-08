@@ -19,6 +19,17 @@ const tinyUsdFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 6,
 });
 
+const thbFormatter = new Intl.NumberFormat("th-TH", {
+  style: "currency",
+  currency: "THB",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+});
+
+export function formatTranslationThb(amount: number) {
+  return thbFormatter.format(amount);
+}
+
 const translationDateFormatter = new Intl.DateTimeFormat("th-TH", {
   dateStyle: "medium",
   timeStyle: "short",
