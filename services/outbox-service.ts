@@ -10,6 +10,7 @@ import {
   users,
   writerFollows,
 } from "@/db/schema";
+import { invalidatePublishedTranslationCache } from "@/services/translation-publication-cache";
 
 const LEASE_MS = 5 * 60_000;
 const MAX_RETRY_DELAY_MS = 60 * 60_000;
@@ -53,6 +54,7 @@ async function deliverNotificationEvent(event: ClaimedEvent, now: Date) {
       id: chapters.id,
       title: chapters.title,
       novelId: novels.id,
+      novelSlug: novels.slug,
       novelTitle: novels.title,
       writerId: novels.writerId,
       chapterStatus: chapters.status,
@@ -81,6 +83,11 @@ async function deliverNotificationEvent(event: ClaimedEvent, now: Date) {
       && chapter.chapterDeletedAt === null
       && chapter.novelStatus === "PUBLISHED"
       && chapter.novelDeletedAt === null;
+    if (typeof event.payload.translationVersionId === "string" || event.dedupeKey.startsWith("translation-published:")) {
+      // Cache failures roll back only this outbox attempt. The committed
+      // translation is preserved and notification dedupe remains unchanged.
+      await invalidatePublishedTranslationCache([{ novelSlug: chapter.novelSlug }]);
+    }
     const [storyFollowers, creatorFollowers] = deliverable ? await Promise.all([
       tx.select({ userId: novelFollows.userId }).from(novelFollows).where(and(
         eq(novelFollows.novelId, chapter.novelId),

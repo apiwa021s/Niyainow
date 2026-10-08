@@ -77,7 +77,7 @@ function memoryDatabase(availableModels = models) {
 const request = { chapterIds: [chapterId], idempotencyKey: "test-translation-job-1" };
 
 beforeEach(() => {
-  mocks.authorize.mockReset().mockResolvedValue({ id: "actor-1" });
+  mocks.authorize.mockReset().mockResolvedValue({ id: "actor-1", role: "ADMIN", status: "ACTIVE" });
   vi.stubEnv("AI_TRANSLATION_API_KEY", "test-key");
   vi.stubEnv("AI_TRANSLATION_BASE_URL", "https://api.openai.com/v1");
 });
@@ -158,6 +158,9 @@ describe("translation job execution mode", () => {
     expect(enqueueTranslationSchema.parse(request).executionMode).toBe("ECONOMY");
     expect(enqueueTranslationSchema.parse({ ...request, executionMode: "STANDARD" }).executionMode).toBe("STANDARD");
     expect(enqueueTranslationSchema.safeParse({ ...request, executionMode: "UNKNOWN" }).success).toBe(false);
+    expect(enqueueTranslationSchema.parse(request).autoPublish).toBe(true);
+    expect(enqueueTranslationSchema.parse({ ...request, autoPublish: false }).autoPublish).toBe(false);
+    expect(enqueueTranslationSchema.safeParse({ ...request, autoPublish: "true" }).success).toBe(false);
   });
 
   it("selects Luna and stores economy mode for a new translation", async () => {
@@ -165,7 +168,7 @@ describe("translation job execution mode", () => {
     mocks.db = db;
     await enqueueTranslation(workspaceId, enqueueTranslationSchema.parse(request));
     expect(state.job?.modelId).toBe(models.find((model) => model.modelName === "gpt-6-luna")?.id);
-    expect(state.items[0].checkpoint).toMatchObject({ job: { operation: "TRANSLATE", executionMode: "ECONOMY" } });
+    expect(state.items[0].checkpoint).toMatchObject({ job: { operation: "TRANSLATE", executionMode: "ECONOMY", autoPublish: true } });
   });
 
   it("preserves the comparison version and prior status for economy polish", async () => {
@@ -200,5 +203,20 @@ describe("translation job execution mode", () => {
     await expect(enqueueTranslation(workspaceId, enqueueTranslationSchema.parse(request)))
       .rejects.toMatchObject({ code: "AI_CONFIG_UNAVAILABLE" });
     expect(state.job).toBeNull();
+  });
+
+  it("rejects automatic publishing for editors before any database work", async () => {
+    mocks.authorize.mockResolvedValueOnce({ id: "editor-1", role: "EDITOR", status: "ACTIVE" });
+    mocks.db = null;
+    await expect(enqueueTranslation(workspaceId, enqueueTranslationSchema.parse(request)))
+      .rejects.toMatchObject({ status: 403, code: "TRANSLATION_PUBLISH_PERMISSION_REQUIRED" });
+  });
+
+  it("lets editors enqueue drafts with automatic publishing disabled", async () => {
+    mocks.authorize.mockResolvedValueOnce({ id: "editor-1", role: "EDITOR", status: "ACTIVE" });
+    const { db, state } = memoryDatabase();
+    mocks.db = db;
+    await enqueueTranslation(workspaceId, enqueueTranslationSchema.parse({ ...request, autoPublish: false }));
+    expect(state.items[0].checkpoint).toMatchObject({ job: { autoPublish: false } });
   });
 });

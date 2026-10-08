@@ -20,6 +20,7 @@ const restorableChapterStatusSchema = z.enum([
 export const translationJobMetadataSchema = z.object({
   operation: translationJobOperationSchema,
   executionMode: translationExecutionModeSchema.default("STANDARD"),
+  autoPublish: z.boolean().default(false),
   baseTranslationVersionId: z.string().uuid().nullable(),
   previousChapterStatus: restorableChapterStatusSchema.nullable(),
 });
@@ -29,6 +30,7 @@ export type TranslationJobMetadata = z.infer<typeof translationJobMetadataSchema
 const DEFAULT_TRANSLATION_JOB_METADATA: TranslationJobMetadata = {
   operation: "TRANSLATE",
   executionMode: "STANDARD",
+  autoPublish: false,
   baseTranslationVersionId: null,
   previousChapterStatus: null,
 };
@@ -36,6 +38,7 @@ const DEFAULT_TRANSLATION_JOB_METADATA: TranslationJobMetadata = {
 export function createTranslationJobMetadata(input?: {
   operation?: TranslationJobOperation;
   executionMode?: TranslationExecutionMode;
+  autoPublish?: boolean;
   baseTranslationVersionId?: string | null;
   previousChapterStatus?: string | null;
 }): TranslationJobMetadata {

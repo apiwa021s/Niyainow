@@ -29,6 +29,8 @@ import { economyPolishTranslationHash, readCheckpointEconomyPolish, readCheckpoi
 import { logger } from "@/lib/logger";
 import { aiCallCostMicros, polishAndReviewChapterAi, polishChapterWithCanonAi, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
 import { getTranslationProvider } from "@/services/ai/translation-provider";
+import { invalidatePublishedTranslationCacheAfterCommit } from "@/services/translation-publication-cache";
+import { publishTranslationVersionInTransaction, resolveTranslationPublishingActor } from "@/services/translation-publication-service";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
 const workerLogger = logger.child({ component: "translation-worker" });
@@ -45,6 +47,13 @@ class TranslationLeaseLostError extends Error {
   constructor(jobItemId: string) {
     super(`Translation worker lease was lost for job item ${jobItemId}`);
     this.name = "TranslationLeaseLostError";
+  }
+}
+
+class TranslationChapterChangedError extends Error {
+  constructor() {
+    super("ต้นฉบับหรือฉบับแปลเปลี่ยนระหว่างทำงาน กรุณาสั่งงานใหม่จากข้อมูลล่าสุด");
+    this.name = "TranslationChapterChangedError";
   }
 }
 
@@ -415,7 +424,13 @@ async function refreshJob(jobId: string) {
     const status = cancelled > 0 ? "CANCELLED" : failed > 0 && completed > 0 ? "PARTIAL" : failed > 0 ? "FAILED" : "COMPLETED";
     await tx.update(translationJobs).set({ status, completedItems: completed, failedItems: failed, finishedAt: now, lastError: failedItems[0]?.lastError ?? null, updatedAt: now }).where(eq(translationJobs.id, jobId));
 
-    await tx.update(translationWorkspaces).set({ status: "REVIEW", updatedAt: now }).where(eq(translationWorkspaces.id, job.workspaceId));
+    const [workspaceChapters] = await tx.select({
+      total: count(),
+      published: sql<number>`count(*) filter (where ${translationChapters.status} = 'PUBLISHED')`,
+    }).from(translationChapters).where(eq(translationChapters.workspaceId, job.workspaceId));
+    const allPublished = Number(workspaceChapters?.total ?? 0) > 0
+      && Number(workspaceChapters?.total) === Number(workspaceChapters?.published);
+    await tx.update(translationWorkspaces).set({ status: allPublished ? "COMPLETED" : "REVIEW", updatedAt: now }).where(eq(translationWorkspaces.id, job.workspaceId));
   });
 }
 
@@ -769,12 +784,22 @@ async function processClaimedItem(claimed: ClaimedItem) {
     translation = normalizeTranslationFormatting(translation);
     await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 94, progressStage: "CODE_QA" });
     await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 96, progressStage: "SAVING" });
-    await db.transaction(async (tx) => {
+    const publication = await db.transaction(async (tx) => {
       const [leaseOwner] = await tx.select({ id: translationJobItems.id }).from(translationJobItems)
         .where(claimedItemWhere(claimed.item.id, claimStartedAt))
         .limit(1)
         .for("update");
       if (!leaseOwner) throw new TranslationLeaseLostError(claimed.item.id);
+      // Hold the chapter lock through saving and publication. A source refresh
+      // or an editor's newer revision must not be replaced by this result.
+      const [currentChapter] = await tx.select({ id: translationChapters.id }).from(translationChapters)
+        .where(and(
+          eq(translationChapters.id, built.chapter.id),
+          eq(translationChapters.lockVersion, built.chapter.lockVersion),
+          eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
+          eq(translationChapters.status, "TRANSLATING"),
+        )).limit(1).for("update");
+      if (!currentChapter) throw new TranslationChapterChangedError();
       const [latest] = await tx.select().from(translationVersions).where(eq(translationVersions.translationChapterId, built.chapter.id)).orderBy(desc(translationVersions.revision)).limit(1);
       const version = await insertTranslationVersion(tx, {
         chapter: { ...built.chapter, sourceSnapshotId: claimed.item.sourceSnapshotId },
@@ -802,7 +827,14 @@ async function processClaimedItem(claimed: ClaimedItem) {
       const finalDecision = qaDecision(qa, issues);
       const hasBlockingIssue = !finalDecision.canProceedToReview;
       const now = new Date();
-      const autoApproved = !isEconomy && finalDecision.canAutoApprove && Boolean(claimed.job.requestedBy);
+      const publishingActor = initialJobMetadata.autoPublish && !hasBlockingIssue
+        ? await resolveTranslationPublishingActor(tx, claimed.job.requestedBy)
+        : null;
+      if (initialJobMetadata.autoPublish && !hasBlockingIssue && !publishingActor) {
+        throw new Error("ผู้สั่งงานไม่มีสิทธิ์เผยแพร่คำแปลแล้ว");
+      }
+      const autoApproved = !hasBlockingIssue && (Boolean(publishingActor)
+        || (!isEconomy && finalDecision.canAutoApprove && Boolean(claimed.job.requestedBy)));
       const qaFailureMessage = hasBlockingIssue
         ? `${isEconomy ? "QA ยังมีปัญหาหลังเกลา 1 รอบ" : "QA ยังไม่ผ่านหลังแก้อัตโนมัติ"}: ${[
           ...qa.issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
@@ -822,6 +854,14 @@ async function processClaimedItem(claimed: ClaimedItem) {
           approvedAt: now,
         }).where(eq(translationVersions.id, version.id));
       }
+      await tx.update(translationChapters).set({ status: hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
+        eq(translationChapters.id, built.chapter.id),
+        eq(translationChapters.lockVersion, built.chapter.lockVersion),
+        eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
+      ));
+      const published = publishingActor
+        ? await publishTranslationVersionInTransaction(tx, publishingActor, claimed.job.workspaceId, built.chapter.id, version.id)
+        : null;
       await tx.update(translationJobItems).set({
         status: hasBlockingIssue ? "FAILED" : "COMPLETED",
         progressPercent: 100,
@@ -830,12 +870,12 @@ async function processClaimedItem(claimed: ClaimedItem) {
         lastError: qaFailureMessage,
         checkpoint: hasBlockingIssue ? checkpoint : { job: checkpoint.job },
       }).where(claimedItemWhere(claimed.item.id, claimStartedAt));
-      await tx.update(translationChapters).set({ status: hasBlockingIssue ? "QA_FAILED" : autoApproved ? "APPROVED" : "REVIEW", lockVersion: built.chapter.lockVersion + 1, updatedAt: now }).where(and(
-        eq(translationChapters.id, built.chapter.id),
-        eq(translationChapters.lockVersion, built.chapter.lockVersion),
-        eq(translationChapters.sourceSnapshotId, claimed.item.sourceSnapshotId),
-      ));
+      return published;
     });
+    if (publication) {
+      // Cache retries are independent of the committed manuscript and AI work.
+      await invalidatePublishedTranslationCacheAfterCommit([publication]);
+    }
   } catch (error) {
     if (error instanceof TranslationLeaseLostError) {
       workerLogger.warn("Discarded result from a worker that no longer owns the translation lease", {
@@ -845,7 +885,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
       return;
     }
     const message = safeError(error);
-    const retry = claimed.item.attempts < MAX_ATTEMPTS;
+    const retry = !(error instanceof TranslationChapterChangedError) && claimed.item.attempts < MAX_ATTEMPTS;
     const now = new Date();
     const terminalChapterStatus = initialJobMetadata.operation === "POLISH" && initialJobMetadata.previousChapterStatus
       ? initialJobMetadata.previousChapterStatus

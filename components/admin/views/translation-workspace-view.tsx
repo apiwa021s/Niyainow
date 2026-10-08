@@ -84,6 +84,8 @@ export function TranslationWorkspaceView({ data, canCancelJobs, canPublish }: { 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chapterAction, setChapterAction] = useState<ChapterAction>("TRANSLATE");
   const [executionMode, setExecutionMode] = useState<ChapterExecutionMode>("ECONOMY");
+  const [autoPublish, setAutoPublish] = useState(canPublish);
+  const willAutoPublish = canPublish && autoPublish;
   const [chapterQuery, setChapterQuery] = useState("");
   const deferredChapterQuery = useDeferredValue(chapterQuery);
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -256,20 +258,24 @@ export function TranslationWorkspaceView({ data, canCancelJobs, canPublish }: { 
     const includesPublished = chapterAction === "POLISH" && [...selected].some((chapterId) => chapterById.get(chapterId)?.status === "PUBLISHED");
     const actionLabel = chapterAction === "POLISH" ? "เกลาสำนวน" : "แปล";
     const modeDescription = executionMode === "ECONOMY"
-      ? ` ทดลองประหยัดด้วย GPT-6 Luna: ${chapterAction === "POLISH" ? "เกลาและตรวจฉบับสุดท้ายในรอบเดียว" : "แปลหนึ่งรอบ แล้วเกลาและตรวจฉบับสุดท้ายอีกหนึ่งรอบ"} สร้างฉบับใหม่รอให้คุณเทียบคุณภาพและอนุมัติเอง`
+      ? ` ทดลองประหยัดด้วย GPT-6 Luna: ${chapterAction === "POLISH" ? "เกลาและตรวจฉบับสุดท้ายในรอบเดียว" : "แปลหนึ่งรอบ แล้วเกลาและตรวจฉบับสุดท้ายอีกหนึ่งรอบ"} เก็บฉบับเดิมไว้ให้เทียบคุณภาพได้`
       : " โหมดมาตรฐานใช้โมเดลและรอบตรวจเดิม";
+    const publicationDescription = willAutoPublish
+      ? " แปลเสร็จเผยแพร่ทันทีให้ผู้อ่านเปิดอ่านได้ โดยไม่รอคนตรวจหรือกดอนุมัติ หากพบปัญหาสำคัญหรือต้นฉบับเปลี่ยน ระบบจะพักตอนนั้นไว้"
+      : " ฉบับใหม่จะยังไม่เผยแพร่ คุณตรวจและอนุมัติก่อนเผยแพร่ได้";
     const estimate = selectedEstimatedCostMicros !== null && selectedEstimatedCostMicros > 0
       ? ` ${executionMode === "ECONOMY" ? "ต้นทุนเดิมสำหรับเทียบ" : "ประเมินคร่าว ๆ จากค่าเฉลี่ยสะสมเดิม"} ${formatTranslationThb(translationCostMicrosToThb(selectedEstimatedCostMicros, data.costPolicy.thbPerUsd))} (${formatAiCost(selectedEstimatedCostMicros)}) อัตราวางแผน ${planningRateLabel} ประวัติรวมแปลซ้ำ เกลาสำนวน และงานล้มเหลว ${executionMode === "ECONOMY" ? "ใช้ทำนายราคาโหมดทดลองไม่ได้ ดูยอดจริงของชุดใหม่หลังทำเสร็จ" : "จึงไม่ใช่ราคาของงานนี้ ยอดจริงขึ้นกับความยาวและจำนวนรอบตรวจ"}`
       : " ยังไม่มีประวัติต้นทุนเพียงพอสำหรับประเมินงานนี้ ระบบจะคำนวณจาก token ที่ใช้จริง";
     const confirmed = await dialogs.confirm({
       title: `เริ่ม${actionLabel} ${selected.size.toLocaleString("th-TH")} ตอนหรือไม่?`,
-      description: `งานจะทำต่อเบื้องหลัง คุณออกจากหน้านี้ได้ และยังไม่มีตอนใดถูกเผยแพร่อัตโนมัติ${modeDescription}${estimate}${includesPublished ? " ตอนที่เผยแพร่แล้วจะสร้างเป็นฉบับใหม่ โดยฉบับที่ผู้อ่านเห็นจะยังไม่เปลี่ยน" : ""}`,
+      description: `งานจะทำต่อเบื้องหลัง คุณออกจากหน้านี้ได้${modeDescription}${publicationDescription}${estimate}${includesPublished ? willAutoPublish ? " ตอนที่เผยแพร่แล้วจะเปลี่ยนเป็นฉบับเกลาใหม่เมื่อทำเสร็จ" : " ตอนที่เผยแพร่แล้วจะสร้างเป็นฉบับใหม่ โดยฉบับที่ผู้อ่านเห็นจะยังไม่เปลี่ยน" : ""}`,
       confirmLabel: `เริ่ม${actionLabel}`,
     });
     if (!confirmed) return;
     const queued = await perform("enqueue", () => mutate(`/api/admin/translation/workspaces/${data.workspace.id}/jobs`, "POST", {
       operation: chapterAction,
       executionMode,
+      autoPublish: willAutoPublish,
       chapterIds: [...selected], idempotencyKey: `${data.workspace.id}:${chapterAction.toLocaleLowerCase()}:${executionMode.toLocaleLowerCase()}:${crypto.randomUUID()}`,
     }), chapterAction === "POLISH"
       ? `เพิ่ม ${selected.size.toLocaleString("th-TH")} ตอนลงคิวเกลาสำนวนใหม่แล้ว`
@@ -553,7 +559,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs, canPublish }: { 
                 {chapterAction === "PUBLISH"
                   ? "เลือกตอนที่อนุมัติและตรวจผ่านแล้ว จากนั้นเผยแพร่ขึ้นหน้าอ่านได้ในครั้งเดียว"
                   : chapterAction === "POLISH"
-                  ? "AI จะเทียบต้นฉบับกับคำแปลล่าสุด เกลาให้เป็นสำนวนไทย และสร้างฉบับแก้ไขใหม่โดยไม่เขียนทับฉบับที่เผยแพร่"
+                  ? willAutoPublish ? "AI จะเทียบต้นฉบับกับคำแปลล่าสุด เกลาให้เป็นสำนวนไทย และเผยแพร่ฉบับใหม่เมื่อทำเสร็จ โดยเก็บฉบับเดิมไว้ในประวัติ" : "AI จะเทียบต้นฉบับกับคำแปลล่าสุด เกลาให้เป็นสำนวนไทย และสร้างฉบับแก้ไขใหม่โดยไม่เขียนทับฉบับที่เผยแพร่"
                   : "สร้างคำแปลใหม่จากต้นฉบับ พร้อมตรวจความสม่ำเสมอ คลังคำ และคุณภาพอัตโนมัติ"}
               </p>
             </div>
@@ -568,13 +574,21 @@ export function TranslationWorkspaceView({ data, canCancelJobs, canPublish }: { 
               <div className="text-xs leading-relaxed text-muted-foreground">
                 {executionMode === "ECONOMY" ? <>
                   <p className="font-semibold text-foreground">GPT-6 Luna · {chapterAction === "POLISH" ? "เกลาและตรวจฉบับสุดท้าย 1 รอบ" : "แปล 1 รอบ + เกลาและตรวจฉบับสุดท้าย 1 รอบ"}</p>
-                  <p className="mt-1">ใช้ต้นฉบับและแนวทางเดิม โมเดลเกลาและประเมินงานของตัวเองหนึ่งรอบ แล้วส่งให้คุณเทียบคุณภาพกับฉบับก่อนหน้า เก็บฉบับเดิมไว้และรอคุณอนุมัติฉบับใหม่</p>
+                  <p className="mt-1">ใช้ต้นฉบับและแนวทางเดิม โมเดลเกลาและประเมินงานของตัวเองหนึ่งรอบ เก็บฉบับเดิมไว้ให้เทียบคุณภาพได้{willAutoPublish ? " แล้วเผยแพร่ฉบับใหม่เมื่อทำเสร็จ" : " แล้วรอคุณตรวจและอนุมัติฉบับใหม่"}</p>
                   <p className="mt-1">ต้นทุนจริงขึ้นกับ token ที่ใช้และอัตราบริการ เป้าหมายเฉลี่ยไม่เกิน 1 บาทต่อตอนยังต้องวัดจากงานที่เสร็จ</p>
                 </> : <>
                   <p className="font-semibold text-foreground">GPT-5.6 Sol แปลและเกลา · GPT-5.6 Terra ตรวจคุณภาพ</p>
                   <p className="mt-1">ใช้การตรวจและแก้ไขตามเกณฑ์เดิมสูงสุด 2 รอบ จากนั้นบันทึกผลตามคะแนนและปัญหาที่ตรวจพบ</p>
                 </>}
               </div>
+            </div> : null}
+
+            {chapterAction !== "PUBLISH" && canPublish ? <div className="rounded-[12px] border border-border p-3">
+              <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold">
+                <input type="checkbox" className="h-5 w-5 accent-[var(--brand-primary)]" checked={willAutoPublish} onChange={(event) => setAutoPublish(event.target.checked)} disabled={activeJobs || Boolean(busy)} />
+                แปลเสร็จเผยแพร่ทันที
+              </label>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{willAutoPublish ? "ฉบับใหม่จะขึ้นหน้าอ่านเมื่อแปลและเกลาเสร็จ ไม่ต้องรอคนตรวจหรือกดอนุมัติ คะแนนและข้อเสนอแนะยังดูย้อนหลังได้ หากมีปัญหาสำคัญหรือต้นฉบับเปลี่ยน ระบบจะพักตอนนั้นไว้" : "ฉบับใหม่จะรอคุณตรวจ อนุมัติ และกดเผยแพร่"}</p>
             </div> : null}
 
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_190px]">
@@ -622,7 +636,7 @@ export function TranslationWorkspaceView({ data, canCancelJobs, canPublish }: { 
           </div>
         </Panel></div>
 
-        <Panel title="ประวัติงาน AI" description="ตรวจสอบทุกชุดงาน ต้นทุน ระยะเวลา และข้อผิดพลาดย้อนหลัง" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[1060px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">ประเภทงาน</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ความคืบหน้า</th><th className="px-4 py-3">ต้นทุน</th><th className="px-4 py-3">ระยะเวลา</th><th className="px-4 py-3">รายละเอียดปัญหา</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 align-top transition-colors last:border-0 hover:bg-muted/30"><td className="whitespace-nowrap px-4 py-3 text-xs">{formatTranslationDate(job.createdAt)}</td><td className="px-4 py-3 font-medium">{job.operation === "POLISH" ? "เกลาสำนวน" : "แปลต้นฉบับ"}<span className="mt-0.5 block text-xs font-normal text-muted-foreground">{job.executionMode === "ECONOMY" ? "ทดลองประหยัด · Luna + เกลา 1 รอบ" : "มาตรฐาน"}</span></td><td className="px-4 py-3"><StatusPill label={job.cancelRequestedAt && job.status === "RUNNING" ? "กำลังยกเลิก" : translationStatusLabel(job.status)} tone={job.cancelRequestedAt && job.status === "RUNNING" ? "warning" : translationStatusTone(job.status)} /></td><td className="px-4 py-3 tabular-nums"><span className="font-semibold">{job.completedItems + job.failedItems} / {job.totalItems}</span>{job.failedItems ? <span className="mt-0.5 block text-xs text-destructive">ไม่สำเร็จ {job.failedItems}</span> : null}</td><td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums">{formatTranslationThb(translationCostMicrosToThb(job.costMicros, data.costPolicy.thbPerUsd))}<span className="mt-0.5 block text-xs font-normal text-muted-foreground">{formatAiCost(job.costMicros)}</span></td><td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatJobDuration(job.startedAt, job.finishedAt)}</td><td className="max-w-sm px-4 py-3 text-xs"><span className={job.lastError ? "text-destructive" : "text-muted-foreground"}>{job.lastError || "ไม่มีข้อผิดพลาด"}</span></td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" disabled={Boolean(job.cancelRequestedAt)} onClick={() => void cancelJob(job.id)}>{job.cancelRequestedAt ? "กำลังยกเลิก" : "ยกเลิก"}</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={8}><TranslationEmptyState title="ยังไม่มีประวัติงาน AI" description="เลือกตอนด้านบนแล้วเริ่มแปลหรือเกลาสำนวน ประวัติและต้นทุนจะปรากฏที่นี่" /></td></tr> : null}</tbody></table></div></Panel>
+        <Panel title="ประวัติงาน AI" description="ตรวจสอบทุกชุดงาน ต้นทุน ระยะเวลา และข้อผิดพลาดย้อนหลัง" bodyClassName="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[1060px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">เริ่มเมื่อ</th><th className="px-4 py-3">ประเภทงาน</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">ความคืบหน้า</th><th className="px-4 py-3">ต้นทุน</th><th className="px-4 py-3">ระยะเวลา</th><th className="px-4 py-3">รายละเอียดปัญหา</th><th className="px-4 py-3" /></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id} className="border-b border-border/70 align-top transition-colors last:border-0 hover:bg-muted/30"><td className="whitespace-nowrap px-4 py-3 text-xs">{formatTranslationDate(job.createdAt)}</td><td className="px-4 py-3 font-medium">{job.operation === "POLISH" ? "เกลาสำนวน" : "แปลต้นฉบับ"}<span className="mt-0.5 block text-xs font-normal text-muted-foreground">{job.executionMode === "ECONOMY" ? "ทดลองประหยัด · Luna + เกลา 1 รอบ" : "มาตรฐาน"}</span><span className="mt-0.5 block text-xs font-normal text-muted-foreground">{job.autoPublish ? "เสร็จแล้วเผยแพร่ทันที" : "รอเผยแพร่เอง"}</span></td><td className="px-4 py-3"><StatusPill label={job.cancelRequestedAt && job.status === "RUNNING" ? "กำลังยกเลิก" : translationStatusLabel(job.status)} tone={job.cancelRequestedAt && job.status === "RUNNING" ? "warning" : translationStatusTone(job.status)} /></td><td className="px-4 py-3 tabular-nums"><span className="font-semibold">{job.completedItems + job.failedItems} / {job.totalItems}</span>{job.failedItems ? <span className="mt-0.5 block text-xs text-destructive">ไม่สำเร็จ {job.failedItems}</span> : null}</td><td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums">{formatTranslationThb(translationCostMicrosToThb(job.costMicros, data.costPolicy.thbPerUsd))}<span className="mt-0.5 block text-xs font-normal text-muted-foreground">{formatAiCost(job.costMicros)}</span></td><td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatJobDuration(job.startedAt, job.finishedAt)}</td><td className="max-w-sm px-4 py-3 text-xs"><span className={job.lastError ? "text-destructive" : "text-muted-foreground"}>{job.lastError || "ไม่มีข้อผิดพลาด"}</span></td><td className="px-4 py-3 text-right">{canCancelJobs && (job.status === "QUEUED" || job.status === "RUNNING") ? <Button type="button" variant="ghost" size="sm" disabled={Boolean(job.cancelRequestedAt)} onClick={() => void cancelJob(job.id)}>{job.cancelRequestedAt ? "กำลังยกเลิก" : "ยกเลิก"}</Button> : null}</td></tr>)}{!data.jobs.length ? <tr><td colSpan={8}><TranslationEmptyState title="ยังไม่มีประวัติงาน AI" description="เลือกตอนด้านบนแล้วเริ่มแปลหรือเกลาสำนวน ประวัติและต้นทุนจะปรากฏที่นี่" /></td></tr> : null}</tbody></table></div></Panel>
       </div>
     )}
   </div>;

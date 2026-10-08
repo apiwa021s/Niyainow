@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   polish: vi.fn(),
   insertVersion: vi.fn(),
   replaceIssues: vi.fn(),
+  publishingActor: vi.fn(),
+  publish: vi.fn(),
+  invalidatePublication: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({ getDb: () => mocks.db }));
@@ -38,6 +41,13 @@ vi.mock("@/services/ai/translation-pipeline", async (importOriginal) => ({
 vi.mock("@/services/translation-version-service", () => ({
   insertTranslationVersion: mocks.insertVersion,
   replaceQaIssues: mocks.replaceIssues,
+}));
+vi.mock("@/services/translation-publication-service", () => ({
+  resolveTranslationPublishingActor: mocks.publishingActor,
+  publishTranslationVersionInTransaction: mocks.publish,
+}));
+vi.mock("@/services/translation-publication-cache", () => ({
+  invalidatePublishedTranslationCacheAfterCommit: mocks.invalidatePublication,
 }));
 vi.mock("@/lib/logger", () => ({ logger: { child: () => ({ warn: vi.fn() }) } }));
 
@@ -96,6 +106,8 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
   const configuredModel = economy ? economyModel : mainModel;
   const state = {
     ownsLease: true,
+    currentChapter: true,
+    inTransaction: false,
     invocations: [] as Array<Record<string, unknown>>,
     checkpointWrites: [] as unknown[],
     versionUpdates: [] as Array<Record<string, unknown>>,
@@ -126,6 +138,7 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
         if (table === translationPromptVersions) return [{ id: "prompt-1", systemPrompt: "Translate all facts faithfully", isActive: true }];
         if (table === translationJobItems && shape?.item) return [{ item: storedItem, job: { ...job, requestedBy, totalItems } }];
         if (table === translationJobItems && shape?.id) return state.ownsLease ? [{ id: itemId }] : [];
+        if (table === translationChapters && shape?.id) return state.currentChapter ? [{ id: chapterId }] : [];
         if (table === translationVersions && economy) return [{ id: "00000000-0000-4000-8000-000000000009", ...checkpoint.translation, status: "APPROVED" }];
         if (table === translationChapters && shape?.chapter) return [{
           chapter: { id: chapterId, chapterNumber: 1, workspaceId, lockVersion: 0, sourceSnapshotId },
@@ -162,14 +175,16 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
     ...db,
     transaction: async <T>(action: (transaction: typeof db) => Promise<T>): Promise<T> => {
       state.transactionCount += 1;
-      const invocationCount = state.invocations.length;
-      const checkpointCount = state.checkpointWrites.length;
+      const persistedLists = [state.invocations, state.checkpointWrites, state.versionUpdates, state.chapterUpdates, state.itemUpdates, state.qaIssues];
+      const originalLengths = persistedLists.map((values) => values.length);
+      state.inTransaction = true;
       try {
         return await action(db);
       } catch (error) {
-        state.invocations.splice(invocationCount);
-        state.checkpointWrites.splice(checkpointCount);
+        persistedLists.forEach((values, index) => values.splice(originalLengths[index]));
         throw error;
+      } finally {
+        state.inTransaction = false;
       }
     },
   };
@@ -180,6 +195,13 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.insertVersion.mockResolvedValue({ id: "version-1" });
   mocks.replaceIssues.mockResolvedValue([]);
+  mocks.publishingActor.mockResolvedValue({ id: "admin-1", email: "admin@example.test", name: "Admin", image: null, role: "ADMIN", status: "ACTIVE" });
+  mocks.publish.mockImplementation(async (tx) => {
+    await tx.update(translationVersions).set({ status: "PUBLISHED" }).where(undefined);
+    await tx.update(translationChapters).set({ status: "PUBLISHED" }).where(undefined);
+    return { versionId: "version-1", publicChapterId: "public-chapter-1", publicNovelId: "public-novel-1", novelSlug: "novel-1" };
+  });
+  mocks.invalidatePublication.mockResolvedValue({ invalidated: true });
   mocks.qa.mockResolvedValue({
     value: qaValue,
     call: {
@@ -258,6 +280,117 @@ function polishResponse(review: QaValue, translation = checkpoint.translation) {
 
 const economyJobMetadata = createTranslationJobMetadata({ executionMode: "ECONOMY" });
 const economyCheckpoint = { ...checkpoint, job: economyJobMetadata };
+
+describe("automatic translation publication", () => {
+  const publishCheckpoint = {
+    ...economyCheckpoint,
+    job: createTranslationJobMetadata({ executionMode: "ECONOMY", autoPublish: true }),
+  };
+
+  it.each([98, 75])("publishes after one polish even with a nonblocking score of %s", async (score) => {
+    const { db, state } = memoryDatabase(publishCheckpoint, "Keep all facts", "admin-1");
+    mocks.db = db;
+    mocks.polish.mockResolvedValue(polishResponse({ ...qaValue, passed: score >= 90, score, issues: [finding(null, null)] }));
+    mocks.publish.mockImplementationOnce(async () => {
+      expect(state.inTransaction).toBe(true);
+      expect(state.chapterUpdates).toContainEqual(expect.objectContaining({ status: "APPROVED" }));
+      return { novelSlug: "novel-1" };
+    });
+    mocks.invalidatePublication.mockImplementationOnce(async () => {
+      expect(state.inTransaction).toBe(false);
+      expect(state.itemUpdates).toContainEqual(expect.objectContaining({ status: "COMPLETED" }));
+      return { invalidated: true };
+    });
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.polish).toHaveBeenCalledOnce();
+    expect(mocks.qa).not.toHaveBeenCalled();
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.publishingActor).toHaveBeenCalledWith(expect.anything(), "admin-1");
+    expect(mocks.publish).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: "admin-1", role: "ADMIN" }), workspaceId, chapterId, "version-1");
+    expect(mocks.invalidatePublication).toHaveBeenCalledWith([{ novelSlug: "novel-1" }]);
+    expect(state.versionUpdates).toContainEqual(expect.objectContaining({ status: "APPROVED", approvedBy: "admin-1" }));
+  });
+
+  it("publishes standard translations when requested", async () => {
+    const { db, state } = memoryDatabase({ ...checkedCheckpoint, job: createTranslationJobMetadata({ autoPublish: true }) }, "Keep all facts", "admin-1");
+    mocks.db = db;
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.qa).not.toHaveBeenCalled();
+    expect(mocks.publish).toHaveBeenCalledOnce();
+    expect(state.chapterUpdates).toContainEqual(expect.objectContaining({ status: "PUBLISHED" }));
+  });
+
+  it.each(["AI", "CODE"])("keeps blocking %s findings unpublished", async (kind) => {
+    const { db, state } = memoryDatabase(publishCheckpoint, "Keep all facts", "admin-1");
+    mocks.db = db;
+    if (kind === "AI") mocks.polish.mockResolvedValue(polishResponse(failedQa([finding(null, null, "CRITICAL")])));
+    else mocks.replaceIssues.mockResolvedValue([{ code: "EMPTY_TRANSLATION", severity: "CRITICAL", message: "Empty translation" }]);
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.publish).not.toHaveBeenCalled();
+    expect(mocks.invalidatePublication).not.toHaveBeenCalled();
+    expect(state.chapterUpdates).toContainEqual(expect.objectContaining({ status: "QA_FAILED" }));
+    expect(state.itemUpdates).toContainEqual(expect.objectContaining({ status: "FAILED" }));
+  });
+
+  it("rolls back approval when the requester has lost publishing permission", async () => {
+    const { db, state } = memoryDatabase(publishCheckpoint, "Keep all facts", "admin-1");
+    mocks.db = db;
+    mocks.publishingActor.mockResolvedValue(null);
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.publish).not.toHaveBeenCalled();
+    expect(state.versionUpdates).toEqual([]);
+    expect(state.itemUpdates).not.toContainEqual(expect.objectContaining({ status: "COMPLETED" }));
+    expect(state.checkpointWrites).toContainEqual(expect.objectContaining({ economyPolish: expect.anything() }));
+  });
+
+  it("retries a publication failure without buying another translation or polish", async () => {
+    const first = memoryDatabase(publishCheckpoint, "Keep all facts", "admin-1");
+    mocks.db = first.db;
+    mocks.publish.mockRejectedValueOnce(new Error("Temporary publication database failure"));
+
+    await processTranslationJobs(1, 1);
+
+    expect(first.state.versionUpdates).toEqual([]);
+    expect(first.state.chapterUpdates).not.toContainEqual(expect.objectContaining({ status: "APPROVED" }));
+    expect(first.state.itemUpdates).not.toContainEqual(expect.objectContaining({ status: "COMPLETED" }));
+    expect(mocks.invalidatePublication).not.toHaveBeenCalled();
+    const saved = first.state.checkpointWrites.find((value) => Boolean((value as { economyPolish?: unknown }).economyPolish));
+    const retry = memoryDatabase(saved, "Keep all facts", "admin-1");
+    mocks.db = retry.db;
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.publish).toHaveBeenCalledTimes(2);
+    expect(mocks.polish).toHaveBeenCalledOnce();
+    expect(mocks.translate).not.toHaveBeenCalled();
+    expect(retry.state.invocations).toEqual([]);
+    expect(retry.state.chapterUpdates).toContainEqual(expect.objectContaining({ status: "PUBLISHED" }));
+    expect(retry.state.checkpointWrites).toContainEqual({ job: publishCheckpoint.job });
+  });
+
+  it("does not save or publish when the chapter or source changed while polishing", async () => {
+    const { db, state } = memoryDatabase(publishCheckpoint, "Keep all facts", "admin-1");
+    mocks.db = db;
+    mocks.polish.mockImplementationOnce(async () => {
+      state.currentChapter = false;
+      return polishResponse(qaValue);
+    });
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.publish).not.toHaveBeenCalled();
+    expect(state.itemUpdates).toContainEqual(expect.objectContaining({ status: "FAILED" }));
+  });
+});
 
 describe("economy translation trial", () => {
   it.each(["default", "flex"])("translates then polishes once below the sample budget with %s pricing and keeps its approved predecessor", async (serviceTier) => {

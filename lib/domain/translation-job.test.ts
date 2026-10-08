@@ -20,7 +20,7 @@ describe("translation job metadata", () => {
   });
 
   it("falls back safely for legacy translation checkpoints", () => {
-    expect(readTranslationJobMetadata({})).toMatchObject({ operation: "TRANSLATE", executionMode: "STANDARD" });
+    expect(readTranslationJobMetadata({})).toMatchObject({ operation: "TRANSLATE", executionMode: "STANDARD", autoPublish: false });
     expect(chapterStatusAfterCancelledJob({ version: 1 })).toBe("READY");
   });
 
@@ -31,7 +31,7 @@ describe("translation job metadata", () => {
       previousChapterStatus: "APPROVED",
     };
 
-    expect(readTranslationJobMetadata({ job: legacyJob })).toEqual({ ...legacyJob, executionMode: "STANDARD" });
+    expect(readTranslationJobMetadata({ job: legacyJob })).toEqual({ ...legacyJob, executionMode: "STANDARD", autoPublish: false });
     expect(chapterStatusAfterCancelledJob({ job: legacyJob })).toBe("APPROVED");
   });
 
@@ -40,5 +40,12 @@ describe("translation job metadata", () => {
     expect(readTranslationJobMetadata({ job, translation: { title: "draft", content: "draft" } })).toEqual(job);
     expect(job.executionMode).toBe("ECONOMY");
     expect(createTranslationJobMetadata().executionMode).toBe("STANDARD");
+  });
+
+  it("preserves the explicit publication choice through every job checkpoint", () => {
+    const job = createTranslationJobMetadata({ executionMode: "ECONOMY", autoPublish: true });
+    expect(readTranslationJobMetadata(JSON.parse(JSON.stringify({ job })))).toEqual(job);
+    expect(createTranslationJobMetadata().autoPublish).toBe(false);
+    expect(readTranslationJobMetadata({ job: { ...job, autoPublish: "true" } }).autoPublish).toBe(false);
   });
 });
