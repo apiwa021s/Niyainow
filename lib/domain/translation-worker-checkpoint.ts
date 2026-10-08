@@ -47,6 +47,12 @@ const correctionCheckpointSchema = z.object({
   completedRounds: z.number().int().min(0).max(2),
 });
 
+const economyPolishCheckpointSchema = z.object({
+  translationHash: z.string().regex(/^[a-f0-9]{64}$/),
+  review: qaResultSchema,
+  contextSnapshotId: z.string().uuid().optional(),
+});
+
 const jobCheckpointSchema = z.object({
   version: z.literal(1),
   sourceSnapshotId: z.string().uuid(),
@@ -56,6 +62,7 @@ const jobCheckpointSchema = z.object({
   // Bad or legacy optional state cannot invalidate a usable translation.
   qa: qaCheckpointSchema.nullable().catch(null).default(null),
   correction: correctionCheckpointSchema.nullable().catch(null).default(null),
+  economyPolish: economyPolishCheckpointSchema.nullable().catch(null).default(null),
 });
 
 export type TranslationWorkerCheckpoint = Omit<z.infer<typeof jobCheckpointSchema>, "job"> & {
@@ -68,10 +75,23 @@ export function readTranslationWorkerCheckpoint(value: unknown, sourceSnapshotId
   if (parsed.success && parsed.data.sourceSnapshotId === sourceSnapshotId) {
     const checkpoint = { ...parsed.data, job };
     return checkpoint.translation && !checkpoint.chapterAnalysis
-      ? { ...checkpoint, translation: null, qa: null, correction: null }
+      ? { ...checkpoint, translation: null, qa: null, correction: null, economyPolish: null }
       : checkpoint;
   }
-  return { version: 1, sourceSnapshotId, chapterAnalysis: null, translation: null, qa: null, correction: null, job };
+  return { version: 1, sourceSnapshotId, chapterAnalysis: null, translation: null, qa: null, correction: null, economyPolish: null, job };
+}
+
+export function economyPolishTranslationHash(translation: z.infer<typeof translationCheckpointSchema>) {
+  return sha256(JSON.stringify({ title: translation.title, content: translation.content }));
+}
+
+export function readCheckpointEconomyPolish(checkpoint: TranslationWorkerCheckpoint) {
+  // This verdict belongs to the single completed editorial pass. Later changes
+  // to advisory glossary entries must not buy another polish on a retry.
+  return checkpoint.job.executionMode === "ECONOMY" && checkpoint.translation &&
+    checkpoint.economyPolish?.translationHash === economyPolishTranslationHash(checkpoint.translation)
+    ? checkpoint.economyPolish.review
+    : null;
 }
 
 export type TranslationQaCheckpointInput = {

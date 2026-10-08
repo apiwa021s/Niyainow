@@ -55,6 +55,8 @@ export type StructuredAiInput = {
   systemPrompt: string;
   task: string;
   serviceTier?: "auto" | "default" | "flex";
+  /** Sent only through Responses to models whose supported efforts are known. */
+  reasoningEffort?: "none" | "low" | "medium";
   payload: Record<string, unknown>;
   cache?: PromptCacheInput;
   schemaName: string;
@@ -127,6 +129,12 @@ function requestServiceTier(input: StructuredAiInput) {
   throw new Error("AI_TRANSLATION_SERVICE_TIER must be one of: flex, default, auto");
 }
 
+function supportedReasoningEffort(input: StructuredAiInput) {
+  return /^gpt-6-luna(?:-\d{4}-\d{2}-\d{2})?$/i.test(input.model.modelName)
+    ? input.reasoningEffort
+    : undefined;
+}
+
 async function postAiRequest(input: StructuredAiInput, endpoint: string, body: Record<string, unknown>) {
   const secret = process.env[input.model.apiKeyEnv];
   if (!secret) throw new Error(`Missing configured AI credential: ${input.model.apiKeyEnv}`);
@@ -165,18 +173,20 @@ async function requestStructuredWithResponses(input: StructuredAiInput, startedA
   const stablePayload = JSON.stringify({ shared: input.cache?.stablePayload ?? {} });
   const dynamicPayload = JSON.stringify({ task: input.task, ...input.payload });
   const serviceTier = requestServiceTier(input);
-  const cacheSharedPayload = input.cache?.cacheSharedPayload !== false;
+  const cacheSharedPayload = Boolean(input.cache) && input.cache?.cacheSharedPayload !== false;
   const cacheReusablePayload = Boolean(input.cache?.reusablePayload) && input.cache?.cacheReusablePayload !== false;
+  const reasoningEffort = supportedReasoningEffort(input);
   const response = await postAiRequest(input, `${input.model.baseUrl.replace(/\/$/, "")}/responses`, {
     model: input.model.modelName,
     ...(serviceTier ? { service_tier: serviceTier } : {}),
+    ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
     store: false,
     input: [
       { role: "developer", content: [{ type: "input_text", text: input.systemPrompt }] },
-      {
+      ...(input.cache ? [{
         role: "developer",
         content: [{ type: "input_text", text: stablePayload, ...(cacheSharedPayload ? { prompt_cache_breakpoint: { mode: "explicit" } } : {}) }],
-      },
+      }] : []),
       ...(input.cache?.reusablePayload ? [{
         role: "user",
         content: [{
@@ -187,8 +197,10 @@ async function requestStructuredWithResponses(input: StructuredAiInput, startedA
       }] : []),
       { role: "user", content: [{ type: "input_text", text: dynamicPayload }] },
     ],
-    prompt_cache_key: input.cache?.key,
-    prompt_cache_options: { mode: "explicit", ttl: "30m" },
+    ...(input.cache ? {
+      prompt_cache_key: input.cache.key,
+      prompt_cache_options: { mode: "explicit", ttl: "30m" },
+    } : {}),
     text: {
       format: { type: "json_schema", name: input.schemaName, strict: true, schema: input.jsonSchema },
     },
@@ -259,7 +271,7 @@ async function requestStructuredWithChatCompletions(input: StructuredAiInput, st
 
 async function requestStructured(input: StructuredAiInput): Promise<StructuredAiResult> {
   const startedAt = Date.now();
-  return input.cache && isOfficialOpenAiEndpoint(input.model.baseUrl)
+  return (input.cache || supportedReasoningEffort(input)) && isOfficialOpenAiEndpoint(input.model.baseUrl)
     ? requestStructuredWithResponses(input, startedAt)
     : requestStructuredWithChatCompletions(input, startedAt);
 }

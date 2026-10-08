@@ -49,6 +49,7 @@ import {
   chapterStatusAfterCancelledJob,
   createTranslationJobMetadata,
   readTranslationJobMetadata,
+  translationExecutionModeSchema,
   translationJobOperationSchema,
 } from "@/lib/domain/translation-job";
 import { ApiError } from "@/lib/http/api-response";
@@ -195,6 +196,7 @@ export const enqueueTranslationSchema = z.object({
   modelId: uuidSchema.optional(),
   promptVersionId: uuidSchema.optional(),
   operation: translationJobOperationSchema.default("TRANSLATE"),
+  executionMode: translationExecutionModeSchema.default("ECONOMY"),
   chapterIds: z.array(uuidSchema).min(1).max(100),
   idempotencyKey: z.string().trim().min(16).max(255),
 });
@@ -330,7 +332,7 @@ async function ensureAutomaticAiConfiguration(actor: CurrentUser) {
 }
 
 async function getAutomaticModels<T extends AutomaticTranslationTask>(tasks: readonly T[]) {
-  const names = tasks.map(automaticModelNameForTask);
+  const names = tasks.map((task) => automaticModelNameForTask(task));
   const rows = await getDb().select().from(translationAiModels).where(and(
     eq(translationAiModels.isActive, true),
     inArray(translationAiModels.modelName, names),
@@ -864,9 +866,9 @@ export async function getTranslationWorkspace(workspaceId: string) {
         .from(translationJobItems)
         .where(inArray(translationJobItems.jobId, jobs.map((job) => job.id)))
     : [];
-  const operationByJob = new Map<string, ReturnType<typeof readTranslationJobMetadata>["operation"]>();
+  const metadataByJob = new Map<string, ReturnType<typeof readTranslationJobMetadata>>();
   for (const item of jobMetadataRows) {
-    if (!operationByJob.has(item.jobId)) operationByJob.set(item.jobId, readTranslationJobMetadata(item.checkpoint).operation);
+    if (!metadataByJob.has(item.jobId)) metadataByJob.set(item.jobId, readTranslationJobMetadata(item.checkpoint));
   }
   return {
     workspace: { ...serializeWorkspace(workspace.workspace), title: workspace.translatedTitle ?? workspace.sourceTitle ?? "Imported novel", updatedAt: workspace.workspace.updatedAt.toISOString() },
@@ -895,7 +897,7 @@ export async function getTranslationWorkspace(workspaceId: string) {
       ...row,
       ...(aiUsageByChapter.get(row.id) ?? { costMicros: 0, aiCallCount: 0, inputTokens: 0, cachedInputTokens: 0 }),
     })),
-    jobs: jobs.map((row) => ({ ...row, operation: operationByJob.get(row.id) ?? "TRANSLATE", createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), startedAt: row.startedAt?.toISOString() ?? null, finishedAt: row.finishedAt?.toISOString() ?? null })),
+    jobs: jobs.map((row) => ({ ...row, operation: metadataByJob.get(row.id)?.operation ?? "TRANSLATE", executionMode: metadataByJob.get(row.id)?.executionMode ?? "STANDARD", createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), startedAt: row.startedAt?.toISOString() ?? null, finishedAt: row.finishedAt?.toISOString() ?? null })),
   };
 }
 
@@ -1179,6 +1181,7 @@ export async function createTranslationModel(input: z.infer<typeof createTransla
 
 export async function enqueueTranslation(workspaceId: string, input: z.infer<typeof enqueueTranslationSchema>) {
   const actor = await assertTranslationPermission("translation.run");
+  const executionMode = input.executionMode ?? "ECONOMY";
   if (!input.modelId || !input.promptVersionId) {
     if (!process.env.AI_TRANSLATION_API_KEY?.trim()) throw new ApiError(409, "AI_CREDENTIAL_MISSING", "กรุณาตั้ง AI_TRANSLATION_API_KEY ใน environment ของ server");
     await ensureAutomaticAiConfiguration(actor);
@@ -1201,14 +1204,17 @@ export async function enqueueTranslation(workspaceId: string, input: z.infer<typ
     )).limit(1);
     if (activeJob) throw new ApiError(409, "TRANSLATION_JOB_ACTIVE", "มีงานแปลกำลังทำงานอยู่ กรุณารอให้งานปัจจุบันเสร็จก่อน");
     const activeModels = input.modelId ? [] : await tx.select().from(translationAiModels).where(eq(translationAiModels.isActive, true));
-    const preferredModel = activeModels.find((candidate) => candidate.modelName === automaticModelNameForTask("MAIN_TRANSLATION"));
+    const preferredModel = activeModels.find((candidate) => candidate.modelName === automaticModelNameForTask("MAIN_TRANSLATION", executionMode));
     const model = input.modelId
       ? (await tx.select().from(translationAiModels).where(and(eq(translationAiModels.id, input.modelId), eq(translationAiModels.isActive, true))).limit(1))[0]
-      : selectBestTranslationModel(preferredModel ? [preferredModel] : activeModels, workspace.sourceLanguage, workspace.targetLanguage);
+      : selectBestTranslationModel(preferredModel ? [preferredModel] : executionMode === "ECONOMY" ? [] : activeModels, workspace.sourceLanguage, workspace.targetLanguage);
     const [prompt] = input.promptVersionId
       ? await tx.select({ id: translationPromptVersions.id }).from(translationPromptVersions).where(and(eq(translationPromptVersions.id, input.promptVersionId), eq(translationPromptVersions.isActive, true))).limit(1)
       : await tx.select({ id: translationPromptVersions.id }).from(translationPromptVersions).where(eq(translationPromptVersions.isActive, true)).orderBy(desc(translationPromptVersions.createdAt)).limit(1);
     if (!model || !prompt) throw new ApiError(400, "AI_CONFIG_UNAVAILABLE", "Model หรือ Prompt ไม่พร้อมใช้งาน");
+    if (executionMode === "ECONOMY" && model.modelName !== automaticModelNameForTask("MAIN_TRANSLATION", executionMode)) {
+      throw new ApiError(400, "ECONOMY_MODEL_REQUIRED", "โหมดประหยัดต้องใช้ GPT-6 Luna");
+    }
     const eligibleStatuses = input.operation === "POLISH"
       ? ["DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "PUBLISHED", "FAILED"] as const
       : ["READY", "STALE", "DRAFT", "QA_FAILED", "REVIEW", "APPROVED", "FAILED"] as const;
@@ -1245,16 +1251,19 @@ export async function enqueueTranslation(workspaceId: string, input: z.infer<typ
         sourceSnapshotId: chapter.sourceSnapshotId,
         chapterAnalysis: null,
         translation: null,
-        job: createTranslationJobMetadata(input.operation === "POLISH" ? {
-          operation: "POLISH",
-          baseTranslationVersionId: baseVersionByChapter.get(chapter.id) ?? null,
-          previousChapterStatus: chapter.status,
-        } : undefined),
+        job: createTranslationJobMetadata({
+          executionMode,
+          ...(input.operation === "POLISH" ? {
+            operation: "POLISH" as const,
+            baseTranslationVersionId: baseVersionByChapter.get(chapter.id) ?? null,
+            previousChapterStatus: chapter.status,
+          } : {}),
+        }),
       },
     })));
     await tx.update(translationChapters).set({ status: "QUEUED", updatedAt: new Date() }).where(inArray(translationChapters.id, selected.map((row) => row.id)));
     await tx.update(translationWorkspaces).set({ status: "TRANSLATING", updatedAt: new Date() }).where(eq(translationWorkspaces.id, workspaceId));
-    await writeAudit(tx, actor, "translation.job.enqueue", "translation_job", job.id, null, { workspaceId, operation: input.operation, totalItems: selected.length, modelId: model.id, promptVersionId: prompt.id });
+    await writeAudit(tx, actor, "translation.job.enqueue", "translation_job", job.id, null, { workspaceId, operation: input.operation, executionMode, totalItems: selected.length, modelId: model.id, promptVersionId: prompt.id });
     return job;
   });
 }
@@ -1348,6 +1357,32 @@ export async function getTranslationChapterEditor(workspaceId: string, chapterId
     },
     navigation: { previous: previousChapters[0] ?? null, next: nextChapters[0] ?? null },
   };
+}
+
+export async function getTranslationVersion(workspaceId: string, chapterId: string, versionId: string) {
+  await assertTranslationPermission("translation.view");
+  const notFound = () => new ApiError(404, "TRANSLATION_VERSION_NOT_FOUND", "ไม่พบฉบับแปลนี้");
+  if ([workspaceId, chapterId, versionId].some((value) => !uuidSchema.safeParse(value).success)) {
+    throw notFound();
+  }
+  const [version] = await getDb().select({
+    id: translationVersions.id,
+    revision: translationVersions.revision,
+    parentVersionId: translationVersions.parentVersionId,
+    title: translationVersions.title,
+    content: translationVersions.content,
+    status: translationVersions.status,
+    origin: translationVersions.origin,
+    createdAt: translationVersions.createdAt,
+  }).from(translationVersions)
+    .innerJoin(translationChapters, eq(translationChapters.id, translationVersions.translationChapterId))
+    .where(and(
+      eq(translationVersions.id, versionId),
+      eq(translationChapters.id, chapterId),
+      eq(translationChapters.workspaceId, workspaceId),
+    )).limit(1);
+  if (!version) throw notFound();
+  return { version: { ...version, createdAt: version.createdAt.toISOString() } };
 }
 
 export async function saveTranslationDraft(workspaceId: string, chapterId: string, input: z.infer<typeof saveTranslationSchema>) {

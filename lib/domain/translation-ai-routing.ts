@@ -1,3 +1,5 @@
+import type { TranslationExecutionMode } from "./translation-job";
+
 export type AutomaticTranslationTask =
   | "PROFILE_ANALYSIS"
   | "FOUNDATION"
@@ -15,6 +17,7 @@ export const AUTOMATIC_TRANSLATION_MODELS = [
   { name: "GPT-5.6 Sol", modelName: "gpt-5.6-sol", inputCostMicrosPerMillion: 4_000_000, outputCostMicrosPerMillion: 20_000_000 },
   { name: "GPT-5.6 Terra", modelName: "gpt-5.6-terra", inputCostMicrosPerMillion: 2_000_000, outputCostMicrosPerMillion: 12_000_000 },
   { name: "GPT-5.6 Luna", modelName: "gpt-5.6-luna", inputCostMicrosPerMillion: 200_000, outputCostMicrosPerMillion: 1_200_000 },
+  { name: "GPT-6 Luna", modelName: "gpt-6-luna", inputCostMicrosPerMillion: 100_000, outputCostMicrosPerMillion: 500_000 },
 ] as const;
 
 export const AUTOMATIC_TRANSLATION_PROMPT_VERSION = 6;
@@ -62,6 +65,9 @@ When a locked glossary target contains slash-separated alternatives such as "ค
 Do not summarize, censor, add events, explain your work, or include markdown fences.
 Return only a JSON object with non-empty string fields "title" and "content".`);
 
-export function automaticModelNameForTask(task: AutomaticTranslationTask) {
+export function automaticModelNameForTask(task: AutomaticTranslationTask, executionMode: TranslationExecutionMode = "STANDARD") {
+  if (executionMode === "ECONOMY" && ["CANON_EXTRACTION", "MAIN_TRANSLATION", "FIRST_QA", "ESCALATION", "PREMIUM_EDIT"].includes(task)) {
+    return "gpt-6-luna";
+  }
   return AUTOMATIC_TRANSLATION_ROUTING.find((route) => route.task === task)?.modelName ?? "gpt-5.6-sol";
 }

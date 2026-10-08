@@ -24,10 +24,10 @@ import {
 } from "@/db/schema";
 import { applySafeQaSuggestions, applyValidatedQaPatches, decideTranslationQa, estimateTokens, normalizeTranslationFormatting, runDeterministicQa, sha256, type TranslationQaIssue } from "@/lib/domain/translation";
 import { automaticModelNameForTask, type AutomaticTranslationTask } from "@/lib/domain/translation-ai-routing";
-import { readTranslationJobMetadata } from "@/lib/domain/translation-job";
-import { readCheckpointCorrectionRounds, readCheckpointQa, readTranslationWorkerCheckpoint, translationCheckpointSchema, translationCorrectionCheckpointSignature, translationQaCheckpointSignature, type TranslationWorkerCheckpoint } from "@/lib/domain/translation-worker-checkpoint";
+import { readTranslationJobMetadata, type TranslationExecutionMode } from "@/lib/domain/translation-job";
+import { economyPolishTranslationHash, readCheckpointEconomyPolish, readCheckpointCorrectionRounds, readCheckpointQa, readTranslationWorkerCheckpoint, translationCheckpointSchema, translationCorrectionCheckpointSignature, translationQaCheckpointSignature, type TranslationWorkerCheckpoint } from "@/lib/domain/translation-worker-checkpoint";
 import { logger } from "@/lib/logger";
-import { aiCallCostMicros, polishChapterWithCanonAi, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
+import { aiCallCostMicros, polishAndReviewChapterAi, polishChapterWithCanonAi, qaTranslationWithAi, reviseTranslationWithAi, reviseTranslationWithPatchesAi, translateChapterWithCanonAi, type AiCallRecord } from "@/services/ai/translation-pipeline";
 import { getTranslationProvider } from "@/services/ai/translation-provider";
 import { insertTranslationVersion, replaceQaIssues } from "@/services/translation-version-service";
 
@@ -456,8 +456,8 @@ async function recordStructuredInvocation(
   if (!ownsLease) throw new TranslationLeaseLostError(jobItemId);
 }
 
-function modelForTask(models: Array<typeof translationAiModels.$inferSelect>, task: AutomaticTranslationTask) {
-  const model = models.find((candidate) => candidate.modelName === automaticModelNameForTask(task));
+function modelForTask(models: Array<typeof translationAiModels.$inferSelect>, task: AutomaticTranslationTask, executionMode: TranslationExecutionMode = "STANDARD") {
+  const model = models.find((candidate) => candidate.modelName === automaticModelNameForTask(task, executionMode));
   if (!model) throw new Error(`AI model is unavailable for ${task}`);
   return model;
 }
@@ -469,6 +469,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
   if (!claimStartedAt) throw new Error(`Claimed translation job item ${claimed.item.id} has no startedAt timestamp`);
   const stopLeaseHeartbeat = startLeaseHeartbeat(claimed.item.id, claimStartedAt);
   const initialJobMetadata = readTranslationJobMetadata(claimed.item.checkpoint);
+  const isEconomy = initialJobMetadata.executionMode === "ECONOMY";
   let contextSnapshotId: string | null = null;
   let currentTask: "CANON_EXTRACTION" | "MAIN_TRANSLATION" | "FIRST_QA" | "ESCALATION" = "MAIN_TRANSLATION";
   let currentModelId = claimed.job.modelId;
@@ -480,6 +481,9 @@ async function processClaimedItem(claimed: ClaimedItem) {
     ]);
     const config = { model: mainModelRows[0], prompt: promptRows[0] };
     if (!config.model || !config.prompt || !config.model.isActive || !config.prompt.isActive) throw new Error("AI model or prompt is disabled");
+    if (isEconomy && config.model.modelName !== automaticModelNameForTask("MAIN_TRANSLATION", "ECONOMY")) {
+      throw new Error("Economy translation requires its configured low-cost model");
+    }
     const built = await buildContext(claimed.job, claimed.item.translationChapterId, claimed.item.sourceSnapshotId);
     contextSnapshotId = built.contextSnapshot.id;
     const stableContext = {
@@ -498,7 +502,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     const cacheFor = (task: string) => ({
       key: `nw:${sha256(`${claimed.job.workspaceId}:${built.profile.version}:${task}`).slice(0, 56)}`,
       stablePayload: { context: stableContext },
-      ...(claimed.job.totalItems === 1 && ["MAIN_TRANSLATION", "MAIN_TRANSLATION_WITH_CANON", "POLISH_WITH_CANON"].includes(task)
+      ...(isEconomy || (claimed.job.totalItems === 1 && ["MAIN_TRANSLATION", "MAIN_TRANSLATION_WITH_CANON", "POLISH_WITH_CANON"].includes(task))
         ? { cacheSharedPayload: false }
         : {}),
     });
@@ -508,7 +512,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     if (!chapterAnalysis) {
       await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 25, progressStage: "AI_REQUEST" });
       const isPolish = checkpoint.job.operation === "POLISH";
-      const polishModel = isPolish ? modelForTask(automaticModels, "PREMIUM_EDIT") : null;
+      const polishModel = isPolish ? modelForTask(automaticModels, "PREMIUM_EDIT", initialJobMetadata.executionMode) : null;
       const baseTranslation = isPolish && checkpoint.job.baseTranslationVersionId
         ? (await db.select().from(translationVersions).where(and(
             eq(translationVersions.id, checkpoint.job.baseTranslationVersionId),
@@ -516,43 +520,51 @@ async function processClaimedItem(claimed: ClaimedItem) {
           )).limit(1))[0]
         : null;
       if (isPolish && !baseTranslation) throw new Error("Polish base translation is no longer available");
-      currentTask = isPolish ? "ESCALATION" : "MAIN_TRANSLATION";
-      currentModelId = polishModel?.id ?? config.model.id;
-      const combined = isPolish && polishModel && baseTranslation
-        ? await polishChapterWithCanonAi({
-            model: polishModel,
-            sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-            sourceContent: built.source.content,
-            translatedTitle: baseTranslation.title,
-            translatedContent: baseTranslation.content,
-            context: chapterContext,
-            cache: cacheFor("POLISH_WITH_CANON"),
-          })
-        : await translateChapterWithCanonAi({
-            model: config.model,
-            prompt: config.prompt,
-            sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
-            sourceContent: built.source.content,
-            context: chapterContext,
-            cache: cacheFor("MAIN_TRANSLATION_WITH_CANON"),
-          });
-      await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, combined.call);
-      chapterAnalysis = combined.value.chapterAnalysis;
-      checkpoint = { ...checkpoint, chapterAnalysis, translation: normalizeTranslationFormatting(combined.value.translation), qa: null, correction: null };
-      await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
-      const learnedTerms = chapterAnalysis.glossaryCandidates
-        .filter((entry) => entry.confidence >= 70)
-        .filter((entry) => entry.sourceTerm.trim() && entry.targetTerm.trim())
-        .filter((entry, index, rows) => rows.findIndex((candidate) => candidate.sourceTerm.trim().toLocaleLowerCase() === entry.sourceTerm.trim().toLocaleLowerCase()) === index);
-      if (learnedTerms.length) {
-        await db.insert(translationGlossaryEntries).values(learnedTerms.map((entry) => ({
-          workspaceId: claimed.job.workspaceId,
-          sourceTerm: entry.sourceTerm.trim(),
-          targetTerm: entry.targetTerm.trim(),
-          note: entry.note?.trim() || `AI เสนอจากตอน ${built.chapter.chapterNumber} · ความมั่นใจ ${entry.confidence}%`,
-          isLocked: false,
-          createdBy: claimed.job.requestedBy,
-        }))).onConflictDoNothing();
+      if (isEconomy && baseTranslation) {
+        // Polishing an existing version needs only the one editorial request.
+        chapterAnalysis = { summary: "", continuityFacts: [], entities: [], glossaryCandidates: [], difficulty: "NORMAL", translationNotes: [] };
+        checkpoint = { ...checkpoint, chapterAnalysis, translation: normalizeTranslationFormatting(baseTranslation), qa: null, correction: null, economyPolish: null };
+        await saveCheckpoint(claimed.item.id, claimStartedAt, checkpoint);
+      } else {
+        currentTask = isPolish ? "ESCALATION" : "MAIN_TRANSLATION";
+        currentModelId = polishModel?.id ?? config.model.id;
+        const combined = isPolish && polishModel && baseTranslation
+          ? await polishChapterWithCanonAi({
+              model: polishModel,
+              sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+              sourceContent: built.source.content,
+              translatedTitle: baseTranslation.title,
+              translatedContent: baseTranslation.content,
+              context: chapterContext,
+              cache: cacheFor("POLISH_WITH_CANON"),
+            })
+          : await translateChapterWithCanonAi({
+              model: config.model,
+              prompt: config.prompt,
+              sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+              sourceContent: built.source.content,
+              context: chapterContext,
+              cache: cacheFor("MAIN_TRANSLATION_WITH_CANON"),
+              ...(isEconomy ? { reasoningEffort: "low" as const } : {}),
+            });
+        chapterAnalysis = combined.value.chapterAnalysis;
+        const nextCheckpoint = { ...checkpoint, chapterAnalysis, translation: normalizeTranslationFormatting(combined.value.translation), qa: null, correction: null, economyPolish: null };
+        await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, combined.call, nextCheckpoint);
+        checkpoint = nextCheckpoint;
+        const learnedTerms = chapterAnalysis.glossaryCandidates
+          .filter((entry) => entry.confidence >= 70)
+          .filter((entry) => entry.sourceTerm.trim() && entry.targetTerm.trim())
+          .filter((entry, index, rows) => rows.findIndex((candidate) => candidate.sourceTerm.trim().toLocaleLowerCase() === entry.sourceTerm.trim().toLocaleLowerCase()) === index);
+        if (learnedTerms.length) {
+          await db.insert(translationGlossaryEntries).values(learnedTerms.map((entry) => ({
+            workspaceId: claimed.job.workspaceId,
+            sourceTerm: entry.sourceTerm.trim(),
+            targetTerm: entry.targetTerm.trim(),
+            note: entry.note?.trim() || `AI เสนอจากตอน ${built.chapter.chapterNumber} · ความมั่นใจ ${entry.confidence}%`,
+            isLocked: false,
+            createdBy: claimed.job.requestedBy,
+          }))).onConflictDoNothing();
+        }
       }
     }
 
@@ -596,7 +608,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     };
 
     await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 70, progressStage: "AI_QA" });
-    const qaModel = modelForTask(automaticModels, "FIRST_QA");
+    const qaModel = modelForTask(automaticModels, "FIRST_QA", initialJobMetadata.executionMode);
     const qaMinimum = qaMinimumScore();
     const qaCheckpointInput = {
       sourceSnapshotId: claimed.item.sourceSnapshotId,
@@ -611,6 +623,31 @@ async function processClaimedItem(claimed: ClaimedItem) {
     currentTask = "FIRST_QA";
     currentModelId = qaModel.id;
     const runAiQa = async () => {
+      if (isEconomy) {
+        const savedReview = readCheckpointEconomyPolish(checkpoint);
+        if (savedReview) return savedReview;
+        currentTask = "ESCALATION";
+        await updateClaimedItem(claimed.item.id, claimStartedAt, { progressPercent: 80, progressStage: "ESCALATION" });
+        const polished = await polishAndReviewChapterAi({
+          model: qaModel,
+          systemPrompt: config.prompt.systemPrompt,
+          sourceTitle: built.source.title ?? `Chapter ${built.chapter.chapterNumber}`,
+          sourceText: built.source.content,
+          translation,
+          context: reviewContext,
+          cache: cacheFor("ECONOMY_POLISH_AND_REVIEW"),
+        });
+        const finalTranslation = normalizeTranslationFormatting({ title: polished.value.title, content: polished.value.content });
+        const nextCheckpoint = {
+          ...checkpoint,
+          translation: finalTranslation,
+          economyPolish: { translationHash: economyPolishTranslationHash(finalTranslation), review: polished.value.review, contextSnapshotId: built.contextSnapshot.id },
+        };
+        await recordStructuredInvocation(claimed.item.id, claimStartedAt, built.contextSnapshot.id, polished.call, nextCheckpoint);
+        checkpoint = nextCheckpoint;
+        translation = finalTranslation;
+        return polished.value.review;
+      }
       const signature = translationQaCheckpointSignature({ ...qaCheckpointInput, translation });
       const savedQa = readCheckpointQa(checkpoint, signature);
       if (savedQa) return savedQa;
@@ -638,7 +675,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
     let qa = await runAiQa();
     let deterministicIssues = runCodeQa();
     let correctionRound = readCheckpointCorrectionRounds(checkpoint, correctionSignature);
-    while (true) {
+    while (!isEconomy) {
       const decision = qaDecision(qa, deterministicIssues);
       // Never change a failed reviewed draft when there is no verification pass
       // left. Accepted warning-only suggestions retain the existing local policy.
@@ -745,7 +782,7 @@ async function processClaimedItem(claimed: ClaimedItem) {
         content: translation.content,
         origin: "AI",
         parentVersionId: latest?.id ?? null,
-        contextSnapshotId: built.contextSnapshot.id,
+        contextSnapshotId: isEconomy ? checkpoint.economyPolish?.contextSnapshotId ?? built.contextSnapshot.id : built.contextSnapshot.id,
         actorId: claimed.job.requestedBy,
       });
       const issues = await replaceQaIssues(tx, version.id, built.source.content, translation.content, claimed.job.workspaceId);
@@ -765,9 +802,9 @@ async function processClaimedItem(claimed: ClaimedItem) {
       const finalDecision = qaDecision(qa, issues);
       const hasBlockingIssue = !finalDecision.canProceedToReview;
       const now = new Date();
-      const autoApproved = finalDecision.canAutoApprove && Boolean(claimed.job.requestedBy);
+      const autoApproved = !isEconomy && finalDecision.canAutoApprove && Boolean(claimed.job.requestedBy);
       const qaFailureMessage = hasBlockingIssue
-        ? `QA ยังไม่ผ่านหลังแก้อัตโนมัติ: ${[
+        ? `${isEconomy ? "QA ยังมีปัญหาหลังเกลา 1 รอบ" : "QA ยังไม่ผ่านหลังแก้อัตโนมัติ"}: ${[
           ...qa.issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
           ...issues.filter((issue) => issue.severity !== "INFO").map((issue) => issue.message),
           ...qa.correctionInstructions,

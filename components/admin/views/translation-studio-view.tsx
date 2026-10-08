@@ -333,6 +333,11 @@ export function TranslationStudioView({ data }: { data: Data }) {
           <div className={`flex max-w-sm items-start gap-3 rounded-[12px] border p-4 ${data.masterData.runtimeReady ? "border-emerald-500/25 bg-emerald-500/8" : "border-amber-500/25 bg-amber-500/8"}`}><Database className="mt-0.5 h-5 w-5 shrink-0" aria-hidden /><div><p className="font-semibold">{data.masterData.runtimeReady ? "กฎกลางพร้อมใช้งาน" : "รอผู้แก้ไขอนุมัติกฎกลาง"}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">ทั้งหมด {data.masterData.total.toLocaleString("th-TH")} รายการ · รอตรวจ {data.masterData.draft.toLocaleString("th-TH")} · ใช้งาน {data.masterData.active.toLocaleString("th-TH")}</p></div></div>
         </div>
         <Link href="/admin/translation/masters" className="inline-flex items-center gap-1 justify-self-start text-sm font-semibold text-[var(--brand-light-on-light)] hover:underline">จัดการกฎกลาง<ArrowRight className="h-4 w-4" /></Link>
+        <div className="rounded-[12px] border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/5 p-4">
+          <p className="font-semibold">งานรายตอนเริ่มต้นด้วยโหมดทดลองประหยัด</p>
+          <p className="mt-1 text-sm text-muted-foreground">GPT-6 Luna แปลหนึ่งรอบ แล้วเกลาและตรวจฉบับสุดท้ายอีกหนึ่งรอบ จากนั้นส่งให้ตรวจเทียบคุณภาพก่อนอนุมัติ เลือกกลับไปใช้โหมดมาตรฐานได้ในหน้าจัดการตอน</p>
+        </div>
+        <p className="text-xs text-muted-foreground">ตารางด้านล่างเป็นเส้นทางของโหมดมาตรฐานและการสร้างแนวทางระดับเรื่อง ส่วนโหมดทดลองประหยัดใช้ GPT-6 Luna สำหรับงานรายตอน</p>
         <div className="overflow-x-auto rounded-[12px] border border-border"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-border bg-muted/60 text-left text-xs text-muted-foreground"><th className="px-4 py-3">ประเภทงาน</th><th className="px-4 py-3">โมเดล</th><th className="px-4 py-3">เหตุผลที่เลือก</th></tr></thead><tbody>{AUTOMATIC_TRANSLATION_ROUTING.map((route) => <tr key={route.task} className="border-b border-border/70 last:border-0"><td className="px-4 py-3 font-medium">{route.label}</td><td className="px-4 py-3">{route.modelLabel}</td><td className="px-4 py-3 text-muted-foreground">{route.reason}</td></tr>)}</tbody></table></div>
       </div>
     </details>

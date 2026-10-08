@@ -3,6 +3,9 @@ import { z } from "zod";
 export const translationJobOperationSchema = z.enum(["TRANSLATE", "POLISH"]);
 export type TranslationJobOperation = z.infer<typeof translationJobOperationSchema>;
 
+export const translationExecutionModeSchema = z.enum(["ECONOMY", "STANDARD"]);
+export type TranslationExecutionMode = z.infer<typeof translationExecutionModeSchema>;
+
 const restorableChapterStatusSchema = z.enum([
   "READY",
   "STALE",
@@ -16,6 +19,7 @@ const restorableChapterStatusSchema = z.enum([
 
 export const translationJobMetadataSchema = z.object({
   operation: translationJobOperationSchema,
+  executionMode: translationExecutionModeSchema.default("STANDARD"),
   baseTranslationVersionId: z.string().uuid().nullable(),
   previousChapterStatus: restorableChapterStatusSchema.nullable(),
 });
@@ -24,12 +28,14 @@ export type TranslationJobMetadata = z.infer<typeof translationJobMetadataSchema
 
 const DEFAULT_TRANSLATION_JOB_METADATA: TranslationJobMetadata = {
   operation: "TRANSLATE",
+  executionMode: "STANDARD",
   baseTranslationVersionId: null,
   previousChapterStatus: null,
 };
 
 export function createTranslationJobMetadata(input?: {
   operation?: TranslationJobOperation;
+  executionMode?: TranslationExecutionMode;
   baseTranslationVersionId?: string | null;
   previousChapterStatus?: string | null;
 }): TranslationJobMetadata {

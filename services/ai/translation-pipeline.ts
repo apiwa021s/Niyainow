@@ -10,7 +10,7 @@ import {
 } from "@/lib/domain/translation-ai-routing";
 import { selectTranslationGenreContext } from "@/lib/domain/translation-genre-context";
 import { buildTranslationMasterRoutingCatalog, selectTranslationMasterContext, type TranslationMasterBundle, type TranslationMasterSelection } from "@/lib/domain/translation-master";
-import { getTranslationProvider, type PromptCacheInput, type StructuredAiResult } from "@/services/ai/translation-provider";
+import { getTranslationProvider, type PromptCacheInput, type StructuredAiInput, type StructuredAiResult } from "@/services/ai/translation-provider";
 
 type AiModel = typeof translationAiModels.$inferSelect;
 type PromptVersion = typeof translationPromptVersions.$inferSelect;
@@ -139,6 +139,8 @@ const qaSchema = z.object({
 
 const translationSchema = z.object({ title: z.string().min(1).max(1_000), content: z.string().min(1).max(2_000_000) });
 
+const polishedTranslationReviewSchema = translationSchema.extend({ review: qaSchema });
+
 const chapterTranslationSchema = z.object({
   translation: translationSchema,
   chapterAnalysis: chapterAnalysisSchema,
@@ -231,6 +233,7 @@ async function structured<T>(input: {
   model: AiModel;
   task: AutomaticTranslationTask;
   serviceTier?: "auto" | "default" | "flex";
+  reasoningEffort?: StructuredAiInput["reasoningEffort"];
   systemPrompt: string;
   payload: Record<string, unknown>;
   cache?: PromptCacheInput;
@@ -503,10 +506,12 @@ export async function translateChapterWithCanonAi(input: {
   sourceContent: string;
   context: Record<string, unknown>;
   cache?: PromptCacheInput;
+  reasoningEffort?: StructuredAiInput["reasoningEffort"];
 }) {
   return structured({
     model: input.model,
     task: "MAIN_TRANSLATION",
+    reasoningEffort: input.reasoningEffort,
     systemPrompt: withThaiNovelLocalizationRules(`${input.prompt.systemPrompt}\nTreat context.glossary as binding editor-approved terminology. Treat context.suggestedGlossary as advisory terminology learned from prior chapters: prefer it when the source meaning and current context match, but never let it override the source or a binding glossary entry.\nTranslate the complete chapter and, in the same response, return a compact canon analysis grounded only in the source. Keep canon fields concise so translation quality remains the priority.`),
     cache: input.cache,
     payload: { context: input.context, source: { title: input.sourceTitle, content: input.sourceContent } },
@@ -532,6 +537,54 @@ export async function translateChapterWithCanonAi(input: {
       }),
     }),
     parser: chapterTranslationSchema,
+  });
+}
+
+/** A single editorial call returns the final manuscript and its self-review. */
+export async function polishAndReviewChapterAi(input: {
+  model: AiModel;
+  systemPrompt: string;
+  sourceTitle: string;
+  sourceText: string;
+  translation: { title: string; content: string };
+  context: Record<string, unknown>;
+  cache?: PromptCacheInput;
+}) {
+  return structured({
+    model: input.model,
+    task: "ESCALATION",
+    reasoningEffort: "low",
+    systemPrompt: withThaiNovelLocalizationRules(`${input.systemPrompt}\nYou are a bilingual fiction editor performing one complete final polish against the full authoritative source. Treat currentTranslation as the base manuscript. Return the complete polished title and content, followed by a concise, honestly calibrated review of the returned final text.\nPreserve every supported fact, speaker, action, relationship, chronology, character voice, intentional repetition, and paragraph order. Never summarize, omit passages, invent events, censor, intensify, or add commentary. Source facts take precedence over generic profile examples and advisory terminology. Treat context.glossary as binding editor-approved terminology, and context.suggestedGlossary as advisory.\nImprove idiomatic expression, clause order, sentence rhythm, dialogue register, and mobile paragraph flow throughout; do not merely substitute isolated words. Preserve separate source paragraphs and split dense paragraphs only at a natural narrative beat. Resolve any omissions, additions, mistranslations, locked-term mismatches, awkward pronouns, stiff narration, and incorrect honorifics while polishing.\nThe review is a self-assessment of the title and content you RETURN, not an independent QA pass and not findings about the earlier draft. Report only remaining unresolved problems, with exact currentText excerpts copied from the returned final title or content and a safe suggestedText when possible. Never report an issue that you already fixed. Use TITLE or CONTENT locations, and null snippets only when a safe exact replacement is impossible. Set passed=false and lower the score when a problem remains; never inflate the score to meet a target. Flag recurring unnatural Thai with THAI_TRANSLATIONESE and poor paragraph flow with THAI_PARAGRAPH_FLOW. Keep the review concise. Return only the requested structured output.`),
+    ...chapterReviewPayload({
+      ...input,
+      sourceContent: input.sourceText,
+      cache: input.cache ? { ...input.cache, cacheSharedPayload: false } : undefined,
+    }, {
+      currentTranslation: input.translation,
+    }, false),
+    schemaName: "polished_novel_translation_with_review",
+    jsonSchema: jsonObject({
+      title: { type: "string" },
+      content: { type: "string" },
+      review: jsonObject({
+        passed: { type: "boolean" },
+        score: { type: "integer", minimum: 0, maximum: 100 },
+        issues: {
+          type: "array",
+          maxItems: 100,
+          items: jsonObject({
+            code: { type: "string" },
+            severity: { type: "string", enum: ["INFO", "WARNING", "CRITICAL"] },
+            message: { type: "string" },
+            location: { type: ["string", "null"], enum: ["TITLE", "CONTENT", null] },
+            currentText: { type: ["string", "null"] },
+            suggestedText: { type: ["string", "null"] },
+          }),
+        },
+        correctionInstructions: boundedStringArray(50),
+      }),
+    }),
+    parser: polishedTranslationReviewSchema,
   });
 }
 

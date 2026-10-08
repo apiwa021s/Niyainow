@@ -9,12 +9,13 @@ import { formatAiCost } from "@/components/admin/translation-format";
 import { translationStatusLabel, translationStatusTone } from "@/components/admin/translation-status";
 import { TranslationMetric, TranslationNotice } from "@/components/admin/translation-ui";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/form-controls";
-import { useAppDialog } from "@/components/ui/modal";
+import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
+import { Modal, useAppDialog } from "@/components/ui/modal";
 import type { getTranslationChapterEditor } from "@/services/translation-service";
 
 type Data = NonNullable<Awaited<ReturnType<typeof getTranslationChapterEditor>>>;
 type LockedGlossaryResolution = { stillPresent?: boolean; resolved?: boolean };
+type ComparisonVersion = Pick<NonNullable<Data["latestVersion"]>, "id" | "revision" | "title" | "content" | "status" | "origin" | "createdAt">;
 
 async function post<T = unknown>(url: string, method: "POST" | "PATCH", body?: unknown): Promise<T> {
   const response = await fetch(url, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -37,6 +38,12 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
   const [message, setMessage] = useState("");
   const [glossaryAlternatives, setGlossaryAlternatives] = useState<Record<string, string>>({});
   const [mobilePane, setMobilePane] = useState<"SOURCE" | "TRANSLATION" | "QA">("TRANSLATION");
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [comparisonVersionId, setComparisonVersionId] = useState(data.history.find((version) => version.id !== latest?.id)?.id ?? "");
+  const [comparisonVersion, setComparisonVersion] = useState<ComparisonVersion | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState("");
+  const [comparisonAttempt, setComparisonAttempt] = useState(0);
   const initialTitle = latest?.title ?? data.source.title ?? `Chapter ${data.chapter.chapterNumber}`;
   const initialContent = latest?.content ?? "";
   const dirty = title !== initialTitle || content !== initialContent;
@@ -61,6 +68,28 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
   }
 
   const chapterUrl = `/api/admin/translation/workspaces/${workspaceId}/chapters/${chapterId}`;
+  useEffect(() => {
+    if (!comparisonOpen || !comparisonVersionId) return;
+    const controller = new AbortController();
+    async function loadComparison() {
+      setComparisonLoading(true);
+      setComparisonError("");
+      setComparisonVersion(null);
+      try {
+        const response = await fetch(`${chapterUrl}/versions/${comparisonVersionId}`, { signal: controller.signal, cache: "no-store" });
+        const payload = await response.json() as { version?: ComparisonVersion; error?: { message?: string } };
+        if (!response.ok || !payload.version) throw new Error(payload.error?.message || "โหลดฉบับก่อนหน้าไม่สำเร็จ");
+        if (!controller.signal.aborted) setComparisonVersion(payload.version);
+      } catch (cause) {
+        if (!controller.signal.aborted) setComparisonError(cause instanceof Error ? cause.message : "โหลดฉบับก่อนหน้าไม่สำเร็จ");
+      } finally {
+        if (!controller.signal.aborted) setComparisonLoading(false);
+      }
+    }
+    void loadComparison();
+    return () => controller.abort();
+  }, [chapterUrl, comparisonOpen, comparisonVersionId, comparisonAttempt]);
+
   const unresolvedIssues = data.issues.filter((issue) => !issue.resolvedAt);
   const criticalCount = unresolvedIssues.filter((issue) => issue.severity === "CRITICAL").length;
 
@@ -149,9 +178,31 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
   }
 
   return <div className="grid gap-4">
+    <Modal
+      open={comparisonOpen}
+      onClose={() => setComparisonOpen(false)}
+      size="lg"
+      title={`เทียบคำแปลตอน ${data.chapter.chapterNumber}`}
+      description="เลือกฉบับก่อนหน้าเพื่อเทียบกับฉบับล่าสุดที่บันทึก โดยดูความหมาย ความครบถ้วน ชื่อตัวละคร และสำนวน"
+      footer={<Button type="button" variant="outline" onClick={() => setComparisonOpen(false)}>กลับไปตรวจฉบับล่าสุด</Button>}
+    >
+      <Field label="ฉบับก่อนหน้าที่ต้องการเทียบ">
+        <Select value={comparisonVersionId} onChange={(event) => setComparisonVersionId(event.target.value)} aria-label="ฉบับก่อนหน้าที่ต้องการเทียบ">
+          {data.history.filter((version) => version.id !== latest?.id).map((version) => <option key={version.id} value={version.id}>ฉบับที่ {version.revision} · {version.origin === "AI" ? "สร้างโดย AI" : "แก้ไขด้วยตนเอง"} · {translationStatusLabel(version.status)}</option>)}
+        </Select>
+      </Field>
+      {dirty ? <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">การเทียบนี้แสดงข้อความที่บันทึกแล้ว การแก้ไขที่ยังไม่บันทึกยังอยู่ในช่องแก้ไขของคุณ</p> : null}
+      {comparisonLoading ? <p role="status" className="py-6 text-sm text-muted-foreground">กำลังโหลดฉบับก่อนหน้า…</p> : comparisonError ? <TranslationNotice role="alert" tone="danger" title="โหลดฉบับก่อนหน้าไม่สำเร็จ" description={comparisonError} action={<Button type="button" size="sm" variant="outline" onClick={() => setComparisonAttempt((attempt) => attempt + 1)}>ลองโหลดใหม่</Button>} /> : comparisonVersion && comparisonVersion.id === comparisonVersionId && latest ? <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        {[{ version: comparisonVersion, label: "ฉบับก่อนหน้า" }, { version: latest, label: "ฉบับล่าสุดที่บันทึก" }].map(({ version, label }) => <section key={version.id} className="min-w-0 overflow-hidden rounded-[12px] border border-border">
+          <div className="border-b border-border bg-muted/40 p-3"><h3 className="text-sm font-semibold">{label} · ฉบับที่ {version.revision}</h3><p className="mt-1 text-xs text-muted-foreground">{version.origin === "AI" ? "สร้างโดย AI" : "แก้ไขด้วยตนเอง"} · {translationStatusLabel(version.status)} · {version.content.length.toLocaleString("th-TH")} ตัวอักษร</p></div>
+          <div className="max-h-[56vh] overflow-auto p-3"><h4 className="mb-3 font-semibold">{version.title}</h4><pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7">{version.content}</pre></div>
+        </section>)}
+      </div> : null}
+    </Modal>
     <div className="sticky top-16 z-20 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-border bg-card/95 px-4 py-3 shadow-[var(--sh-2)] backdrop-blur-xl">
       <div className="min-w-0"><button type="button" onClick={() => void navigateTo(`/admin/translation/${workspaceId}`)} className="text-xs font-medium text-[var(--brand-light-on-light)] hover:underline">← กลับไปตอนทั้งหมด</button><h1 className="mt-1 truncate text-lg font-bold">ตอน {data.chapter.chapterNumber}: {data.source.title}</h1></div>
       <div className="flex flex-wrap items-center gap-2"><StatusPill label={translationStatusLabel(data.chapter.status)} tone={translationStatusTone(data.chapter.status)} />{dirty ? <span role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-300">มีการแก้ไขที่ยังไม่บันทึก</span> : <span className="text-xs text-muted-foreground">บันทึกล่าสุดแล้ว</span>}
+        {latest && data.history.length > 1 ? <Button type="button" variant="outline" onClick={() => { setComparisonVersionId(data.history.find((version) => version.id !== latest.id)?.id ?? ""); setComparisonOpen(true); }}>เทียบฉบับก่อนหน้า</Button> : null}
         <Button type="button" variant="outline" disabled={Boolean(busy) || !dirty || !title.trim() || !content.trim()} title={busy ? "รอคำสั่งปัจจุบันให้เสร็จก่อน" : !dirty ? "ยังไม่มีการแก้ไข" : !title.trim() || !content.trim() ? "ต้องมีชื่อและเนื้อหาคำแปล" : undefined} loading={busy === "save"} onClick={() => perform("save", () => post(chapterUrl, "PATCH", { expectedLockVersion: data.chapter.lockVersion, parentVersionId: latest?.id ?? null, title, content }), "บันทึกฉบับแก้ไขและตรวจคุณภาพใหม่แล้ว")}><Save className="h-4 w-4" />บันทึกและตรวจใหม่</Button>
         {latest && latest.status !== "APPROVED" && latest.status !== "PUBLISHED" ? <Button type="button" variant="secondary" disabled={Boolean(busy) || criticalCount > 0 || dirty} title={busy ? "รอคำสั่งปัจจุบันให้เสร็จก่อน" : dirty ? "บันทึกการแก้ไขก่อนอนุมัติ" : criticalCount > 0 ? `แก้ปัญหาสำคัญ ${criticalCount.toLocaleString("th-TH")} รายการก่อน` : undefined} loading={busy === "approve"} onClick={() => perform("approve", () => post(`${chapterUrl}/versions/${latest.id}/approve`, "POST"), "อนุมัติและเตรียมตอนสำหรับเผยแพร่แล้ว")}><CheckCircle2 className="h-4 w-4" />อนุมัติคำแปล</Button> : null}
         {canPublish ? <Button type="button" disabled={Boolean(busy) || !latest || latest.status !== "APPROVED" || dirty} title={busy ? "รอคำสั่งปัจจุบันให้เสร็จก่อน" : !latest ? "ยังไม่มีฉบับแปล" : dirty ? "บันทึกการแก้ไขก่อนเผยแพร่" : latest.status !== "APPROVED" ? "อนุมัติคำแปลก่อนเผยแพร่" : undefined} loading={busy === "publish"} onClick={() => void publishLatest()}><CloudUpload className="h-4 w-4" />เผยแพร่</Button> : null}
@@ -238,7 +289,7 @@ export function TranslationEditorView({ data, canPublish }: { data: Data; canPub
           </div>
         </details>
         <details open className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">ข้อมูลช่วยแปล</summary><div className="grid gap-4 border-t border-border p-3 text-xs"><div><h3 className="font-semibold">คลังคำที่เกี่ยวข้อง</h3>{data.glossary.map((term) => <p key={term.sourceTerm} className="mt-1 text-muted-foreground">{term.sourceTerm} → {term.targetTerm}</p>)}{!data.glossary.length ? <p className="mt-1 text-muted-foreground">ไม่มี</p> : null}</div><div><h3 className="font-semibold">ตัวละคร</h3>{data.characters.map((character) => <p key={character.sourceName} className="mt-1 text-muted-foreground">{character.sourceName} → {character.targetName}</p>)}{!data.characters.length ? <p className="mt-1 text-muted-foreground">ไม่มี</p> : null}</div><div><h3 className="font-semibold">แนวทางด้านสำนวน</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{data.profile?.styleGuide || "ยังไม่ได้กำหนด"}</p></div></div></details>
-        <details className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">ประวัติฉบับแก้ไข ({data.history.length})</summary><div className="grid gap-1 border-t border-border p-3">{data.history.map((version) => <div key={version.id} className="flex justify-between gap-2 rounded px-2 py-1.5 text-xs"><span>ฉบับที่ {version.revision} · {version.origin === "AI" ? "สร้างโดย AI" : "แก้ไขด้วยตนเอง"}</span><span>{translationStatusLabel(version.status)}</span></div>)}</div></details>
+        <details className="rounded-[14px] border border-border bg-card"><summary className="cursor-pointer px-4 py-3 font-semibold">ประวัติฉบับแก้ไข ({data.history.length})</summary><div className="grid gap-1 border-t border-border p-3">{data.history.map((version) => <div key={version.id} className="grid gap-1 rounded px-2 py-1.5 text-xs"><div className="flex justify-between gap-2"><span>ฉบับที่ {version.revision} · {version.origin === "AI" ? "สร้างโดย AI" : "แก้ไขด้วยตนเอง"}</span><span>{translationStatusLabel(version.status)}</span></div>{latest && version.id !== latest.id ? <Button type="button" size="sm" variant="ghost" onClick={() => { setComparisonVersionId(version.id); setComparisonOpen(true); }}>เทียบกับฉบับล่าสุด</Button> : null}</div>)}</div></details>
       </aside>
     </div>
   </div>;

@@ -11,7 +11,8 @@ import {
   translationQaIssues,
   translationVersions,
 } from "@/db/schema";
-import { translationCorrectionCheckpointSignature, translationQaCheckpointSignature } from "@/lib/domain/translation-worker-checkpoint";
+import { createTranslationJobMetadata } from "@/lib/domain/translation-job";
+import { economyPolishTranslationHash, translationCorrectionCheckpointSignature, translationQaCheckpointSignature } from "@/lib/domain/translation-worker-checkpoint";
 import { processTranslationJobs } from "@/services/translation-worker";
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   patch: vi.fn(),
   rewrite: vi.fn(),
   translate: vi.fn(),
+  polish: vi.fn(),
   insertVersion: vi.fn(),
   replaceIssues: vi.fn(),
 }));
@@ -31,6 +33,7 @@ vi.mock("@/services/ai/translation-pipeline", async (importOriginal) => ({
   reviseTranslationWithPatchesAi: mocks.patch,
   reviseTranslationWithAi: mocks.rewrite,
   translateChapterWithCanonAi: mocks.translate,
+  polishAndReviewChapterAi: mocks.polish,
 }));
 vi.mock("@/services/translation-version-service", () => ({
   insertTranslationVersion: mocks.insertVersion,
@@ -54,6 +57,7 @@ const mainModel = {
   updatedAt: new Date(0),
 };
 const qaModel = { ...mainModel, id: "00000000-0000-4000-8000-000000000007", modelName: "gpt-5.6-terra" };
+const economyModel = { ...mainModel, id: "00000000-0000-4000-8000-000000000008", modelName: "gpt-6-luna", inputCostMicrosPerMillion: 100_000, outputCostMicrosPerMillion: 500_000 };
 const checkpoint = {
   version: 1,
   sourceSnapshotId,
@@ -88,11 +92,15 @@ const checkedCheckpoint = { ...checkpoint, qa: { signature: translationQaCheckpo
 
 function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructions = "Keep all facts", requestedBy: string | null = null, totalItems = 1) {
   const storedItem = { ...item, checkpoint: checkpointValue };
+  const economy = (checkpointValue as { job?: { executionMode?: string } })?.job?.executionMode === "ECONOMY";
+  const configuredModel = economy ? economyModel : mainModel;
   const state = {
     ownsLease: true,
     invocations: [] as Array<Record<string, unknown>>,
     checkpointWrites: [] as unknown[],
     versionUpdates: [] as Array<Record<string, unknown>>,
+    chapterUpdates: [] as Array<Record<string, unknown>>,
+    itemUpdates: [] as Array<Record<string, unknown>>,
     qaIssues: [] as Array<Record<string, unknown>>,
     transactionCount: 0,
   };
@@ -114,10 +122,11 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
     select: (shape?: Record<string, unknown>) => {
       let table: unknown;
       const chain = builder(() => {
-        if (table === translationAiModels) return [mainModel, qaModel];
-        if (table === translationPromptVersions) return [{ id: "prompt-1", isActive: true }];
+        if (table === translationAiModels) return [configuredModel, qaModel, economyModel];
+        if (table === translationPromptVersions) return [{ id: "prompt-1", systemPrompt: "Translate all facts faithfully", isActive: true }];
         if (table === translationJobItems && shape?.item) return [{ item: storedItem, job: { ...job, requestedBy, totalItems } }];
         if (table === translationJobItems && shape?.id) return state.ownsLease ? [{ id: itemId }] : [];
+        if (table === translationVersions && economy) return [{ id: "00000000-0000-4000-8000-000000000009", ...checkpoint.translation, status: "APPROVED" }];
         if (table === translationChapters && shape?.chapter) return [{
           chapter: { id: chapterId, chapterNumber: 1, workspaceId, lockVersion: 0, sourceSnapshotId },
           source: { id: sourceSnapshotId, title: "Arrival", content: "The prince arrives.", sourceHash: "source-hash" },
@@ -133,6 +142,8 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
       set: (values: Record<string, unknown>) => builder(() => {
         if (table === translationJobItems && values.checkpoint) state.checkpointWrites.push(values.checkpoint);
         if (table === translationVersions) state.versionUpdates.push(values);
+        if (table === translationChapters) state.chapterUpdates.push(values);
+        if (table === translationJobItems) state.itemUpdates.push(values);
         if (table === translationJobItems && values.startedAt) return [{ ...storedItem, ...values }];
         if (table === translationJobItems) return state.ownsLease ? [{ id: itemId }] : [];
         if (table === translationJobs) return [{ ...job, requestedBy, totalItems, ...values }];
@@ -143,7 +154,7 @@ function memoryDatabase(checkpointValue: unknown = checkpoint, profileInstructio
       values: (values: Record<string, unknown>) => builder(() => {
         if (table === translationAiInvocations) state.invocations.push(values);
         if (table === translationQaIssues) state.qaIssues.push(...values as unknown as Array<Record<string, unknown>>);
-        return table === translationContextSnapshots ? [{ id: "context-1" }] : [];
+        return table === translationContextSnapshots ? [{ id: "00000000-0000-4000-8000-000000000010" }] : [];
       }),
     }),
   };
@@ -186,6 +197,7 @@ beforeEach(() => {
       result: { output: {}, providerRequestId: "main-response", inputTokens: 1_000, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 100, promptCacheEnabled: false, latencyMs: 10 },
     },
   });
+  mocks.polish.mockResolvedValue(polishResponse(qaValue));
 });
 
 type QaValue = {
@@ -232,6 +244,127 @@ function finding(currentText: string | null, suggestedText: string | null, sever
 function failedQa(issues: QaValue["issues"], score = 86): QaValue {
   return { passed: false, score, issues, correctionInstructions: ["Resolve the register findings"] };
 }
+
+function polishResponse(review: QaValue, translation = checkpoint.translation) {
+  return {
+    value: { ...translation, review },
+    call: {
+      task: "ESCALATION",
+      model: economyModel,
+      result: { output: {}, providerRequestId: "polish-response", inputTokens: 22_500, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 6_000, promptCacheEnabled: false, serviceTier: "flex", latencyMs: 10 },
+    },
+  };
+}
+
+const economyJobMetadata = createTranslationJobMetadata({ executionMode: "ECONOMY" });
+const economyCheckpoint = { ...checkpoint, job: economyJobMetadata };
+
+describe("economy translation trial", () => {
+  it.each(["default", "flex"])("translates then polishes once below the sample budget with %s pricing and keeps its approved predecessor", async (serviceTier) => {
+    const { db, state } = memoryDatabase({ ...economyCheckpoint, translation: null, chapterAnalysis: null }, "Keep all facts", "admin-1");
+    mocks.db = db;
+    mocks.translate.mockImplementation(async (input) => ({
+      value: { translation: checkpoint.translation, chapterAnalysis: checkpoint.chapterAnalysis },
+      call: { task: "MAIN_TRANSLATION", model: input.model, result: { output: {}, providerRequestId: "economy-main", inputTokens: 18_080, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 6_000, promptCacheEnabled: false, serviceTier, latencyMs: 10 } },
+    }));
+    const polished = polishResponse(qaValue);
+    mocks.polish.mockResolvedValue({ ...polished, call: { ...polished.call, result: { ...polished.call.result, serviceTier } } });
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.translate).toHaveBeenCalledOnce();
+    expect(mocks.translate.mock.calls[0][0]).toMatchObject({ model: { modelName: "gpt-6-luna" }, reasoningEffort: "low", cache: { cacheSharedPayload: false } });
+    expect(mocks.polish).toHaveBeenCalledOnce();
+    expect(mocks.qa).not.toHaveBeenCalled();
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.rewrite).not.toHaveBeenCalled();
+    expect(state.invocations).toHaveLength(2);
+    expect(state.invocations.every((call) => call.modelId === economyModel.id)).toBe(true);
+    // Full input without any cache discount, including two complete outputs.
+    expect(state.invocations.reduce((total, call) => total + Number(call.costMicros), 0) * 35 / 1_000_000).toBeLessThan(1);
+    expect(state.versionUpdates).toEqual([]);
+    expect(state.chapterUpdates).toContainEqual(expect.objectContaining({ status: "REVIEW" }));
+    expect(mocks.insertVersion).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ parentVersionId: "00000000-0000-4000-8000-000000000009", origin: "AI" }));
+  });
+
+  it.each([false, true])("stops after its one polish when remaining findings are critical=%s", async (critical) => {
+    const { db, state } = memoryDatabase(economyCheckpoint);
+    mocks.db = db;
+    mocks.polish.mockResolvedValue(polishResponse(failedQa([finding("เจ้าชาย", "องค์ชาย", critical ? "CRITICAL" : "WARNING")])));
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.polish).toHaveBeenCalledOnce();
+    expect(mocks.qa).not.toHaveBeenCalled();
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.rewrite).not.toHaveBeenCalled();
+    expect(mocks.insertVersion).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ content: checkpoint.translation.content }));
+    expect(state.chapterUpdates).toContainEqual(expect.objectContaining({ status: critical ? "QA_FAILED" : "REVIEW" }));
+    expect(state.qaIssues).toContainEqual(expect.objectContaining({ severity: critical ? "CRITICAL" : "WARNING" }));
+  });
+
+  it("polishes an existing version with only one paid request", async () => {
+    const { db, state } = memoryDatabase({
+      ...economyCheckpoint,
+      translation: null,
+      chapterAnalysis: null,
+      job: createTranslationJobMetadata({ executionMode: "ECONOMY", operation: "POLISH", baseTranslationVersionId: "00000000-0000-4000-8000-000000000009", previousChapterStatus: "APPROVED" }),
+    });
+    mocks.db = db;
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.translate).not.toHaveBeenCalled();
+    expect(mocks.polish).toHaveBeenCalledOnce();
+    expect(mocks.polish.mock.calls[0][0].translation).toEqual(checkpoint.translation);
+    expect(state.invocations).toHaveLength(1);
+    expect(mocks.qa).not.toHaveBeenCalled();
+  });
+
+  it("reuses the completed polish when a retry sees new profile or advisory context", async () => {
+    const { db, state } = memoryDatabase({
+      ...economyCheckpoint,
+      economyPolish: { translationHash: economyPolishTranslationHash(checkpoint.translation), review: qaValue, contextSnapshotId: "00000000-0000-4000-8000-000000000011" },
+    }, "Later profile changes require a new job");
+    mocks.db = db;
+
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.polish).not.toHaveBeenCalled();
+    expect(mocks.qa).not.toHaveBeenCalled();
+    expect(state.invocations).toEqual([]);
+    expect(mocks.insertVersion).toHaveBeenCalledOnce();
+    expect(mocks.insertVersion).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ contextSnapshotId: "00000000-0000-4000-8000-000000000011" }));
+  });
+
+  it("saves the paid polish before final persistence so a database retry does not repeat it", async () => {
+    const first = memoryDatabase(economyCheckpoint);
+    mocks.db = first.db;
+    mocks.insertVersion.mockRejectedValueOnce(new Error("Temporary database failure"));
+    await processTranslationJobs(1, 1);
+    const saved = first.state.checkpointWrites.find((value) => Boolean((value as { economyPolish?: unknown }).economyPolish));
+    expect(saved).toBeTruthy();
+
+    const retry = memoryDatabase(saved);
+    mocks.db = retry.db;
+    await processTranslationJobs(1, 1);
+
+    expect(mocks.polish).toHaveBeenCalledOnce();
+    expect(retry.state.invocations).toEqual([]);
+  });
+
+  it("records a completed paid polish after cancellation but discards the new manuscript", async () => {
+    const { db, state } = memoryDatabase(economyCheckpoint);
+    mocks.db = db;
+    mocks.polish.mockImplementation(async () => { state.ownsLease = false; return polishResponse(qaValue); });
+
+    await processTranslationJobs(1, 1);
+
+    expect(state.invocations).toEqual([expect.objectContaining({ task: "ESCALATION", status: "SUCCESS", providerRequestId: "polish-response" })]);
+    expect(state.checkpointWrites).toEqual([]);
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+  });
+});
 
 describe("translation worker ownership", () => {
   it("resumes a matching saved QA verdict without another billed QA call", async () => {

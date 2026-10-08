@@ -24,7 +24,22 @@ describe("automatic translation AI routing", () => {
 
   it("contains one managed preset for every routed API model", () => {
     const configured = new Set(AUTOMATIC_TRANSLATION_MODELS.map((model) => model.modelName));
-    expect(configured).toEqual(new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]));
+    expect(configured).toEqual(new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-luna"]));
+  });
+
+  it("uses Luna for every chapter stage in economy mode without changing the story profile", () => {
+    const chapterTasks = ["CANON_EXTRACTION", "MAIN_TRANSLATION", "FIRST_QA", "ESCALATION", "PREMIUM_EDIT"] as const;
+    for (const task of chapterTasks) {
+      expect(automaticModelNameForTask(task, "ECONOMY")).toBe("gpt-6-luna");
+    }
+    const profileTasks = ["PROFILE_ANALYSIS", "FOUNDATION", "PROFILE_QUALITY_REVIEW", "METADATA_LOCALIZATION", "ENTITY_EXTRACTION"] as const;
+    for (const task of profileTasks) {
+      expect(automaticModelNameForTask(task, "ECONOMY")).toBe(automaticModelNameForTask(task, "STANDARD"));
+    }
+    expect(AUTOMATIC_TRANSLATION_MODELS.find((model) => model.modelName === "gpt-6-luna")).toMatchObject({
+      inputCostMicrosPerMillion: 100_000,
+      outputCostMicrosPerMillion: 500_000,
+    });
   });
 
   it("versions and injects the Thai-native prose requirements once", () => {

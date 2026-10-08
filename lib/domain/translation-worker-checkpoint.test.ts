@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { createTranslationJobMetadata } from "./translation-job";
 import {
   TRANSLATION_QA_CHECKPOINT_POLICY_VERSION,
+  economyPolishTranslationHash,
+  readCheckpointEconomyPolish,
   readCheckpointCorrectionRounds,
   readCheckpointQa,
   readTranslationWorkerCheckpoint,
@@ -56,6 +58,38 @@ function savedCheckpoint() {
 }
 
 describe("translation worker checkpoints", () => {
+  it("retains the single economy polish and its original context through a JSON retry", () => {
+    const checkpoint = readTranslationWorkerCheckpoint(JSON.parse(JSON.stringify({
+      version: 1, sourceSnapshotId, chapterAnalysis, translation,
+      job: createTranslationJobMetadata({ executionMode: "ECONOMY" }),
+      economyPolish: { translationHash: economyPolishTranslationHash(translation), review: qa, contextSnapshotId: "00000000-0000-4000-8000-000000000003" },
+    })), sourceSnapshotId);
+    expect(readCheckpointEconomyPolish(checkpoint)).toEqual(qa);
+    expect(checkpoint.economyPolish?.contextSnapshotId).toBe("00000000-0000-4000-8000-000000000003");
+  });
+
+  it("rejects an economy polish attached to another draft, source or execution mode", () => {
+    const value = {
+      version: 1, sourceSnapshotId, chapterAnalysis, translation,
+      job: createTranslationJobMetadata({ executionMode: "ECONOMY" }),
+      economyPolish: { translationHash: economyPolishTranslationHash(translation), review: qa },
+    };
+    for (const [changed, snapshot] of [
+      [{ ...value, translation: { ...translation, title: "การจากไป" } }, sourceSnapshotId],
+      [{ ...value, translation: { ...translation, content: "องค์ชายเสด็จมาถึง" } }, sourceSnapshotId],
+      [{ ...value, job: createTranslationJobMetadata({ executionMode: "STANDARD" }) }, sourceSnapshotId],
+      [value, "00000000-0000-4000-8000-000000000002"],
+    ] as const) {
+      expect(readCheckpointEconomyPolish(readTranslationWorkerCheckpoint(changed, snapshot))).toBeNull();
+    }
+  });
+
+  it("drops malformed economy review state without losing the saved translation", () => {
+    const checkpoint = readTranslationWorkerCheckpoint({ ...savedCheckpoint(), economyPolish: { translationHash: "bad", review: qa } }, sourceSnapshotId);
+    expect(checkpoint.economyPolish).toBeNull();
+    expect(checkpoint.translation).toEqual(translation);
+  });
+
   it("reuses the full QA verdict and completed correction count after a JSON round trip", () => {
     const checkpoint = readTranslationWorkerCheckpoint(JSON.parse(JSON.stringify(savedCheckpoint())), sourceSnapshotId);
     expect(readCheckpointQa(checkpoint, translationQaCheckpointSignature(reviewInput))).toEqual(qa);
