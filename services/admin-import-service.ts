@@ -1,7 +1,9 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { revalidatePath, revalidateTag } from "next/cache";
-import { and, asc, count, countDistinct, desc, eq, exists, ilike, inArray, isNull, lte, max, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, exists, gt, ilike, inArray, isNull, lte, max, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
@@ -20,6 +22,7 @@ import {
   novels,
 } from "@/db/schema";
 import { assertAdmin } from "@/lib/auth/dal";
+import { advanceContiguousChapterCheckpoint } from "@/lib/domain/novel-import";
 import { invalidateChapterCache } from "@/lib/redis/invalidation";
 import { assetUrl } from "@/lib/site-config";
 import { createUniqueSlug } from "@/lib/validation/slug";
@@ -33,6 +36,21 @@ const COVER_STATUSES = ["missing", "pending", "ready", "error"] as const;
 
 export const adminImportPublishSchema = z.object({
   rightsConfirmed: z.literal(true),
+}).strict();
+
+const adminImportChapterSourceUrlSchema = z.url().refine((value) => {
+  const url = new URL(value);
+  if (url.username || url.password) return false;
+  if (url.protocol === "https:") return true;
+  return url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+}, "กรุณาใช้ URL แบบ HTTPS");
+
+export const adminImportManualChapterSchema = z.object({
+  chapterNumber: z.number().int().min(1).max(10_000_000),
+  originalTitle: z.string().trim().min(1).max(1_000),
+  sourceUrl: adminImportChapterSourceUrlSchema,
+  originalText: z.string().trim().min(1).max(2_000_000),
+  replaceExisting: z.boolean().default(false),
 }).strict();
 
 export type AdminImportQuery = {
@@ -336,6 +354,162 @@ function countWords(content: string) {
   } catch {
     return trimmed.split(/\s+/u).length;
   }
+}
+
+function importChapterContentHash(title: string, content: string) {
+  return createHash("sha256").update(title).update("\0").update(content).digest("hex");
+}
+
+/** Adds or explicitly replaces one text chapter in private import staging. */
+export async function addAdminImportChapter(sourceIdInput: string, inputValue: unknown) {
+  const actor = await assertAdmin();
+  const sourceId = sourceIdSchema.parse(sourceIdInput);
+  const input = adminImportManualChapterSchema.parse(inputValue);
+  const now = new Date();
+  const contentHash = importChapterContentHash(input.originalTitle, input.originalText);
+
+  const result = await getDb().transaction(async (tx) => {
+    const [source] = await tx.select().from(novelImportSources)
+      .where(eq(novelImportSources.id, sourceId)).limit(1).for("update");
+    if (!source) throw new AdminDataError("IMPORT_SOURCE_NOT_FOUND", "ไม่พบแหล่งนำเข้านี้", 404);
+    if (source.contentFormat !== "text") {
+      throw new AdminDataError("IMPORT_MANUAL_TEXT_ONLY", "การเพิ่มตอนด้วยตนเองรองรับเฉพาะนิยายข้อความ", 409);
+    }
+    if (source.status === "blocked") {
+      throw new AdminDataError("IMPORT_SOURCE_BLOCKED", "แหล่งนำเข้าถูกระงับ กรุณาตรวจสอบเหตุผลก่อนเพิ่มตอน", 409);
+    }
+
+    let [chapter] = await tx.select().from(novelImportChapters).where(and(
+      eq(novelImportChapters.sourceId, source.id),
+      eq(novelImportChapters.chapterNumber, input.chapterNumber),
+    )).limit(1).for("update");
+    const existingChapter = chapter;
+    if (chapter && !input.replaceExisting) {
+      throw new AdminDataError(
+        "IMPORT_CHAPTER_EXISTS",
+        `ตอน ${input.chapterNumber.toLocaleString("th-TH")} มีอยู่แล้ว เลือกยืนยันการบันทึกทับหากต้องการแทนที่ต้นฉบับ`,
+        409,
+      );
+    }
+    if (chapter?.linkedChapterId) {
+      throw new AdminDataError(
+        "IMPORT_CHAPTER_ALREADY_PUBLISHED",
+        `ตอน ${input.chapterNumber.toLocaleString("th-TH")} เชื่อมกับตอนที่เผยแพร่แล้ว กรุณาแก้ไขจากหน้าจัดการตอน`,
+        409,
+      );
+    }
+
+    if (chapter) {
+      [chapter] = await tx.update(novelImportChapters).set({
+        sourceUrl: input.sourceUrl,
+        originalTitle: input.originalTitle,
+        fetchedAt: now,
+        updatedAt: now,
+      }).where(eq(novelImportChapters.id, chapter.id)).returning();
+    } else {
+      [chapter] = await tx.insert(novelImportChapters).values({
+        sourceId: source.id,
+        chapterNumber: input.chapterNumber,
+        sourceUrl: input.sourceUrl,
+        originalTitle: input.originalTitle,
+        fetchedAt: now,
+      }).returning();
+    }
+
+    const [existingText] = await tx.select().from(novelImportChapterTexts).where(and(
+      eq(novelImportChapterTexts.chapterId, chapter.id),
+      eq(novelImportChapterTexts.language, source.sourceLanguage),
+    )).limit(1);
+    if (existingText) {
+      await tx.update(novelImportChapterTexts).set({
+        textKind: "source",
+        translationStatus: "source",
+        title: input.originalTitle,
+        content: input.originalText,
+        contentHash,
+        fetchedAt: now,
+        version: sql`${novelImportChapterTexts.version} + 1`,
+        updatedAt: now,
+      }).where(and(
+        eq(novelImportChapterTexts.chapterId, chapter.id),
+        eq(novelImportChapterTexts.language, source.sourceLanguage),
+      ));
+    } else {
+      await tx.insert(novelImportChapterTexts).values({
+        chapterId: chapter.id,
+        language: source.sourceLanguage,
+        textKind: "source",
+        translationStatus: "source",
+        title: input.originalTitle,
+        content: input.originalText,
+        contentHash,
+        fetchedAt: now,
+      });
+    }
+
+    const currentCheckpoint = source.lastSuccessfulChapter ?? 0;
+    const stagedAfterCheckpoint = await tx.select({
+      chapterNumber: novelImportChapters.chapterNumber,
+    }).from(novelImportChapters).innerJoin(
+      novelImportChapterTexts,
+      and(
+        eq(novelImportChapterTexts.chapterId, novelImportChapters.id),
+        eq(novelImportChapterTexts.language, source.sourceLanguage),
+        eq(novelImportChapterTexts.textKind, "source"),
+      ),
+    ).where(and(
+      eq(novelImportChapters.sourceId, source.id),
+      gt(novelImportChapters.chapterNumber, currentCheckpoint),
+    )).orderBy(asc(novelImportChapters.chapterNumber));
+    const lastSuccessfulChapter = advanceContiguousChapterCheckpoint(
+      currentCheckpoint,
+      stagedAfterCheckpoint.map(({ chapterNumber }) => chapterNumber),
+    );
+    const nextProbeChapter = lastSuccessfulChapter + 1;
+    await tx.update(novelImportSources).set({
+      lastSuccessfulChapter: lastSuccessfulChapter || null,
+      nextProbeChapter,
+      updatedAt: now,
+    }).where(eq(novelImportSources.id, source.id));
+
+    const action = existingChapter ? "replaced" : "created";
+    await tx.insert(adminAuditLogs).values({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: `import.chapter.manual_${action}`,
+      entityType: "import_chapter",
+      entityId: chapter.id,
+      before: existingChapter ? {
+        sourceId: source.id,
+        chapterNumber: existingChapter.chapterNumber,
+        sourceUrl: existingChapter.sourceUrl,
+        originalTitle: existingChapter.originalTitle,
+        lastSuccessfulChapter: source.lastSuccessfulChapter,
+      } : null,
+      after: {
+        sourceId: source.id,
+        chapterNumber: input.chapterNumber,
+        sourceUrl: input.sourceUrl,
+        originalTitle: input.originalTitle,
+        contentLength: input.originalText.length,
+        contentSha256: contentHash,
+        lastSuccessfulChapter,
+        nextProbeChapter,
+      },
+    });
+
+    return {
+      id: chapter.id,
+      action,
+      chapterNumber: input.chapterNumber,
+      lastSuccessfulChapter,
+      nextProbeChapter,
+    } as const;
+  });
+
+  revalidatePath("/admin/imports");
+  revalidatePath(`/admin/imports/${sourceId}`);
+  return result;
 }
 
 function normalizedLanguage(value: string) {

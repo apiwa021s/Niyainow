@@ -2,6 +2,7 @@ import Image from "next/image";
 import { ExternalLink } from "lucide-react";
 
 import { DetailRow, Panel, StatCard } from "@/components/admin/admin-ui";
+import { ImportManualChapterAction } from "@/components/admin/views/import-manual-chapter-action";
 import { ImportPublishAction } from "@/components/admin/views/import-publish-action";
 import { StatusPill } from "@/components/admin/status-pill";
 import { ButtonLink } from "@/components/ui/button";
@@ -34,6 +35,20 @@ export function ImportDetailView({ source }: { source: AdminImportSourceDetail }
           reason={source.publication.reason}
         />
       </Panel>
+
+      {source.contentFormat === "text" ? (
+        <Panel
+          title="เพิ่มตอนด้วยตนเอง"
+          description="ใช้เติมตอนที่ตัวนำเข้าข้ามหรือดึงไม่สำเร็จ เนื้อหาจะเข้า private staging และอัปเดต checkpoint แบบต่อเนื่อง"
+        >
+          <ImportManualChapterAction
+            sourceId={source.id}
+            nextChapterNumber={source.nextProbeChapter}
+            sourceLanguage={source.sourceLanguage}
+            defaultSourceUrl={source.seedUrl}
+          />
+        </Panel>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
         <Panel title="ภาพปก" bodyClassName="p-4">
